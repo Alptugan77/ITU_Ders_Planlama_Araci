@@ -58,6 +58,20 @@ GRADES = ["AA", "BA+", "BA", "BB+", "BB", "CB+", "CB", "CC+", "CC",
           "BL", "BZ", "M", "T", "E"]
 
 
+def can_refresh() -> bool:
+    """Bu ortamda OBS'den veri çekilebilir mi?
+
+    `pipeline` tarama bağımlılıklarını (`httpx`, `selectolax`) içeri alıyor.
+    Yerelde varlar; tarayıcıda (Pyodide) yoklar ve gerekmiyorlar da — katalog
+    siteyle birlikte yayınlanıyor. Bunu bir BAYRAK olarak taşımak, arayüzün
+    çalışmayacak bir düğme göstermesini engelliyor.
+    """
+    import importlib.util
+
+    return all(importlib.util.find_spec(m) is not None
+               for m in ("httpx", "selectolax"))
+
+
 class State:
     """Sunucunun paylaşılan durumu. Ayar değişince yeniden yükleniyor."""
 
@@ -83,7 +97,9 @@ class State:
         return config.Settings.load()
 
     def plan_ids(self) -> tuple[int | None, int | None]:
-        from .pipeline import _resolve_plans
+        # ★ `pipeline` DEĞİL: o modül tarama bağımlılıklarını (httpx,
+        # selectolax) içeri alıyor ve motoru tarayıcıda çalışamaz kılıyordu.
+        from .plans import resolve_plans as _resolve_plans
         return _resolve_plans(self.con, self.settings())
 
     def snapshot(self) -> dict:
@@ -98,9 +114,74 @@ class State:
         data["changes"] = self.changes()
         data["suggestions"] = self.suggestions()
         data["equivalences"] = self.applied_equivalences()
+        # Tarayıcıda tarama yapılamaz; arayüz "Veriyi tazele" düğmesini
+        # buna bakarak gizliyor.
+        data["canRefresh"] = can_refresh()
         data["savedPicks"] = self.saved()   # ★ "saved" DEĞİL: uç
         # cevaplarındaki kayıt sayacıyla çakışıyordu (test yakaladı).
         return data
+
+    # ------------------------------------------------------------ yönlendirme
+    # ★ Yazma uçlarının yönlendirmesi HTTP katmanında değil, burada.
+    #
+    # Sebep: aynı `State` iki farklı taşıyıcıyla kullanılıyor — yerel HTTP
+    # sunucusu (`make app`) ve tarayıcıda Pyodide (statik site). Yönlendirme
+    # `do_POST` içinde kalsaydı web sürümü onu KOPYALAMAK zorunda kalırdı ve
+    # iki kopya zamanla ayrışırdı: bir uç burada düzelir, orada düzelmez.
+    # Tek yerde durunca iki taşıyıcı da aynı davranışı alıyor.
+    def _route(self, path: str, b: dict) -> dict | None:
+        if path == "/api/transcript":
+            return {"saved": self.save_transcript(b.get("items") or [],
+                                                  bool(b.get("replace")))}
+        if path == "/api/transcript/paste":
+            n, bad = self.save_text(b.get("text") or "", bool(b.get("replace")))
+            return {"saved": n, "bad": bad}
+        if path == "/api/transcript/remove":
+            self.remove_course(str(b.get("course") or ""))
+            return {}
+        if path == "/api/transcript/restore":
+            return {"restored": self.restore_backup(b.get("file") or "")}
+        if path == "/api/programs":
+            self.save_programs(b)
+            return {}
+        if path == "/api/refresh":
+            return self.refresh(bool(b.get("skipObs")))
+        if path == "/api/equivalence":
+            return {"applied": self.apply_equivalence(
+                str(b.get("target") or ""), b.get("sources") or [],
+                str(b.get("note") or ""))}
+        if path == "/api/equivalence/remove":
+            return {"applied": self.remove_equivalence(str(b.get("target") or ""))}
+        if path == "/api/picks":
+            self.save_picks(b.get("picks") or [])
+            return {}
+        if path == "/api/picks/clear":
+            self.clear_picks()
+            return {}
+        if path == "/api/maxload":
+            self.save_max_load(b.get("maxLoad") or 0)
+            return {}
+        if path == "/api/donem":
+            self.save_term(b.get("donem") or 0,
+                           b.get("capBaslangic")
+                           if b.get("capBaslangic") is not None else None)
+            return {}
+        if path == "/api/watch":
+            return self.toggle_watch(str(b.get("course") or ""))
+        return None
+
+    def dispatch(self, path: str, body: dict) -> dict | None:
+        """Bir yazma ucunu çalıştırıp YENİ DURUMU döndürür.
+
+        `None` = böyle bir uç yok (HTTP tarafında 404). `ValueError` geçerli
+        ama reddedilen istek (400); başka istisna beklenmedik hata (500).
+        Bu ayrımı burada tutmak, iki taşıyıcının aynı hata anlamlarını
+        paylaşmasını sağlıyor.
+        """
+        extra = self._route(path, body)
+        if extra is None:
+            return None
+        return {**extra, **self.snapshot()}
 
     def setup(self) -> dict:
         """Düzenleme panellerini besleyen veri: programlar, planlar, transkript."""
@@ -114,6 +195,9 @@ class State:
             "secondPlanId": second_id,
             "programCodes": sorted(settings.allowed_programs),
             "donem": settings.donem,
+            # ÇAP'a başlanan yarıyıl — ikinci anadal kredi tabanını
+            # belirliyor. 0 = beyan edilmedi (motor taban iddia etmez).
+            "capBaslangic": settings.cap_baslangic_yariyili,
             "unit": settings.unit,
             "maxLoad": settings.max_load,
             "grades": GRADES,
@@ -299,6 +383,14 @@ class State:
         """
         if self.busy:
             raise ValueError("tazeleme zaten sürüyor")
+        if not can_refresh():
+            # ★ Tarayıcıda (Pyodide) tarama yığını yok ve olamaz: OBS'ye
+            # tarayıcıdan istek atmak zaten CORS'a takılır. Kullanıcıya
+            # "ModuleNotFoundError" göstermek yerine ne yapması gerektiğini
+            # söylüyoruz — ve arayüz düğmeyi hiç göstermiyor (bkz. canRefresh).
+            raise ValueError(
+                "veri tazeleme bu ortamda yapılamıyor — katalog siteyle "
+                "birlikte yayınlanıyor ve dönem başında güncelleniyor")
         self.busy = True
         try:
             from . import pipeline
@@ -382,7 +474,7 @@ class State:
         return S.clear_picks(self.ucon, self.student_id, self.settings().term)
 
     def watch_codes(self) -> set[str]:
-        from .pipeline import _watch_codes
+        from .plans import watch_codes as _watch_codes
         return _watch_codes(self.con, self.ucon, self.settings())
 
     def changes(self) -> dict:
@@ -399,11 +491,20 @@ class State:
         config.update_settings({"max_load": value})
         return value
 
-    def save_term(self, donem: int) -> int:
+    def save_term(self, donem: int, cap_baslangic: int | None = None) -> int:
         donem = int(donem)
         if not 0 <= donem <= 16:
             raise ValueError("dönem 0–16 arasında olmalı")
-        config.update_settings({"donem": donem})
+        values: dict = {"donem": donem}
+        if cap_baslangic is not None:
+            cb = int(cap_baslangic)
+            if not 0 <= cb <= 16:
+                raise ValueError("ÇAP başlangıç yarıyılı 0–16 arasında olmalı")
+            # ★ Arayüzden girilebilmesi şart: web sürümünde kullanıcının
+            # düzenleyebileceği bir `settings.toml` yok. "Dosyaya yaz" demek,
+            # web ziyaretçisine yapamayacağı bir şey söylemek olurdu.
+            values["cap_baslangic_yariyili"] = cb
+        config.update_settings(values)
         return donem
 
     def toggle_watch(self, course: str) -> dict:
@@ -554,56 +655,16 @@ class Handler(BaseHTTPRequestHandler):
         try:
             body = self._body()
             with self.state.lock:
-                if url.path == "/api/transcript":
-                    n = self.state.save_transcript(
-                        body.get("items") or [], bool(body.get("replace")))
-                    return self._json({"saved": n, **self.state.snapshot()})
-                if url.path == "/api/transcript/paste":
-                    n, bad = self.state.save_text(
-                        body.get("text") or "", bool(body.get("replace")))
-                    return self._json({"saved": n, "bad": bad,
-                                       **self.state.snapshot()})
-                if url.path == "/api/transcript/remove":
-                    self.state.remove_course(str(body.get("course") or ""))
-                    return self._json(self.state.snapshot())
-                if url.path == "/api/programs":
-                    self.state.save_programs(body)
-                    return self._json(self.state.snapshot())
-                if url.path == "/api/refresh":
-                    result = self.state.refresh(bool(body.get("skipObs")))
-                    return self._json({**result, **self.state.snapshot()})
-                if url.path == "/api/equivalence":
-                    n = self.state.apply_equivalence(
-                        str(body.get("target") or ""),
-                        body.get("sources") or [],
-                        str(body.get("note") or ""))
-                    return self._json({"applied": n, **self.state.snapshot()})
-                if url.path == "/api/equivalence/remove":
-                    n = self.state.remove_equivalence(str(body.get("target") or ""))
-                    return self._json({"applied": n, **self.state.snapshot()})
-                if url.path == "/api/picks":
-                    self.state.save_picks(body.get("picks") or [])
-                    return self._json(self.state.snapshot())
-                if url.path == "/api/picks/clear":
-                    self.state.clear_picks()
-                    return self._json(self.state.snapshot())
-                if url.path == "/api/transcript/restore":
-                    n = self.state.restore_backup(body.get("file") or "")
-                    return self._json({"restored": n, **self.state.snapshot()})
-                if url.path == "/api/maxload":
-                    self.state.save_max_load(body.get("maxLoad") or 0)
-                    return self._json(self.state.snapshot())
-                if url.path == "/api/donem":
-                    self.state.save_term(body.get("donem") or 0)
-                    return self._json(self.state.snapshot())
-                if url.path == "/api/watch":
-                    r = self.state.toggle_watch(str(body.get("course") or ""))
-                    return self._json({**r, **self.state.snapshot()})
+                # Yönlendirme State.dispatch'te — aynı sözleşmeyi tarayıcıdaki
+                # Pyodide sürümü de kullanıyor (bkz. State._route).
+                result = self.state.dispatch(url.path, body)
         except ValueError as exc:
             return self._error(400, str(exc))
         except Exception as exc:                       # noqa: BLE001
             return self._error(500, str(exc))
-        self._error(404, "yok")
+        if result is None:
+            return self._error(404, "yok")
+        self._json(result)
 
 
 def build(state: State, host: str = "127.0.0.1", port: int = 8770) -> ThreadingHTTPServer:

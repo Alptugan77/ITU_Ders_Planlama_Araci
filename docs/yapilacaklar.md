@@ -1,6 +1,6 @@
 # Yapılacaklar
 
-Faz 1–13 bitti (419 test). Depo GitHub'a hazır. Bu liste **sonrası** için: ne kaldı, neden önemli,
+Faz 1–14 bitti (433 test). Depo GitHub'a hazır; statik site çalışıyor. Bu liste **sonrası** için: ne kaldı, neden önemli,
 ne kadar iş, neye bağlı.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
@@ -142,33 +142,24 @@ yalnız **arz sorunlu** derste var — önşarta takılan ders nöbetle çözül
 
 ---
 
-## 4.4 Yayın — sunucu kararı bekliyor
+## 4.4 ~~Yayın~~ · ✅ **Faz 14'te kapandı** — statik site
 
-Depo açık kaynak olmaya hazır (MIT, README, CI, gizlilik denetimi). **Sunucuya
-koymak ayrı bir karar** ve mimariyi değiştiriyor; üç yol var:
+Motor **JS'e çevrilmedi**, Python tarayıcıya taşındı (Pyodide). Tek kod
+tabanı, 433 test web sürümünü de kapsıyor, iki sürüm ayrışamaz.
 
-| Yol | Kimin verisi nerede | İş | Risk |
-|---|---|---|---|
-| **A. Statik site** (GitHub Pages) | her ziyaretçininki KENDİ tarayıcısında | birkaç gün — motorun okuma tarafı tarayıcıya taşınmalı | yok |
-| **B. Sadece kod açık** (şu anki durum) | herkes kendi makinesinde | bitti | yok |
-| **C. Çok kullanıcılı sunucu** | senin sunucunda, başkalarının notları | haftalar | ⚠️ KVKK'da **veri sorumlusu** olursun |
+```bash
+make site                              # yerelde kur ve dene
+make refresh && gh release create katalog-$(date +%Y%m%d) data/reference.sqlite3
+# GitHub -> Actions -> "pages" -> Run workflow
+```
 
-★ Şu anki sunucu (`server.py`) **tek kişilik**: tek `user.sqlite3`, giriş yok.
-Olduğu gibi bir sunucuya konursa herkes aynı — yani senin — transkriptini
-görür ve değiştirir. Bu bir hata değil, tasarım kararı; C yolu seçilmeden
-sunucuya konmamalı.
+Ziyaretçinin notları tarayıcısında (IndexedDB) kalıyor; sunucu, uç, telemetri
+yok. Yayınlanan tek veri herkese açık katalog — **tutulacak kişisel veri
+üretilmiyor**, KVKK'da veri sorumlusu olunmuyor.
 
-**A yolu neden önerilir:** ders katalogu (planlar, şubeler, önşartlar) zaten
-herkese açık veri — statik dosya olarak yayınlanabilir. Notlar hiç sunucuya
-gitmediği için saklanacak kişisel veri de olmuyor: KVKK yükümlülüğü doğmuyor,
-sunucu maliyeti sıfır, sızdıracak bir veritabanı yok.
-
-**A yolunun işi:** `prereq_node` ağaçları ve planlar zaten veritabanında
-hesaplanmış hâlde — JSON'a dökülebilir. Tarayıcıya taşınması gereken:
-slot doldurma (`rules.py`), aday puanlama ve çakışma araması
-(`recommend.py`), kademelendirme (`sequence.py`). Arayüzün kendisi zaten JS.
-
----
+**Kalan:** çok kullanıcılı sunucu (C yolu) hâlâ bilerek yapılmıyor —
+başkalarının notlarını tutmak, karşılığında bir şey kazandırmadan sorumluluk
+yükler. Statik site aynı işi sıfır riskle görüyor.
 
 ## 5. Bilerek yapılmayanlar
 

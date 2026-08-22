@@ -27,6 +27,11 @@ transkript*.txt
 config/settings.toml
 config/denklikler.toml
 
+# --- TÜRETİLMİŞ ---------------------------------------------------------
+# Statik site `make site` ile üretiliyor; katalogu içerdiği için depoya
+# girmez. GitHub Actions her yayında yeniden kuruyor.
+site/
+
 # --- TESLİMAT / GEÇİCİ --------------------------------------------------
 *.tar.gz
 _to_delete/

@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+"""Statik site üretici — GitHub Pages için.
+
+    python tools/site_kur.py            # site/ klasörünü kurar
+    python -m http.server -d site 8000  # yerelde dene
+
+## Neden Pyodide
+
+Motorun tamamı **standart kütüphane** kullanıyor (`sqlite3`, `re`, `tomllib`,
+`dataclasses`). Tarama modülleri (`httpx`, `selectolax`) motorda değil,
+`sources/` altında. Bu yüzden motor JavaScript'e ÇEVRİLMEDEN tarayıcıda
+çalışabiliyor: Pyodide, CPython'un WebAssembly derlemesi.
+
+Çevirmek yerine taşımanın karşılığı somut:
+
+* **Tek kod tabanı.** Önşart ayrıştırıcısı, puanlama, mevzuat kuralları tek
+  yerde. JS'e çevirseydik iki motor olurdu ve bir kural birinde düzelip
+  öbüründe düzelmezdi — üstelik hangisinin doğru olduğunu kimse bilmezdi.
+* **Aynı testler.** 419 test web sürümünü de kapsıyor, çünkü aynı kod.
+* **Bakım.** Mevzuat değişince `config/kurallar.toml` değişiyor; iki dilde
+  iki kez uygulanmıyor.
+
+Bedeli ~2.5s'lik ilk yükleme (Pyodide) — dönemde birkaç kez açılan bir araç
+için kabul edilebilir.
+
+## Gizlilik — sitenin varlık sebebi
+
+★ Bu site **sunucusuz**. Ziyaretçinin notları:
+
+* tarayıcısında hesaplanır (Pyodide sanal dosya sisteminde bir SQLite),
+* tarayıcısında saklanır (IndexedDB),
+* **hiçbir yere gönderilmez** — sunucu yok, uç yok, istek yok.
+
+Yayınlanan tek veri herkese açık ders kataloğu. Bu yüzden site tutulacak
+kişisel veri üretmiyor: sızdıracak bir veritabanı yok.
+"""
+from __future__ import annotations
+
+import gzip
+import json
+import re
+import shutil
+import sqlite3
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SITE = ROOT / "site"
+
+# Tarayıcıya giden motor modülleri. Tarama (`sources/`, `pipeline`, `http`) ve
+# masaüstüne özgü olanlar (`watch` — macOS bildirimi) DIŞARIDA: hem gereksiz
+# hem bağımlılık taşıyorlar.
+ENGINE = ["__init__", "basvuru", "changes", "config", "db", "declared",
+          "discover", "normalize", "plans", "policy", "prereq", "progress",
+          "recommend", "rules", "sequence", "server", "student", "ui"]
+SCHEMA = ["schema.sql", "schema_user.sql"]
+# Herkese ait yapılandırma. `settings.toml` ve `denklikler.toml` KİŞİSEL —
+# siteye girmiyor; ziyaretçininki tarayıcısında oluşuyor.
+CONFIG = ["kurallar.toml", "katalog-duzeltmeleri.toml"]
+
+
+def prune(src: Path, dst: Path) -> dict:
+    """Katalogdan tarayıcıya gerekmeyeni atar.
+
+    ★ En büyük kazanç eski plan iterasyonları: OBS aynı program için yıl
+    aralığı başına ayrı plan tutuyor ve yürürlükte olan yalnız biri.
+    Hepsini indirmek ziyaretçiye kullanmayacağı veriyi ödetirdi.
+    """
+    shutil.copy(src, dst)
+    con = sqlite3.connect(dst)
+    stats = {}
+
+    rows = con.execute("SELECT id,program_code,plan_type,iteration FROM plan").fetchall()
+    groups: dict[tuple, list] = {}
+    for pid, prog, ptype, it in rows:
+        groups.setdefault((prog, ptype), []).append((pid, it or ""))
+
+    def rank(x):
+        pid, it = x
+        m = re.search(r"(\d{4})\s*-\s*\d{4}", it)
+        # 'Sonrası' = açık uçlu, yürürlükte olan. Yoksa en yeni yıl aralığı.
+        return (1 if "Sonras" in it else 0, int(m.group(1)) if m else 0, pid > 0, pid)
+
+    keep = {max(items, key=rank)[0] for items in groups.values()}
+    con.executemany("DELETE FROM plan WHERE id=?",
+                    [(r[0],) for r in rows if r[0] not in keep])
+    con.execute("DELETE FROM plan_slot WHERE plan_id NOT IN (SELECT id FROM plan)")
+    con.execute("DELETE FROM pool_option WHERE slot_id NOT IN (SELECT id FROM plan_slot)")
+    stats["plan"] = f"{len(rows)} → {len(keep)}"
+
+    # Tarama geçmişi ve kalite raporları tarayıcıda kullanılmıyor.
+    for t in ("lesson_snapshot", "snapshot_run", "ingest_run", "quality_finding",
+              "prereq_unparsed", "prereq_repair", "obs_program_ref",
+              "plan_host_program"):
+        try:
+            con.execute(f"DELETE FROM {t}")
+        except sqlite3.OperationalError:
+            pass
+
+    # ★★ KİŞİSEL VERİ — `reference.sqlite3` "herkese açık katalog" diye
+    # tasarlandı ama `declared.apply()` kullanıcının KENDİ denklik beyanlarını
+    # buraya yazıyor (`confidence='user_declared'`). Yerelde sorun değil;
+    # yayınlanınca "bu kişi GEO 220E aldı ve MAT 210E yerine saydırıyor"
+    # demek olur — hangi dersleri aldığını ve ne talep ettiğini açık eder.
+    #
+    # İlk kurulumda gözden kaçtı ve sitede göründü. `.gitignore` bunu
+    # yakalayamazdı: sızıntı dosya adında değil, dosyanın İÇİNDE.
+    # Bu yüzden `tools/gizlilik_denetimi.py` artık kurulan siteyi de tarıyor.
+    n = con.execute(
+        "SELECT COUNT(*) FROM equivalence WHERE confidence='user_declared'"
+    ).fetchone()[0]
+    con.execute("""DELETE FROM equivalence_source WHERE equivalence_id IN
+                     (SELECT id FROM equivalence WHERE confidence='user_declared')""")
+    con.execute("DELETE FROM equivalence WHERE confidence='user_declared'")
+    stats["kisisel_denklik_silindi"] = n
+
+    # `source_url` yerel dosya yollarını taşıyor (/home/kullanici/...) —
+    # kullanıcı adını sızdırır. Yayında gereksiz.
+    try:
+        con.execute("UPDATE equivalence SET source_url=NULL WHERE source_url LIKE '/%'")
+    except sqlite3.OperationalError:
+        pass
+    con.commit()
+    con.execute("VACUUM")
+    stats["ders"] = con.execute("SELECT COUNT(*) FROM course").fetchone()[0]
+    stats["sube"] = con.execute("SELECT COUNT(*) FROM lesson").fetchone()[0]
+    stats["donem"] = (con.execute(
+        "SELECT term FROM lesson WHERE term IS NOT NULL LIMIT 1").fetchone()
+        or ("?",))[0]
+    con.close()
+    return stats
+
+
+def build(pyodide_dir: Path | None = None) -> Path:
+    sys.path.insert(0, str(ROOT / "src"))
+    from itucap import ui as UI
+
+    ref = ROOT / "data" / "reference.sqlite3"
+    if not ref.exists():
+        raise SystemExit(f"❌ katalog yok: {ref}\n   Önce `make refresh` çalıştır.")
+
+    if SITE.exists():
+        shutil.rmtree(SITE)
+    (SITE / "itucap").mkdir(parents=True)
+    (SITE / "config").mkdir()
+
+    for name in ENGINE:
+        shutil.copy(ROOT / "src" / "itucap" / f"{name}.py",
+                    SITE / "itucap" / f"{name}.py")
+    for name in SCHEMA:
+        shutil.copy(ROOT / "src" / "itucap" / name, SITE / "itucap" / name)
+    for name in CONFIG:
+        shutil.copy(ROOT / "config" / name, SITE / "config" / name)
+
+    tmp = SITE / "_katalog.sqlite3"
+    stats = prune(ref, tmp)
+    raw = tmp.stat().st_size
+    (SITE / "katalog.sqlite3.gz").write_bytes(
+        gzip.compress(tmp.read_bytes(), 9))
+    tmp.unlink()
+    gz = (SITE / "katalog.sqlite3.gz").stat().st_size
+
+    # ★ Kabuk: AYNI şablon, verisi sonradan yükleniyor.
+    shell = UI.render({}, deferred=True)
+    shell = shell.replace("</head>", f'{_LOADER_CSS}</head>', 1)
+    shell = shell.replace("<body>", f"<body>{_LOADER_HTML}", 1)
+    shell = shell.replace("</body>", f'<script src="./app.js"></script></body>', 1)
+    (SITE / "index.html").write_text(shell, encoding="utf-8")
+    shutil.copy(ROOT / "web" / "app.js", SITE / "app.js")
+
+    (SITE / "manifest.json").write_text(json.dumps({
+        "engine": ENGINE, "config": CONFIG, "schema": SCHEMA,
+        "catalog": {"file": "katalog.sqlite3.gz", "bytes": gz, "raw": raw,
+                    **{k: str(v) for k, v in stats.items()}},
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # GitHub Pages Jekyll'i atlasın (alt çizgiyle başlayan dosyaları yer).
+    (SITE / ".nojekyll").write_text("", encoding="utf-8")
+
+    if pyodide_dir and pyodide_dir.exists():
+        shutil.copytree(pyodide_dir, SITE / "pyodide")
+        print(f"   pyodide yerel kopya: {SITE / 'pyodide'}")
+
+    print(f"✅ {SITE}")
+    print(f"   katalog {raw/1e6:.1f} MB → gzip {gz/1e6:.1f} MB · "
+          f"{stats['ders']} ders · {stats['sube']} şube · dönem {stats['donem']}")
+    print(f"   plan {stats['plan']} (yalnız yürürlükteki iterasyon)")
+    print(f"   dene: python -m http.server -d {SITE} 8000")
+    return SITE
+
+
+_LOADER_CSS = """
+<style>
+#yukleniyor{position:fixed;inset:0;z-index:99;display:flex;align-items:center;
+  justify-content:center;background:var(--ground);color:var(--ink)}
+#yukleniyor .kutu{max-width:460px;padding:0 24px}
+#yukleniyor h1{font-size:22px;margin-bottom:10px}
+#yukleniyor p{color:var(--ink-2);font-size:13.5px;line-height:1.65}
+#yukleniyor .adim{font-family:"IBM Plex Mono",monospace;font-size:12px;
+  color:var(--ink-3);margin-top:14px;min-height:18px}
+#yukleniyor .cubuk{height:3px;background:var(--surface-2);margin-top:10px;
+  overflow:hidden}
+#yukleniyor .cubuk i{display:block;height:100%;width:0;background:var(--seal);
+  transition:width .3s ease}
+#yukleniyor .gizli{color:var(--anadal);font-weight:600}
+</style>
+"""
+
+_LOADER_HTML = """
+<div id="yukleniyor"><div class="kutu">
+  <div class="eyebrow">İTÜ ÇAP · YANDAL</div>
+  <h1>Ders planlama</h1>
+  <p><span class="gizli">Notların tarayıcından çıkmıyor.</span>
+     Bu sitenin sunucusu yok: hesap senin cihazında yapılıyor, girdiğin
+     notlar yalnız bu tarayıcıda saklanıyor. Yayınlanan tek veri herkese
+     açık ders kataloğu.</p>
+  <div class="cubuk"><i id="yukCubuk"></i></div>
+  <div class="adim" id="yukAdim">başlıyor…</div>
+</div></div>
+"""
+
+
+if __name__ == "__main__":
+    pyo = None
+    if len(sys.argv) > 1:
+        pyo = Path(sys.argv[1])
+    build(pyo)

@@ -378,8 +378,20 @@ def _term_note(cands: list[REC.Candidate], donem: int, second_label: str) -> str
     return " · ".join(parts)
 
 
-def render(data: dict) -> str:
-    return _TEMPLATE.replace("__DATA__", json.dumps(data, ensure_ascii=False))
+def render(data: dict, *, deferred: bool = False) -> str:
+    """Tek dosyalık arayüz.
+
+    `deferred=True` → veriyi SONRA yükleyen bir kabuk üretir. Statik site
+    (GitHub Pages) için: sayfa açılır, Pyodide yüklenir, motor tarayıcıda
+    çalışır, sonuç `window.__ITUCAP_APPLY__(data)` ile içeri verilir.
+
+    ★ Şablon kopyalanmıyor — aynı CSS ve aynı JS. İki sürüm çıkarsaydı
+    tasarım düzeltmesi birinde yapılır, öbüründe unutulurdu.
+    """
+    html = _TEMPLATE.replace("__DATA__", json.dumps(data, ensure_ascii=False))
+    if deferred:
+        html = html.replace("\nboot();\n", "\nwindow.__ITUCAP_APPLY__ = applyState;\n")
+    return html
 
 
 def write(data: dict, dest: Path | None = None) -> Path:
@@ -923,6 +935,12 @@ let LIVE = !!DATA.live;
 let SETUP = DATA.setup || null;
 
 async function api(path, payload){
+  /* ★ Taşıyıcıdan bağımsız uç çağrısı.
+     `make app` → HTTP ile 127.0.0.1'e. Statik site → tarayıcıdaki Python
+     (Pyodide) doğrudan `State.dispatch` çağırıyor, ağa hiç çıkılmıyor.
+     İkisi de AYNI uç adlarını ve aynı cevabı kullanıyor; arayüz hangi
+     taşıyıcıda olduğunu bilmek zorunda değil. */
+  if(window.__ITUCAP_API__) return window.__ITUCAP_API__(path, payload);
   let res;
   try{
     res = await fetch(path, {
@@ -1077,6 +1095,7 @@ function programDialog(){
 /* ---------- 2. dönem seçimi ---------- */
 function termDialog(){
   const cur = SETUP.donem;
+  const capCur = SETUP.capBaslangic || 0;
   openSetup(`
     <div class="eyebrow">Kurulum</div>
     <h2 style="margin-bottom:4px">Bulunduğun dönem</h2>
@@ -1093,8 +1112,28 @@ function termDialog(){
       <span class="hint">Şu an kullanılan: <b class="mono">${DATA.donem}. dönem</b>
         (${esc(DATA.donemSource)}). Otomatik seçilirse geçtiğin slotların en derin
         döneminden çıkarılır — kayıt donduran ya da yaz okulu okuyanda şaşabilir.
+      </span></label>
+    <label class="field" style="margin-top:14px"><span>ÇAP'a başladığın yarıyıl</span>
+      <div class="terms" id="fCap">
+        <button data-t="0" aria-pressed="${!capCur}" style="width:auto;padding:7px 12px"
+          >bilmiyorum</button>
+        <button data-t="3" aria-pressed="${capCur === 3}">3</button>
+        <button data-t="5" aria-pressed="${capCur === 5}">5</button>
+      </div>
+      <span class="hint">Bulunduğun dönem <b>değil</b> — ikinci anadala
+        <b>başladığın</b> yarıyıl. Yönerge yarıyıl tabanını buna bağlıyor:
+        3'te başlayan her dönem en az <b>6</b>, 5'te başlayan en az <b>9</b>
+        kredilik dersi ikinci anadaldan almak zorunda.
+        &#8220;Bilmiyorum&#8221; seçilirse araç hiçbir taban iddia etmez.
       </span></label>`, () => {
     let pick = cur || 0;
+    let capPick = capCur || 0;
+    $("#fCap").querySelectorAll("button").forEach(b =>
+      b.addEventListener("click", () => {
+        capPick = +b.dataset.t;
+        $("#fCap").querySelectorAll("button").forEach(x =>
+          x.setAttribute("aria-pressed", +x.dataset.t === capPick));
+      }));
     $("#fTerm").querySelectorAll("button").forEach(b =>
       b.addEventListener("click", () => {
         pick = +b.dataset.t;
@@ -1102,7 +1141,7 @@ function termDialog(){
           x.setAttribute("aria-pressed", +x.dataset.t === pick));
       }));
     $("#setupSave").addEventListener("click", () =>
-      save(() => api("/api/donem", {donem: pick})));
+      save(() => api("/api/donem", {donem: pick, capBaslangic: capPick})));
   });
 }
 
@@ -1377,9 +1416,10 @@ function renderFloor(){
       Yönerge, ÇAP'a <b>3.</b> yarıyılda başlayana her dönem en az <b>6</b>,
       <b>5.</b> yarıyılda başlayana en az <b>9</b> kredi şartı koyuyor —
       ama hangi yarıyılda başladığın beyan edilmemiş.
-      <span class="mono">config/settings.toml</span> içindeki
-      <span class="mono">${esc(F.setting)}</span> alanına yaz;
-      araç o zaman uyarabilir.</div>`;
+      ${LIVE
+        ? `<b>Dönem</b> düğmesinden gir — araç o zaman uyarabilir.`
+        : `<span class="mono">config/settings.toml</span> içindeki
+           <span class="mono">${esc(F.setting)}</span> alanına yaz.`}</div>`;
     return;
   }
 
@@ -1764,7 +1804,18 @@ function crnDialog(){
 /* ---------- veriyi tazele ---------- */
 function wireRefresh(){
   const btn = $("#refreshBtn");
-  if(!btn || !LIVE) return;
+  if(!btn) return;
+  /* ★ Tarayıcıda (statik site) tarama yapılamaz: `httpx`/`selectolax` yok,
+     üstelik OBS'ye tarayıcıdan istek atmak CORS'a takılır. Çalışmayacak bir
+     düğme göstermek, kullanıcıya var olmayan bir yol önermek olurdu. */
+  if(LIVE && DATA.canRefresh === false){
+    btn.hidden = true;
+    const not = $("#changeWhen");
+    if(not) not.textContent = "Katalog siteyle birlikte yayınlanıyor; "
+      + "dönem başında güncelleniyor.";
+    return;
+  }
+  if(!LIVE) return;
   btn.onclick = async () => {
     btn.disabled = true;
     const was = btn.textContent;

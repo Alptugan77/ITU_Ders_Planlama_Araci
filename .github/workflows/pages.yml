@@ -1,0 +1,87 @@
+name: pages
+
+# Statik siteyi kurup GitHub Pages'e yayınlar.
+#
+# ⚠️ Katalog (data/reference.sqlite3) depoda YOK — 15 MB'lık türetilmiş veri
+# ve `.gitignore`da. O yüzden bu akış onu bir **sürüm varlığından (release
+# asset)** indiriyor. Katalogu güncellemek için kendi makinende:
+#
+#     make refresh                       # OBS'den taze veri
+#     gh release create katalog-$(date +%Y%m%d) data/reference.sqlite3
+#
+# Böylece kişisel veri barındıran hiçbir dosya depoya girmiyor ama site
+# güncel katalogla kurulabiliyor.
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  kur:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Katalogu indir
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p data
+          # En son 'katalog-' etiketli sürümden reference.sqlite3'ü al.
+          etiket=$(gh release list --limit 50 --json tagName \
+            --jq '[.[] | select(.tagName | startswith("katalog-"))][0].tagName')
+          if [ -z "$etiket" ]; then
+            echo "::error::'katalog-*' etiketli sürüm yok. Önce yükle:"
+            echo "::error::gh release create katalog-$(date +%Y%m%d) data/reference.sqlite3"
+            exit 1
+          fi
+          echo "katalog sürümü: $etiket"
+          gh release download "$etiket" --pattern 'reference.sqlite3' --dir data
+
+      - name: Pyodide indir
+        # ★ CDN yerine PAKETE alıyoruz. Sebep gizlilik: CDN kullansaydık her
+        # ziyaretçinin tarayıcısı üçüncü bir tarafa (jsdelivr) istek atardı.
+        # "Hiçbir şey tarayıcından çıkmıyor" diyen bir aracın, açılışta
+        # başkasına haber vermesi tutarsız olurdu. Yan fayda: CDN engellense
+        # ya da düşse site çalışmaya devam eder.
+        run: |
+          npm install pyodide@0.28.3 --silent --no-save
+          echo "PYODIDE=$PWD/node_modules/pyodide" >> "$GITHUB_ENV"
+
+      - name: Siteyi kur
+        run: python tools/site_kur.py "$PYODIDE"
+
+      - name: Gizlilik denetimi
+        # ★ Yayından ÖNCE son kontrol. Kurulan sitenin İÇİNİ tarıyor:
+        # katalogda kişisel denklik beyanı, yerel dosya yolu ya da öğrenci
+        # tablosu varsa yayın DURUR. Bir kez sızan veri geri alınamaz.
+        run: python tools/gizlilik_denetimi.py
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  yayinla:
+    needs: kur
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

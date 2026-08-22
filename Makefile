@@ -2,7 +2,7 @@ PY ?= python3
 VENV := .venv
 BIN := $(VENV)/bin
 
-.PHONY: help setup refresh offline app watch changes suggest all-plans plans plan-info programs basvuru gizlilik status verify sequence student transcript progress recommend ui test prereq-report clean
+.PHONY: help setup refresh offline app watch changes suggest all-plans plans plan-info programs basvuru site gizlilik status verify sequence student transcript progress recommend ui test prereq-report clean
 
 help:
 	@echo "make setup     - sanal ortam + bağımlılıklar"
@@ -28,6 +28,7 @@ help:
 	@echo "make test      - testler"
 	@echo "make plans P=BLG_LS T=cap  - OBS plan listesi"
 	@echo "make basvuru  - hangi ÇAP/yandal programlarına başvurabilirim"
+	@echo "make site     - GitHub Pages için statik site kur"
 	@echo "make gizlilik - depoya kişisel veri sızmış mı"
 
 setup:
@@ -76,6 +77,10 @@ app:
 ui:
 	$(BIN)/python -m itucap.pipeline ui $(ARGS)
 	@command -v open >/dev/null && open data/itucap.html || true
+
+site:
+	$(BIN)/python tools/site_kur.py $(ARGS)
+	@echo "   dene: python3 -m http.server -d site 8000"
 
 gizlilik:
 	$(BIN)/python tools/gizlilik_denetimi.py

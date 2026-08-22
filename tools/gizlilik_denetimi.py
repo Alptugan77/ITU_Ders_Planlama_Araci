@@ -13,6 +13,14 @@ edilmesi. `.gitignore` bunu engelliyor ama tek savunma olarak yeterli değil:
 bakıyor ve git'in izlediği dosyaları ayrıca sorguluyor. Kendi kendini
 doğrulayan bir savunma, kurulumuna güvenen bir savunmadan iyidir.
 
+★★ Dosya ADI yetmez — dosyanın İÇİ de denetleniyor.
+
+22.08.2026'da statik site ilk kurulduğunda yayınlanan katalogda kullanıcının
+kendi denklik beyanları çıktı (`equivalence.confidence='user_declared'`).
+Dosya adı masumdu (`katalog.sqlite3.gz`), sızıntı içerideydi. `.gitignore`
+böyle bir şeyi hiçbir zaman yakalayamaz. O yüzden `site/` kurulduysa
+veritabanının içeriği de taranıyor.
+
 Kullanım:
     python tools/gizlilik_denetimi.py          # 0 = temiz, 1 = sızıntı var
 """
@@ -74,6 +82,61 @@ def yasak_mi(yol: str) -> str | None:
     return None
 
 
+def site_denetle() -> list[str]:
+    """Kurulmuş `site/` klasörü — yayınlanacak veri temiz mi?
+
+    Katalog herkese açık olmalı. İçinde kullanıcıya ait tek bir satır bile
+    olmamalı: kimin hangi dersi aldığı ya da ne saydırdığı kişisel veri.
+    """
+    import gzip
+    import sqlite3
+    import tempfile
+
+    site = ROOT / "site"
+    gz = site / "katalog.sqlite3.gz"
+    if not gz.exists():
+        return []
+    sorunlar: list[str] = []
+
+    # Kişisel yapılandırma siteye hiç girmemeli.
+    for ad in ("settings.toml", "denklikler.toml"):
+        if (site / "config" / ad).exists():
+            sorunlar.append(f"  ❌ site/config/{ad} — kişisel yapılandırma yayında")
+    if (site / "data").exists() or (site / "user.sqlite3").exists():
+        sorunlar.append("  ❌ site/ içinde kullanıcı veritabanı var")
+
+    with tempfile.NamedTemporaryFile(suffix=".sqlite3", delete=False) as fh:
+        fh.write(gzip.decompress(gz.read_bytes()))
+        yol = fh.name
+    try:
+        con = sqlite3.connect(yol)
+        n = con.execute(
+            "SELECT COUNT(*) FROM equivalence WHERE confidence='user_declared'"
+        ).fetchone()[0]
+        if n:
+            sorunlar.append(
+                f"  ❌ katalogda {n} adet KİŞİSEL denklik beyanı "
+                f"(equivalence.confidence='user_declared')")
+        # Yerel dosya yolları kullanıcı adını sızdırır.
+        n = con.execute(
+            "SELECT COUNT(*) FROM equivalence WHERE source_url LIKE '/home/%' "
+            "OR source_url LIKE '/Users/%'").fetchone()[0]
+        if n:
+            sorunlar.append(f"  ❌ katalogda {n} kayıtta yerel dosya yolu var")
+        # Öğrenci tabloları referans şemasında yok; varsa yanlış DB yayınlanmış.
+        for t in ("student", "earned_course", "slot_fulfillment", "term_pick"):
+            try:
+                c = con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+            except sqlite3.OperationalError:
+                continue
+            sorunlar.append(f"  ❌ katalogda '{t}' tablosu var ({c} satır) — "
+                            f"kullanıcı veritabanı yayınlanmış olabilir")
+        con.close()
+    finally:
+        pathlib.Path(yol).unlink(missing_ok=True)
+    return sorunlar
+
+
 def main() -> int:
     sorunlar: list[str] = []
 
@@ -111,7 +174,12 @@ def main() -> int:
                 f"  ❌ {yol}:{satir}  transkript satırı gibi: "
                 f"{eslesme.group().strip()!r}")
 
-    print(f"Gizlilik denetimi — {len(dosyalar)} dosya ({kaynak})")
+    site_sorunlari = site_denetle()
+    sorunlar.extend(site_sorunlari)
+
+    print(f"Gizlilik denetimi — {len(dosyalar)} dosya ({kaynak})"
+          + ("  + kurulmuş site" if (ROOT / "site" / "katalog.sqlite3.gz").exists()
+             else ""))
     if sorunlar:
         print("\nSIZINTI:\n" + "\n".join(sorunlar))
         print("\nBu dosyalar kişisel veri içerebilir ve herkese açık bir depoda")

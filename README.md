@@ -50,12 +50,41 @@ bunu her yerde yazar.
 
 ## Gizlilik
 
-* Notların yalnız `data/user.sqlite3` dosyasında; o dosya **`.gitignore`da**.
+* **Web sürümünde sunucu yok.** Notların tarayıcında hesaplanıyor,
+  tarayıcında saklanıyor, hiçbir yere gönderilmiyor: uç yok, istek yok,
+  telemetri yok. Pyodide bile CDN'den değil siteden geliyor — açılışta
+  üçüncü bir tarafa haber verilmiyor.
+* Yerel sürümde notların yalnız `data/user.sqlite3` dosyasında; `data/`
+  klasörünün tamamı **`.gitignore`da**.
 * Ders kataloğu (`data/reference.sqlite3`) herkese açık veri, ayrı dosyada.
 * Yerel sunucu **yalnız `127.0.0.1`**'e bağlanır. Dışarı açmak için
   tasarlanmadı; portu tünelleme.
 * Üretilen `data/itucap.html` **notlarını içerir** — paylaşma.
 * Araç OBS şifresi istemez, oturum açmaz, senin adına kayıt yapmaz.
+
+## İki kullanım yolu
+
+| | Nerede çalışır | Veri nerede | Ne gerekir |
+|---|---|---|---|
+| **Web** | tarayıcıda (Pyodide) | senin tarayıcında (IndexedDB) | yok — siteyi aç |
+| **Yerel** | kendi bilgisayarında | `data/user.sqlite3` | Python 3.11+ |
+
+Web sürümü aynı motoru çalıştırıyor — JavaScript'e çevrilmiş bir kopya değil,
+Python'un WebAssembly derlemesi. Yani iki sürüm ayrışamaz. Farkı yalnız
+**veri tazeleme**: OBS'den tarama kendi makinende yapılıyor, web sürümü
+siteyle birlikte yayınlanan katalogu kullanıyor.
+
+### Siteyi kendin yayınla
+
+```bash
+make refresh                                          # OBS'den taze katalog
+gh release create katalog-$(date +%Y%m%d) data/reference.sqlite3
+# GitHub -> Actions -> "pages" -> Run workflow
+```
+
+Katalog depoya girmiyor (türetilmiş veri, 15 MB); yayın akışı onu sürüm
+varlığından indirip siteyi kuruyor ve **yayından önce gizlilik denetimi
+çalıştırıyor**. Yerelde denemek için: `make site`.
 
 ## Kurulum
 
@@ -125,9 +154,18 @@ src/itucap/
   discover.py   aday denklik keşfi (ad + kredi eşleşmesi)
   changes.py    anlık görüntü ve fark
   watch.py      kontenjan nöbeti
+  plans.py      plan çözümleme (tarama bağımlılığı YOK — web için şart)
   ui.py         tek dosyalık HTML arayüz üretici
-  server.py     yerel sunucu (127.0.0.1, jeton + Origin denetimi)
+  server.py     State + yönlendirme; iki taşıyıcı da bunu kullanır
+tools/
+  site_kur.py            statik site üretici (katalogu budar + temizler)
+  gizlilik_denetimi.py   kişisel veri sızıntısı denetimi
+web/app.js               tarayıcı çalıştırıcısı (Pyodide + IndexedDB)
 ```
+
+`State` iki taşıyıcıyla kullanılıyor: yerel HTTP sunucusu ve tarayıcıdaki
+Pyodide. Yönlendirme `State.dispatch()`'te tek yerde — kopyalansaydı iki
+sürüm zamanla ayrışırdı.
 
 İki veritabanı ayrı tutuluyor: `reference.sqlite3` (herkese açık katalog) ve
 `user.sqlite3` (senin notların). Ayrım kasıtlı — kişisel veri tek bir dosyada
@@ -136,8 +174,13 @@ toplanıyor, yedeklemesi ve silmesi kolay.
 ## Test
 
 ```bash
-make test        # 395 test
+make test        # 433 test + gizlilik denetimi
 ```
+
+Gizlilik denetimi (`tools/gizlilik_denetimi.py`) dosya adına **değil
+içeriğine** bakıyor: kurulmuş siteyi açıp katalogda kişisel denklik beyanı,
+yerel dosya yolu ya da öğrenci tablosu arıyor. Bir kez sızan veri geri
+alınamaz, o yüzden yayın hattının zorunlu adımı.
 
 Playwright kuruluysa tarayıcı testleri de koşar; kurulu değilse atlanır —
 proje bağımlılığı değil.
