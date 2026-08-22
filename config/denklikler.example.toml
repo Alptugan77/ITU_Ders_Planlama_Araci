@@ -1,0 +1,35 @@
+# Elle bildirilen ders denklikleri — KİŞİSEL DOSYA.
+#
+# `config/denklikler.toml` olarak kopyala ve kendi beyanlarını yaz.
+# O dosya `.gitignore`da: senin transkriptinle ilgili, depoya girmez.
+#
+# ⚠️ Bunlar SENİN beyanın. Uygulama "resmi" gibi göstermez. Ders saydırma için
+#    Fakülte Yönetim Kurulu kararı gerekebilir — danışmanına doğrulat.
+#
+# Biçim:
+#   [[denklik]]
+#   hedef   = "MAT 210E"          # yerine sayılacak ders
+#   kaynak  = ["GEO 220E"]        # elindeki ders(ler) — HEPSİ gerekli
+#   min_not = "DD"                # isteğe bağlı, varsayılan DD
+#   not_    = "neden böyle olduğunun gerekçesi ve tarihi"
+#
+# Çok kaynaklı örnek:
+#   [[denklik]]
+#   hedef  = "KIM 206"
+#   kaynak = ["KIM 211E", "KIM 212"]
+
+# --- Örnek (kendi beyanlarınla değiştir) ---
+# [[denklik]]
+# hedef   = "MAT 210E"
+# kaynak  = ["GEO 220E"]
+# not_    = "Bölüm onayı ile sayıldı — 01.01.2026"
+
+# ÖNŞART MUAFİYETLERİ
+#
+# Denklikten FARKLI: "elimde karşılığı yok ama bu önşart benden aranmıyor".
+# Karşılığı olan bir ders varsa [[denklik]] kullan — daha doğru, çünkü
+# gerçekten neyin neyi karşıladığını kaydeder.
+#
+#   [[muafiyet]]
+#   dersler = ["FIZ 101E"]
+#   not_    = "yatay geçişte muaf sayıldı"

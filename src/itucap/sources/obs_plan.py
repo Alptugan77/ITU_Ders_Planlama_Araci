@@ -1,0 +1,290 @@
+"""WP1.1 + WP1.2 — OBS ders planı scraper'ı (ÇAP DAHİL).
+
+Keşif notları (17–18 Ağustos 2026, docs/obs-endpoints.md):
+
+*   Kademeli menü ATLANABİLİR. Plan listesi tek GET ile alınır:
+        /public/DersPlan/DersPlanlariList?PlanTipiKodu=cap&programKodu=BLG_LS
+*   Plan detayı basit tamsayı id ile: /public/DersPlan/DersPlanDetay/2229
+*   ★ ÇAP planları (ANADAL, ÇAP) çiftine göre tanımlı: 'TUMMUH_BLG', 'GEO_BLG'...
+*   ★ İKİ FARKLI SAYFA DÜZENİ VAR:
+      - ANADAL (lisans/uolp): her yarıyıl için AYRI tablo, önünde "N. Semester"
+        başlığı. HTAE (2295) -> 8 tablo.
+      - ÇAP: TEK düz tablo, yarıyıl yok, 'Compulsory/Elective' (Z/S) sütunu var.
+        Ayrıca #dersPlanProgramList = planın geçerli olduğu anadal programları.
+*   Her iki düzende de sütunlar aynı:
+      Course Code | Course Title | Language | Compulsory/Elective | Credit |
+      ECTS | Teo. | Tutorial | Lab. | Type
+    Son sütun ('Type') ders kategorisini DOĞRUDAN verir (MT/TB/TM/ITB/EC) —
+    etiket metnini parse etmekten daha güvenilir.
+*   Seçmeli havuz linki: /public/DersPlan/_DersGrupSearch?grupId=11386
+"""
+from __future__ import annotations
+
+import re
+import sqlite3
+from urllib.parse import parse_qs, urlparse
+
+from selectolax.parser import HTMLParser
+
+from .. import config, db
+from ..normalize import (
+    CATEGORIES,
+    normalize_course_code,
+    normalize_pool_label,
+    obs_code_to_program,
+    split_cap_plan_code,
+)
+
+_CODE_TITLE_RE = re.compile(r"^(?P<code>[A-Z0-9]+(?:_[A-Z0-9]+)+)\s+(?P<rest>.*)$")
+# "1. Semester" / "1. Yarıyıl" / "1.Yarıyıl"
+_TERM_HEAD_RE = re.compile(r"^\s*(\d{1,2})\s*\.\s*(Semester|Yarıyıl|Yariyil)\b", re.IGNORECASE)
+_HEADER_ROW_RE = re.compile(r"course\s*code|ders\s*kodu", re.IGNORECASE)
+
+
+# --------------------------------------------------------------- plan listesi
+def list_plans(client, plan_type: str, obs_program_code: str) -> list[dict]:
+    """(plan_type, program) için mevcut planları döndürür: id, başlık, iterasyon."""
+    html = client.get(config.EP["plan_list"],
+                      {"PlanTipiKodu": plan_type, "programKodu": obs_program_code})
+    tree = HTMLParser(html)
+    out: list[dict] = []
+    for row in tree.css("table tbody tr"):
+        link = row.css_first("a[href]")
+        if not link:
+            continue
+        m = re.search(r"/DersPlanDetay/(\d+)", link.attributes.get("href", ""))
+        if not m:
+            continue
+        cells = [c.text(strip=True) for c in row.css("td")]
+        title = cells[-1] if cells else ""
+        code_m = _CODE_TITLE_RE.match(title)
+        pair_code = code_m.group("code") if code_m else None
+        host, target = split_cap_plan_code(pair_code) if pair_code else (None, None)
+        out.append({
+            "plan_id": int(m.group(1)),
+            "title": title,
+            "pair_code": pair_code,
+            "host_program_code": host,
+            "target_program_code": target,
+            "iteration": _iteration_of(title),
+            "plan_type": plan_type,
+            "obs_program_code": obs_program_code,
+        })
+    return out
+
+
+def _iteration_of(title: str) -> str:
+    """Başlıktan iterasyon aralığını çıkarır. OBS dili oturuma göre değişir.
+
+    EN: '... Double Major Program After 2018-2019 / Fall Semester'
+        -> niteleyici BAŞTA  ('After ...')
+    TR: '... ÇAP Programı 2018-2019 / Güz Dönemi Sonrası'
+        -> niteleyici SONDA, aralık yıl ile başlıyor
+    """
+    m = re.search(r"\b(?:Before|After|Between)\b.*$", title)
+    if m:
+        return m.group(0).strip()
+    m = re.search(r"\d{4}-\d{4}.*$", title)
+    return m.group(0).strip() if m else ""
+
+
+# ---------------------------------------------------------------- plan detayı
+def scrape_plan(client, con: sqlite3.Connection, meta: dict, fetch_pools: bool = True) -> int:
+    """Bir planı çeker; plan + plan_slot + plan_host_program tablolarına yazar."""
+    url = f"{config.EP['plan_detail']}/{meta['plan_id']}"
+    tree = HTMLParser(client.get(url))
+    tables = tree.css("table")
+    if not tables:
+        raise RuntimeError(
+            f"Plan {meta['plan_id']}: tablo bulunamadı (sayfa yapısı değişmiş olabilir)")
+
+    host_table = tree.css_first("#dersPlanProgramList")
+    # NOT: selectolax aynı düğüm için farklı Python nesneleri döndürebiliyor,
+    # bu yüzden kimlik (`is`) ile değil id niteliğiyle eliyoruz.
+    course_tables = [t for t in tables if t.attributes.get("id") != "dersPlanProgramList"]
+    terms = _term_numbers(course_tables)
+    is_term_based = any(t is not None for t in terms)
+
+    con.execute(
+        """INSERT INTO plan(id,program_code,host_program_code,plan_type,obs_program_code,
+                            title,iteration,is_term_based,has_course_table,notes_raw,
+                            source,source_url,scraped_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+           ON CONFLICT(id) DO UPDATE SET
+             program_code=excluded.program_code, host_program_code=excluded.host_program_code,
+             plan_type=excluded.plan_type, title=excluded.title, iteration=excluded.iteration,
+             is_term_based=excluded.is_term_based,
+             has_course_table=excluded.has_course_table, notes_raw=excluded.notes_raw,
+             source=excluded.source, scraped_at=excluded.scraped_at""",
+        (meta["plan_id"],
+         meta.get("target_program_code") or obs_code_to_program(meta["obs_program_code"]),
+         meta.get("host_program_code"), meta["plan_type"], meta["obs_program_code"],
+         meta["title"], meta["iteration"], int(is_term_based), int(bool(course_tables)),
+         _notes(tree), "obs", url, db.now()),
+    )
+    # idempotent yeniden yazım
+    con.execute("DELETE FROM plan_slot WHERE plan_id=?", (meta["plan_id"],))
+    con.execute("DELETE FROM plan_host_program WHERE plan_id=?", (meta["plan_id"],))
+
+    n = position = 0
+    for table, term_no in zip(course_tables, terms):
+        for row in table.css("tr"):
+            cells = row.css("td")
+            if not cells:
+                continue                                    # th başlık satırı
+            texts = [c.text(strip=True) for c in cells]
+            if not any(texts) or _HEADER_ROW_RE.search(texts[0]):
+                continue                                    # boş satır / td'li başlık
+            n += _slot_from_row(con, meta["plan_id"], cells, texts, term_no, position)
+            position += 1
+
+    if host_table is not None:
+        for row in host_table.css("tbody tr"):
+            cells = [c.text(strip=True) for c in row.css("td")]
+            if not cells or not cells[0]:
+                continue
+            con.execute(
+                """INSERT OR REPLACE INTO plan_host_program(plan_id,program_code,obs_code,
+                        program_name,updated_at) VALUES (?,?,?,?,?)""",
+                (meta["plan_id"], obs_code_to_program(cells[0]), cells[0],
+                 cells[1] if len(cells) > 1 else None,
+                 cells[2] if len(cells) > 2 else None),
+            )
+    con.commit()
+
+    if fetch_pools:
+        fetch_pool_options(client, con, meta["plan_id"])
+    return n
+
+
+def _term_numbers(tables) -> list[int | None]:
+    """Her ders tablosunun yarıyıl numarasını, kendinden önce gelen başlıktan bulur.
+
+    Anadal planı: 8 tablo, her birinin önünde '1. Semester' ... '8. Semester'.
+    ÇAP planı: tek tablo, başlık yok -> None (dönemsiz).
+    """
+    out: list[int | None] = []
+    for table in tables:
+        term = None
+        node = table
+        for _ in range(12):                     # sınırlı yukarı/geri arama
+            node = node.prev or node.parent
+            if node is None:
+                break
+            text = (node.text(strip=True) or "")[:60]
+            m = _TERM_HEAD_RE.match(text)
+            if m:
+                term = int(m.group(1))
+                break
+        out.append(term)
+    # Fallback: başlık yakalanamadıysa ama birden çok tablo varsa sıraya göre numaralandır
+    if len(out) > 1 and all(t is None for t in out):
+        out = list(range(1, len(out) + 1))
+    return out
+
+
+def _slot_from_row(con, plan_id: int, cells, texts: list[str], term_no: int | None,
+                   position: int) -> int:
+    first = texts[0]
+    title = texts[1] if len(texts) > 1 else ""
+    kind_col = texts[3] if len(texts) > 3 else ""
+    credits = _num(texts[4]) if len(texts) > 4 else None
+    ects_raw = texts[5] if len(texts) > 5 else None
+    type_raw = texts[9] if len(texts) > 9 else (texts[-1] if texts else None)
+
+    link = cells[0].css_first("a[href]")
+    href = link.attributes.get("href", "") if link else ""
+    group_id = parse_qs(urlparse(href).query).get("grupId", [None])[0]
+
+    ects = _num(ects_raw)          # '4 / 5 / 6' aralığında None döner, ham hali korunur
+
+    if group_id or kind_col.upper().startswith("S"):
+        # 'Type' sütunu kategoriyi doğrudan verir; etiket parse'ı yedek.
+        category = (type_raw or "").strip().upper()
+        if category not in CATEGORIES:
+            category, _ = normalize_pool_label(title)
+        con.execute(
+            """INSERT INTO plan_slot(plan_id,term_no,slot_kind,pool_label_raw,pool_category,
+                                     pool_group_id,credits,ects_raw,ects,type_raw,position)
+               VALUES (?,?,'ELECTIVE_POOL',?,?,?,?,?,?,?,?)""",
+            (plan_id, term_no, title, category, group_id, credits, ects_raw, ects,
+             type_raw, position),
+        )
+        return 1
+
+    code = normalize_course_code(first)
+    if not re.match(r"^[A-ZÇĞİÖŞÜ]{2,4} \d{3,4}[A-Z]*$", code):
+        return 0
+    con.execute(
+        """INSERT INTO plan_slot(plan_id,term_no,slot_kind,course_code,credits,ects_raw,
+                                 ects,type_raw,position)
+           VALUES (?,?,'REQUIRED',?,?,?,?,?,?)""",
+        (plan_id, term_no, code, credits, ects_raw, ects, type_raw, position),
+    )
+    return 1
+
+
+_CODE_ONLY_RE = re.compile(r"^[A-ZÇĞİÖŞÜ]{2,4} \d{3,4}[A-Z]*$")
+_CODE_IN_TEXT_RE = re.compile(r"^\s*([A-ZÇĞİÖŞÜ]{2,4}\s?\d{3,4}[A-Z]{0,2})\b")
+
+
+def _pool_code(cell) -> str | None:
+    """Havuz satırından ders kodunu çıkarır.
+
+    ⚠️ Hücre kodu ve ADI birlikte taşıyor:
+        <a href="...DersBilgi...">GEO 413E</a><br>Navigation Sys. and Methods
+    Doğrudan hücre metnini kod sanmak sessizce BOŞ havuz üretiyordu. Önce
+    bağlantı metnine, o yoksa metnin başındaki koda bakıyoruz.
+    """
+    link = cell.css_first("a")
+    if link:
+        code = normalize_course_code(link.text(strip=True))
+        if _CODE_ONLY_RE.match(code):
+            return code
+    m = _CODE_IN_TEXT_RE.match(cell.text(strip=True) or "")
+    if m:
+        code = normalize_course_code(m.group(1))
+        if _CODE_ONLY_RE.match(code):
+            return code
+    return None
+
+
+def fetch_pool_options(client, con: sqlite3.Connection, plan_id: int) -> int:
+    """Seçmeli havuzların içeriğini _DersGrupSearch partial view'ından çeker."""
+    total = 0
+    rows = con.execute(
+        "SELECT id, pool_group_id FROM plan_slot WHERE plan_id=? AND pool_group_id IS NOT NULL",
+        (plan_id,),
+    ).fetchall()
+    for row in rows:
+        tree = HTMLParser(client.get(config.EP["pool_group"], {"grupId": row["pool_group_id"]}))
+        for tr in tree.css("table tr"):
+            cells = tr.css("td")
+            if not cells:
+                continue
+            code = _pool_code(cells[0])
+            if code:
+                con.execute(
+                    "INSERT OR IGNORE INTO pool_option(slot_id,course_code) VALUES (?,?)",
+                    (row["id"], code),
+                )
+                total += 1
+    con.commit()
+    return total
+
+
+def _notes(tree: HTMLParser) -> str | None:
+    """Plan sayfasındaki serbest metin notlar (denklik/kredi şartları buraya gömülü)."""
+    chunks = []
+    for node in tree.css("div.alert, div.panel-body > p, .card-body > p, .aciklama"):
+        text = node.text(strip=True)
+        if 30 < len(text) < 4000:
+            chunks.append(text)
+    return "\n\n".join(dict.fromkeys(chunks)) or None
+
+
+def _num(v):
+    try:
+        return float(str(v).replace(",", "."))
+    except (TypeError, ValueError):
+        return None

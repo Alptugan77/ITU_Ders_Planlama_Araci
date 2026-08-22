@@ -1,0 +1,36 @@
+# KATALOG DÜZELTMELERİ — kişisel değil, herkese ait.
+#
+# OBS'nin ders kataloğunda bazı alanlar yanlış doldurulmuş. Bu dosya o
+# hataların düzeltmesini beyan eder. Kimin transkriptiyle ilgisi yoktur, o
+# yüzden depoda durur ve herkes yararlanır.
+#
+# ⚠️ Kişisel beyanların (senin denkliklerin, muafiyetlerin) yeri burası DEĞİL:
+#    onlar `config/denklikler.toml` dosyasında ve depoya girmez.
+
+# ============================================================================
+# ÖNŞART METNİ BEYANI
+#
+# Bunlar öğrenciyle ilgili DEĞİL — kaynak verisinin bozuk olduğunun beyanı.
+# OBS bazı derslerde önşart alanına önşart yazmıyor; ayrıştırıcı haklı olarak
+# çözemiyor ve motor o derste "BİLİNMİYOR" diyor.
+#
+#   [[onsart_beyani]]
+#   ders   = "MST 471"
+#   onsart = ""            # boş = ÖNŞART YOK  (≠ bilinmiyor)
+#   not_   = "neden böyle olduğunun gerekçesi"
+#
+# ⚠️ `onsart = ""` bir İDDİADIR: yanlışsa alınamayacak bir ders alınabilir
+#    görünür. Her beyanı gerekçelendir; motor gerekçeyi `make refresh`
+#    raporunda gösterir.
+
+# Katalogda önşart alanına dersin KENDİ ADI yazılmış — önşart değil.
+[[onsart_beyani]]
+ders   = "MST 471"
+onsart = ""
+not_   = "Katalogda önşart alanında ders adı var ('Deniz Kazalarıve Emniyet Kültürü'); önşart beyanı değil. Doğrulandı 22.08.2026."
+
+# Katalogda önşart alanına dersin DİLİ yazılmış — önşart değil.
+[[onsart_beyani]]
+ders   = "ROS 201"
+onsart = ""
+not_   = "Katalogda önşart alanında 'Türkçe' yazıyor; dil bilgisi, önşart değil. Doğrulandı 22.08.2026."

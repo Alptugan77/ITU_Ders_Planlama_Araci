@@ -1,0 +1,198 @@
+# Mevzuat kısıtları — önşart metninde YAZMAYAN kurallar.
+#
+# Bir dersin önşart alanı boş olabilir ama yönetmelik yine de engelleyebilir.
+# Bunlar koda gömülmedi; burada beyan ediliyor ki mevzuat değişince kod
+# değişmesin ve hangi kuralın uygulandığı görünür olsun.
+#
+# Değiştirdikten sonra: make recommend / make ui — yeniden tarama gerekmez.
+#
+# `dersler` = açık ders kodu listesi
+# `kalip`   = joker kalıp ('GEO 49*', '* 4901E'). Kod BÜYÜK harfle eşleşir.
+# İkisi birden yazılabilir; eşleşen en katı kural uygulanır.
+
+# ---------------------------------------------------------------------------
+# Bitirme çalışması — 95 kredi
+#
+# Kullanıcı beyanı (21.08.2026): "bitirme projesi 95 kredi altı alamaz".
+# İTÜ'de 4901/4902 kodları bitirme çalışması I/II demektir; kalıp hem anadal
+# (GEO 4901E) hem ÇAP (BLG 4901E) tarafını kapsıyor.
+#
+# ⚠️ Kredi, GEÇİLMİŞ derslerden sayılır. Muafiyet krediye sayılmaz —
+# muafiyet önşartı açar, kredi kazandırmaz.
+[[kredi_esigi]]
+ad        = "Bitirme çalışması"
+min_kredi = 95
+kalip     = ["* 4901", "* 4901E", "* 4902", "* 4902E"]
+aciklama  = "Bitirme çalışmasına başlamak için en az 95 kredi tamamlanmış olmalı."
+
+# Örnek — başka bir eşik eklemek istersen:
+#
+# [[kredi_esigi]]
+# ad        = "Staj II"
+# min_kredi = 60
+# dersler   = ["GEO 3001"]
+# aciklama  = "..."
+
+# ---------------------------------------------------------------------------
+# GNO eşikleri
+#
+# ⚠️ `dogrulandi = false` olan eşik arayüzde DOĞRULANMAMIŞ diye işaretlenir.
+# Mevzuattan teyit edilmemiş bir sayıyı kesinmiş gibi göstermemek için.
+# Teyit ettikçe `dogrulandi = true` yap.
+#
+# Kaynak: İTÜ Lisans Programları Yatay Geçiş, ÇAP ve Yandal Programı Yönergesi
+#   https://www.sis.itu.edu.tr/TR/mevzuat/yatay-cap-yandal-yonerge.php
+#   (resmî PDF: yaziisleri.itu.edu.tr … yonergesi---888.pdf)
+# Mezuniyet: İTÜ Lisans Eğitim ve Öğretim Yönetmeliği MADDE 31.
+# 22.08.2026'da yönerge metninden tek tek doğrulandı → `dogrulandi = true`.
+#
+# `program` alanı hangi programa uygulanacağını söyler: "cap", "yandal",
+# "genel" (ikisi de). `tur` ise eşiğin ne zaman bakıldığı: "basvuru",
+# "devam", "mezuniyet". İkisi de yazılmazsa eşik her yerde geçerli sayılır —
+# eski satırlar bu yüzden çalışmaya devam eder.
+#
+# NOT: Hesaplanan GNO transkriptinden çıkarılan bir TAHMİNDİR; OBS'nin resmi
+# GNO'su değildir. Kredisi bilinmeyen ve notu girilmemiş dersler ayrıca
+# raporlanır.
+
+# --- ÇAP -------------------------------------------------------------------
+[[gno_esigi]]
+anahtar    = "basvuru"
+ad         = "ÇAP başvurusu"
+program    = "cap"
+tur        = "basvuru"
+min_gno    = 3.00
+dogrulandi = true
+kaynak     = "ÇAP/Yandal Yönergesi Madde 15"
+aciklama   = "Başvuru sırasında anadal not ortalamasının en az 3.00 olması."
+
+[[gno_esigi]]
+anahtar    = "devam"
+ad         = "ÇAP'a devam"
+program    = "cap"
+tur        = "devam"
+min_gno    = 2.50
+tolerans   = 1          # Madde 19/k: bir defaya mahsus altına düşülebilir.
+dogrulandi = true
+kaynak     = "ÇAP/Yandal Yönergesi Madde 19/k"
+aciklama   = "Üniversite GNO'su bir kez 2.50 altına düşebilir; ikinci kez düşerse kayıt silinir."
+
+[[gno_esigi]]
+anahtar    = "cap_mezuniyet_universite"
+ad         = "ÇAP mezuniyeti — üniversite GNO"
+program    = "cap"
+tur        = "mezuniyet"
+min_gno    = 2.50
+dogrulandi = true
+kaynak     = "ÇAP/Yandal Yönergesi Madde 18"
+aciklama   = "İkinci anadal diploması için üniversite genel not ortalaması en az 2.50."
+
+[[gno_esigi]]
+anahtar    = "cap_mezuniyet_ikinci"
+ad         = "ÇAP mezuniyeti — ikinci anadal ortalaması"
+program    = "cap"
+tur        = "mezuniyet"
+min_gno    = 2.00
+dogrulandi = true
+kaynak     = "ÇAP/Yandal Yönergesi Madde 18"
+aciklama   = "İkinci anadal programının kendi not ortalaması en az 2.00."
+
+# --- Yandal ----------------------------------------------------------------
+[[gno_esigi]]
+anahtar    = "yandal_basvuru"
+ad         = "Yandal başvurusu"
+program    = "yandal"
+tur        = "basvuru"
+min_gno    = 2.50
+dogrulandi = true
+kaynak     = "ÇAP/Yandal Yönergesi Madde 22/a"
+aciklama   = "Başvuru sırasında anadal not ortalaması en az 2.50 (ve o yarıyıla kadarki tüm dersler başarılmış olmalı)."
+
+[[gno_esigi]]
+anahtar    = "yandal_devam"
+ad         = "Yandal'a devam"
+program    = "yandal"
+tur        = "devam"
+min_gno    = 2.00
+dogrulandi = true
+kaynak     = "ÇAP/Yandal Yönergesi Madde 27/c"
+aciklama   = "Anadal GNO'su 2.00 altına düşen öğrencinin yandal kaydı silinir."
+
+# --- Mezuniyet (herkes) ----------------------------------------------------
+[[gno_esigi]]
+anahtar    = "mezuniyet"
+ad         = "Mezuniyet"
+program    = "genel"
+tur        = "mezuniyet"
+min_gno    = 2.00
+dogrulandi = true
+kaynak     = "İTÜ Lisans Eğitim ve Öğretim Yönetmeliği MADDE 31/1"
+aciklama   = "Ağırlıklı genel not ortalamasını en az 2.00 düzeyine çıkarmış olmak."
+
+# ---------------------------------------------------------------------------
+# ŞARTLI BAŞARMIŞ — MADDE 20/2-b ve MADDE 31/1
+#
+# MADDE 20/2:
+#   a) AA, BA+, BA, BB+, BB, CB+, CB, CC+, CC  → "başarmış"
+#   b) DC+, DC, DD+, DD                        → "ŞARTLI başarmış"
+#   c) FF → başarısız   ç) VF → başarısız
+#
+# Şartın ne olduğu MADDE 20'de yazmıyor; MADDE 31/1'de: mezuniyet için
+# "ağırlıklı genel not ortalamasını en az 2.00 düzeyine çıkarmış" olmak.
+# Yani şartlı geçilen ders dersi TAMAMLAR ve kredi kazandırır; şart,
+# mezuniyet anındaki genel ortalamadır.
+#
+# ★ Motor bu yüzden şartlı notu "geçti" sayıyor ama GNO 2.00'ın altındaysa
+#   mezuniyeti engelleyen sebep olarak gösteriyor. İkisini karıştırmak
+#   ya dersi haksız yere kapatır ya mezuniyeti haksız yere açardı.
+[sartli_basari]
+notlar     = ["DC+", "DC", "DD+", "DD"]
+gecer      = true       # dersi tamamlar, kredi kazandırır
+mezuniyet_min_gno = 2.00
+dogrulandi = true
+kaynak     = "MADDE 20/2-b + MADDE 31/1"
+
+# ---------------------------------------------------------------------------
+# DÖNEM KREDİ YÜKÜ — Yönetmelik MADDE 17
+#
+# İTÜ Lisans Eğitim ve Öğretim Yönetmeliği, MADDE 17
+# (Değişik: RG 22/07/2022-31900). Kullanıcı 22.08.2026'da metni verdi;
+# `dogrulandi = true`.
+#
+# (1) "... birinci sınıfının birinci yarıyıl öğrencileri ve ÇAP öğrencileri ile
+#     ... son sınıf öğrencileri hariç olmak üzere, gözetim listesinde
+#     bulunmayan öğrencilerin, herhangi bir yarıyılda kredi yükü en az 13
+#     kredi, en çok 22 kredi olmak zorundadır."
+#
+# (2) a) "Daha fazla kredi almak isteyen öğrencilerden; 25 kredi de dahil olmak
+#     üzere en az 2.25 ağırlıklı genel not ortalaması, 25 kredinin üzerinde
+#     kredi almak isteyen öğrencilerden en az 3.00 ağırlıklı genel not
+#     ortalaması aranır."
+#
+# ⚠️ İki fıkra AYRI şeyler söylüyor:
+#   * (1) bir BANT (13–22) ve ÇAP öğrencisi bu banttan MUAF.
+#   * (2) bandın üstüne çıkmanın GNO şartı; "her öğrenci" diyor, muafiyet yok.
+# Yani ÇAP öğrencisinin alt sınırı yok ama ÜST sınırı GNO'suna bağlı.
+
+[kredi_yuku_bant]
+min_kredi  = 13
+max_kredi  = 22
+muaf       = ["birinci_yariyil", "cap", "son_sinif"]
+dogrulandi = true
+kaynak     = "İTÜ Lisans Eğitim ve Öğretim Yönetmeliği MADDE 17/1"
+
+# Üst sınır basamakları (MADDE 17/2-a). En yüksek karşılanan basamak geçerli.
+[[kredi_yuku]]
+ad        = "genel sınır"
+max_kredi = 22
+min_gno   = 0.0
+
+[[kredi_yuku]]
+ad        = "25 kredi dahil"
+max_kredi = 25
+min_gno   = 2.25
+
+[[kredi_yuku]]
+ad        = "25 kredinin üzeri"
+max_kredi = 40
+min_gno   = 3.00

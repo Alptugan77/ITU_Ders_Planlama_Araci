@@ -1,0 +1,28 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# --- VERİ ---------------------------------------------------------------
+# Kullanıcı verisi ASLA commit edilmez (notlar = kişisel veri, KVKK)
+data/user.sqlite3*
+data/reference.sqlite3*
+data/ituhelper/
+data/raw_archive/
+
+# Elle girilen transkript (notlar = kişisel veri)
+transkript*.txt
+data/*.html
+*.transkript
+
+# Transkript yedekleri — kişisel veri
+data/yedek/
+
+# --- KİŞİSEL YAPILANDIRMA ------------------------------------------------
+# Hangi bölümde okuduğun ve kendi denklik beyanların kişisel bilgi.
+# Depoya `*.example.toml` girer; kendi kopyan girmez.
+config/settings.toml
+config/denklikler.toml
+
+# macOS
+.DS_Store

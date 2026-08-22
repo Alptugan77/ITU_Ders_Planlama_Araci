@@ -1,0 +1,639 @@
+<title>Beş Tasarım Yönü</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&family=Chivo:wght@400;600;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Literata:opsz,wght@7..72,400;7..72,600&family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Zilla+Slab:wght@400;600;700&display=swap">
+
+<style>
+/* ===========================================================================
+   GALERİ KABUĞU — bilerek sessiz. Örnekleri bastırmaması gerekiyor.
+   =========================================================================== */
+:root{
+  --g-ground:#F2F3F5; --g-surface:#FFFFFF; --g-ink:#15181D; --g-ink2:#525B66;
+  --g-ink3:#7E8792; --g-rule:#D8DCE2; --g-mark:#1F3D63;
+}
+:root:not([data-theme="light"]){
+  @media (prefers-color-scheme:dark){
+    --g-ground:#0E1013; --g-surface:#16191E; --g-ink:#E7EAEE; --g-ink2:#A3ACB7;
+    --g-ink3:#77808B; --g-rule:#282D34; --g-mark:#8FB2DE;
+  }
+}
+:root[data-theme="dark"]{
+  --g-ground:#0E1013; --g-surface:#16191E; --g-ink:#E7EAEE; --g-ink2:#A3ACB7;
+  --g-ink3:#77808B; --g-rule:#282D34; --g-mark:#8FB2DE;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--g-ground);color:var(--g-ink);
+  font:400 15px/1.6 "Source Sans 3",-apple-system,BlinkMacSystemFont,sans-serif;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:1100px;margin:0 auto;padding:36px 20px 90px;
+  display:flex;flex-direction:column;gap:34px}
+.page-head{border-bottom:2px solid var(--g-mark);padding-bottom:16px}
+.page-head h1{margin:0;font:700 30px/1.15 "Source Serif 4",Georgia,serif;
+  letter-spacing:-.015em;text-wrap:balance}
+.page-head p{margin:8px 0 0;color:var(--g-ink2);font-size:14.5px;max-width:62ch}
+.kicker{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--g-mark);margin-bottom:6px}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.legend b{font:600 11px/1 "Source Sans 3",sans-serif;letter-spacing:.06em;
+  text-transform:uppercase;padding:5px 10px;border:1px solid var(--g-rule);
+  border-radius:2px;color:var(--g-ink2)}
+
+.opt{display:flex;flex-direction:column;gap:0}
+.opt-head{display:flex;flex-wrap:wrap;gap:14px;align-items:baseline;
+  padding-bottom:10px;border-bottom:1px solid var(--g-rule)}
+.opt-num{font:600 12px/1 "IBM Plex Mono",monospace;color:var(--g-ink3);
+  padding-top:5px}
+.opt-name{margin:0;font:700 22px/1.2 "Source Serif 4",Georgia,serif;
+  letter-spacing:-.01em}
+.opt-tag{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--g-ink3);border:1px solid var(--g-rule);border-radius:2px;padding:3px 8px}
+.opt-why{margin:12px 0 16px;color:var(--g-ink2);font-size:14.5px;max-width:70ch}
+.opt-why b{color:var(--g-ink)}
+.opt-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:10px 22px;margin:0 0 18px;padding:0;list-style:none;font-size:13px;
+  color:var(--g-ink2)}
+.opt-meta li{border-left:2px solid var(--g-rule);padding-left:10px}
+.opt-meta span{display:block;font-size:10.5px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--g-ink3);margin-bottom:2px}
+.frame{border:1px solid var(--g-rule);border-radius:3px;overflow:hidden}
+.swatches{display:flex;gap:0;height:6px}
+.swatches i{flex:1}
+footer{border-top:1px solid var(--g-rule);padding-top:16px;color:var(--g-ink3);
+  font-size:13px}
+footer b{color:var(--g-ink2)}
+
+/* ===========================================================================
+   ÖRNEK İSKELETİ — her yönde AYNI içerik. Karşılaştırma ancak öyle adil olur.
+   Değişkenler her .spec--* içinde yeniden tanımlanıyor.
+   =========================================================================== */
+.spec{--r:4px;--pad:20px;
+  background:var(--bg);color:var(--fg);padding:var(--pad);
+  font-family:var(--body);display:flex;flex-direction:column;gap:16px}
+.spec .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.spec .eye{font-size:10px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--accent)}
+.spec h3{margin:0;font-family:var(--display);font-size:21px;font-weight:700;
+  letter-spacing:-.01em;color:var(--fg)}
+.spec .sub{color:var(--muted);font-size:12.5px}
+
+.s-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;
+  padding-bottom:12px;border-bottom:var(--headrule)}
+.s-btn{font:600 12px/1 var(--body);padding:7px 12px;border-radius:var(--r);
+  border:1px solid var(--line);color:var(--fg);background:var(--surface)}
+
+.s-panels{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.s-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px;display:flex;flex-direction:column;gap:8px}
+.s-card[data-role="A"]{--tone:var(--anadal)}
+.s-card[data-role="C"]{--tone:var(--cap)}
+.s-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.s-pct{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:23px;
+  font-weight:600;color:var(--tone);letter-spacing:-.02em}
+.s-prog{font-size:11.5px;font-weight:700;letter-spacing:.02em;color:var(--fg)}
+.s-meter{height:8px;background:var(--track);border-radius:var(--r);overflow:hidden;
+  display:flex;border:var(--meterline)}
+.s-meter i{display:block;height:100%;background:var(--tone)}
+.s-meter i.plan{background:repeating-linear-gradient(135deg,
+  var(--tone) 0 3px,transparent 3px 6px);opacity:.7}
+.s-stats{display:flex;flex-wrap:wrap;gap:10px;font-size:11.5px;color:var(--muted)}
+.s-stats b{color:var(--fg);font-weight:600}
+.s-stats .up{color:var(--tone);font-weight:600}
+
+.s-gridwrap{overflow-x:auto}
+table.s-grid{border-collapse:collapse;width:100%;min-width:420px;font-size:11px}
+table.s-grid th{font-size:9.5px;font-weight:700;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--accent);text-align:left;padding:0 0 6px;
+  border-bottom:var(--gridhead)}
+table.s-grid th:first-child{width:44px}
+table.s-grid td{height:20px;padding:0 2px;vertical-align:top;border-top:var(--gridline)}
+table.s-grid td.hr{border:0;color:var(--muted);font-family:var(--mono);font-size:10px}
+.blk{border-radius:var(--r);padding:4px 6px;height:100%;overflow:hidden;
+  border-left:3px solid var(--tone);background:var(--tonesoft);color:var(--toneink);
+  font-family:var(--mono);font-size:10px;line-height:1.35}
+.blk[data-role="A"]{--tone:var(--anadal);--tonesoft:var(--anadal-soft);--toneink:var(--anadal-ink)}
+.blk[data-role="C"]{--tone:var(--cap);--tonesoft:var(--cap-soft);--toneink:var(--cap-ink)}
+.blk b{display:block;font-weight:600}
+.blk span{opacity:.75}
+
+.s-alert{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px;
+  color:var(--muted);background:var(--alertbg);border-left:3px solid var(--danger);
+  border-radius:var(--r);padding:10px 12px}
+.s-alert b{color:var(--danger)}
+.s-chip{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  padding:3px 8px;border-radius:var(--r);border:1px solid currentColor}
+
+/* ---------------------------------------------------------------- 1 CETVEL */
+/* Harita mühendisinin aleti: koyu zemin, kehribar okuma, çentikli eksen. */
+.spec--cetvel{
+  --bg:#0B0F0E; --surface:#121917; --fg:#E4EDE9; --muted:#78908A;
+  --line:#1F2B28; --track:#182220; --accent:#E8A33D; --danger:#E86A5A;
+  --anadal:#4FB286; --anadal-soft:#0F241D; --anadal-ink:#7FD4AE;
+  --cap:#E8A33D; --cap-soft:#2A1E0C; --cap-ink:#F2C481;
+  --alertbg:#1A1210;
+  --display:"IBM Plex Mono",monospace; --body:"IBM Plex Sans",sans-serif;
+  --mono:"IBM Plex Mono",monospace;
+  --headrule:1px solid #1F2B28; --gridline:1px solid #16201E;
+  --gridhead:1px solid #2A3A36; --meterline:1px solid #22302C; --r:2px;
+}
+.spec--cetvel h3{letter-spacing:.02em;font-weight:600}
+.spec--cetvel .s-card{position:relative}
+.spec--cetvel .s-card::before{content:"";position:absolute;inset:0 auto 0 0;width:2px;
+  background:var(--tone);opacity:.5}
+.spec--cetvel table.s-grid td.hr{position:relative}
+.spec--cetvel table.s-grid td.hr::after{content:"";position:absolute;right:2px;top:0;
+  width:5px;height:1px;background:#3A4C47}
+
+/* --------------------------------------------------------------- 2 KAMPÜS */
+/* Öğrenci el kitabı: geniş, sıcak, dokunmatik. Dar ekranda da rahat. */
+.spec--kampus{
+  --bg:#F4F6F8; --surface:#FFFFFF; --fg:#182230; --muted:#5C6B7D;
+  --line:#DCE3EB; --track:#E6EBF1; --accent:#2563A8; --danger:#C0432F;
+  --anadal:#17876A; --anadal-soft:#DCF0E9; --anadal-ink:#0E5B47;
+  --cap:#C4761B; --cap-soft:#FBECD8; --cap-ink:#8A5211;
+  --alertbg:#FBEDEA;
+  --display:"Bricolage Grotesque",sans-serif; --body:"Source Sans 3",sans-serif;
+  --mono:"IBM Plex Mono",monospace;
+  --headrule:0; --gridline:1px solid #E8EDF2; --gridhead:0;
+  --meterline:0; --r:10px; --pad:24px;
+}
+.spec--kampus{gap:20px}
+.spec--kampus h3{font-size:25px;font-weight:700}
+.spec--kampus .s-card{padding:18px;box-shadow:0 1px 2px rgba(24,34,48,.05),
+  0 10px 24px -18px rgba(24,34,48,.4);border-color:#E7ECF2}
+.spec--kampus .s-meter{height:10px}
+.spec--kampus .s-btn{background:#2563A8;color:#fff;border-color:#2563A8;
+  padding:9px 16px;border-radius:999px}
+.spec--kampus .s-chip{border:0;background:#E4ECF6;color:#2563A8}
+.spec--kampus table.s-grid td{height:24px}
+/* Kampüs'ün ızgara yerine önerdiği gün gün liste. */
+.daylist{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+.daylist section{display:flex;flex-direction:column;gap:7px}
+.daylist h4{margin:0;font:700 11px/1 var(--body);letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted)}
+.daylist .row{background:var(--tonesoft);color:var(--toneink);border-radius:10px;
+  padding:10px 12px;display:flex;flex-direction:column;gap:2px;
+  border-left:4px solid var(--tone)}
+.daylist .row[data-role="A"]{--tone:var(--anadal);--tonesoft:var(--anadal-soft);--toneink:var(--anadal-ink)}
+.daylist .row[data-role="C"]{--tone:var(--cap);--tonesoft:var(--cap-soft);--toneink:var(--cap-ink)}
+.daylist .row b{font:600 14px/1.2 var(--body)}
+.daylist .row span{font-family:var(--mono);font-size:11px;opacity:.8}
+
+/* -------------------------------------------------------------- 3 ALMANAK */
+/* Ders katalogu: iki sütun hissi, cetveller, yoğun ama sakin. */
+.spec--almanak{
+  --bg:#EDEFF2; --surface:#F8F9FB; --fg:#171B22; --muted:#5A6470;
+  --line:#C9CFD8; --track:#DDE2E9; --accent:#6B2737; --danger:#8E2431;
+  --anadal:#1F5F4F; --anadal-soft:#DDE9E5; --anadal-ink:#164539;
+  --cap:#8A5A15; --cap-soft:#F0E7D6; --cap-ink:#63410E;
+  --alertbg:#E9E2E4;
+  --display:"Zilla Slab",Georgia,serif; --body:"Source Sans 3",sans-serif;
+  --mono:"IBM Plex Mono",monospace;
+  --headrule:3px double #6B2737; --gridline:1px solid #D5DAE1;
+  --gridhead:1px solid #171B22; --meterline:1px solid #C0C7D1; --r:0px;
+}
+.spec--almanak{gap:12px}
+.spec--almanak h3{font-weight:700;letter-spacing:-.005em}
+.spec--almanak .eye{font-family:"Zilla Slab",serif;letter-spacing:.16em}
+.spec--almanak .s-card{border-width:0;border-top:2px solid var(--tone);
+  background:transparent;padding:12px 14px 12px 0;border-right:1px solid var(--line)}
+.spec--almanak .s-panels{gap:0 20px}
+.spec--almanak .s-card:last-child{border-right:0;padding-right:0}
+.spec--almanak .s-meter{height:6px}
+.spec--almanak .s-btn{border-radius:0;border-width:1px}
+
+/* ------------------------------------------------------------- 4 ŞEMATİK */
+/* İsviçre şeması: düz alanlar, sert hizalama, ızgara sayfayı yönetiyor. */
+.spec--sematik{
+  --bg:#FFFFFF; --surface:#FFFFFF; --fg:#000000; --muted:#5A5A5A;
+  --line:#000000; --track:#EBEBEB; --accent:#000000; --danger:#E1341E;
+  --anadal:#006B5B; --anadal-soft:#D6EBE6; --anadal-ink:#004B40;
+  --cap:#C25E00; --cap-soft:#FBE6D2; --cap-ink:#8A4300;
+  --alertbg:#FDECE9;
+  --display:"Chivo",Helvetica,Arial,sans-serif; --body:"Chivo",Helvetica,Arial,sans-serif;
+  --mono:"IBM Plex Mono",monospace;
+  --headrule:3px solid #000; --gridline:1px solid #000;
+  --gridhead:3px solid #000; --meterline:1px solid #000; --r:0px;
+}
+.spec--sematik h3{font-weight:900;font-size:24px;letter-spacing:-.02em;
+  text-transform:uppercase}
+.spec--sematik .eye{color:#000;letter-spacing:.18em}
+.spec--sematik .s-card{border-width:1px;border-top-width:6px;border-top-color:var(--tone)}
+.spec--sematik .s-meter{border-radius:0}
+.spec--sematik .s-btn{border-radius:0;border-width:2px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.04em}
+.spec--sematik .blk{border-left-width:6px;border-radius:0}
+.spec--sematik table.s-grid td{border-top-color:#D5D5D5}
+.spec--sematik table.s-grid tr:nth-child(2n) td{border-top-color:#000}
+
+/* ----------------------------------------------------------------- 5 GECE */
+/* Geç saat planlaması: koyu ama yumuşak, tek aksan, düşük kontrast. */
+.spec--gece{
+  --bg:#12151C; --surface:#191D26; --fg:#DDE3EC; --muted:#8A94A6;
+  --line:#242A35; --track:#1F242E; --accent:#8FA3E8; --danger:#E0836F;
+  --anadal:#5FC0A6; --anadal-soft:#16302A; --anadal-ink:#8FD8C3;
+  --cap:#D9A05B; --cap-soft:#2E2415; --cap-ink:#EFC48E;
+  --alertbg:#221A19;
+  --display:"Literata",Georgia,serif; --body:"IBM Plex Sans",sans-serif;
+  --mono:"IBM Plex Mono",monospace;
+  --headrule:1px solid #242A35; --gridline:1px solid #1B212A;
+  --gridhead:1px solid #2C3341; --meterline:0; --r:8px; --pad:24px;
+}
+.spec--gece{gap:20px}
+.spec--gece h3{font-weight:600;font-size:23px}
+.spec--gece .s-card{padding:17px}
+.spec--gece .s-meter{height:6px}
+.spec--gece .blk{border-left:0;padding-left:8px}
+.spec--gece .s-btn{border-radius:999px;padding:8px 15px}
+
+/* ---------------------------------------------------------------- 0 MEVCUT */
+.spec--mevcut{
+  --bg:#F1F4F6; --surface:#FFFFFF; --fg:#121A21; --muted:#44535F;
+  --line:#D2DAE1; --track:#E7ECF1; --accent:#123A63; --danger:#9E231C;
+  --anadal:#0D6155; --anadal-soft:#D3E8E3; --anadal-ink:#0A473E;
+  --cap:#8F4E08; --cap-soft:#F4E2CC; --cap-ink:#6B3805;
+  --alertbg:#EFE4E2;
+  --display:"Source Serif 4",Georgia,serif; --body:"Source Sans 3",sans-serif;
+  --mono:"IBM Plex Mono",monospace;
+  --headrule:2px solid #123A63; --gridline:1px solid #D2DAE1;
+  --gridhead:1px solid #A7B4C0; --meterline:1px solid #D2DAE1; --r:4px;
+}
+
+@media (max-width:640px){
+  .s-panels{grid-template-columns:1fr}
+  .opt-name{font-size:19px}
+}
+@media (prefers-reduced-motion:no-preference){
+  .s-btn{transition:background .15s ease}
+}
+</style>
+
+<div class="wrap">
+
+<header class="page-head">
+  <div class="kicker">itucap · arayüz</div>
+  <h1>Beş Tasarım Yönü</h1>
+  <p>Her örnek <b>aynı içeriği</b> gösteriyor — iki ilerleme paneli, haftalık
+     ızgaradan bir kesit, kredi tavanı uyarısı. Renk değişimi değil; farklı
+     yoğunluk, farklı kayıt, farklı okuma biçimi. En üstte karşılaştırma için
+     şu anki tasarım var.</p>
+  <div class="legend">
+    <b>Örnek veri</b><b>Gerçek notların kullanılmadı</b><b>Paylaşması güvenli</b>
+  </div>
+</header>
+
+<!-- ================================================================ MEVCUT -->
+<section class="opt">
+  <div class="opt-head">
+    <div class="opt-num">şu an</div>
+    <h2 class="opt-name">Kurum Belgesi</h2>
+    <span class="opt-tag">mevcut</span>
+  </div>
+  <p class="opt-why">Şu anki tasarım. Serif başlık, lacivert cetvel, gölgesiz
+     yüzey — bir <b>rapor</b> gibi duruyor. Lacivert yapı, yeşil/kehribar veri.
+     Karşılaştırma için burada.</p>
+  <div class="frame">
+    <div class="swatches"><i style="background:#F1F4F6"></i><i style="background:#123A63"></i><i style="background:#0D6155"></i><i style="background:#8F4E08"></i><i style="background:#121A21"></i></div>
+    <div class="spec spec--mevcut">
+      <div class="s-head">
+        <div>
+          <div class="eye">HTAE + BLG ÇAP · 202610</div>
+          <h3>ÇAP Ders Planlama Raporu</h3>
+          <div class="sub">3417 açık şube · sınır 25 kredi · 7. dönem</div>
+        </div>
+        <button class="s-btn">Tema</button>
+      </div>
+      <div class="s-panels">
+        <article class="s-card" data-role="A">
+          <div class="s-top"><div><div class="eye">Anadal</div><div class="s-prog">HTAE</div></div><div class="s-pct">%52.5</div></div>
+          <div class="s-meter"><i style="width:52%"></i><i class="plan" style="width:21%"></i></div>
+          <div class="s-stats"><span>slot <b class="mono">32/61</b> <span class="up">+13</span></span><span>kredi <b class="mono">73/117</b></span></div>
+        </article>
+        <article class="s-card" data-role="C">
+          <div class="s-top"><div><div class="eye">Çift anadal</div><div class="s-prog">BLG</div></div><div class="s-pct">%20</div></div>
+          <div class="s-meter"><i style="width:20%"></i><i class="plan" style="width:10%"></i></div>
+          <div class="s-stats"><span>slot <b class="mono">4/20</b> <span class="up">+2</span></span><span>kredi <b class="mono">10/59.5</b></span></div>
+        </article>
+      </div>
+      <div class="s-gridwrap"><table class="s-grid">
+        <thead><tr><th></th><th>Pzt</th><th>Sal</th><th>Çar</th><th>Per</th></tr></thead>
+        <tbody>
+          <tr><td class="hr">08:30</td><td rowspan="2"><div class="blk" data-role="C"><b>BLG 212E</b><span>08:30–11:29</span></div></td><td rowspan="2"><div class="blk" data-role="A"><b>GEO 227E</b><span>08:30–10:29</span></div></td><td rowspan="2"><div class="blk" data-role="A"><b>GEO 315E</b><span>08:30–10:29</span></div></td><td></td></tr>
+          <tr><td class="hr">09:30</td><td></td></tr>
+          <tr><td class="hr">10:30</td><td></td><td></td><td></td><td rowspan="2"><div class="blk" data-role="A"><b>HUK 217</b><span>10:30–13:29</span></div></td></tr>
+          <tr><td class="hr">11:30</td><td rowspan="2"><div class="blk" data-role="A"><b>GEO 303E</b><span>11:30–13:29</span></div></td><td></td><td rowspan="2"><div class="blk" data-role="C"><b>BLG 351E</b><span>11:30–14:29</span></div></td></tr>
+          <tr><td class="hr">12:30</td><td></td><td></td></tr>
+        </tbody>
+      </table></div>
+      <div class="s-alert"><span class="s-chip">mevzuat</span>
+        <span><b>Ayarlı tavan 35, yönetmeliğin izin verdiği 25.</b>
+        25 üstü için GNO ≥ 3.00 gerekiyor.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================= CETVEL -->
+<section class="opt">
+  <div class="opt-head">
+    <div class="opt-num">01</div>
+    <h2 class="opt-name">Cetvel</h2>
+    <span class="opt-tag">koyu · alet</span>
+  </div>
+  <p class="opt-why">Harita mühendisinin aleti. Ekran bir <b>okuma yüzeyi</b>:
+     sayılar mono ve kehribar, zaman ekseninde çentikler, panellerin solunda
+     ölçek şeridi. Sayıya bakmak için tasarlanmış — metin ikinci planda.
+     <b>Risk:</b> uzun süre bakınca yorabilir, gündüz parlak ortamda zor.</p>
+  <ul class="opt-meta">
+    <li><span>Tipografi</span>IBM Plex Mono baskın + Plex Sans etiket</li>
+    <li><span>Yoğunluk</span>Yüksek — az boşluk, çok sayı</li>
+    <li><span>Tema</span>Tek dünya: koyu</li>
+    <li><span>En iyi</span>Kayıt günü hızlı tarama</li>
+  </ul>
+  <div class="frame">
+    <div class="swatches"><i style="background:#0B0F0E"></i><i style="background:#E8A33D"></i><i style="background:#4FB286"></i><i style="background:#1F2B28"></i><i style="background:#E4EDE9"></i></div>
+    <div class="spec spec--cetvel">
+      <div class="s-head">
+        <div>
+          <div class="eye">HTAE + BLG ÇAP · 202610</div>
+          <h3>CAP_PLANLAMA</h3>
+          <div class="sub">3417 şube · sınır 25 kr · dönem 7</div>
+        </div>
+        <button class="s-btn">TEMA</button>
+      </div>
+      <div class="s-panels">
+        <article class="s-card" data-role="A">
+          <div class="s-top"><div><div class="eye">ANADAL</div><div class="s-prog mono">HTAE</div></div><div class="s-pct">52.5%</div></div>
+          <div class="s-meter"><i style="width:52%"></i><i class="plan" style="width:21%"></i></div>
+          <div class="s-stats"><span>SLOT <b class="mono">32/61</b> <span class="up">+13</span></span><span>KR <b class="mono">73/117</b></span></div>
+        </article>
+        <article class="s-card" data-role="C">
+          <div class="s-top"><div><div class="eye">ÇAP</div><div class="s-prog mono">BLG</div></div><div class="s-pct">20.0%</div></div>
+          <div class="s-meter"><i style="width:20%"></i><i class="plan" style="width:10%"></i></div>
+          <div class="s-stats"><span>SLOT <b class="mono">4/20</b> <span class="up">+2</span></span><span>KR <b class="mono">10/59.5</b></span></div>
+        </article>
+      </div>
+      <div class="s-gridwrap"><table class="s-grid">
+        <thead><tr><th></th><th>PZT</th><th>SAL</th><th>ÇAR</th><th>PER</th></tr></thead>
+        <tbody>
+          <tr><td class="hr">08:30</td><td rowspan="2"><div class="blk" data-role="C"><b>BLG 212E</b><span>0830–1129</span></div></td><td rowspan="2"><div class="blk" data-role="A"><b>GEO 227E</b><span>0830–1029</span></div></td><td rowspan="2"><div class="blk" data-role="A"><b>GEO 315E</b><span>0830–1029</span></div></td><td></td></tr>
+          <tr><td class="hr">09:30</td><td></td></tr>
+          <tr><td class="hr">10:30</td><td></td><td></td><td></td><td rowspan="2"><div class="blk" data-role="A"><b>HUK 217</b><span>1030–1329</span></div></td></tr>
+          <tr><td class="hr">11:30</td><td rowspan="2"><div class="blk" data-role="A"><b>GEO 303E</b><span>1130–1329</span></div></td><td></td><td rowspan="2"><div class="blk" data-role="C"><b>BLG 351E</b><span>1130–1429</span></div></td></tr>
+          <tr><td class="hr">12:30</td><td></td><td></td></tr>
+        </tbody>
+      </table></div>
+      <div class="s-alert"><span class="s-chip">MEVZUAT</span>
+        <span><b>TAVAN 35 &gt; İZİN 25.</b> 25+ için GNO ≥ 3.00.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================= KAMPÜS -->
+<section class="opt">
+  <div class="opt-head">
+    <div class="opt-num">02</div>
+    <h2 class="opt-name">Kampüs</h2>
+    <span class="opt-tag">açık · uygulama</span>
+  </div>
+  <p class="opt-why">Öğrenci el kitabı gibi: geniş boşluk, büyük dokunma
+     alanları, yuvarlak köşeler. <b>Telefonda ilk sırada</b> — bu yüzden aşağıda
+     haftalık ızgara yok, <b>gün gün liste</b> var; dar ekranda yana kaydırma
+     gerekmiyor. Yapılacaklar listesindeki "telefonda okunabilirlik" maddesini
+     kendiliğinden çözüyor. <b>Risk:</b> çakışmayı ızgara kadar hızlı
+     göstermiyor — saatler yan yana değil, alt alta.</p>
+  <ul class="opt-meta">
+    <li><span>Tipografi</span>Bricolage Grotesque + Source Sans 3</li>
+    <li><span>Yoğunluk</span>Düşük — nefes payı çok</li>
+    <li><span>Tema</span>Açık + koyu</li>
+    <li><span>En iyi</span>Telefon, ara sıra bakma</li>
+  </ul>
+  <div class="frame">
+    <div class="swatches"><i style="background:#F4F6F8"></i><i style="background:#2563A8"></i><i style="background:#17876A"></i><i style="background:#C4761B"></i><i style="background:#182230"></i></div>
+    <div class="spec spec--kampus">
+      <div class="s-head">
+        <div>
+          <div class="eye">HTAE + BLG ÇAP · Güz 2026</div>
+          <h3>Ders planım</h3>
+          <div class="sub">3417 açık şube · sınır 25 kredi · 7. dönem</div>
+        </div>
+        <button class="s-btn">Kaydet</button>
+      </div>
+      <div class="s-panels">
+        <article class="s-card" data-role="A">
+          <div class="s-top"><div><div class="eye">Anadal</div><div class="s-prog">HTAE</div></div><div class="s-pct">%52.5</div></div>
+          <div class="s-meter"><i style="width:52%"></i><i class="plan" style="width:21%"></i></div>
+          <div class="s-stats"><span>slot <b class="mono">32/61</b> <span class="up">+13</span></span><span>kredi <b class="mono">73/117</b></span></div>
+        </article>
+        <article class="s-card" data-role="C">
+          <div class="s-top"><div><div class="eye">Çift anadal</div><div class="s-prog">BLG</div></div><div class="s-pct">%20</div></div>
+          <div class="s-meter"><i style="width:20%"></i><i class="plan" style="width:10%"></i></div>
+          <div class="s-stats"><span>slot <b class="mono">4/20</b> <span class="up">+2</span></span><span>kredi <b class="mono">10/59.5</b></span></div>
+        </article>
+      </div>
+      <!-- Kampüs'ün asıl iddiası bu: ızgara yerine gün gün dikey liste.
+           Dar ekranda kaydırma yok; bedeli, çakışmanın göze çarpmaması. -->
+      <div class="daylist">
+        <section><h4>Pazartesi</h4>
+          <div class="row" data-role="C"><b>BLG 212E</b><span>08:30–11:29 · Ayazağa</span></div>
+          <div class="row" data-role="A"><b>GEO 303E</b><span>11:30–13:29 · Ayazağa</span></div>
+        </section>
+        <section><h4>Salı</h4>
+          <div class="row" data-role="A"><b>GEO 227E</b><span>08:30–10:29 · Ayazağa</span></div>
+        </section>
+        <section><h4>Çarşamba</h4>
+          <div class="row" data-role="A"><b>GEO 315E</b><span>08:30–10:29 · Ayazağa</span></div>
+          <div class="row" data-role="C"><b>BLG 351E</b><span>11:30–14:29 · Ayazağa</span></div>
+        </section>
+        <section><h4>Perşembe</h4>
+          <div class="row" data-role="A"><b>HUK 217</b><span>10:30–13:29 · Ayazağa</span></div>
+        </section>
+      </div>
+      <div class="s-alert"><span class="s-chip">Mevzuat</span>
+        <span><b>Tavanın 35 ayarlı, yönetmelik 25 diyor.</b>
+        25 üstü için GNO ≥ 3.00 gerekiyor.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ ALMANAK -->
+<section class="opt">
+  <div class="opt-head">
+    <div class="opt-num">03</div>
+    <h2 class="opt-name">Almanak</h2>
+    <span class="opt-tag">açık · basılı</span>
+  </div>
+  <p class="opt-why">Ders katalogu kaydı. Slab serif, çift cetvel, kart yerine
+     <b>sütun</b> — kutular kalkıyor, yerini dikey ayırıcılar alıyor. Şu anki
+     tasarımdan daha yoğun ve daha "kitap": aynı ekranda daha çok satır.
+     <b>Risk:</b> tıklanabilir olan ile olmayan arasındaki fark inceliyor.</p>
+  <ul class="opt-meta">
+    <li><span>Tipografi</span>Zilla Slab + Source Sans 3</li>
+    <li><span>Yoğunluk</span>Çok yüksek</li>
+    <li><span>Tema</span>Açık + koyu</li>
+    <li><span>En iyi</span>Uzun oturup planlama</li>
+  </ul>
+  <div class="frame">
+    <div class="swatches"><i style="background:#EDEFF2"></i><i style="background:#6B2737"></i><i style="background:#1F5F4F"></i><i style="background:#8A5A15"></i><i style="background:#171B22"></i></div>
+    <div class="spec spec--almanak">
+      <div class="s-head">
+        <div>
+          <div class="eye">HTAE + BLG ÇAP · 202610</div>
+          <h3>Ders Planlama Almanağı</h3>
+          <div class="sub">3417 açık şube · sınır 25 kredi · yedinci dönem</div>
+        </div>
+        <button class="s-btn">Tema</button>
+      </div>
+      <div class="s-panels">
+        <article class="s-card" data-role="A">
+          <div class="s-top"><div><div class="eye">Anadal</div><div class="s-prog">HTAE</div></div><div class="s-pct">%52.5</div></div>
+          <div class="s-meter"><i style="width:52%"></i><i class="plan" style="width:21%"></i></div>
+          <div class="s-stats"><span>slot <b class="mono">32/61</b> <span class="up">+13</span></span><span>kredi <b class="mono">73/117</b></span></div>
+        </article>
+        <article class="s-card" data-role="C">
+          <div class="s-top"><div><div class="eye">Çift anadal</div><div class="s-prog">BLG</div></div><div class="s-pct">%20</div></div>
+          <div class="s-meter"><i style="width:20%"></i><i class="plan" style="width:10%"></i></div>
+          <div class="s-stats"><span>slot <b class="mono">4/20</b> <span class="up">+2</span></span><span>kredi <b class="mono">10/59.5</b></span></div>
+        </article>
+      </div>
+      <div class="s-gridwrap"><table class="s-grid">
+        <thead><tr><th></th><th>Pazartesi</th><th>Salı</th><th>Çarşamba</th><th>Perşembe</th></tr></thead>
+        <tbody>
+          <tr><td class="hr">08:30</td><td rowspan="2"><div class="blk" data-role="C"><b>BLG 212E</b><span>08:30–11:29</span></div></td><td rowspan="2"><div class="blk" data-role="A"><b>GEO 227E</b><span>08:30–10:29</span></div></td><td rowspan="2"><div class="blk" data-role="A"><b>GEO 315E</b><span>08:30–10:29</span></div></td><td></td></tr>
+          <tr><td class="hr">09:30</td><td></td></tr>
+          <tr><td class="hr">10:30</td><td></td><td></td><td></td><td rowspan="2"><div class="blk" data-role="A"><b>HUK 217</b><span>10:30–13:29</span></div></td></tr>
+          <tr><td class="hr">11:30</td><td rowspan="2"><div class="blk" data-role="A"><b>GEO 303E</b><span>11:30–13:29</span></div></td><td></td><td rowspan="2"><div class="blk" data-role="C"><b>BLG 351E</b><span>11:30–14:29</span></div></td></tr>
+          <tr><td class="hr">12:30</td><td></td><td></td></tr>
+        </tbody>
+      </table></div>
+      <div class="s-alert"><span class="s-chip">Mevzuat</span>
+        <span><b>Ayarlı tavan 35, yönetmeliğin izin verdiği 25.</b>
+        25 üstü için GNO ≥ 3.00 gerekiyor.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================================================== ŞEMATİK -->
+<section class="opt">
+  <div class="opt-head">
+    <div class="opt-num">04</div>
+    <h2 class="opt-name">Şematik</h2>
+    <span class="opt-tag">açık · düz</span>
+  </div>
+  <p class="opt-why">Ne varsa <b>hizada</b>: siyah cetveller, sıfır köşe,
+     gölge yok, düz renk alanları. Süs adına hiçbir şey yok — ekranda gördüğün
+     her çizgi bir sınır bildiriyor. Izgara sayfanın patronu.
+     <b>Risk:</b> sert; sıcaklık beklersen soğuk gelebilir.</p>
+  <ul class="opt-meta">
+    <li><span>Tipografi</span>Chivo (tek aile, ağırlıkla ayrışıyor)</li>
+    <li><span>Yoğunluk</span>Orta-yüksek</li>
+    <li><span>Tema</span>Açık + koyu</li>
+    <li><span>En iyi</span>Çakışmayı gözle yakalamak</li>
+  </ul>
+  <div class="frame">
+    <div class="swatches"><i style="background:#FFFFFF"></i><i style="background:#000000"></i><i style="background:#006B5B"></i><i style="background:#C25E00"></i><i style="background:#E1341E"></i></div>
+    <div class="spec spec--sematik">
+      <div class="s-head">
+        <div>
+          <div class="eye">HTAE + BLG ÇAP / 202610</div>
+          <h3>Haftalık Program</h3>
+          <div class="sub">3417 açık şube / sınır 25 kredi / 7. dönem</div>
+        </div>
+        <button class="s-btn">Tema</button>
+      </div>
+      <div class="s-panels">
+        <article class="s-card" data-role="A">
+          <div class="s-top"><div><div class="eye">Anadal</div><div class="s-prog">HTAE</div></div><div class="s-pct">52.5</div></div>
+          <div class="s-meter"><i style="width:52%"></i><i class="plan" style="width:21%"></i></div>
+          <div class="s-stats"><span>slot <b class="mono">32/61</b> <span class="up">+13</span></span><span>kredi <b class="mono">73/117</b></span></div>
+        </article>
+        <article class="s-card" data-role="C">
+          <div class="s-top"><div><div class="eye">Çift anadal</div><div class="s-prog">BLG</div></div><div class="s-pct">20.0</div></div>
+          <div class="s-meter"><i style="width:20%"></i><i class="plan" style="width:10%"></i></div>
+          <div class="s-stats"><span>slot <b class="mono">4/20</b> <span class="up">+2</span></span><span>kredi <b class="mono">10/59.5</b></span></div>
+        </article>
+      </div>
+      <div class="s-gridwrap"><table class="s-grid">
+        <thead><tr><th></th><th>Pzt</th><th>Sal</th><th>Çar</th><th>Per</th></tr></thead>
+        <tbody>
+          <tr><td class="hr">08:30</td><td rowspan="2"><div class="blk" data-role="C"><b>BLG 212E</b><span>08:30–11:29</span></div></td><td rowspan="2"><div class="blk" data-role="A"><b>GEO 227E</b><span>08:30–10:29</span></div></td><td rowspan="2"><div class="blk" data-role="A"><b>GEO 315E</b><span>08:30–10:29</span></div></td><td></td></tr>
+          <tr><td class="hr">09:30</td><td></td></tr>
+          <tr><td class="hr">10:30</td><td></td><td></td><td></td><td rowspan="2"><div class="blk" data-role="A"><b>HUK 217</b><span>10:30–13:29</span></div></td></tr>
+          <tr><td class="hr">11:30</td><td rowspan="2"><div class="blk" data-role="A"><b>GEO 303E</b><span>11:30–13:29</span></div></td><td></td><td rowspan="2"><div class="blk" data-role="C"><b>BLG 351E</b><span>11:30–14:29</span></div></td></tr>
+          <tr><td class="hr">12:30</td><td></td><td></td></tr>
+        </tbody>
+      </table></div>
+      <div class="s-alert"><span class="s-chip">Mevzuat</span>
+        <span><b>Ayarlı tavan 35 / izin verilen 25.</b>
+        25 üstü için GNO ≥ 3.00.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================================== GECE -->
+<section class="opt">
+  <div class="opt-head">
+    <div class="opt-num">05</div>
+    <h2 class="opt-name">Gece</h2>
+    <span class="opt-tag">koyu · sakin</span>
+  </div>
+  <p class="opt-why">Koyu ama <b>alet değil</b>: düşük kontrast, yumuşak
+     kenarlar, tek mavi-mor aksan, okumaya elverişli serif başlık. Kayıt
+     haftasında gece yarısı saatlerce bakılacak ekran bu.
+     Cetvel'in tam karşıtı — orada sayı bağırıyor, burada sayfa fısıldıyor.
+     <b>Risk:</b> düşük kontrast, acele tararken yavaşlatabilir.</p>
+  <ul class="opt-meta">
+    <li><span>Tipografi</span>Literata + IBM Plex Sans</li>
+    <li><span>Yoğunluk</span>Düşük-orta</li>
+    <li><span>Tema</span>Tek dünya: koyu</li>
+    <li><span>En iyi</span>Uzun, geç saat oturumları</li>
+  </ul>
+  <div class="frame">
+    <div class="swatches"><i style="background:#12151C"></i><i style="background:#8FA3E8"></i><i style="background:#5FC0A6"></i><i style="background:#D9A05B"></i><i style="background:#DDE3EC"></i></div>
+    <div class="spec spec--gece">
+      <div class="s-head">
+        <div>
+          <div class="eye">HTAE + BLG ÇAP · 202610</div>
+          <h3>Ders planlama</h3>
+          <div class="sub">3417 açık şube · sınır 25 kredi · 7. dönem</div>
+        </div>
+        <button class="s-btn">Tema</button>
+      </div>
+      <div class="s-panels">
+        <article class="s-card" data-role="A">
+          <div class="s-top"><div><div class="eye">Anadal</div><div class="s-prog">HTAE</div></div><div class="s-pct">%52.5</div></div>
+          <div class="s-meter"><i style="width:52%"></i><i class="plan" style="width:21%"></i></div>
+          <div class="s-stats"><span>slot <b class="mono">32/61</b> <span class="up">+13</span></span><span>kredi <b class="mono">73/117</b></span></div>
+        </article>
+        <article class="s-card" data-role="C">
+          <div class="s-top"><div><div class="eye">Çift anadal</div><div class="s-prog">BLG</div></div><div class="s-pct">%20</div></div>
+          <div class="s-meter"><i style="width:20%"></i><i class="plan" style="width:10%"></i></div>
+          <div class="s-stats"><span>slot <b class="mono">4/20</b> <span class="up">+2</span></span><span>kredi <b class="mono">10/59.5</b></span></div>
+        </article>
+      </div>
+      <div class="s-gridwrap"><table class="s-grid">
+        <thead><tr><th></th><th>Pzt</th><th>Sal</th><th>Çar</th><th>Per</th></tr></thead>
+        <tbody>
+          <tr><td class="hr">08:30</td><td rowspan="2"><div class="blk" data-role="C"><b>BLG 212E</b><span>08:30–11:29</span></div></td><td rowspan="2"><div class="blk" data-role="A"><b>GEO 227E</b><span>08:30–10:29</span></div></td><td rowspan="2"><div class="blk" data-role="A"><b>GEO 315E</b><span>08:30–10:29</span></div></td><td></td></tr>
+          <tr><td class="hr">09:30</td><td></td></tr>
+          <tr><td class="hr">10:30</td><td></td><td></td><td></td><td rowspan="2"><div class="blk" data-role="A"><b>HUK 217</b><span>10:30–13:29</span></div></td></tr>
+          <tr><td class="hr">11:30</td><td rowspan="2"><div class="blk" data-role="A"><b>GEO 303E</b><span>11:30–13:29</span></div></td><td></td><td rowspan="2"><div class="blk" data-role="C"><b>BLG 351E</b><span>11:30–14:29</span></div></td></tr>
+          <tr><td class="hr">12:30</td><td></td><td></td></tr>
+        </tbody>
+      </table></div>
+      <div class="s-alert"><span class="s-chip">Mevzuat</span>
+        <span><b>Ayarlı tavan 35, yönetmeliğin izin verdiği 25.</b>
+        25 üstü için GNO ≥ 3.00 gerekiyor.</span></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p><b>Nasıl seçilir:</b> hangisine bakarken çakışmayı daha hızlı gördüğün ve
+     yüzdeleri daha çabuk okuduğun. Süslü olan değil, hızlı olan kazansın.</p>
+  <p>Karma da olur — örneğin <b>Kampüs</b>'ün telefon davranışı ile
+     <b>Şematik</b>'in ızgarası. Numarayı söyle, uygularım; iki yönü
+     birleştirmek istersen hangi parçaları alacağımızı da yaz.</p>
+  <p>Anadal yeşil / ÇAP kehribar eşlemesi beş yönde de korunuyor — o renkler
+     dekorasyon değil, veri.</p>
+</footer>
+
+</div>

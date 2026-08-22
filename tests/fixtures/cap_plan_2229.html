@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<!--
+  SENTETİK FIXTURE — parser'ın yapısal davranışını ağsız test etmek için.
+  Sütun düzeni, Z/S kolonu, _DersGrupSearch linkleri ve #dersPlanProgramList
+  tablosu 17 Ağustos 2026'da gerçek OBS sayfasından (DersPlanDetay/2229)
+  doğrulanmıştır; ders satırları temsili bir alt kümedir.
+
+  GERÇEK fixture'ı üretmek için:  python -m itucap.pipeline fixture 2229
+-->
+<html lang="en">
+<head><meta charset="utf-8"><title>İTÜ ÖBS | Course Plans</title></head>
+<body>
+<h3>Computer Engineering Undergraduate Course Plan</h3>
+<h4>TUMMUH_BLG Double Major Program After 2018-2019 / Fall Semester</h4>
+
+<table class="datalist table table-striped table-bordered compact small">
+  <tr>
+    <th>Course Code</th><th>Course Title</th><th>Language</th>
+    <th>Compulsory/Elective</th><th>Credit</th><th>ECTS</th>
+    <th>Teo.</th><th>Tutorial</th><th>Lab.</th><th>Type</th>
+  </tr>
+  <tr>
+    <td><a href="https://obs.itu.edu.tr/public/DersBilgi?bransKodu=BLG&amp;dersNo=112E">BLG 112E</a></td>
+    <td>Discrete Mathematics</td><td>English</td><td>Z</td>
+    <td>3</td><td>5</td><td>3</td><td>0</td><td>0</td><td>LA</td>
+  </tr>
+  <tr>
+    <td><a href="https://obs.itu.edu.tr/public/DersBilgi?bransKodu=BLG&amp;dersNo=102E">BLG 102E</a></td>
+    <td>Intr to Sci&amp;Eng Comp (C)</td><td>English</td><td>Z</td>
+    <td>4</td><td>8</td><td>3</td><td>2</td><td>0</td><td>-</td>
+  </tr>
+  <tr>
+    <td><a href="https://obs.itu.edu.tr/public/DersBilgi?bransKodu=BLG&amp;dersNo=223E">BLG 223E</a></td>
+    <td>Data Structures</td><td>English</td><td>Z</td>
+    <td>3.5</td><td>8</td><td>3</td><td>1</td><td>0</td><td>-</td>
+  </tr>
+  <tr>
+    <td><a href="https://obs.itu.edu.tr/public/DersBilgi?bransKodu=BLG&amp;dersNo=242E">BLG 242E</a></td>
+    <td>Logic Circuits Laboratory</td><td>English</td><td>Z</td>
+    <td>1</td><td>4</td><td>0</td><td>0</td><td>2</td><td>LA</td>
+  </tr>
+  <tr>
+    <td><a href="https://obs.itu.edu.tr/public/DersBilgi?bransKodu=BLG&amp;dersNo=4901E">BLG 4901E</a></td>
+    <td>Computer Engineering Design I</td><td>English</td><td>Z</td>
+    <td>3</td><td>8</td><td>1</td><td>4</td><td>0</td><td>-</td>
+  </tr>
+  <tr>
+    <td><a href="https://obs.itu.edu.tr/public/DersBilgi?bransKodu=BLG&amp;dersNo=4902E">BLG 4902E</a></td>
+    <td>Computer Engineering Design II</td><td>English</td><td>Z</td>
+    <td>5</td><td>12</td><td>1</td><td>8</td><td>0</td><td>-</td>
+  </tr>
+  <tr>
+    <td><a href="/public/DersPlan/_DersGrupSearch?grupId=11386" data-link-target="modal:full">Courses</a></td>
+    <td>Seçime Bağlı Ders(MT)/Elective Course (MT) I</td><td></td><td>S</td>
+    <td>2</td><td>4 / 5 / 6</td><td></td><td></td><td></td><td>LA</td>
+  </tr>
+  <tr>
+    <td><a href="/public/DersPlan/_DersGrupSearch?grupId=11387" data-link-target="modal:full">Courses</a></td>
+    <td>Seçime Bağlı Ders(MT)/Elective Course (MT) II</td><td></td><td>S</td>
+    <td>2</td><td>4 / 5 / 6</td><td></td><td></td><td></td><td>LA</td>
+  </tr>
+</table>
+
+<h4>Associated Programs:</h4>
+<table id="dersPlanProgramList" class="datalist table table-striped table-bordered compact small">
+  <thead>
+    <tr><th>Birincil Program Kodu</th><th>Birincil Program Adı</th><th>Güncelleme Tarihi</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>UCK_LS</td><td>Uçak Mühendisliği</td><td>01.09.2019</td></tr>
+    <tr><td>HTA_LS</td><td>Harita Mühendisliği</td><td>01.09.2019</td></tr>
+    <tr><td>HTAE_LS</td><td>Harita Mühendisliği (İngilizce)</td><td>01.09.2019</td></tr>
+    <tr><td>INS_LS</td><td>İnşaat Mühendisliği</td><td>01.09.2019</td></tr>
+    <tr><td>MAKE_LS</td><td>Makina Mühendisliği (İngilizce)</td><td>01.09.2019</td></tr>
+  </tbody>
+</table>
+</body>
+</html>

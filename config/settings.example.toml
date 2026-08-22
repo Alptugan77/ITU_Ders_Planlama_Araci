@@ -1,0 +1,60 @@
+# Öğrenciye özgü ayarlar. Mevzuat kuralları koda GÖMÜLMEZ (yönetmelik değişiyor).
+
+[student]
+# Anadal program kodu (programme_codes.psv'deki kodlar)
+anadal_program = "XXX"       # KENDİ anadal kodun — `make programs` ile bul
+
+# ★ İkinci program: 'cap' | 'yandal' | 'yok'
+#   Üçü de aynı motorla çalışıyor — ayrı plan, ayrı ilerleme, ayrı renk.
+#   Değiştirince `make refresh` gerekir (OBS'den başka plan tipi çekilecek).
+second_kind = "cap"
+
+# --- ÇAP (second_kind = "cap" ise kullanılır)
+cap_program = "YYY"          # ikinci programın kodu — `make programs` ile bul
+# ★ 2229 = "TUMMUH_BLG Double Major Program After 2018-2019 / Fall Semester"
+#   HTAE_LS bu planın "Associated Programs" listesinde YER ALIYOR (doğrulandı).
+#   HTA_BLG diye ayrı bir plan YOK; Harita öğrencisi TUMMUH_BLG planına tabidir.
+cap_plan_id = 0            # `make programs` çıktısındaki id
+
+# --- Yandal (second_kind = "yandal" ise kullanılır)
+# Uygun planları görmek için:  python -m itucap.pipeline programs --tur yandal
+# yandal_program  = "BLG"
+# yandal_plan_id  = 0
+
+# anadal_plan_id = 0        # `plans HTAE_LS --plan-type lisans` ile doldur
+
+term = "202610"              # 2026-2027 Güz
+
+# ★ Bulunduğun dönem (1..8). "Dönemlik + alttan" öneri kipi bunu kullanır:
+#   dönemlik = bu dönemin plan dersleri, alttan = daha önceki dönemlerden kalanlar.
+#   0 bırakırsan geçtiğin slotların en derin döneminden çıkarılır ve arayüzde
+#   hangi değerin kullanıldığı yazar — yanlışsa buradan düzelt.
+donem = 0
+
+# ★ Kayıt yapabildiğin program kodları. Bir şubenin "Dersi Alabilen Programlar"
+#   listesinde bunlardan HERHANGİ BİRİ varsa dersi alabilirsin.
+program_codes = ["XXX", "YYY"]   # şube kısıtı bu kodlara açık olanları sayar
+
+# ★ Kontenjan nöbetinin (make watch) izleyeceği dersler.
+#   Boş bırakırsan planlarının açık slotlarındaki HER ders izlenir — çok
+#   gürültülü olabilir. Kayıt haftasında birkaç derse daraltmak daha iyi.
+# watch_courses = ["BLG 351E", "BLG 335E"]
+
+# ★ Yük birimi: İTÜ kredi sistemi. AKTS her yerde ayrıca gösterilir.
+unit     = "kredi"
+max_load = 22            # dönem kredi tavanı — MADDE 17, GNO\'na göre 25/40 olabilir
+                         # karşılaştırma: 2026-2027 Güz programın 24 kredi / 50 AKTS
+
+[scraper]
+request_delay_s = 1.0        # OBS'yi yorma: istekler arası en az 1 sn
+# ⚠️ SADECE ASCII — HTTP başlıklarında Türkçe karakter olamaz.
+user_agent = "itucap/0.1 (kisisel ders planlama araci)"
+
+# ---------------------------------------------------------------------------
+# Doğrulanacaklar (mevzuattan, bkz. yol haritası §8) — kod bunlara BAĞLI DEĞİL
+[regulation]
+min_gno_apply = 3.00
+min_gno_continue = 2.50      # ⚠️ DOĞRULA
+max_credits_per_term = 35    # ÇAP tavanı — beyan, mevzuattan doğrula
+max_ects_per_term = 30       # ⚠️ DOĞRULA
+source = "https://www.sis.itu.edu.tr/TR/mevzuat/yatay-cap-yandal-yonerge.php"
