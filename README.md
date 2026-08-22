@@ -76,23 +76,31 @@ siteyle birlikte yayınlanan katalogu kullanıyor.
 
 ### Siteyi kendin yayınla
 
+Site: <https://alptugan77.github.io/ITU_Ders_Secim_Araci/>
+
+⚠️ **Depo herkese açık olmalı.** GitHub Pages ücretsiz planda yalnız public
+depolarda çalışıyor (private için GitHub Pro / Team gerekiyor).
+
 ```bash
-make refresh                                          # OBS'den taze katalog
-gh release create katalog-$(date +%Y%m%d) data/reference.sqlite3
-# GitHub -> Actions -> "pages" -> Run workflow
+make refresh                     # OBS'den taze katalog
+# Katalogu bir sürüm varlığı olarak yükle:
+#   gh release create katalog-$(date +%Y%m%d) data/reference.sqlite3
+#   (gh yoksa: GitHub -> Releases -> Draft a new release -> etiket
+#    "katalog-YYYYAAGG" -> data/reference.sqlite3 dosyasını sürükle)
+# Sonra: GitHub -> Actions -> "pages" -> Run workflow
 ```
 
 Katalog depoya girmiyor (türetilmiş veri, 15 MB); yayın akışı onu sürüm
 varlığından indirip siteyi kuruyor ve **yayından önce gizlilik denetimi
-çalıştırıyor**. Yerelde denemek için: `make site`.
+çalıştırıyor** — kirliyse yayın durur. Yerelde denemek için: `make site`.
 
 ## Kurulum
 
 Python 3.11+ gerekiyor (`tomllib` için).
 
 ```bash
-git clone https://github.com/<kullanıcı>/itucap.git
-cd itucap
+git clone https://github.com/Alptugan77/ITU_Ders_Secim_Araci.git
+cd ITU_Ders_Secim_Araci
 make setup                    # sanal ortam + bağımlılıklar + örnek config
 ```
 
