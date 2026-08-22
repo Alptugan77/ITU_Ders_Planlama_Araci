@@ -109,6 +109,16 @@ class Survey:
     gpa: float = 0.0
     credits: float = 0.0
     anadal: str = ""
+    # ★ Bu plan tipinden katalogda HİÇ plan var mı?
+    #
+    # 22.08.2026'da doğrulandı: OBS `PlanTipiKodu=yandal` isteğini kabul
+    # ediyor ve "Akademik programa bağlı ders planı bulunmamaktadır" diyor.
+    # 128 programın hiçbirinde yandal planı yok — uç çalışıyor, VERİ yok.
+    #
+    # Bu ayrım arayüz için kritik: "henüz çekilmedi" ile "yayınlanmamış"
+    # farklı şeyler. Birincisinde kullanıcıya `make all-plans` demek doğru,
+    # ikincisinde YANLIŞ — çalıştırsa da bir şey gelmeyecek, boşuna uğraşır.
+    plan_type_available: bool = True
     # Başka anadalların ÇAP planı olduğu için elenen plan sayısı.
     # ★ Eleyen kural kendini göstermek zorunda — sessizce süzülen bir liste
     # "İTÜ'de bu kadar ÇAP varmış" diye yanlış bir izlenim bırakırdı.
@@ -262,6 +272,11 @@ def survey(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     anadal = (anadal or "").upper()
     anadal_name = names.get(anadal, "")
 
+    # Katalogda bu tipten hiç plan var mı? (host süzmesinden ÖNCE bakılıyor:
+    # "sana açık plan yok" ile "bu tipte hiç plan yok" ayrı sorular.)
+    plan_type_available = bool(con.execute(
+        "SELECT 1 FROM plan WHERE plan_type=? LIMIT 1", (kind,)).fetchone())
+
     by_program: dict[str, list] = {}
     other_host = 0
     for row in con.execute(
@@ -304,7 +319,8 @@ def survey(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     missing.sort(key=lambda o: o.program_code)
     return Survey(kind=kind, checks=checks, options=options, missing=missing,
                   gpa=gpa.value, credits=have_credits, anadal=anadal,
-                  other_host=other_host)
+                  other_host=other_host,
+                  plan_type_available=plan_type_available)
 
 
 def to_json(s: Survey, limit: int = 60) -> dict:
@@ -327,6 +343,7 @@ def to_json(s: Survey, limit: int = 60) -> dict:
         } for o in s.options[:limit]],
         "optionCount": len(s.options),
         "otherHost": s.other_host,
+        "planTypeAvailable": s.plan_type_available,
         "missing": [{"code": o.program_code, "name": o.program_name}
                     for o in s.missing],
         "missingCount": len(s.missing),
@@ -367,7 +384,14 @@ def describe(s: Survey) -> str:
         out.append("")
         out.append(f"  ({s.other_host} plan başka anadalların ÇAP'ı olduğu için "
                    f"listelenmedi.)")
-    if s.missing:
+    if not s.plan_type_available:
+        out.append("")
+        out.append(f"⚠️  Katalogda HİÇ {label.lower()} planı yok.")
+        out.append("   OBS bu plan tipini tanıyor ama plan yayınlamıyor")
+        out.append("   ('Akademik programa bağlı ders planı bulunmamaktadır').")
+        out.append("   `make all-plans` bunu DEĞİŞTİRMEZ — çekilecek veri yok.")
+        out.append("   Yandal düşünüyorsan bölümünden plan iste.")
+    elif s.missing:
         out.append("")
         out.append(f"PLANI ÇEKİLMEMİŞ ({len(s.missing)} program) — "
                    f"`make all-plans` bunları doldurur.")

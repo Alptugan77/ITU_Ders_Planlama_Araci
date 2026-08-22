@@ -2616,7 +2616,18 @@ function renderBasvuru(){
         <b>başka anadalların</b> ${basvuruKind === "cap" ? "ÇAP" : "yandal"}'ı
         olduğu için listelenmedi — ÇAP planları (anadal, hedef) çiftine göre
         tanımlı, başka bölümün planına başvuramazsın.</div>` : ""}
-    ${s.missingCount ? `
+    ${s.planTypeAvailable === false ? `
+      <div class="note" style="margin-top:14px;border-left-color:var(--warn)">
+        <b>İTÜ ${basvuruKind === "cap" ? "ÇAP" : "yandal"} ders planlarını
+        OBS'de yayınlamıyor.</b>
+        Uç çalışıyor ve doğru sorgulanıyor; OBS
+        <i>“Akademik programa bağlı ders planı bulunmamaktadır”</i> diyor —
+        128 programın hiçbirinde plan yok (doğrulandı 22.08.2026).
+        <div style="margin-top:6px">Yukarıdaki <b>şartlar</b> yönergeden
+        geliyor ve geçerli; ama plan olmadan “kaç ders kalır” sorusunu
+        <b>cevaplayamayız</b> ve uydurmayız. Yandal düşünüyorsan planı
+        bölümünden iste.</div>
+      </div>` : (s.missingCount ? `
       <div class="note" style="margin-top:14px">
         <b>${s.missingCount}</b> programın ${basvuruKind === "cap" ? "ÇAP" : "yandal"}
         planı henüz çekilmemiş, o yüzden listede yoklar.
@@ -2624,7 +2635,7 @@ function renderBasvuru(){
         planı lisansın küçük bir alt kümesi, oradan hesaplamak kalan işi
         iki katından fazla şişirirdi. Doldurmak için:
         <span class="mono">make all-plans</span>.
-      </div>` : ""}`;
+      </div>` : "")}`;
 }
 
 function renderBlockers(){

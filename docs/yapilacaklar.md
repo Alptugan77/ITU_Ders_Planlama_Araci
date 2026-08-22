@@ -1,6 +1,6 @@
 # Yapılacaklar
 
-Faz 1–15 bitti (468 test). Depo GitHub'a hazır; statik site yayında. Bu liste **sonrası** için: ne kaldı, neden önemli,
+Faz 1–15 bitti (472 test). Depo GitHub'a hazır; statik site yayında. Bu liste **sonrası** için: ne kaldı, neden önemli,
 ne kadar iş, neye bağlı.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
@@ -76,24 +76,26 @@ ağır ceza" ekle; tabanı karşılayan program bulunamıyorsa bunu açıkça s�
 indirim talebi gerekebilir"*). Sert kısıt YAPMA: taban indirilebiliyor,
 imkânsız görünen durum aslında çözülebilir olabilir.
 
-### 1.5 Yandal planlarını çek · S · **OBS gerekir**
-**Neden:** `make all-plans` 1081 ÇAP planı getirdi, **yandal için sıfır**. Site
-bu yüzden yandal tarafını hiç gösteremiyor. Tarama kodu iki tipi de istiyor
-(`plan_types=("cap","yandal")`) ama sonuç boş — sebebi OBS'ye bakmadan
-bilinemez.
+### 1.5 ~~Yandal planlarını çek~~ · ✅ **soruldu, cevap: OBS'de yok**
+22.08.2026'da OBS'ye doğrudan soruldu. `PlanTipiKodu=yandal` geçerli bir kod;
+uç isteği kabul ediyor ama plan döndürmüyor:
 
-**Ne:** tek programda dene ve çıktıyı gör:
-
-```bash
-make plans P=BLG_LS T=yandal      # liste geliyor mu?
-make plans P=BLG_LS T=cap         # karşılaştırma
+```
+yandal + BLG_LS  →  "Akademik programa bağlı ders planı bulunmamaktadır."
+cap    + BLG_LS  →  38 satır                        ← kontrol isteği
 ```
 
-Liste boş dönüyorsa OBS'nin `PlanTipiKodu` değeri `yandal` değil; doğrusunu
-plan sayfasındaki `#planTipiId` seçim kutusundan al ve
-`config.SECOND_KINDS`'daki üçüncü alanı düzelt. Hata veriyorsa `make refresh
-ARGS="--all-programs"` çıktısındaki tip başına satır sebebi yazıyor
-(Faz 15'te eklendi).
+Aynı sonuç END_LS'de de alındı; `--all-programs` 128 programın hiçbirinde
+yandal planı bulamadı. **Ayrıştırma hatası değil, veri yok.**
+
+Motor bunu artık ayırt ediyor (`plan_type_available`): "henüz çekilmedi" ile
+"yayınlanmamış" farklı şeyler ve ikincisinde kullanıcıyı `make all-plans`
+çalıştırmaya yönlendirmek yanlış olurdu. Yandal *şartları* (Madde 22/27)
+uygulanmaya devam ediyor.
+
+**Kalan:** plan İTÜ tarafından yayınlanırsa hiçbir kod değişikliği gerekmez.
+Elle plan girmek istenirse ayrı bir iş (M) — ama bir öğrencinin elle girdiği
+planı "resmi" gibi göstermemek gerekir.
 
 ## 2. Motorun bir sonraki sıçraması
 

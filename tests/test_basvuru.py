@@ -382,3 +382,51 @@ def test_declared_equivalences_do_not_inflate_other_programs(dbs, rules):
     # BLG 112E yalnız BEYAN edilen denklikle "tamamlanmış" olurdu → sayılmaz.
     assert blg.already == ["MAT 103E"]
     assert "BLG 112E" not in blg.already, "beyan edilen denklik sayılmamalı"
+
+
+# ============================ yandal planı yok (OBS gerçeği, 22.08.2026)
+#
+# OBS `PlanTipiKodu=yandal` isteğini KABUL ediyor ve "Akademik programa bağlı
+# ders planı bulunmamaktadır" diyor. 128 programın hiçbirinde yandal planı yok.
+# Uç çalışıyor, veri yok. Bu bir hata değil, veri gerçeği.
+
+def test_missing_plan_type_is_reported_separately(dbs, rules):
+    """★ "henüz çekilmedi" ile "yayınlanmamış" AYRI şeyler.
+
+    Birincisinde kullanıcıya `make all-plans` demek doğru; ikincisinde
+    YANLIŞ — çalıştırsa da bir şey gelmez, boşuna uğraşır. Yanlış yönlendirme
+    "bilinmeyeni bilinen gibi göstermek" kadar zararlı."""
+    con, ucon = dbs
+    cap = B.survey(con, ucon, 1, "cap", rules_path=rules)
+    yan = B.survey(con, ucon, 1, "yandal", rules_path=rules)
+    assert cap.plan_type_available is True      # fixture'da cap planı var
+    assert yan.plan_type_available is False     # yandal planı hiç yok
+
+
+def test_json_carries_plan_type_availability(dbs, rules):
+    con, ucon = dbs
+    j = B.to_json(B.survey(con, ucon, 1, "yandal", rules_path=rules))
+    assert j["planTypeAvailable"] is False
+
+
+def test_describe_does_not_promise_a_useless_command(dbs, rules):
+    """`make all-plans` önerisi, çekilecek veri varken anlamlı."""
+    con, ucon = dbs
+    yan = B.describe(B.survey(con, ucon, 1, "yandal", rules_path=rules))
+    assert "all-plans" in yan and "DEĞİŞTİRMEZ" in yan
+    cap = B.describe(B.survey(con, ucon, 1, "cap", exclude={"BLG"},
+                              rules_path=rules))
+    assert "DEĞİŞTİRMEZ" not in cap
+
+
+def test_thresholds_still_apply_without_plans(dbs, rules):
+    """★ Plan yokluğu ŞARTLARI geçersiz kılmaz.
+
+    Yandal başvuru eşiği yönergede duruyor; planı yayınlanmamış olması
+    "bu şart yok" demek değil. Şartları da gizleseydik, öğrenci
+    başvurabileceğini sanıp GNO şartını hiç görmezdi."""
+    con, ucon = dbs
+    _grade(ucon, "MAT 103E", "DD")
+    yan = B.survey(con, ucon, 1, "yandal", rules_path=rules)
+    assert not yan.plan_type_available
+    assert any(c.key == "yandal_basvuru" for c in yan.checks)

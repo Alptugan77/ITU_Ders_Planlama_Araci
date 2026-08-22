@@ -20,7 +20,7 @@ Plan Tipi kodları (`PlanTipiKodu`), `#planTipiId` seçim kutusundan:
 | `on-lisans` | Ön Lisans |
 | `lisans` | Lisans |
 | **`cap`** | **ÇAP (Double Degree)** |
-| `yandal` | Yandal (Minor) |
+| `yandal` | Yandal (Minor) — ⚠️ **plan yayınlanmamış**, aşağıya bak |
 | `muhendislik-tamamlama` | Mühendislik Tamamlama |
 | `bilimsel-hazirlik` | Bilimsel Hazırlık |
 | `yuksek-lisans` / `tezsiz-yuksek-lisans` / `yuksek-lisans-ikinci-ogretim` / `doktora` | Lisansüstü |
@@ -146,3 +146,34 @@ Scraper "bulunamadı"yı normal karşılar, hata saymaz. Denklik ihtiyacı çık
   Scraper'ı kendi makinenden çalıştır. `--skip-obs` ile itu-helper verisiyle
   çalışmaya devam edilebilir.
 * Sayfa saf JS ile render edilmiyor — Playwright'a **gerek yok**, `httpx` yeterli.
+
+
+---
+
+## Yandal planları OBS'de YOK (doğrulandı 22.08.2026)
+
+`PlanTipiKodu=yandal` **geçerli bir kod** — OBS isteği kabul ediyor, sayfayı
+doğru başlıkla ("… Lisans Ders Planları") üretiyor. Ama plan döndürmüyor:
+
+```
+GET /public/DersPlan/DersPlanlariList?PlanTipiKodu=yandal&programKodu=BLG_LS
+→ "Akademik programa bağlı ders planı bulunmamaktadır."   (0 satır)
+
+GET /public/DersPlan/DersPlanlariList?PlanTipiKodu=cap&programKodu=BLG_LS
+→ 38 satır  ("CEV_BLG ÇAP Programı 2013-2014 / Güz Dönemi Öncesi" …)
+```
+
+Aynı sonuç `END_LS` için de alındı ve `--all-programs` taraması **128
+programın hiçbirinde** yandal planı bulamadı.
+
+★ Bu bir ayrıştırma ya da parametre hatası **değil**: kontrol isteği (`cap`)
+aynı adresle, aynı program koduyla 38 satır getiriyor. İTÜ yandal ders
+planlarını bu uçtan yayınlamıyor.
+
+**Sonuç:** Yandal *şartları* biliniyor (yönerge Madde 22/27, `kurallar.toml`)
+ve uygulanıyor; ama "kaç ders kalır" sorusu **cevaplanamıyor** ve
+cevaplanıyormuş gibi yapılmıyor. Arayüz bunu açıkça yazıyor ve kullanıcıyı
+`make all-plans` çalıştırmaya boşuna yönlendirmiyor — çekilecek veri yok.
+
+Plan yayınlanırsa hiçbir kod değişikliği gerekmez: `make all-plans` onu
+kendiliğinden alır ve `plan_type_available` true olur.

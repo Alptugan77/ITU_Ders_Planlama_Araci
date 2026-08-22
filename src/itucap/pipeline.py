@@ -260,13 +260,59 @@ def cmd_refresh(args) -> int:
 
 
 def cmd_plans(args) -> int:
-    """Bir program için mevcut planları listeler (keşif aracı)."""
+    """Bir program için mevcut planları listeler (keşif aracı).
+
+    ★ BOŞ SONUÇ SESSİZ KALMAZ. Eskiden hiçbir şey basmıyordu; `yandal`
+    planlarının neden gelmediğini anlamak için kodu okumak gerekti
+    (22.08.2026). Sorulan adresi ve dönen satır sayısını yazmak, "bir şey
+    yok" ile "bir şey soruldu ve boş döndü" arasındaki farkı görünür kılıyor.
+    """
     settings = config.Settings.load()
     client = ObsClient(settings, archive=False)
     try:
-        for meta in obs_plan.list_plans(client, args.plan_type, args.program):
+        if getattr(args, "tara", False):
+            # Lisansüstü tipleri dışarıda: bu araç lisans öğrencisi için ve
+            # her tip bir OBS isteği demek ("OBS'yi yorma" kuralı).
+            # Liste AÇIK yazılıyor — "lisans geçmeyenler" gibi bir filtre
+            # 'doktora'yı içeri alıyordu.
+            LISANS_TIPLERI = ("lisans", "cap", "yandal", "uolp", "on-lisans",
+                              "muhendislik-tamamlama", "bilimsel-hazirlik")
+            tipler = [t for t in config.PLAN_TYPES if t in LISANS_TIPLERI]
+            print(f"'{args.program}' için plan tipleri deneniyor "
+                  f"({len(tipler)} istek, aralarda "
+                  f"{settings.request_delay_s:g}s bekleme)…\n")
+            bulunan = []
+            for tip in tipler:
+                try:
+                    metas = obs_plan.list_plans(client, tip, args.program)
+                    isaret = "✅" if metas else "—"
+                    print(f"  {isaret} {tip:<24} {len(metas):>3} plan")
+                    if metas:
+                        bulunan.append(tip)
+                        for m in metas[:2]:
+                            print(f"       {m['plan_id']:>6}  {(m['title'] or '')[:56]}")
+                except Exception as exc:                       # noqa: BLE001
+                    print(f"  ❌ {tip:<24} hata: {str(exc)[:70]}")
+            print()
+            if bulunan:
+                print(f"Plan DÖNEN tipler: {', '.join(bulunan)}")
+            else:
+                print("Hiçbir tipte plan yok — program kodu yanlış olabilir.")
+                print(f"Denenen kod: {args.program!r} "
+                      f"(genelde 'BLG_LS' gibi, sonda _LS)")
+            return 0
+
+        metas = obs_plan.list_plans(client, args.plan_type, args.program)
+        print(f"{config.EP['plan_list']}"
+              f"?PlanTipiKodu={args.plan_type}&programKodu={args.program}")
+        print(f"→ {len(metas)} plan\n")
+        for meta in metas:
             host = meta["host_program_code"] or "-"
             print(f"{meta['plan_id']:>6}  host={host:<8} {meta['title']}")
+        if not metas:
+            print("Bu (tip, program) çifti için OBS plan döndürmedi.")
+            print(f"Hangi tiplerde plan var, görmek için:")
+            print(f"  make plans P={args.program} ARGS=--tara")
     finally:
         client.close()
     return 0
@@ -689,6 +735,8 @@ def main(argv=None) -> int:
     l = sub.add_parser("plans", help="bir program için OBS planlarını listele")
     l.add_argument("program", help="OBS program kodu, ör. BLG_LS")
     l.add_argument("--plan-type", default="cap", choices=config.PLAN_TYPES)
+    l.add_argument("--tara", action="store_true",
+                   help="tüm plan tiplerini dene — hangisinde plan var?")
     l.set_defaults(func=cmd_plans)
 
     v = sub.add_parser("verify", help="Faz 1 bitiş kriterleri raporu")

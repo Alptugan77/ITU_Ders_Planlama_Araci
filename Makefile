@@ -27,6 +27,7 @@ help:
 	@echo ""
 	@echo "make test      - testler"
 	@echo "make plans P=BLG_LS T=cap  - OBS plan listesi"
+	@echo "make plans P=BLG_LS ARGS=--tara - hangi plan tiplerinde plan var"
 	@echo "make basvuru  - hangi ÇAP/yandal programlarına başvurabilirim"
 	@echo "make site     - GitHub Pages için statik site kur"
 	@echo "make gizlilik - depoya kişisel veri sızmış mı"
@@ -89,7 +90,7 @@ basvuru:
 	$(BIN)/python -m itucap.pipeline basvuru $(ARGS)
 
 plans:
-	$(BIN)/python -m itucap.pipeline plans $(or $(P),BLG_LS) --plan-type $(or $(T),cap)
+	$(BIN)/python -m itucap.pipeline plans $(or $(P),BLG_LS) --plan-type $(or $(T),cap) $(ARGS)
 
 watch:
 	$(BIN)/python -m itucap.pipeline watch $(ARGS)
