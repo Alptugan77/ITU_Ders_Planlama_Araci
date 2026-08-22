@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 import unicodedata
 
-from .config import DAY_INDEX
+from .config import DAY_CODES, DAY_INDEX
 
 # --------------------------------------------------------------- kategoriler
 CATEGORIES = {"MT", "ITB", "TB", "TM", "ENG", "GE", "ED", "SNT", "OTHER"}
@@ -118,3 +118,49 @@ def split_cap_plan_code(obs_program_code: str) -> tuple[str | None, str | None]:
         return None, code or None
     host, _, target = code.rpartition("_")
     return host or None, target or None
+
+
+# --------------------------------------------------- meşgul saat beyanı
+# "PZT 12:30-14:30 iş" gibi tek satırlık bir aralık.
+#
+# ★ Neden metin? `settings.toml`'a liste olarak yazılabilsin diye. Yorum
+# koruyan satır bazlı yazıcımız (`config.update_settings`) skaler ve liste
+# yazabiliyor; `[[tablo]]` yazamıyor. Kullanıcı dosyayı elle de açıp
+# okuyabilsin istedik — "PZT 12:30-14:30 iş" bir insanın yazabileceği şey.
+_MESGUL_RE = re.compile(
+    r"^\s*(?P<gun>[A-Za-zÇĞİÖŞÜçğıöşü]+|[1-7])\s+"
+    r"(?P<bas>\d{1,2}[:.]\d{2})\s*[-–]\s*(?P<bit>\d{1,2}[:.]\d{2})"
+    r"(?:\s+(?P<ad>.+?))?\s*$")
+
+
+def parse_busy(raw: str) -> dict | None:
+    """'PZT 12:30-14:30 iş' → {'day':1,'start':750,'end':870,'label':'iş'}
+
+    Geçersizse `None` — sessizce atlanır, çünkü bu bir KISIT beyanı ve
+    anlaşılmayan bir kısıtı tahmin etmek yanlış ders elemeye yol açardı.
+    """
+    m = _MESGUL_RE.match(raw or "")
+    if not m:
+        return None
+    day = day_to_index(m.group("gun"))
+    if day is None:
+        try:
+            day = int(m.group("gun"))
+        except ValueError:
+            return None
+    if not 1 <= day <= 7:
+        return None
+    start = hhmm_to_min(m.group("bas").replace(".", ":"))
+    end = hhmm_to_min(m.group("bit").replace(".", ":"))
+    if start is None or end is None or end <= start:
+        return None
+    return {"day": day, "start": start, "end": end,
+            "label": (m.group("ad") or "").strip() or "meşgul"}
+
+
+def format_busy(day: int, start: int, end: int, label: str = "") -> str:
+    """Yapıdan metne — arayüzden gelen seçimi dosyaya yazarken."""
+    ad = " " + label.strip() if label and label.strip() else ""
+    return (f"{DAY_CODES.get(day, str(day))} "
+            f"{start // 60:02d}:{start % 60:02d}-"
+            f"{end // 60:02d}:{end % 60:02d}{ad}")

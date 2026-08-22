@@ -641,3 +641,33 @@ def format_blockers(blockers: list[Blocker], n_lessons: int | None = None) -> st
         out.append("      şubeler başka programlara ayrılmış. Bölümle/danışmanla")
         out.append("      konuşmak, ders çalışmaktan daha çok işe yarar.")
     return "\n".join(out)
+
+
+# ------------------------------------------------------------ meşgul saatler
+def busy_sections(declared: Iterable[str]) -> list[Section]:
+    """Ders konulamayacak saatleri, çakışma taşıyan sahte şubelere çevirir.
+
+    ★ Yeni bir çakışma mantığı YAZMIYORUZ. `build_schedules` zaten `fixed`
+    parametresiyle "bunlarla çakışan şube seçilemez" diyebiliyor (anadalda
+    kayıtlı olduğun şubeler için). Okul dışı bir işi de aynı şey sayıyoruz:
+    saat doluysa doludur, sebebi ders olması gerekmez.
+
+    Ayrı bir yol yazsaydık iki çakışma tanımı olurdu ve biri düzelirken
+    öbürü unutulurdu — kayıt haftasında fark edilecek türden bir hata.
+
+    ⚠️ Bunlar SERT kısıt: çakışan şube hiç önerilmiyor. Yumuşak tercih
+    ("mümkünse sabah olmasın") ayrı bir iş — bkz. yapılacaklar 2.2.
+    """
+    from .normalize import parse_busy
+
+    out: list[Section] = []
+    for i, raw in enumerate(declared or ()):
+        b = parse_busy(str(raw))
+        if b is None:
+            continue                       # anlaşılmayan beyan sessizce atlanır
+        out.append(Section(
+            crn=f"mesgul-{i}", course=f"⛔ {b['label']}", instructor=None,
+            capacity=0, enrolled=0,
+            meetings=(Meeting(b["day"], b["start"], b["end"],
+                              None, None, None),)))
+    return out

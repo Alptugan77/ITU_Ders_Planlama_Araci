@@ -1,6 +1,6 @@
 # Yapılacaklar
 
-Faz 1–14 bitti (439 test). Depo GitHub'a hazır; statik site çalışıyor. Bu liste **sonrası** için: ne kaldı, neden önemli,
+Faz 1–15 bitti (468 test). Depo GitHub'a hazır; statik site yayında. Bu liste **sonrası** için: ne kaldı, neden önemli,
 ne kadar iş, neye bağlı.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
@@ -75,6 +75,25 @@ ağır ceza" ekle; tabanı karşılayan program bulunamıyorsa bunu açıkça s�
 (*"bu dönem açık ÇAP derslerinden tabanı karşılayan çakışmasız program yok —
 indirim talebi gerekebilir"*). Sert kısıt YAPMA: taban indirilebiliyor,
 imkânsız görünen durum aslında çözülebilir olabilir.
+
+### 1.5 Yandal planlarını çek · S · **OBS gerekir**
+**Neden:** `make all-plans` 1081 ÇAP planı getirdi, **yandal için sıfır**. Site
+bu yüzden yandal tarafını hiç gösteremiyor. Tarama kodu iki tipi de istiyor
+(`plan_types=("cap","yandal")`) ama sonuç boş — sebebi OBS'ye bakmadan
+bilinemez.
+
+**Ne:** tek programda dene ve çıktıyı gör:
+
+```bash
+make plans P=BLG_LS T=yandal      # liste geliyor mu?
+make plans P=BLG_LS T=cap         # karşılaştırma
+```
+
+Liste boş dönüyorsa OBS'nin `PlanTipiKodu` değeri `yandal` değil; doğrusunu
+plan sayfasındaki `#planTipiId` seçim kutusundan al ve
+`config.SECOND_KINDS`'daki üçüncü alanı düzelt. Hata veriyorsa `make refresh
+ARGS="--all-programs"` çıktısındaki tip başına satır sebebi yazıyor
+(Faz 15'te eklendi).
 
 ## 2. Motorun bir sonraki sıçraması
 

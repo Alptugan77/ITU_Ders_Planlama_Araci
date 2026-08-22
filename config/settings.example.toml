@@ -51,6 +51,12 @@ max_load = 22            # dönem kredi tavanı — MADDE 17, GNO\'na göre 25/4
 # 0 bırakırsan araç hiçbir taban iddia etmez (ve seni uyaramaz).
 cap_baslangic_yariyili = 0
 
+# ★ Ders KONULAMAYACAK saatler — okul dışı işler için.
+# Biçim: "GÜN BAŞLANGIÇ-BİTİŞ etiket"   (gün: PZT SAL ÇAR PER CUM CMT PAZ)
+# Motor bu aralıklara ders koymaz; çakışan şube hiç önerilmez.
+# Arayüzden de eklenebilir: ızgarada boş hücreye tıkla → "Bu saati derse kapat".
+mesgul = []
+
 [scraper]
 request_delay_s = 1.0        # OBS'yi yorma: istekler arası en az 1 sn
 # ⚠️ SADECE ASCII — HTTP başlıklarında Türkçe karakter olamaz.

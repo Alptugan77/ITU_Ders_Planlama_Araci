@@ -34,7 +34,13 @@ PLAN_TYPES = [
     "yuksek-lisans-ikinci-ogretim", "doktora", "uolp",
 ]
 
+# Kısa kodlar: kullanıcının elle yazacağı ve arayüzün üreteceği biçim.
+DAY_CODES = {1: "PZT", 2: "SAL", 3: "ÇAR", 4: "PER", 5: "CUM",
+             6: "CMT", 7: "PAZ"}
+
 DAY_INDEX = {
+    "pzt": 1, "sal": 2, "çar": 3, "car": 3, "per": 4,
+    "cum": 5, "cmt": 6, "paz": 7,
     "monday": 1, "pazartesi": 1,
     "tuesday": 2, "salı": 2, "sali": 2,
     "wednesday": 3, "çarşamba": 3, "carsamba": 3,
@@ -79,6 +85,12 @@ class Settings:
     # iki yönde de zarar: uydurma bir kuralla "az aldın" demek, ya da gerçek
     # tabanı atlayıp ilişik kesilmesine götürmek.
     cap_baslangic_yariyili: int = 0
+    # ★ Ders KONULAMAYACAK saatler — okul dışı işler (iş, antrenman, servis).
+    # Biçim: "GÜN BAŞLANGIÇ-BİTİŞ etiket"  →  "PZT 12:30-14:30 iş"
+    # Motor bunları "zaten dolu" sayıyor; çakışan şube hiç önerilmiyor.
+    # Liste olarak tutuluyor çünkü `update_settings` liste yazabiliyor —
+    # ayrı bir [[tablo]] biçimi yeni bir yazıcı gerektirirdi.
+    mesgul: list[str] = field(default_factory=list)
     request_delay_s: float = 1.0
     # HTTP başlıkları ASCII olmak zorunda — Türkçe karakter KOYMA (httpx patlar).
     # Yine de güvenlik için http.ascii_header() ile temizleniyor.
@@ -156,7 +168,7 @@ _EDITABLE = {
     "anadal_program", "anadal_plan_id", "second_kind",
     "cap_program", "cap_plan_id", "yandal_program", "yandal_plan_id",
     "donem", "term", "unit", "max_load", "program_codes", "watch_courses",
-    "cap_baslangic_yariyili",
+    "cap_baslangic_yariyili", "mesgul",
 }
 
 

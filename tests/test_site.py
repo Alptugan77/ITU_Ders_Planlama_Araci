@@ -343,3 +343,50 @@ def test_engine_really_imports_sqlite3():
         if _re.search(r"^import sqlite3", src, _re.M):
             kullanan.append(name)
     assert len(kullanan) >= 5, kullanan
+
+
+def test_prune_keeps_every_host_pair(tmp_path):
+    """★★ 22.08.2026: "ÇAP programlarının bazıları eksik".
+
+    ÇAP planları (anadal, hedef) ÇİFTİNE göre tanımlı — `TUMMUH_BLG`,
+    `INS_BLG`, `MAK_BLG` hepsi `program_code='BLG'`. Gruplama anahtarında
+    host olmayınca 27 çift tek plana iniyordu ve İnşaat öğrencisi kendi
+    planını sitede hiç bulamıyordu. Gerçek veride 527 çift → 63 kalıyordu.
+    """
+    import site_kur
+
+    con = db.connect(tmp_path / "reference.sqlite3", "schema.sql")
+    con.executemany(
+        """INSERT INTO plan(id,program_code,plan_type,title,host_program_code,iteration)
+           VALUES (?,?,?,?,?,?)""",
+        [(1, "BLG", "cap", "a", "TUMMUH", "2020-2021 / Güz Dönemi Sonrası"),
+         (2, "BLG", "cap", "b", "INS", "2020-2021 / Güz Dönemi Sonrası"),
+         (3, "BLG", "cap", "c", "MAK", "2020-2021 / Güz Dönemi Sonrası"),
+         # Aynı çiftin eski iterasyonu — bu DÜŞMELİ.
+         (4, "BLG", "cap", "d", "INS", "2010-2011 / Güz Dönemi Öncesi")])
+    con.commit()
+    con.close()
+
+    dst = tmp_path / "web.sqlite3"
+    site_kur.prune(tmp_path / "reference.sqlite3", dst)
+    kalan = {(r[0], r[1]) for r in sqlite3.connect(dst).execute(
+        "SELECT host_program_code, program_code FROM plan")}
+    assert kalan == {("TUMMUH", "BLG"), ("INS", "BLG"), ("MAK", "BLG")}
+
+
+def test_prune_still_picks_the_current_iteration_per_pair(tmp_path):
+    """Çift başına iterasyon seçimi bozulmamalı."""
+    import site_kur
+
+    con = db.connect(tmp_path / "reference.sqlite3", "schema.sql")
+    con.executemany(
+        """INSERT INTO plan(id,program_code,plan_type,title,host_program_code,iteration)
+           VALUES (?,?,?,?,?,?)""",
+        [(1, "BLG", "cap", "eski", "INS", "2010-2011 / Güz Dönemi Öncesi"),
+         (2, "BLG", "cap", "yeni", "INS", "2020-2021 / Güz Dönemi Sonrası")])
+    con.commit()
+    con.close()
+    dst = tmp_path / "web.sqlite3"
+    site_kur.prune(tmp_path / "reference.sqlite3", dst)
+    kalan = [r[0] for r in sqlite3.connect(dst).execute("SELECT id FROM plan")]
+    assert kalan == [2]

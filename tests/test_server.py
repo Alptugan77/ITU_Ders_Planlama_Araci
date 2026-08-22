@@ -576,3 +576,43 @@ def test_watch_list_is_exposed_to_the_page(live):
     code, data = get("/api/state")
     assert code == 200
     assert data["setup"]["watchCourses"] == ["BLG 335E"]
+
+
+# ------------------------------------------- Faz 15: ders konulamayacak saatler
+def test_busy_endpoint_adds_and_removes(live, sandbox):
+    """★ Silme İNDEKSLE değil METİNLE.
+
+    İndeks kullansaydık iki sekme açıkken listeler kayar ve kullanıcı yanlış
+    aralığı silerdi — sessiz ve fark edilmesi zor bir hata."""
+    _state, _base, _get, post = live
+    code, data = post("/api/mesgul",
+                      {"day": 1, "start": 750, "end": 870, "label": "iş"})
+    assert code == 200 and data["busyCount"] == 1
+    assert config.Settings.load().mesgul == ["PZT 12:30-14:30 iş"]
+
+    code, data = post("/api/mesgul", {"remove": "PZT 12:30-14:30 iş"})
+    assert code == 200 and data["busyCount"] == 0
+    assert config.Settings.load().mesgul == []
+
+
+def test_busy_endpoint_validates(live):
+    _state, _base, _get, post = live
+    assert post("/api/mesgul", {"day": 9, "start": 600, "end": 700})[0] == 400
+    assert post("/api/mesgul", {"day": 1, "start": 700, "end": 600})[0] == 400
+    assert post("/api/mesgul", {"day": 1, "start": 600, "end": 600})[0] == 400
+    assert post("/api/mesgul", {"remove": "olmayan aralık"})[0] == 400
+
+
+def test_busy_endpoint_rejects_duplicates(live):
+    _state, _base, _get, post = live
+    post("/api/mesgul", {"day": 2, "start": 600, "end": 700, "label": "x"})
+    assert post("/api/mesgul", {"day": 2, "start": 600, "end": 700,
+                                "label": "x"})[0] == 400
+
+
+def test_busy_reaches_the_page(live):
+    """Izgara kapalı saatleri çizebilmeli; yoksa kullanıcı kısıtı göremez."""
+    _state, _base, _get, post = live
+    _code, data = post("/api/mesgul",
+                       {"day": 3, "start": 510, "end": 630, "label": "spor"})
+    assert any(b.get("label") == "spor" and b.get("ok") for b in data["busy"])

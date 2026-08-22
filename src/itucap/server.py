@@ -168,6 +168,10 @@ class State:
             return {}
         if path == "/api/watch":
             return self.toggle_watch(str(b.get("course") or ""))
+        if path == "/api/mesgul":
+            return self.save_busy(b.get("day") or 0, b.get("start") or 0,
+                                  b.get("end") or 0, str(b.get("label") or ""),
+                                  str(b.get("remove") or ""))
         return None
 
     def dispatch(self, path: str, body: dict) -> dict | None:
@@ -506,6 +510,37 @@ class State:
             values["cap_baslangic_yariyili"] = cb
         config.update_settings(values)
         return donem
+
+    def save_busy(self, day: int, start: int, end: int, label: str = "",
+                  remove: str = "") -> dict:
+        """Ders konulamayacak bir saat aralığı ekler ya da siler.
+
+        ★ Silme, İNDEKSLE değil ham METİNLE yapılıyor. İndeks kullansaydık iki
+        sekme açıkken listeler kayar ve kullanıcı yanlış aralığı silerdi.
+        """
+        from .normalize import format_busy, parse_busy
+
+        settings = config.Settings.load()
+        current = [str(x) for x in (settings.mesgul or [])]
+        if remove:
+            yeni = [x for x in current if x.strip() != remove.strip()]
+            if len(yeni) == len(current):
+                raise ValueError("böyle bir aralık yok")
+            current = yeni
+        else:
+            day, start, end = int(day), int(start), int(end)
+            if not 1 <= day <= 7:
+                raise ValueError("gün 1–7 arasında olmalı")
+            if not 0 <= start < end <= 24 * 60:
+                raise ValueError("bitiş saati başlangıçtan sonra olmalı")
+            metin = format_busy(day, start, end, label)
+            if parse_busy(metin) is None:      # kendi ürettiğimizi doğrula
+                raise ValueError("aralık okunamadı")
+            if metin in current:
+                raise ValueError("bu aralık zaten var")
+            current = sorted({*current, metin})
+        config.update_settings({"mesgul": current})
+        return {"busyCount": len(current)}
 
     def toggle_watch(self, course: str) -> dict:
         """`make watch` izleme listesine ders ekler/çıkarır (yapılacaklar 4.3).

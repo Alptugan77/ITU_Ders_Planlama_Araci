@@ -33,6 +33,29 @@ from . import sequence as SEQ
 from . import student as S
 
 
+def _busy_info(declared) -> list[dict]:
+    """Meşgul saatleri arayüze taşır — ham metniyle birlikte.
+
+    ★ `raw` şart: silme işlemi metnin kendisiyle yapılıyor. İndeksle
+    silseydik, iki sekme açıkken listeler kayar ve kullanıcı yanlış aralığı
+    silerdi.
+
+    Anlaşılmayan satır DÜŞMÜYOR, `ok=False` ile geliyor: sessizce yok saymak,
+    kullanıcının koyduğunu sandığı bir kısıtın uygulanmadığını gizlerdi.
+    """
+    from .normalize import parse_busy
+
+    out = []
+    for raw in declared or ():
+        raw = str(raw)
+        b = parse_busy(raw)
+        if b is None:
+            out.append({"raw": raw, "ok": False})
+            continue
+        out.append({**b, "raw": raw, "ok": True})
+    return out
+
+
 def _basvuru_info(con: sqlite3.Connection, ucon: sqlite3.Connection,
                   student_id: int, settings) -> dict | None:
     """Başvurulabilirlik taraması — iki tür için de (ÇAP ve yandal).
@@ -169,8 +192,13 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                             settings.anadal_program, settings.second_program,
                             settings.allowed_programs, settings.unit,
                             second_role=second_role, max_term=max_term)
-        return cs, REC.build_schedules(cs, max_load=limit, limit=n_schedules)
+        # ★ Meşgul saatler `fixed` olarak giriyor: motor onları "zaten dolu"
+        # sayıyor ve çakışan şubeyi hiç önermiyor. Ayrı bir çakışma yolu
+        # yazmak iki tanım demek olurdu (bkz. REC.busy_sections).
+        return cs, REC.build_schedules(cs, max_load=limit, limit=n_schedules,
+                                       fixed=busy)
 
+    busy = REC.busy_sections(settings.mesgul)
     cands, schedules = build(None)
     # ★ İkinci kip: dönemlik + alttan. Ayrı bir aday havuzu ve ayrı programlar.
     term_cands, term_scheds = build(donem) if donem else ([], [])
@@ -337,6 +365,9 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         "gpa": gpa_info,
         "load": load_info,
         "secondFloor": floor_info,
+        # Ders konulamayacak saatler — ızgarada gösteriliyor ve motor
+        # bunlarla çakışan şubeyi hiç önermiyor.
+        "busy": _busy_info(settings.mesgul),
         "taking": sorted(S.in_progress(ucon, student_id)),
         "panels": panels,
         "candidates": candidates_json(cands),
@@ -707,6 +738,14 @@ table.grid td.free:hover{background:var(--surface-2);
   color:var(--accent-ink);overflow:hidden}
 .blk[data-role="ANADAL"]{--accent:var(--anadal);--soft:var(--anadal-soft);--accent-ink:var(--anadal-ink)}
 .blk[data-role="CAP"],.blk[data-role="YANDAL"]{--accent:var(--cap);--soft:var(--cap-soft);--accent-ink:var(--cap-ink)}
+/* Ders konulamayacak saat — okul dışı iş. Taralı, çünkü bir DERS değil:
+   veri renklerini (yeşil/kehribar) kullansaydı programın parçası sanılırdı. */
+.blk.mesgul{--accent:var(--ink-3);border-left-color:var(--border-strong);
+  background:repeating-linear-gradient(135deg,var(--surface-2) 0 5px,
+    transparent 5px 10px);color:var(--ink-2);cursor:pointer}
+.blk.mesgul b{font-weight:600;letter-spacing:.02em}
+table.grid td.busycell{background:repeating-linear-gradient(135deg,
+  var(--surface-2) 0 5px,transparent 5px 10px)}
 .blk b{display:block;font-weight:600}
 .blk small{color:var(--ink-2);font-size:11px}
 .empty{color:var(--ink-3);font-size:12px;padding:24px 0;text-align:center}
@@ -791,34 +830,6 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
 
 <section class="panels" id="panels"></section>
 
-<section class="card pad" id="creditSection" hidden>
-  <div class="sechead"><div class="eyebrow">Mevzuat kısıtı</div><div class="rule"></div></div>
-  <h2 style="margin-bottom:14px">Kredi ve not eşikleri</h2>
-  <div id="gpaBody"></div>
-  <div id="loadBody"></div>
-  <div id="floorBody"></div>
-  <div id="creditBody"></div>
-</section>
-
-<section class="card pad" id="suggestSection" hidden>
-  <div class="sechead"><div class="eyebrow">Denklik</div><div class="rule"></div></div>
-  <h2>Bunu zaten almış olabilirsin</h2>
-  <div class="summary">Transkriptindeki dersler ile planlarının <b>dolmamış</b>
-    slotları arasında ad eşleşmesi arandı. Uygulamak senin onayınla —
-    yanlış bir denklik, tamamlamadığın bir şartı tamamlanmış gösterirdi.</div>
-  <div id="suggestBody" style="margin-top:12px"></div>
-</section>
-
-<section class="card pad" id="changeSection" hidden>
-  <div class="sechead"><div class="eyebrow">Son tazelemeden beri</div><div class="rule"></div></div>
-  <div style="display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;
-              align-items:flex-end">
-    <div><h2>Ne değişti</h2><div class="modenote" id="changeWhen"></div></div>
-    <button class="ghost" id="refreshBtn" hidden>Veriyi tazele</button>
-  </div>
-  <div id="changeBody" style="margin-top:12px"></div>
-</section>
-
 <section class="card pad">
   <div class="sechead"><div class="eyebrow">Bu dönem</div><div class="rule"></div></div>
   <div style="display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;
@@ -845,6 +856,35 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
        yana kaydırma istediği için telefonda kullanışsızdı (yapılacaklar 4.1). -->
   <div class="daylist" id="daylist" style="margin-top:14px"></div>
   <div id="notime" style="margin-top:14px"></div>
+</section>
+
+
+<section class="card pad" id="creditSection" hidden>
+  <div class="sechead"><div class="eyebrow">Mevzuat kısıtı</div><div class="rule"></div></div>
+  <h2 style="margin-bottom:14px">Kredi ve not eşikleri</h2>
+  <div id="gpaBody"></div>
+  <div id="loadBody"></div>
+  <div id="floorBody"></div>
+  <div id="creditBody"></div>
+</section>
+
+<section class="card pad" id="suggestSection" hidden>
+  <div class="sechead"><div class="eyebrow">Denklik</div><div class="rule"></div></div>
+  <h2>Bunu zaten almış olabilirsin</h2>
+  <div class="summary">Transkriptindeki dersler ile planlarının <b>dolmamış</b>
+    slotları arasında ad eşleşmesi arandı. Uygulamak senin onayınla —
+    yanlış bir denklik, tamamlamadığın bir şartı tamamlanmış gösterirdi.</div>
+  <div id="suggestBody" style="margin-top:12px"></div>
+</section>
+
+<section class="card pad" id="changeSection" hidden>
+  <div class="sechead"><div class="eyebrow">Son tazelemeden beri</div><div class="rule"></div></div>
+  <div style="display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;
+              align-items:flex-end">
+    <div><h2>Ne değişti</h2><div class="modenote" id="changeWhen"></div></div>
+    <button class="ghost" id="refreshBtn" hidden>Veriyi tazele</button>
+  </div>
+  <div id="changeBody" style="margin-top:12px"></div>
 </section>
 
 <section class="card pad">
@@ -2082,6 +2122,16 @@ function render(){
   renderFloor();
 
   const cells = {}, spans = {}, timeless = [];
+  /* ★ Meşgul saatler ders bloklarıyla AYNI hücre haritasına giriyor.
+     Ayrı bir katman çizseydik üst üste binerlerdi; motor zaten bu saatlere
+     ders koymuyor (bkz. REC.busy_sections), ızgara da öyle davranmalı. */
+  (DATA.busy || []).filter(b => b.ok).forEach((b, i) => {
+    const a = Math.max(0, Math.floor((b.start - T0) / STEP));
+    const z = Math.min(ROWS, Math.ceil((b.end - T0) / STEP));
+    if(z <= a) return;
+    cells[`${b.day}-${a}`] = {busy: b, span: Math.max(1, z - a)};
+    for(let r = a + 1; r < z; r++) spans[`${b.day}-${r}`] = true;
+  });
   picks().forEach(p => {
     if(!p.sec.meetings.length){ timeless.push(p); return; }
     p.sec.meetings.forEach(m => {
@@ -2106,6 +2156,15 @@ function render(){
           role="button" aria-label="${DAYS[d-1]} ${hhmm(min)} boş — ders ekle"></td>`;
         continue;
       }
+      if(c.busy){
+        html += `<td rowspan="${c.span}" class="busycell"><div class="blk mesgul"
+          data-busy="${esc(c.busy.raw)}" tabindex="0" role="button"
+          title="Kaldırmak için tıkla">
+          <b>${esc(c.busy.label)}</b>
+          <small class="mono">${hhmm(c.busy.start)}–${hhmm(c.busy.end)}</small>
+        </div></td>`;
+        continue;
+      }
       html += `<td rowspan="${c.span}"><div class="blk" data-role="${c.p.cand.role}"
           data-course="${esc(c.p.cand.course)}" tabindex="0" role="button">
           <b class="mono">${esc(c.p.cand.course)}</b>
@@ -2119,6 +2178,8 @@ function render(){
     bind(el, () => courseDialog(el.dataset.course)));
   $("#grid").querySelectorAll("td.free").forEach(el =>
     bind(el, () => slotDialog(+el.dataset.day, +el.dataset.min)));
+  $("#grid").querySelectorAll(".blk.mesgul").forEach(el =>
+    bind(el, () => busyDialog(null, null, el.dataset.busy)));
 
   renderDayList();
 
@@ -2341,7 +2402,88 @@ function slotDialog(day, min){
         <span style="color:var(--ink-3);font-size:12px">${rest.length} ders</span></div>
       <div class="optlist">${rest.slice(0, 12).map(r => r[1]).join("")}</div>` : ""}
     ${(!near.length && !rest.length)
-      ? `<div class="empty">bu güne uyan aday ders yok</div>` : ""}`);
+      ? `<div class="empty">bu güne uyan aday ders yok</div>` : ""}
+    ${LIVE ? `<div style="margin-top:14px;padding-top:12px;
+         border-top:1px solid var(--border)">
+      <button class="ghost" id="busyAdd">Bu saati derse kapat</button>
+      <div class="why" style="margin-top:6px">Okul dışı bir işin varsa
+        (staj, antrenman, servis) bu saati kapatabilirsin — motor buraya
+        ders koymaz.</div></div>` : ""}`);
+  const ba = $("#busyAdd");
+  if(ba) ba.addEventListener("click", () => {
+    $("#detail").close();
+    busyDialog(day, min);
+  });
+}
+
+/* ---------- Ders konulamayacak saatler ----------
+   Kullanıcı isteği 22.08.2026: "planda ders seçilemeyecek yerler
+   belirlenebilmeli okul dışı aktiviteler için".
+
+   ★ Bu SERT bir kısıt: çakışan şube hiç önerilmiyor. Motor tarafında yeni
+   bir çakışma mantığı yazılmadı — aralık, zaten kayıtlı bir ders gibi
+   `build_schedules(fixed=…)` ile veriliyor (bkz. REC.busy_sections). İki
+   ayrı çakışma tanımı olsaydı biri düzelirken öbürü unutulurdu. */
+function busyDialog(day, min, remove){
+  if(remove){
+    const b = (DATA.busy || []).find(x => x.raw === remove) || {};
+    openDialog(`
+      <div class="eyebrow">Kapalı saat</div>
+      <h2>${esc(b.label || "meşgul")}</h2>
+      <div class="meta" style="color:var(--ink-2);font-size:13px;margin:4px 0 14px">
+        ${b.ok ? `${DAYS[b.day-1]} ${hhmm(b.start)}–${hhmm(b.end)}`
+               : `<span class="mono">${esc(remove)}</span> — okunamadı`}
+      </div>
+      <button class="ghost danger" id="busyDel">Bu saati aç</button>`);
+    $("#busyDel").addEventListener("click", async () => {
+      const btn = $("#busyDel");
+      btn.disabled = true; btn.textContent = "…";
+      try{
+        applyState(await api("/api/mesgul", {remove}));
+        $("#detail").close();
+      }catch(err){ btn.disabled = false; btn.textContent = "hata: " + err.message; }
+    });
+    return;
+  }
+  // Varsayılan aralık: tıklanan hücreden 2 saat. Kullanıcı daraltabilir.
+  const bas = min, bit = Math.min(24*60, min + 120);
+  openSetup(`
+    <div class="eyebrow">Kurulum</div>
+    <h2 style="margin-bottom:4px">Bu saati derse kapat</h2>
+    <p class="modenote" style="margin:2px 0 10px">Motor bu aralığa ders
+      koymayacak. Kaldırmak için ızgaradaki taralı bloğa tıkla.</p>
+    <label class="field"><span>Gün</span>
+      <div class="terms" id="fGun">
+        ${DAYS.map((d, i) => `<button data-d="${i+1}"
+          aria-pressed="${i+1 === day}" style="width:auto;padding:7px 12px"
+          >${d}</button>`).join("")}
+      </div></label>
+    <label class="field" style="margin-top:12px"><span>Saat</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="time" id="fBas" value="${hhmm(bas)}" step="900">
+        <span style="color:var(--ink-3)">–</span>
+        <input type="time" id="fBit" value="${hhmm(bit)}" step="900">
+      </div></label>
+    <label class="field" style="margin-top:12px"><span>Ne için?</span>
+      <input type="text" id="fAd" maxlength="40" placeholder="iş, antrenman, servis…">
+      <span class="hint">İsteğe bağlı — ızgarada bu yazacak.</span></label>`, () => {
+    let gun = day;
+    $("#fGun").querySelectorAll("button").forEach(b =>
+      b.addEventListener("click", () => {
+        gun = +b.dataset.d;
+        $("#fGun").querySelectorAll("button").forEach(x =>
+          x.setAttribute("aria-pressed", +x.dataset.d === gun));
+      }));
+    $("#setupSave").addEventListener("click", () => {
+      const toMin = (v) => {
+        const [h, m] = String(v || "").split(":").map(Number);
+        return (h || 0) * 60 + (m || 0);
+      };
+      save(() => api("/api/mesgul", {
+        day: gun, start: toMin($("#fBas").value), end: toMin($("#fBit").value),
+        label: $("#fAd").value}));
+    });
+  });
 }
 
 $("#reset").addEventListener("click", () => resetTo(active));

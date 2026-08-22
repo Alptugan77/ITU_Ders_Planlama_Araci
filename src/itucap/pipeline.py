@@ -85,26 +85,52 @@ def step_all_second_plans(con, settings, plan_types=("cap", "yandal"),
         "SELECT code FROM program WHERE level='LS' ORDER BY code")]
     client = ObsClient(settings)
     stats = {"programs": 0, "plans": 0, "slots": 0, "errors": 0}
+    # ★ TİP BAŞINA sayaç. Toplam sayı, bir plan tipinin hiç gelmediğini
+    # gizliyordu: 22.08.2026'da `cap` 1081 plan getirdi, `yandal` SIFIR
+    # getirdi ve bu hiçbir yerde yazmadı — eksik olduğu ancak sitede fark
+    # edildi. Bir adımın sessizce hiçbir şey yapmaması, hata vermesinden
+    # daha tehlikeli.
+    per: dict[str, dict[str, int]] = {t: {"plans": 0, "errors": 0, "empty": 0}
+                                      for t in plan_types}
+    ilk_hata: dict[str, str] = {}
     try:
         for code in codes:
             stats["programs"] += 1
             for plan_type in plan_types:
                 try:
                     metas = obs_plan.list_plans(client, plan_type, f"{code}_LS")
-                except Exception:                              # noqa: BLE001
+                except Exception as exc:                       # noqa: BLE001
                     stats["errors"] += 1
+                    per[plan_type]["errors"] += 1
+                    ilk_hata.setdefault(plan_type, f"{code}: {exc}")
                     continue
+                if not metas:
+                    per[plan_type]["empty"] += 1
                 for meta in metas:
                     try:
                         stats["slots"] += obs_plan.scrape_plan(client, con, meta)
                         stats["plans"] += 1
-                    except Exception:                          # noqa: BLE001
+                        per[plan_type]["plans"] += 1
+                    except Exception as exc:                   # noqa: BLE001
                         stats["errors"] += 1
+                        per[plan_type]["errors"] += 1
+                        ilk_hata.setdefault(plan_type, f"{code}: {exc}")
             if stats["programs"] % 10 == 0:
                 print(f"   … {stats['programs']}/{len(codes)} program, "
                       f"{stats['plans']} plan", flush=True)
     finally:
         client.close()
+    stats["per_type"] = per
+    for t, d in per.items():
+        durum = "✅" if d["plans"] else "⚠️ "
+        print(f"   {durum} {t}: {d['plans']} plan · {d['errors']} hata · "
+              f"{d['empty']} programda liste boş")
+        if not d["plans"]:
+            # Sessiz sıfır, aracın en zor fark edilen hatası. Sebebini söyle.
+            print(f"      → '{t}' tipinde HİÇ plan gelmedi. "
+                  f"Tek programda dene: make plans P=BLG_LS T={t}")
+            if t in ilk_hata:
+                print(f"      → ilk hata: {ilk_hata[t][:160]}")
     return stats
 
 

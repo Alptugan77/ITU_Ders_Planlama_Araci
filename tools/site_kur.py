@@ -90,10 +90,23 @@ def prune(src: Path, dst: Path) -> dict:
     con = sqlite3.connect(dst)
     stats = {}
 
-    rows = con.execute("SELECT id,program_code,plan_type,iteration FROM plan").fetchall()
+    # ★★ Gruplama anahtarına HOST DAHİL — 22.08.2026'da eksik ÇAP programı
+    # şikâyetinin sebebi buydu.
+    #
+    # ÇAP planları (anadal, hedef) ÇİFTİNE göre tanımlı: `TUMMUH_BLG`,
+    # `INS_BLG`, `MAK_BLG`… Hepsi `program_code='BLG'`. Anahtar yalnız
+    # (program, tip) olunca 27 farklı çift tek plana iniyordu: İnşaat
+    # öğrencisi kendi `INS_BLG` planını sitede HİÇ bulamıyordu.
+    #
+    # Gerçek veride etkisi: 527 çift → 63. Planların %88'i siteye girmiyordu.
+    # İterasyon seçimi hâlâ doğru (aynı çiftin yıl aralıkları arasından
+    # yürürlükte olanı) ama artık ÇİFT BAŞINA yapılıyor.
+    rows = con.execute(
+        "SELECT id,program_code,plan_type,iteration,host_program_code FROM plan"
+    ).fetchall()
     groups: dict[tuple, list] = {}
-    for pid, prog, ptype, it in rows:
-        groups.setdefault((prog, ptype), []).append((pid, it or ""))
+    for pid, prog, ptype, it, host in rows:
+        groups.setdefault((host or "", prog, ptype), []).append((pid, it or ""))
 
     def rank(x):
         pid, it = x
@@ -107,6 +120,7 @@ def prune(src: Path, dst: Path) -> dict:
     con.execute("DELETE FROM plan_slot WHERE plan_id NOT IN (SELECT id FROM plan)")
     con.execute("DELETE FROM pool_option WHERE slot_id NOT IN (SELECT id FROM plan_slot)")
     stats["plan"] = f"{len(rows)} → {len(keep)}"
+    stats["cift"] = len(groups)
 
     # Tarama geçmişi ve kalite raporları tarayıcıda kullanılmıyor.
     for t in ("lesson_snapshot", "snapshot_run", "ingest_run", "quality_finding",
