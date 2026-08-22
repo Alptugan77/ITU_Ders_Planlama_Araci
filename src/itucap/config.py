@@ -19,6 +19,7 @@ ITU_HELPER_RAW = "https://raw.githubusercontent.com/itu-helper/data/main"
 # --- WP1.1 çıktısı: doğrulanmış OBS uçları (bkz. docs/obs-endpoints.md) ------
 EP = {
     "plan_programs": f"{OBS}/public/DersPlan/GetAkademikProgramByBirimIdAndPlanTipi",  # POST
+    "plan_page": f"{OBS}/public/DersPlan",                                             # GET (fakülte listesi)
     "plan_list": f"{OBS}/public/DersPlan/DersPlanlariList",                            # GET
     "plan_detail": f"{OBS}/public/DersPlan/DersPlanDetay",                             # GET /{id}
     "pool_group": f"{OBS}/public/DersPlan/_DersGrupSearch",                            # GET ?grupId=

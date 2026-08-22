@@ -38,8 +38,22 @@ Fakülte id'leri (`FakulteId`), ilgili olanlar:
 ```
 POST /public/DersPlan/GetAkademikProgramByBirimIdAndPlanTipi
 Content-Type: application/x-www-form-urlencoded
-akademikBirimId=28&planTipiKodu=cap
+birimId=28&planTipiKodu=cap
 ```
+
+> ⚠️ **DÜZELTME (22.08.2026):** Parametre adı `birimId` — burada uzun süre
+> `akademikBirimId` yazıyordu ve **yanlıştı**. Fark edilmemesinin sebebi bu
+> adımın hiç çağrılmamış olması: ÇAP'ta program kodu tahmin edilebildiği için
+> ("BLG" → "BLG_LS") kademeli menü atlanıyordu. Yandalda tahmin çalışmıyor ve
+> uç ilk kez gerçekten çağrıldı; yanlış parametre **boş cevap** veriyordu —
+> hata değil, sessiz sıfır.
+>
+> Cevap biçimi:
+> ```json
+> [{"programKodu": "ECN_YD", "programAdi": "Economics (Minor)"},
+>  {"programKodu": "BHB_YD", "programAdi": "Informatics Applications … (Minor)"},
+>  {"programKodu": "SUS_YD", "programAdi": "Sustainability (Minor)"}]
+> ```
 
 Fakülte 28 + `cap` → `YZVE_LS`, `BLG_LS`, `SECE_LS`
 Fakülte 4 + `cap` → `INS_LS`, `CEV_LS`, `GEO_LS`, `HTA_LS`
@@ -150,10 +164,15 @@ Scraper "bulunamadı"yı normal karşılar, hata saymaz. Denklik ihtiyacı çık
 
 ---
 
-## Yandal planları OBS'de YOK (doğrulandı 22.08.2026)
+## Yandal planları VAR — ama program kodu başka (22.08.2026)
 
-`PlanTipiKodu=yandal` **geçerli bir kod** — OBS isteği kabul ediyor, sayfayı
-doğru başlıkla ("… Lisans Ders Planları") üretiyor. Ama plan döndürmüyor:
+> ⚠️ Bu bölüm önce "yandal planı yok" diyordu. **Yanlıştı.** Aşağıdaki
+> gözlemler doğru ama sonuç yanlış çıkarılmıştı: yanlış program koduyla
+> sorulduğu için boş dönüyordu.
+
+Yandal programları **lisans bölümlerinden bağımsız**, fakülte düzeyinde
+tanımlı ve kodları farklı: `ECN_YD`, `BHB_YD`, `SUS_YD`. `BLG_LS` diye
+sormak yanlış soru — OBS de doğru cevap veriyor:
 
 ```
 GET /public/DersPlan/DersPlanlariList?PlanTipiKodu=yandal&programKodu=BLG_LS
@@ -166,14 +185,20 @@ GET /public/DersPlan/DersPlanlariList?PlanTipiKodu=cap&programKodu=BLG_LS
 Aynı sonuç `END_LS` için de alındı ve `--all-programs` taraması **128
 programın hiçbirinde** yandal planı bulamadı.
 
-★ Bu bir ayrıştırma ya da parametre hatası **değil**: kontrol isteği (`cap`)
-aynı adresle, aynı program koduyla 38 satır getiriyor. İTÜ yandal ders
-planlarını bu uçtan yayınlamıyor.
+Doğru kodlar **1.2'deki kademeli menüden** geliyor (fakülte + plan tipi).
+`make kesif T=yandal` bunu yapıyor; `make all-plans` artık kodları tahmin
+etmek yerine bu keşfi kullanıyor.
 
-**Sonuç:** Yandal *şartları* biliniyor (yönerge Madde 22/27, `kurallar.toml`)
-ve uygulanıyor; ama "kaç ders kalır" sorusu **cevaplanamıyor** ve
-cevaplanıyormuş gibi yapılmıyor. Arayüz bunu açıkça yazıyor ve kullanıcıyı
-`make all-plans` çalıştırmaya boşuna yönlendirmiyor — çekilecek veri yok.
+### Alınan iki ders
 
-Plan yayınlanırsa hiçbir kod değişikliği gerekmez: `make all-plans` onu
-kendiliğinden alır ve `plan_type_available` true olur.
+**1. Sessiz sıfır iki kez yanılttı.** Önce `list_programs` cevabı
+ayrıştıramadığında boş liste döndü ve "23 fakültede de yandal yok" sanıldı.
+Sonra yanlış parametre adı yine boş liste verdi. İkisinde de sıfır, "veri
+yok" gibi okundu. Artık: ayrıştırılamayan cevap **ham metniyle** taşınıyor
+(`{"_ham": …}`) ve keşif komutu bilinen-dolu bir çiftle **kontrol isteği**
+atıyor — kontrol de boşsa sorun bizdedir.
+
+**2. "Atlanabilir" adım, hiç çalıştırılmadığı için bozuk kalabilir.**
+Kademeli menü ÇAP'ta gerçekten gereksizdi; o yüzden yıllarca çağrılmadı ve
+içindeki yanlış parametre adı hiç ortaya çıkmadı. Kullanılmayan yol, test
+edilmemiş yoldur.

@@ -59,7 +59,14 @@ def list_plans(client, plan_type: str, obs_program_code: str) -> list[dict]:
         title = cells[-1] if cells else ""
         code_m = _CODE_TITLE_RE.match(title)
         pair_code = code_m.group("code") if code_m else None
-        host, target = split_cap_plan_code(pair_code) if pair_code else (None, None)
+        # ★ (anadal, hedef) ÇİFTİ yalnız ÇAP'ta var: 'TUMMUH_BLG'.
+        # Yandal programı bir çift değil, kendi başına bir program
+        # ('ECN_YD' = Economics Minor). split_cap_plan_code onu ('ECN','YD')
+        # diye bölerdi ve 'YD' adında olmayan bir programa bağlardı.
+        if plan_type == "cap" and pair_code:
+            host, target = split_cap_plan_code(pair_code)
+        else:
+            host, target = None, (pair_code or None)
         out.append({
             "plan_id": int(m.group(1)),
             "title": title,
@@ -288,3 +295,175 @@ def _num(v):
         return float(str(v).replace(",", "."))
     except (TypeError, ValueError):
         return None
+
+
+# ---------------------------------------------------------- program keşfi
+# ★ Program kodlarını TAHMİN ETMEK yerine OBS'ye sormak.
+#
+# Tarayıcı baştan beri `f"{program_kodu}_LS"` varsayıyordu. ÇAP için çalışıyor
+# çünkü ÇAP planları hedef lisans programına bağlı. **Yandal için çalışmıyor**:
+# kullanıcı 22.08.2026'da söyledi — yandal programları lisans bölümlerinden
+# bağımsız, FAKÜLTE düzeyinde yayınlanıyor. Yani `BLG_LS` diye sormak yanlış
+# soru; o kodda yandal planı olmaması normal.
+#
+# Doğrusu, OBS'nin kademeli menüsünü kullanmak: fakülteyi seç → o fakültenin
+# O PLAN TİPİNDEKİ programlarını al. Bu adım "isteğe bağlı" diye atlanmıştı
+# (docs/obs-endpoints.md 1.2); ÇAP'ta atlanabilir, yandalda atlanamaz.
+#
+# Fakülte id'leri SABİT YAZILMIYOR, sayfadan okunuyor: yeni fakülte açılırsa
+# ya da id değişirse kod kendiliğinden uyum sağlasın.
+
+# ★★ Parametre adı: `birimId` — `akademikBirimId` DEĞİL.
+#
+# docs/obs-endpoints.md'de `akademikBirimId` yazıyordu ve yanlıştı. Fark
+# edilmemesinin sebebi, bu adımın hiç kullanılmamış olması: ÇAP'ta program
+# kodu tahmin edilebildiği için ("BLG" → "BLG_LS") kademeli menü atlanmıştı.
+# Yandalda tahmin çalışmıyor (kodlar `ECN_YD`, `BHB_YD`, `SUS_YD`) ve uç ilk
+# kez gerçekten çağrıldı — yanlış parametre boş cevap veriyordu.
+#
+# 22.08.2026'da ağ isteğinden doğrulandı:
+#   birimId=10&planTipiKodu=yandal
+#   → [{programKodu:"ECN_YD", programAdi:"Economics (Minor)"}, …]
+PROGRAM_PARAM = "birimId"
+
+
+def list_faculties(client) -> list[tuple[str, str]]:
+    """Ders planı sayfasındaki akademik birim listesi: [(id, ad), …]."""
+    html = client.get(config.EP["plan_page"])
+    tree = HTMLParser(html)
+    out: list[tuple[str, str]] = []
+    for sel in tree.css("select"):
+        name = (sel.attributes.get("id") or "") + " " + (sel.attributes.get("name") or "")
+        if "birim" not in name.lower() and "fakulte" not in name.lower():
+            continue
+        for opt in sel.css("option"):
+            val = (opt.attributes.get("value") or "").strip()
+            ad = opt.text(strip=True)
+            if val and val not in ("0", "-1") and ad:
+                out.append((val, ad))
+        if out:
+            break
+    return out
+
+
+def list_programs_debug(client, faculty_id: str, plan_type: str):
+    """Ham cevabı ve çıkarılan kodları birlikte döndürür (tanı için)."""
+    data = client.post_json(config.EP["plan_programs"],
+                            {PROGRAM_PARAM: faculty_id,
+                             "planTipiKodu": plan_type})
+    return data, _kodlari_cikar(data)
+
+
+def _programlari_cikar(data) -> list[tuple[str, str]]:
+    """Cevaptan (kod, ad) çiftleri. Ad yoksa kodun kendisi kullanılır.
+
+    Yandal programlarının insan okunur adı yalnız burada geliyor
+    ("Economics (Minor)"); `program` tablosunda karşılığı yok çünkü onlar
+    lisans programı değil. Adı atarsak arayüzde `ECN_YD` yazar ve kullanıcı
+    hangi program olduğunu anlamaz.
+    """
+    ciftler: list[tuple[str, str]] = []
+
+    def gez(x):
+        if isinstance(x, dict):
+            if "_ham" in x:
+                for kod in re.findall(r'value="([A-Za-z0-9_]{2,})"', x["_ham"]):
+                    ciftler.append((kod.upper(), kod.upper()))
+                return
+            kod = next((str(x[k]) for k in ("programKodu", "ProgramKodu", "Kod",
+                                            "kod", "Value", "value")
+                        if x.get(k)), None)
+            if kod:
+                ad = next((str(x[k]) for k in ("programAdi", "ProgramAdi", "Ad",
+                                               "ad", "Text", "text")
+                           if x.get(k)), kod)
+                ciftler.append((kod.strip().upper(), ad.strip()))
+                return
+            for v in x.values():
+                if isinstance(v, (list, dict)):
+                    gez(v)
+        elif isinstance(x, list):
+            for item in x:
+                gez(item)
+        elif isinstance(x, str) and re.fullmatch(r"[A-Za-z0-9_]{2,}", x.strip()):
+            ciftler.append((x.strip().upper(), x.strip().upper()))
+
+    gez(data)
+    return ciftler
+
+
+def _kodlari_cikar(data) -> list[str]:
+    """Cevaptan program kodlarını çıkarır — biçim ne olursa olsun.
+
+    OBS'nin cevabı belgelenmemiş ve sürüme göre değişebiliyor: düz liste,
+    sözlük listesi, sarmalanmış sözlük ya da HTML `<option>` parçası.
+    Hepsini deniyoruz; hiçbiri tutmazsa çağıran taraf ham cevabı görsün diye
+    boş dönüyoruz ama SESSİZ kalmıyoruz (bkz. cmd_kesif).
+    """
+    ALAN = ("Kod", "kod", "Value", "value", "ProgramKodu", "programKodu",
+            "Text", "text", "Ad", "ad", "Id", "id")
+    out: list[str] = []
+
+    def gez(x):
+        if isinstance(x, str):
+            out.append(x)
+        elif isinstance(x, dict):
+            if "_ham" in x:                       # JSON değil, HTML gelmiş
+                out.extend(re.findall(r'value="([A-Z0-9_]+)"', x["_ham"]))
+                return
+            for k in ALAN:
+                if x.get(k):
+                    out.append(str(x[k]))
+                    return
+            for v in x.values():                  # sarmalanmış liste
+                if isinstance(v, (list, dict)):
+                    gez(v)
+        elif isinstance(x, list):
+            for item in x:
+                gez(item)
+
+    gez(data)
+    # Program kodu kalıbı: harf/rakam/alt çizgi, en az 2 karakter.
+    return [k.strip().upper() for k in out
+            if k and re.fullmatch(r"[A-Za-z0-9_]{2,}", k.strip())]
+
+
+def list_programs_named(client, faculty_id: str, plan_type: str
+                        ) -> list[tuple[str, str]]:
+    """(fakülte, plan tipi) için [(kod, ad), …]."""
+    return _programlari_cikar(client.post_json(
+        config.EP["plan_programs"],
+        {PROGRAM_PARAM: faculty_id, "planTipiKodu": plan_type}))
+
+
+def list_programs(client, faculty_id: str, plan_type: str) -> list[str]:
+    """(fakülte, plan tipi) için OBS program kodları — ör. ['BLG_LS', …].
+
+    Cevabın biçimi belgelenmemiş; hem JSON listesi hem HTML `<option>`
+    dönebiliyor. İkisini de karşılıyoruz ve tanımadığımız biçimde SESSİZCE
+    boş dönmüyoruz — çağıran taraf farkı görebilsin.
+    """
+    return _kodlari_cikar(client.post_json(
+        config.EP["plan_programs"],
+        {PROGRAM_PARAM: faculty_id, "planTipiKodu": plan_type}))
+
+
+def save_programs(con, programs, level: str) -> int:
+    """Keşfedilen programları `program` tablosuna yazar.
+
+    ★ Yandal programları lisans programı DEĞİL ('ECN_YD' = Economics Minor,
+    'ECN' lisans programından ayrı bir şey). `level` onları ayırıyor: arayüz
+    yandal ararken `level='YD'`, ÇAP ararken `level='LS'` satırlarına bakıyor.
+    Aynı tabloya karışık koyup ayırt etmemek, ÇAP listesinde yandal
+    programlarının görünmesine yol açardı.
+    """
+    n = 0
+    for kod, ad in programs:
+        con.execute(
+            """INSERT INTO program(code,name,faculty,level) VALUES (?,?,?,?)
+               ON CONFLICT(code) DO UPDATE SET
+                 name=excluded.name, level=excluded.level""",
+            (kod, ad, "", level))
+        n += 1
+    con.commit()
+    return n

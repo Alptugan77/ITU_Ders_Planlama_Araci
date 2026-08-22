@@ -2,7 +2,7 @@ PY ?= python3
 VENV := .venv
 BIN := $(VENV)/bin
 
-.PHONY: help setup refresh offline app watch changes suggest all-plans plans plan-info programs basvuru site gizlilik status verify sequence student transcript progress recommend ui test prereq-report clean
+.PHONY: help setup refresh offline app watch changes suggest all-plans plans kesif plan-info programs basvuru site gizlilik status verify sequence student transcript progress recommend ui test prereq-report clean
 
 help:
 	@echo "make setup     - sanal ortam + bağımlılıklar"
@@ -28,6 +28,7 @@ help:
 	@echo "make test      - testler"
 	@echo "make plans P=BLG_LS T=cap  - OBS plan listesi"
 	@echo "make plans P=BLG_LS ARGS=--tara - hangi plan tiplerinde plan var"
+	@echo "make kesif T=yandal ARGS=--planlar - OBS'ye sor: hangi programlar var"
 	@echo "make basvuru  - hangi ÇAP/yandal programlarına başvurabilirim"
 	@echo "make site     - GitHub Pages için statik site kur"
 	@echo "make gizlilik - depoya kişisel veri sızmış mı"
@@ -88,6 +89,9 @@ gizlilik:
 
 basvuru:
 	$(BIN)/python -m itucap.pipeline basvuru $(ARGS)
+
+kesif:
+	$(BIN)/python -m itucap.pipeline kesif --plan-type $(or $(T),yandal) $(ARGS)
 
 plans:
 	$(BIN)/python -m itucap.pipeline plans $(or $(P),BLG_LS) --plan-type $(or $(T),cap) $(ARGS)

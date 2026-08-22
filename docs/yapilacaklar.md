@@ -1,6 +1,6 @@
 # Yapılacaklar
 
-Faz 1–15 bitti (472 test). Depo GitHub'a hazır; statik site yayında. Bu liste **sonrası** için: ne kaldı, neden önemli,
+Faz 1–16 bitti (485 test). Depo GitHub'a hazır; statik site yayında. Bu liste **sonrası** için: ne kaldı, neden önemli,
 ne kadar iş, neye bağlı.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
@@ -76,26 +76,22 @@ ağır ceza" ekle; tabanı karşılayan program bulunamıyorsa bunu açıkça s�
 indirim talebi gerekebilir"*). Sert kısıt YAPMA: taban indirilebiliyor,
 imkânsız görünen durum aslında çözülebilir olabilir.
 
-### 1.5 ~~Yandal planlarını çek~~ · ✅ **soruldu, cevap: OBS'de yok**
-22.08.2026'da OBS'ye doğrudan soruldu. `PlanTipiKodu=yandal` geçerli bir kod;
-uç isteği kabul ediyor ama plan döndürmüyor:
+### 1.5 ~~Yandal planlarını çek~~ · ✅ **Faz 16'da çözüldü**
+Sorun OBS'de değil bizdeydi. Yandal programları lisans bölümlerinden bağımsız,
+fakülte düzeyinde tanımlı ve kodları farklı: `ECN_YD`, `BHB_YD`, `SUS_YD`.
+Tarayıcı `f"{program}_LS"` tahmin ediyordu — yanlış soru.
 
+Kademeli menü (fakülte + plan tipi) doğru kodları veriyor. O adım "atlanabilir"
+diye işaretliydi ve hiç çağrılmamıştı; içindeki parametre adı da yanlıştı
+(`akademikBirimId`, doğrusu **`birimId`**). Kullanılmayan yol, test edilmemiş
+yoldur.
+
+```bash
+make kesif T=yandal ARGS=--planlar   # tanı
+make all-plans                       # artık yandalı da çekiyor
 ```
-yandal + BLG_LS  →  "Akademik programa bağlı ders planı bulunmamaktadır."
-cap    + BLG_LS  →  38 satır                        ← kontrol isteği
-```
 
-Aynı sonuç END_LS'de de alındı; `--all-programs` 128 programın hiçbirinde
-yandal planı bulamadı. **Ayrıştırma hatası değil, veri yok.**
-
-Motor bunu artık ayırt ediyor (`plan_type_available`): "henüz çekilmedi" ile
-"yayınlanmamış" farklı şeyler ve ikincisinde kullanıcıyı `make all-plans`
-çalıştırmaya yönlendirmek yanlış olurdu. Yandal *şartları* (Madde 22/27)
-uygulanmaya devam ediyor.
-
-**Kalan:** plan İTÜ tarafından yayınlanırsa hiçbir kod değişikliği gerekmez.
-Elle plan girmek istenirse ayrı bir iş (M) — ama bir öğrencinin elle girdiği
-planı "resmi" gibi göstermemek gerekir.
+**Kalan:** `make all-plans` bir kez çalıştırılıp katalog yeniden yayınlanmalı.
 
 ## 2. Motorun bir sonraki sıçraması
 

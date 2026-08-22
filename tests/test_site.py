@@ -390,3 +390,55 @@ def test_prune_still_picks_the_current_iteration_per_pair(tmp_path):
     site_kur.prune(tmp_path / "reference.sqlite3", dst)
     kalan = [r[0] for r in sqlite3.connect(dst).execute("SELECT id FROM plan")]
     assert kalan == [2]
+
+
+# ================== sessiz sıfır: "veri yok" ile "anlayamadım" ayrımı
+#
+# 22.08.2026'da yandal programları 23 fakültede de 0 göründü ve bundan
+# "OBS yayınlamıyor" sonucu çıkarıldı. Yanlıştı. Sıfır iki farklı şey olabilir
+# ve ayırt etmeden yorumlamak, aracın tekrar tekrar yaptığı hata biçimi.
+
+def test_post_json_surfaces_unparsable_response():
+    """★ JSON değilse boş liste DÖNMEZ — ham metni taşır.
+
+    Boş liste dönseydi çağıran taraf "cevap boş" sanardı; oysa OBS veri
+    döndürüyor olabilir ve biz anlamıyoruzdur."""
+    from itucap import http as H
+
+    class Sahte(H.ObsClient):
+        def __init__(self):
+            pass
+        def _request(self, *a, **k):
+            return "<option value='ISL_YD'>İşletme</option>"
+
+    out = Sahte().post_json("x", {})
+    assert isinstance(out, dict) and "_ham" in out
+    assert "ISL_YD" in out["_ham"]
+
+
+@pytest.mark.parametrize("cevap,beklenen", [
+    (["BLG_LS", "YZV_LS"],                       ["BLG_LS", "YZV_LS"]),
+    ([{"Kod": "BLG_LS"}, {"Kod": "SEC_LS"}],     ["BLG_LS", "SEC_LS"]),
+    ({"data": [{"Value": "BLG_YD"}]},            ["BLG_YD"]),
+    ({"Data": [{"programKodu": "ISL_YD"}]},      ["ISL_YD"]),
+    ({"_ham": '<option value="">-</option><option value="ISL_YD">İş</option>'},
+                                                 ["ISL_YD"]),
+    ([], []),
+    ({}, []),
+])
+def test_program_codes_extracted_from_any_shape(cevap, beklenen):
+    """OBS'nin cevabı belgelenmemiş ve sürüme göre değişiyor.
+
+    Tek bir biçime bağlanmak, biçim değişince SESSİZCE sıfır program
+    döndürmek demek — tam da yandalda başımıza gelen."""
+    from itucap.sources.obs_plan import _kodlari_cikar
+
+    assert _kodlari_cikar(cevap) == beklenen
+
+
+def test_program_code_extraction_ignores_labels():
+    """İnsan okunur etiketler kod sanılmamalı."""
+    from itucap.sources.obs_plan import _kodlari_cikar
+
+    out = _kodlari_cikar([{"Kod": "ISL_YD", "Ad": "İşletme Yandal Programı"}])
+    assert out == ["ISL_YD"]

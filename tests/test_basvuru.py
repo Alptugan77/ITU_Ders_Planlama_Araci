@@ -430,3 +430,62 @@ def test_thresholds_still_apply_without_plans(dbs, rules):
     yan = B.survey(con, ucon, 1, "yandal", rules_path=rules)
     assert not yan.plan_type_available
     assert any(c.key == "yandal_basvuru" for c in yan.checks)
+
+
+# ==================== yandal programları (Faz 16: keşifle çekilebiliyor)
+def _yandal_plani(con):
+    """Yandal programı ve planı — LİSANS programı DEĞİL, level='YD'."""
+    con.execute("""INSERT INTO program(code,name,faculty,level)
+                   VALUES ('ECN_YD','Economics (Minor)','','YD')""")
+    con.execute("""INSERT INTO plan(id,program_code,plan_type,title,
+                                    host_program_code,iteration)
+                   VALUES (30,'ECN_YD','yandal','Economics Minor',NULL,
+                           '2020-2021 / Güz Dönemi Sonrası')""")
+    con.execute("""INSERT INTO plan_slot(plan_id,slot_kind,course_code,
+                   credits,position) VALUES (30,'REQUIRED','MAT 103E',4.0,0)""")
+    con.commit()
+
+
+def test_yandal_programs_are_found(dbs, rules):
+    """★ Yandal programı `level='LS'` değil.
+
+    Tek seviyeye bakmak yandal taramasında hiçbir şey bulamamak demekti;
+    arayüz "plan yok" diyordu, oysa vardı."""
+    con, ucon = dbs
+    _yandal_plani(con)
+    s = B.survey(con, ucon, 1, "yandal", anadal="GEO", rules_path=rules)
+    assert s.plan_type_available is True
+    kodlar = {o.program_code for o in s.options}
+    assert "ECN_YD" in kodlar
+    ecn = [o for o in s.options if o.program_code == "ECN_YD"][0]
+    assert ecn.program_name == "Economics (Minor)"     # kod değil, ADI
+
+
+def test_yandal_is_not_filtered_by_host(dbs, rules):
+    """★ Host süzmesi yalnız ÇAP'ta anlamlı.
+
+    ÇAP planı (anadal, hedef) çiftine bağlı; yandal programı herkese açık.
+    Süzseydik hepsi elenir ve liste yine boş görünürdü."""
+    con, ucon = dbs
+    _yandal_plani(con)
+    s = B.survey(con, ucon, 1, "yandal", anadal="GEO", rules_path=rules)
+    assert s.other_host == 0
+    assert s.options, "yandal programı host süzmesine takılmamalı"
+
+
+def test_yandal_counts_passed_courses(dbs, rules):
+    con, ucon = dbs
+    _yandal_plani(con)
+    _grade(ucon, "MAT 103E", "AA")
+    s = B.survey(con, ucon, 1, "yandal", anadal="GEO", rules_path=rules)
+    ecn = [o for o in s.options if o.program_code == "ECN_YD"][0]
+    assert ecn.already == ["MAT 103E"]
+
+
+def test_cap_scan_ignores_yandal_programs(dbs, rules):
+    """Yandal programı ÇAP listesinde GÖRÜNMEMELİ — ayrı şeyler."""
+    con, ucon = dbs
+    _yandal_plani(con)
+    s = B.survey(con, ucon, 1, "cap", anadal="GEO", rules_path=rules)
+    assert "ECN_YD" not in {o.program_code for o in s.options}
+    assert "ECN_YD" not in {o.program_code for o in s.missing}

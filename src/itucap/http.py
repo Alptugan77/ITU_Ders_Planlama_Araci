@@ -86,13 +86,20 @@ class ObsClient:
         return self._request("GET", url, params=params)
 
     def post_json(self, url: str, data: dict) -> list | dict:
+        """POST → JSON. Ayrıştırılamazsa HAM METNİ taşıyan bir sözlük döner.
+
+        ★ Eskiden boş liste dönüyordu ve bu, "cevap boş" ile "cevabı
+        anlayamadım" arasındaki farkı yok ediyordu (22.08.2026: yandal
+        programları 23 fakültede de 0 göründü, oysa OBS veri döndürüyordu).
+        Sessiz sıfır, bu projede tekrar tekrar canımızı yakan hata biçimi.
+        """
         import json
 
         txt = self._request("POST", url, data=data, ajax=True)
         try:
             return json.loads(txt)
         except json.JSONDecodeError:
-            return []
+            return {"_ham": txt}
 
     def close(self) -> None:
         self.client.close()

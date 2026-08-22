@@ -72,37 +72,79 @@ def step_all_second_plans(con, settings, plan_types=("cap", "yandal"),
                           only: list[str] | None = None) -> dict:
     """FAZ 10 — HER programın ÇAP ve yandal planlarını çeker.
 
-    Faz 7'de ikinci programın türü seçilebilir oldu ama `refresh` yalnız
-    **seçili** programın planını çekiyordu. Sonuç: arayüzdeki program seçici
-    tek bir seçenek gösteriyordu — seçilebilir ama seçilecek bir şey yok.
+    ★★ PROGRAM KODLARI ARTIK TAHMİN EDİLMİYOR, OBS'YE SORULUYOR (Faz 16).
 
-    ⚠️ Bu adım YAVAŞ: ~129 program × 2 tip × (1 liste + N detay) isteği, aralarda
-    `request_delay_s` beklemeyle. Bu yüzden `refresh`'in varsayılanı DEĞİL;
-    `make refresh ARGS="--all-programs"` ile açıkça istenmesi gerekiyor.
-    OBS'yi yormamak bu projenin baştan beri kuralı.
+    Eskiden `f"{program_kodu}_LS"` varsayılıyordu. ÇAP'ta çalışıyor çünkü ÇAP
+    planları hedef lisans programına bağlı. **Yandalda çalışmıyor**: yandal
+    programları lisans bölümlerinden bağımsız, fakülte düzeyinde tanımlı ve
+    kodları farklı (`ECN_YD`, `BHB_YD`, `SUS_YD`). `BLG_LS` diye sormak yanlış
+    soruydu; OBS de doğru cevap veriyordu — "bu programda plan yok".
+
+    Doğrusu kademeli menü: fakülte → o fakültenin O PLAN TİPİNDEKİ programları.
+    Belgede "atlanabilir" diye işaretliydi (ÇAP için doğru), bu yüzden yıllarca
+    hiç çağrılmadı ve içindeki yanlış parametre adı (`akademikBirimId`, doğrusu
+    `birimId`) ortaya çıkmadı.
+
+    ⚠️ Keşif boş dönerse ESKİ YÖNTEME düşülüyor. ÇAP tarafı 1081 planla
+    çalışıyordu; yeni yolu zorlamak, çalışan bir şeyi kırma riski demekti.
+    Hangi yolun kullanıldığı raporda yazıyor.
     """
-    codes = only or [r[0] for r in con.execute(
-        "SELECT code FROM program WHERE level='LS' ORDER BY code")]
     client = ObsClient(settings)
-    stats = {"programs": 0, "plans": 0, "slots": 0, "errors": 0}
-    # ★ TİP BAŞINA sayaç. Toplam sayı, bir plan tipinin hiç gelmediğini
-    # gizliyordu: 22.08.2026'da `cap` 1081 plan getirdi, `yandal` SIFIR
-    # getirdi ve bu hiçbir yerde yazmadı — eksik olduğu ancak sitede fark
-    # edildi. Bir adımın sessizce hiçbir şey yapmaması, hata vermesinden
-    # daha tehlikeli.
-    per: dict[str, dict[str, int]] = {t: {"plans": 0, "errors": 0, "empty": 0}
+    # ★ İki ayrı sayaç: `programs` FARKLI program kodu, `lookups` (kod, tip)
+    # sorgusu. Tek sayaç tutmak, iki plan tipi gezildiği için program sayısını
+    # iki katına çıkarıyordu — ilerleme çıktısı yanıltıcı olurdu.
+    stats = {"programs": 0, "lookups": 0, "plans": 0, "slots": 0, "errors": 0}
+    gorulen_kod: set[str] = set()
+    per: dict[str, dict[str, int]] = {t: {"plans": 0, "errors": 0, "empty": 0,
+                                          "kodlar": 0}
                                       for t in plan_types}
     ilk_hata: dict[str, str] = {}
+    yontem: dict[str, str] = {}
     try:
-        for code in codes:
-            stats["programs"] += 1
-            for plan_type in plan_types:
+        fakulteler = []
+        if not only:
+            try:
+                fakulteler = obs_plan.list_faculties(client)
+            except Exception as exc:                           # noqa: BLE001
+                print(f"   ⚠️  Fakülte listesi alınamadı: {str(exc)[:70]}")
+
+        for plan_type in plan_types:
+            # 1) Keşif: fakülte fakülte, gerçek program kodları.
+            kodlar: list[tuple[str, str]] = []
+            if fakulteler:
+                for fid, _ad in fakulteler:
+                    try:
+                        kodlar.extend(
+                            obs_plan.list_programs_named(client, fid, plan_type))
+                    except Exception as exc:                   # noqa: BLE001
+                        ilk_hata.setdefault(plan_type, f"birim {fid}: {exc}")
+            kodlar = sorted({k: a for k, a in kodlar}.items())
+            if kodlar:
+                yontem[plan_type] = "keşif"
+                # Lisans programı OLMAYANLARI (yandal gibi) kaydet ki arayüz
+                # adlarını gösterebilsin.
+                if plan_type != "cap":
+                    obs_plan.save_programs(
+                        con, [(k, a) for k, a in kodlar
+                              if not k.upper().endswith("_LS")], "YD")
+            else:
+                # 2) Düşüş: eski tahmin. ÇAP'ta çalışıyor, kırmayalım.
+                yontem[plan_type] = "tahmin (_LS)"
+                base = only or [r[0] for r in con.execute(
+                    "SELECT code FROM program WHERE level='LS' ORDER BY code")]
+                kodlar = [(f"{c}_LS", c) for c in base]
+            per[plan_type]["kodlar"] = len(kodlar)
+
+            # 3) Her kod için plan listesi + detay
+            for kod, _ad in kodlar:
+                stats["lookups"] += 1
+                gorulen_kod.add(kod)
                 try:
-                    metas = obs_plan.list_plans(client, plan_type, f"{code}_LS")
+                    metas = obs_plan.list_plans(client, plan_type, kod)
                 except Exception as exc:                       # noqa: BLE001
                     stats["errors"] += 1
                     per[plan_type]["errors"] += 1
-                    ilk_hata.setdefault(plan_type, f"{code}: {exc}")
+                    ilk_hata.setdefault(plan_type, f"{kod}: {exc}")
                     continue
                 if not metas:
                     per[plan_type]["empty"] += 1
@@ -114,21 +156,24 @@ def step_all_second_plans(con, settings, plan_types=("cap", "yandal"),
                     except Exception as exc:                   # noqa: BLE001
                         stats["errors"] += 1
                         per[plan_type]["errors"] += 1
-                        ilk_hata.setdefault(plan_type, f"{code}: {exc}")
-            if stats["programs"] % 10 == 0:
-                print(f"   … {stats['programs']}/{len(codes)} program, "
-                      f"{stats['plans']} plan", flush=True)
+                        ilk_hata.setdefault(plan_type, f"{kod}: {exc}")
+                if stats["lookups"] % 20 == 0:
+                    print(f"   … {stats['lookups']} sorgu, {stats['plans']} plan",
+                          flush=True)
     finally:
         client.close()
+
+    stats["programs"] = len(gorulen_kod)
     stats["per_type"] = per
+    # ★ TİP BAŞINA rapor. Toplam sayı, bir tipin hiç gelmediğini gizliyordu.
     for t, d in per.items():
         durum = "✅" if d["plans"] else "⚠️ "
-        print(f"   {durum} {t}: {d['plans']} plan · {d['errors']} hata · "
-              f"{d['empty']} programda liste boş")
+        print(f"   {durum} {t}: {d['plans']} plan · {d['kodlar']} program kodu "
+              f"({yontem.get(t, '?')}) · {d['errors']} hata · "
+              f"{d['empty']} kodda liste boş")
         if not d["plans"]:
-            # Sessiz sıfır, aracın en zor fark edilen hatası. Sebebini söyle.
             print(f"      → '{t}' tipinde HİÇ plan gelmedi. "
-                  f"Tek programda dene: make plans P=BLG_LS T={t}")
+                  f"Tanı: make kesif T={t}")
             if t in ilk_hata:
                 print(f"      → ilk hata: {ilk_hata[t][:160]}")
     return stats
@@ -313,6 +358,91 @@ def cmd_plans(args) -> int:
             print("Bu (tip, program) çifti için OBS plan döndürmedi.")
             print(f"Hangi tiplerde plan var, görmek için:")
             print(f"  make plans P={args.program} ARGS=--tara")
+    finally:
+        client.close()
+    return 0
+
+
+def cmd_kesif(args) -> int:
+    """OBS'ye program kodlarını SOR — tahmin etme.
+
+    Tarayıcı `f"{program}_LS"` varsayıyordu; ÇAP'ta doğru ama yandalda değil:
+    yandal programları lisans bölümlerinden bağımsız, FAKÜLTE düzeyinde
+    yayınlanıyor. Bu komut kademeli menüyü kullanıp gerçek kodları çıkarıyor.
+    """
+    settings = config.Settings.load()
+    client = ObsClient(settings, archive=False)
+    tip = args.plan_type
+    try:
+        fakulteler = obs_plan.list_faculties(client)
+        if not fakulteler:
+            print("❌ Fakülte listesi okunamadı — sayfa yapısı değişmiş olabilir.")
+            print(f"   Elle bak: {config.EP['plan_page']}")
+            return 1
+        # ★★ KONTROL İSTEĞİ — sıfır sonucu yorumlanabilir kılan şey bu.
+        #
+        # 22.08.2026: 23 fakültenin hepsinde 'yandal' 0 program döndü ve
+        # bundan "OBS yayınlamıyor" sonucunu çıkardım. Yanlıştı: kullanıcı
+        # İşletme'de 3 yandal olduğunu söyledi. Sıfır, "veri yok" da olabilir
+        # "cevabı anlayamadım" da — kontrol isteği olmadan ayırt edilemez.
+        #
+        # Bilinen-dolu bir çiftle (fakülte 28 + cap → BLG_LS…) aynı kod
+        # yolunu çalıştırıyoruz. O da 0 dönerse sorun BİZDE.
+        kontrol_ham, kontrol = obs_plan.list_programs_debug(client, "28", "cap")
+        print(f"kontrol isteği (fakülte 28 + cap): {len(kontrol)} program"
+              + (f"  {', '.join(kontrol[:4])}" if kontrol else ""))
+        if not kontrol:
+            print("  ❌ Kontrol isteği de boş — ayrıştırma ya da uç sorunu, "
+                  "veri yokluğu değil.")
+            print(f"  Ham cevap (ilk 400 karakter):\n    "
+                  + repr(kontrol_ham)[:400])
+            print("\n  Bu çıktıyı paylaş; cevabın biçimine göre ayrıştırıcı "
+                  "düzeltilecek.")
+            return 1
+        print()
+
+        print(f"{len(fakulteler)} akademik birim, '{tip}' programları "
+              f"(aralarda {settings.request_delay_s:g}s)…\n")
+        toplam: list[tuple[str, str, str]] = []
+        for fid, ad in fakulteler:
+            try:
+                ham, kodlar = obs_plan.list_programs_debug(client, fid, tip)
+            except Exception as exc:                           # noqa: BLE001
+                print(f"  ❌ [{fid:>3}] {ad[:38]:<40} hata: {str(exc)[:50]}")
+                continue
+            # Cevap DOLU ama kod çıkaramadıysak bunu göster — sessiz sıfır yok.
+            if not kodlar and ham not in ([], {}, None, ""):
+                print(f"  ⁇ [{fid:>3}] {ad[:38]:<40} cevap var, kod "
+                      f"çıkarılamadı: {repr(ham)[:90]}")
+                continue
+            isaret = "✅" if kodlar else "— "
+            print(f"  {isaret} [{fid:>3}] {ad[:38]:<40} {len(kodlar):>3} program"
+                  + (f"  {', '.join(kodlar[:4])}" if kodlar else ""))
+            toplam.extend((fid, ad, k) for k in kodlar)
+        print()
+        if not toplam:
+            print(f"'{tip}' tipinde hiçbir fakültede program dönmedi.")
+            print("Kontrol isteği çalıştığı için bu, ayrıştırma hatası DEĞİL —")
+            print("OBS bu tipi bu uçtan yayınlamıyor görünüyor. Yine de tek")
+            print(f"programda doğrula:  make plans P=BLG_LS T={tip}")
+            return 0
+        print(f"Toplam {len(toplam)} program kodu.")
+        if args.planlar:
+            print(f"\nHer kod için plan listesi ({len(toplam)} istek daha)…\n")
+            planli = 0
+            for fid, ad, kod in toplam:
+                try:
+                    metas = obs_plan.list_plans(client, tip, kod)
+                except Exception as exc:                       # noqa: BLE001
+                    print(f"  ❌ {kod:<16} hata: {str(exc)[:50]}")
+                    continue
+                if metas:
+                    planli += 1
+                    print(f"  ✅ {kod:<16} {len(metas):>3} plan   "
+                          f"{(metas[0]['title'] or '')[:44]}")
+            print(f"\n{planli}/{len(toplam)} kodda plan var.")
+        else:
+            print("Plan listesini de görmek için: --planlar")
     finally:
         client.close()
     return 0
@@ -738,6 +868,13 @@ def main(argv=None) -> int:
     l.add_argument("--tara", action="store_true",
                    help="tüm plan tiplerini dene — hangisinde plan var?")
     l.set_defaults(func=cmd_plans)
+
+    k = sub.add_parser("kesif",
+                       help="OBS'ye sor: bu plan tipinde hangi programlar var")
+    k.add_argument("--plan-type", default="yandal", choices=config.PLAN_TYPES)
+    k.add_argument("--planlar", action="store_true",
+                   help="bulunan her program için plan listesini de çek")
+    k.set_defaults(func=cmd_kesif)
 
     v = sub.add_parser("verify", help="Faz 1 bitiş kriterleri raporu")
     v.set_defaults(func=cmd_verify)

@@ -267,8 +267,20 @@ def survey(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
 
     checks = _checks(kind, gpa.value, have_credits, rules_path)
 
+    # ★ Yandal programları LİSANS PROGRAMI DEĞİL: 'ECN_YD' (Economics Minor),
+    # 'ECN' lisans programından ayrı bir şey ve `level='YD'` ile saklanıyor.
+    # Tek seviyeye bakmak, yandal taramasında hiçbir program bulamamak
+    # demekti — arayüz "yandal yok" diyordu, oysa vardı.
+    seviye = "YD" if kind == "yandal" else "LS"
     names = {r[0]: r[1] for r in con.execute(
-        "SELECT code, name FROM program WHERE level='LS'")}
+        "SELECT code, name FROM program WHERE level=?", (seviye,))}
+    if not names and kind == "yandal":
+        # Program tablosu henüz doldurulmamışsa planların kendisinden türet;
+        # ad yoksa kod gösterilir — boş liste göstermekten iyi.
+        names = {r[0]: (r[1] or r[0]) for r in con.execute(
+            """SELECT p.program_code, COALESCE(pr.name, p.title)
+               FROM plan p LEFT JOIN program pr ON pr.code = p.program_code
+               WHERE p.plan_type='yandal' AND p.program_code IS NOT NULL""")}
     anadal = (anadal or "").upper()
     anadal_name = names.get(anadal, "")
 
@@ -283,7 +295,11 @@ def survey(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             """SELECT id, program_code, title, iteration, host_program_code
                FROM plan WHERE plan_type=? AND program_code IS NOT NULL""",
             (kind,)):
-        if anadal and not host_matches(row["host_program_code"], anadal, anadal_name):
+        # ★ Host süzmesi yalnız ÇAP'ta anlamlı: ÇAP planı (anadal, hedef)
+        # çiftine bağlı. Yandal programı herkese açık, bir çifte bağlı değil —
+        # süzseydik hepsi elenirdi.
+        if kind == "cap" and anadal and not host_matches(
+                row["host_program_code"], anadal, anadal_name):
             other_host += 1
             continue
         by_program.setdefault(row["program_code"], []).append(row)
