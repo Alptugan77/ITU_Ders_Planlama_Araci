@@ -152,6 +152,50 @@ def can_take_tree(tree: Node | None, grades: Mapping[str, str]) -> Verdict:
 
 
 # ------------------------------------------------------------ slot karşılanma
+def slot_codes(row) -> list[str]:
+    """Bir REQUIRED slotu dolduran BÜTÜN kodlar: ana kod + öbür dildeki karşılığı.
+
+    `row` içinde `course_code` ve `alt_course_codes` bulunmalı. Eski taramalarda
+    `alt_course_codes` yok/NULL — o zaman tek elemanlı liste döner, davranış
+    değişmez.
+    """
+    try:
+        main = row["course_code"]
+        alt = row["alt_course_codes"]
+    except (IndexError, KeyError, TypeError):
+        main, alt = (row[1] if len(row) > 1 else None), None
+    out = [c for c in [main] if c]
+    for code in filter(None, (alt or "").split(",")):
+        if code not in out:
+            out.append(code)
+    return out
+
+
+def plan_codes(con: sqlite3.Connection, *plan_ids: int | None,
+               pools: bool = False) -> set[str]:
+    """Planlardaki bütün ders kodları — ÖBÜR DİLİN kodu dahil.
+
+    Tek yerde topladık çünkü aynı sorgu üç yerde ayrı ayrı yazılıydı ve
+    `alt_course_codes` eklenince üçünü birden düzeltmek gerekti. Biri unutulsaydı
+    (ör. ÇAP ortalaması) İngilizce şubede alınan ders sessizce hesap dışı kalırdı.
+    """
+    ids = [p for p in plan_ids if p]
+    if not ids:
+        return set()
+    marks = ",".join("?" * len(ids))
+    out: set[str] = set()
+    for row in con.execute(
+            f"""SELECT course_code, alt_course_codes FROM plan_slot
+                WHERE plan_id IN ({marks}) AND course_code IS NOT NULL""", ids):
+        out.add(row[0])
+        out |= {c for c in (row[1] or "").split(",") if c}
+    if pools:
+        out |= {r[0] for r in con.execute(
+            f"""SELECT po.course_code FROM pool_option po JOIN plan_slot ps
+                ON ps.id = po.slot_id WHERE ps.plan_id IN ({marks})""", ids)}
+    return out
+
+
 @dataclass
 class Fulfilment:
     satisfied: bool
@@ -164,7 +208,8 @@ def slot_satisfied(con: sqlite3.Connection, slot_id: int, grades: Mapping[str, s
                    equivalences: Iterable[Equivalence] | None = None) -> Fulfilment:
     """Bir plan slotu geçilen derslerle karşılanıyor mu?"""
     slot = con.execute(
-        "SELECT slot_kind, course_code FROM plan_slot WHERE id=?", (slot_id,)).fetchone()
+        "SELECT slot_kind, course_code, alt_course_codes FROM plan_slot WHERE id=?",
+        (slot_id,)).fetchone()
     if slot is None:
         return Fulfilment(False)
 
@@ -173,9 +218,12 @@ def slot_satisfied(con: sqlite3.Connection, slot_id: int, grades: Mapping[str, s
         expanded, via = expand_with_equivalences(grades, equivalences)
 
     if slot[0] == "REQUIRED":
-        code = slot[1]
-        if passed(expanded.get(code)):
-            return Fulfilment(True, code, via.get(code))
+        # ★ Aynı dersin Türkçe/İngilizce kodu (EEF 110 / EEF 110E): plan ikisini
+        # birden yazıyor, öğrenci BİRİNİ alıyor. Yalnız ilkine bakmak, İngilizce
+        # şubeyi almış öğrenciye dersi hiç almamış muamelesi yapardı.
+        for code in slot_codes(slot):
+            if passed(expanded.get(code)):
+                return Fulfilment(True, code, via.get(code))
         return Fulfilment(False)
 
     options = [r[0] for r in con.execute(

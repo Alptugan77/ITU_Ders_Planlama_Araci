@@ -260,6 +260,14 @@ def cmd_refresh(args) -> int:
                 stats = step_all_second_plans(con, settings)
                 print(f"🌍 Tüm programlar: {stats['plans']} ÇAP/yandal planı, "
                       f"{stats['slots']} slot ({stats['errors']} hata)")
+                # ★ Ayrıştırılamayan satırlar SESSİZCE geçilmiyor. 22.08.2026'da
+                # ELK planlarında 435 satır böyle kaybolmuştu ve hiçbir yerde
+                # yazmıyordu; plan "5 ders" görünüyordu.
+                if obs_plan.dropped_rows:
+                    planlar = {p for p, _ in obs_plan.dropped_rows}
+                    print(f"⚠️  {len(obs_plan.dropped_rows)} satır ayrıştırılamadı "
+                          f"({len(planlar)} planda) — örnek: "
+                          f"{obs_plan.dropped_rows[0][1][:3]}", file=sys.stderr)
             except Exception as exc:                           # noqa: BLE001
                 print(f"⚠️  Tüm program taraması başarısız: {exc}", file=sys.stderr)
         if args.equivalence_program_id:

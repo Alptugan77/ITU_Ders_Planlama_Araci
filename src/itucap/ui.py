@@ -109,9 +109,7 @@ def _threshold_info(con: sqlite3.Connection, ucon: sqlite3.Connection,
     # İkinci anadalın KENDİ ortalaması — yalnız ÇAP planındaki dersler.
     second_gpa = None
     if cap_id:
-        plan_codes = {r[0] for r in con.execute(
-            "SELECT DISTINCT course_code FROM plan_slot "
-            "WHERE plan_id=? AND course_code IS NOT NULL", (cap_id,))}
+        plan_codes = R.plan_codes(con, cap_id)
         subset = {c: g for c, g in graded.items() if c in plan_codes}
         if subset:
             g2 = POL.gpa(con, subset, uncertain)
@@ -261,9 +259,7 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     # kayboldu' diye soracaktı. Eleyen kural kendini göstermek zorunda.
     rules = POL.load_rules()
     have_credits = POL.earned_credits(con, grades)
-    plan_courses = {r[0] for r in con.execute(
-        "SELECT DISTINCT course_code FROM plan_slot WHERE plan_id IN (?,?) "
-        "AND course_code IS NOT NULL", (anadal_id or 0, cap_id or 0))}
+    plan_courses = R.plan_codes(con, anadal_id, cap_id)
     # ★ GNO — transkriptten TAHMİN. Kesinmiş gibi göstermemek için eksiklik
     # kaynakları ayrıca taşınıyor; eşikler doğrulanma durumuyla birlikte.
     gpa = POL.gpa(con, S.graded(ucon, student_id), S.uncertain_grades(ucon, student_id))
@@ -343,12 +339,23 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     }
 
     steps = SEQ.plan_sequence(con, cap_id, grades) if cap_id else []
+    # ★ Kademeler arasındaki ÖNŞART BAĞLARI (kullanıcı isteği 22.08.2026).
+    # `blockers` = bu dersin plan İÇİNDEKİ önşartları; tersini de veriyoruz ki
+    # arayüz "bu dersi geçmezsem neler kilitli kalır" sorusunu da çizebilsin.
+    # Plan DIŞI önşartlar (`external`) ayrı duruyor: onlar anadalda alınmış
+    # olabilir, kademeyi belirlemezler — ikisini karıştırmak yanıltıcı olurdu.
+    opens: dict[str, list[str]] = {}
+    for st in steps:
+        for dep in st.blockers:
+            opens.setdefault(dep, []).append(st.course)
     tiers: dict[int, list] = {}
     for st in steps:
         tiers.setdefault(st.tier, []).append(
             {"course": st.course, "name": names.get(st.course, ""),
              "ects": st.ects or 0, "credits": st.credits or 0,
-             "status": st.status, "unlocks": st.unlocks})
+             "status": st.status, "unlocks": st.unlocks,
+             "needs": st.blockers, "opens": sorted(opens.get(st.course, [])),
+             "outside": st.external[:6]})
 
     return {
         "generatedAt": __import__("datetime").datetime.now().strftime("%d.%m.%Y %H:%M"),
@@ -373,7 +380,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         "candidates": candidates_json(cands),
         "schedules": schedule_json,
         # ★ Dönemlik + alttan kipi: ayrı aday havuzu, ayrı programlar.
-        "modes": [
+        # Sıra ÖNEMLİ — ilk kip açılışta gösterilen kip.
+        "modes": _modes(
             {"key": "all", "label": "Tüm adaylar",
              "note": f"{len(cands)} aday · plandaki tüm açık dersler",
              "candidates": candidates_json(cands), "schedules": schedule_json},
@@ -381,7 +389,7 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
              "note": _term_note(term_cands, donem, second_label if cap_id else ""),
              "candidates": candidates_json(term_cands),
              "schedules": schedules_json(term_scheds, term_cands)},
-        ] if donem else [],
+        ) if donem else [],
         "blockers": blockers,
         # ★ FAZ 12 — "başvurabilir miyim" (yapılacaklar 1.3).
         "basvuru": _basvuru_info(con, ucon, student_id, settings),
@@ -393,6 +401,22 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
 
 def _building(code: str | None) -> str:
     return "belirsiz" if (code or "").lower() == "undeclared" else (code or "")
+
+
+def _modes(hepsi: dict, donemlik: dict) -> list[dict]:
+    """Kip sırası. İLK sıradaki kip açılışta gösterilir.
+
+    ★ Kullanıcı isteği 22.08.2026: varsayılan "N. dönem + alttan" olsun.
+    Kayıt haftasında bakılan şey bu; "tüm adaylar" bir keşif kipi, başlangıç
+    noktası değil.
+
+    ⚠️ Ama BOŞ kipe düşürmüyoruz. Dönemlik havuz çakışmasız bir program
+    üretemediyse (alttan çok ders, arz yok, saatler çakışıyor) kullanıcı
+    açılışta bomboş bir ızgara görür ve bunu "araç bozuk" diye okur.
+    O durumda 'Tüm adaylar' önde kalıyor — dolu bir ekran, doğru ama boş bir
+    varsayılandan iyidir.
+    """
+    return [donemlik, hepsi] if donemlik.get("schedules") else [hepsi, donemlik]
 
 
 def _term_note(cands: list[REC.Candidate], donem: int, second_label: str) -> str:
@@ -788,22 +812,70 @@ table.list tr:hover td{background:var(--surface-2)}
   max-height:320px;overflow-y:auto}
 .danger{color:var(--danger);border-color:currentColor}
 
-.tiers{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
-.tier{min-width:158px;flex:1}
+.tiers{overflow-x:auto;padding-bottom:4px}
+/* ★ Bağlantı çizgileri KAYAN katmanın içinde. Dışına koysaydık yatay kaydırma
+   sırasında çizgiler yerinde kalır, yanlış dersleri bağlıyormuş gibi görünürdü. */
+.tierstage{position:relative;display:flex;gap:10px;min-width:min-content;align-items:flex-start}
+.tierlinks{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:0}
+.tierlinks path{fill:none;stroke:var(--border-strong);stroke-width:1.4;opacity:.55}
+.tierlinks path.on{stroke:var(--cap);stroke-width:2.2;opacity:1}
+.tierstage.focus .tierlinks path{opacity:.1}
+.tierstage.focus .tierlinks path.on{opacity:1}
+.tier{min-width:172px;flex:1;position:relative;z-index:1}
 .tier h3{font-size:10.5px;color:var(--seal);font-weight:700;margin-bottom:8px;
   letter-spacing:.16em;text-transform:uppercase;
   font-family:"Chivo",Helvetica,Arial,sans-serif;
   padding-bottom:6px;border-bottom:2px solid var(--border-strong)}
 .tier ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
 .tier li{font-size:12px;padding:5px 8px;border-radius:0;background:var(--surface-2);
-  border:1px solid var(--border);display:flex;justify-content:space-between;gap:6px}
-.tier li[data-s="DONE"]{opacity:.5;text-decoration:line-through}
+  border:1px solid var(--border);display:flex;flex-direction:column;gap:2px;cursor:pointer}
+.tier li .top{display:flex;justify-content:space-between;gap:6px}
+.tier li .dep{font-size:10px;line-height:1.35;color:var(--ink-3)}
+.tier li .dep.out{font-style:italic}
+.tier li[data-s="DONE"]{opacity:.5}
+.tier li[data-s="DONE"] .top{text-decoration:line-through}
 .tier li[data-s="READY"]{background:var(--cap-soft);color:var(--cap-ink);font-weight:600;
   border-color:var(--cap)}
+.tierstage.focus .tier li{opacity:.22}
+.tierstage.focus .tier li.on{opacity:1}
+.tier li.root{outline:2px solid var(--cap);outline-offset:1px}
+.tierfoot{margin-top:10px;font-size:11.5px;color:var(--ink-3);line-height:1.6}
+
+/* Bölüm çubuğu — yapışkan, tek satır, dar ekranda yana kayıyor. */
+.secnav{position:sticky;top:0;z-index:20;display:flex;gap:2px;overflow-x:auto;
+  background:var(--bg);border-bottom:2px solid var(--border-strong);
+  margin:0 0 18px;padding:6px 0;scrollbar-width:none}
+.secnav::-webkit-scrollbar{display:none}
+.secnav a{flex:0 0 auto;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+  font-family:"Chivo",Helvetica,Arial,sans-serif;font-weight:700;
+  color:var(--ink-3);text-decoration:none;padding:6px 10px;border:1px solid transparent}
+.secnav a:hover{color:var(--ink)}
+.secnav a[aria-current="true"]{color:var(--seal);border-color:var(--border-strong);
+  background:var(--seal-soft)}
+.secnav:empty{display:none}
+/* Yapışkan çubuk, kaydırınca başlığın üstüne oturmasın diye hedefe pay. */
+section[id]{scroll-margin-top:56px}
+
+/* Başvuru bölümünün KISA hâli — ayrıntı pencerede. */
+.basvuruline{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.basvuruitem{display:flex;align-items:center;gap:12px;padding:10px 12px;
+  background:var(--surface-2);border:1px solid var(--border)}
+.basvuruitem .mark{font-size:16px;font-weight:700;line-height:1}
+.basvuruitem .what{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.basvuruitem .why{font-size:11.5px;color:var(--ink-3)}
+.basvuruitem button{flex:0 0 auto;white-space:nowrap}
+@media (max-width:560px){
+  .basvuruitem{flex-wrap:wrap}
+  .basvuruitem button{width:100%}
+}
 
 dialog{border:1px solid var(--border-strong);border-top:6px solid var(--seal);
   border-radius:var(--r);background:var(--surface);
   color:var(--ink);max-width:540px;width:calc(100% - 32px);padding:0;box-shadow:var(--shadow)}
+/* Program tablosu 540px'e sığmıyor; içeriği kesmek yerine pencereyi büyütüyoruz.
+   Yükseklik ekranla sınırlı, taşan kısım pencerenin İÇİNDE kayıyor. */
+dialog.wide{max-width:880px}
+dialog.wide .pad{max-height:min(84vh,760px);overflow-y:auto}
 dialog::backdrop{background:rgba(8,16,26,.5)}
 dialog .pad{padding:22px 24px}
 footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);padding-top:14px;
@@ -826,11 +898,17 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
   <div class="sub" id="subtitle"></div>
 </header>
 
+<!-- ★ Bölüm çubuğu (22.08.2026). Sayfa on bölüm uzunluğunda; aranan yere
+     kaydırarak gitmek en sık yapılan iş hâline gelmişti. Gizli bölümler
+     (veri yoksa) çubukta da GÖRÜNMÜYOR — tıklayınca hiçbir yere gitmeyen
+     bir bağlantı, olmayan bir bağlantıdan kötüdür. -->
+<nav class="secnav" id="secnav" aria-label="Bölümler"></nav>
+
 <section class="setupbar" id="setupbar"></section>
 
 <section class="panels" id="panels"></section>
 
-<section class="card pad">
+<section class="card pad" id="schedSection">
   <div class="sechead"><div class="eyebrow">Bu dönem</div><div class="rule"></div></div>
   <div style="display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;
               align-items:flex-end;margin-bottom:4px">
@@ -887,7 +965,7 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
   <div id="changeBody" style="margin-top:12px"></div>
 </section>
 
-<section class="card pad">
+<section class="card pad" id="candSection">
   <div class="sechead"><div class="eyebrow">Sıralama</div><div class="rule"></div></div>
   <h2>Aday dersler</h2>
   <div class="summary">Puan; kritik yol, kaç dersi açtığı, zorunluluk, kontenjan
@@ -911,18 +989,35 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
 <section class="card pad" id="basvuruSection" hidden>
   <div class="sechead"><div class="eyebrow">Başvuru</div><div class="rule"></div></div>
   <h2>Başvurabilir miyim</h2>
+  <!-- ★ 22.08.2026: bölüm iki satıra indi, ayrıntı pencereye taşındı.
+       Şartlar + program tablosu sayfanın en uzun bölümüydü ve her açılışta
+       oradaydı; oysa dönemde birkaç kez bakılan bir şey. -->
+  <div class="basvuruline" id="basvuruSummary"></div>
+</section>
+
+<dialog id="basvuruDlg" class="wide"><div class="pad">
+  <h2 id="basvuruDlgTitle" style="margin-bottom:4px">ÇAP planları</h2>
   <div class="summary">Yönergedeki şartlar senin durumunla karşılaştırılıyor.
     Karar mercii bölümün — bu ekran hazırlık içindir.</div>
   <div class="tabs" id="basvuruTabs" role="tablist" style="margin-top:12px"></div>
   <div id="basvuruBody"></div>
-</section>
+  <div class="toolbar" style="margin-top:16px">
+    <button class="ghost" data-close>Kapat</button>
+  </div>
+</div></dialog>
 
-<section class="card pad">
+<section class="card pad" id="tierSection">
   <div class="sechead"><div class="eyebrow">Önşart zinciri</div><div class="rule"></div></div>
   <h2 id="tierTitle">Kademeler</h2>
   <div class="summary">Her kademe en az bir dönem. Kademe sayısı, ikinci programı
-    bitirebileceğin en kısa süredir.</div>
-  <div class="tiers" id="tiers" style="margin-top:14px"></div>
+    bitirebileceğin en kısa süredir. <b>Çizgiler önşart bağıdır</b> — bir derse
+    tıklarsan yalnız o dersin zinciri kalır, ikinci tıkta hepsi geri gelir.</div>
+  <div class="tiers" id="tiers" style="margin-top:14px">
+    <div class="tierstage" id="tierStage">
+      <svg class="tierlinks" id="tierLinks" aria-hidden="true"></svg>
+    </div>
+  </div>
+  <div class="tierfoot" id="tierFoot"></div>
 </section>
 
 <footer>
@@ -2547,17 +2642,99 @@ const LABELS = {
    göstermek olurdu — bu araçtaki en pahalı hata türü. */
 let basvuruKind = "cap";
 
+/* ---------- bölüm çubuğu ----------
+   Gizli bölüm çubukta da yok: veri gelince (transkript yüklenince, denklik
+   önerisi çıkınca) bölüm açılıyor ve bağlantısı kendiliğinden beliriyor. */
+const SECTIONS = [
+  ["panels", "İlerleme"], ["schedSection", "Program"],
+  ["creditSection", "Eşikler"], ["suggestSection", "Denklik"],
+  ["changeSection", "Değişim"], ["candSection", "Adaylar"],
+  ["blockSection", "Darboğaz"], ["basvuruSection", "Başvuru"],
+  ["tierSection", "Kademeler"],
+];
+
+function renderSecNav(){
+  const nav = $("#secnav");
+  if(!nav) return;
+  const acik = SECTIONS.filter(([id]) => {
+    const el = document.getElementById(id);
+    return el && !el.hidden && el.offsetParent !== null;
+  });
+  nav.innerHTML = acik.length < 3 ? ""
+    : acik.map(([id, lbl]) => `<a href="#${id}">${lbl}</a>`).join("");
+  nav.querySelectorAll("a").forEach(a => a.addEventListener("click", ev => {
+    ev.preventDefault();
+    document.getElementById(a.hash.slice(1))
+            .scrollIntoView({behavior: "smooth", block: "start"});
+  }));
+  markCurrentSection();
+}
+
+/* Hangi bölümdeyiz — çubukta işaretli dursun. IntersectionObserver yerine
+   kaydırma anında ölçüyoruz: bölümler açılıp kapandığı için gözlemciyi her
+   çizimde yeniden kurmak gerekirdi. */
+function markCurrentSection(){
+  const nav = $("#secnav");
+  if(!nav || !nav.children.length) return;
+  let simdiki = nav.children[0].hash.slice(1);
+  for(const a of nav.children){
+    const el = document.getElementById(a.hash.slice(1));
+    if(el && el.getBoundingClientRect().top <= 80) simdiki = a.hash.slice(1);
+  }
+  for(const a of nav.children)
+    a.setAttribute("aria-current", String(a.hash.slice(1) === simdiki));
+}
+addEventListener("scroll", () => requestAnimationFrame(markCurrentSection),
+                 {passive: true});
+
+const BASVURU_KINDS = [["cap", "Çift anadal", "ÇAP planları"],
+                       ["yandal", "Yandal", "Yandal planları"]];
+
+/* Sayfada duran KISA hâl: iki satır, her birinde pencereyi açan düğme.
+   Ayrıntı (şartlar + program tablosu) pencerede — dönemde birkaç kez
+   bakılan bir şey sayfanın en uzun bölümü olmamalı. */
 function renderBasvuru(){
   const all = DATA.basvuru;
   const sec = $("#basvuruSection");
   if(!all || !sec) return;
+  const satirlar = BASVURU_KINDS.filter(([k]) => all[k]).map(([k, lbl, btn]) => {
+    const s = all[k];
+    const iyi = s.eligible;
+    const durum = !iyi ? "bir şart sağlanmıyor"
+      : s.unknownCount ? `bakılabilenler tamam · ${s.unknownCount} şart buradan görülemiyor`
+      : "bakılabilen tüm şartlar sağlanıyor";
+    const sayi = s.planTypeAvailable === false ? "OBS'de plan yayınlanmamış"
+      : s.optionCount ? `${s.optionCount} program açık` : "sana açık plan yok";
+    return `<div class="basvuruitem">
+      <span class="mark" style="color:${iyi ? "var(--anadal)" : "var(--danger)"}"
+        >${iyi ? "✓" : "✗"}</span>
+      <span class="what"><b>${lbl}</b><span class="why">${esc(durum)} · ${esc(sayi)}</span></span>
+      <button class="ghost" data-k="${k}">${btn}</button></div>`;
+  }).join("");
+  if(!satirlar){ sec.hidden = true; return; }
   sec.hidden = false;
-  const KINDS = [["cap", "Çift anadal"], ["yandal", "Yandal"]];
-  $("#basvuruTabs").innerHTML = KINDS.map(([k, lbl]) =>
-    `<button class="tab" role="tab" data-k="${k}"
+  $("#basvuruSummary").innerHTML = satirlar;
+  $("#basvuruSummary").querySelectorAll("button[data-k]").forEach(b =>
+    b.addEventListener("click", () => openBasvuru(b.dataset.k)));
+}
+
+function openBasvuru(kind){
+  basvuruKind = kind || basvuruKind;
+  renderBasvuruBody();
+  $("#basvuruDlg").showModal();
+}
+
+function renderBasvuruBody(){
+  const all = DATA.basvuru;
+  $("#basvuruDlgTitle").textContent =
+    (BASVURU_KINDS.find(([k]) => k === basvuruKind) || [,, "Planlar"])[2];
+  $("#basvuruTabs").innerHTML = BASVURU_KINDS.filter(([k]) => all[k])
+    .map(([k, lbl]) => `<button class="tab" role="tab" data-k="${k}"
        aria-selected="${k === basvuruKind}">${lbl}</button>`).join("");
   $("#basvuruTabs").querySelectorAll(".tab").forEach(b =>
-    b.addEventListener("click", () => { basvuruKind = b.dataset.k; renderBasvuru(); }));
+    b.addEventListener("click", () => { basvuruKind = b.dataset.k; renderBasvuruBody(); }));
+  $("#basvuruDlg").querySelectorAll("[data-close]").forEach(b =>
+    b.addEventListener("click", () => $("#basvuruDlg").close()));
 
   const s = all[basvuruKind];
   if(!s){ $("#basvuruBody").innerHTML = `<div class="empty">veri yok</div>`; return; }
@@ -2684,15 +2861,117 @@ $("#blockSection").hidden = !DATA.blockers.length;
 }
 
 /* ---------- kademeler ---------- */
-function renderTiers(){
-$("#tiers").innerHTML = DATA.tiers.map(t => `
-  <div class="tier">
-    <h3>Kademe ${t.tier} · ${t.courses.reduce((a,c)=>a+c.credits,0)} kredi</h3>
-    <ul>${t.courses.map(c => `<li data-s="${c.status}">
-      <span class="mono">${esc(c.course)}</span>
-      <span class="mono" style="color:var(--ink-3)">${c.credits}</span></li>`).join("")}</ul>
-  </div>`).join("") || `<div class="empty">kademe verisi yok</div>`;
+/* ★ Kullanıcı isteği 22.08.2026: "çap kademelerini birbirine önşartla bağlı
+   olanları belli edecek şekilde olsun".
+
+   İki katman:
+   1. Her ders kutusu KENDİ önşartlarını yazıyor (metin — kopyalanabilir,
+      yazdırılabilir, çizgiler çizilmese bile bilgi kaybolmaz).
+   2. Kutular arası SVG çizgiler bağı gösteriyor; bir derse tıklayınca yalnız
+      o dersin zinciri (öncesi + sonrası) kalıyor.
+
+   Plan İÇİ önşart ile plan DIŞI önşart bilinçli olarak AYRI gösteriliyor:
+   dışarıdakiler kademeyi belirlemiyor (anadalda alınmış olabilirler) ve aynı
+   çizgiyle göstermek "bu ÇAP dersi şu ÇAP dersine bağlı" izlenimi verirdi. */
+let tierFocus = null;
+
+function tierGraph(){
+  const needs = {}, opens = {};
+  DATA.tiers.forEach(t => t.courses.forEach(c => {
+    needs[c.course] = c.needs || [];
+    opens[c.course] = c.opens || [];
+  }));
+  return {needs, opens};
 }
+
+/* Zincir = seçilen dersin bütün ataları + bütün torunları. */
+function tierChain(code){
+  const g = tierGraph(), out = new Set([code]);
+  const walk = (node, map) => (map[node] || []).forEach(n => {
+    if (!out.has(n)) { out.add(n); walk(n, map); }
+  });
+  walk(code, g.needs); walk(code, g.opens);
+  return out;
+}
+
+function renderTiers(){
+  const stage = $("#tierStage");
+  if (!stage) return;
+  tierFocus = null;                     /* veri değiştiyse eski seçim geçersiz */
+  if (!DATA.tiers.length){
+    stage.innerHTML = `<div class="empty">kademe verisi yok</div>`;
+    $("#tierFoot").textContent = ""; return;
+  }
+  const cols = DATA.tiers.map(t => `
+    <div class="tier">
+      <h3>Kademe ${t.tier} · ${t.courses.reduce((a,c)=>a+c.credits,0)} kredi</h3>
+      <ul>${t.courses.map(c => `<li data-s="${c.status}" data-c="${esc(c.course)}"
+            title="${esc(c.name || c.course)}">
+        <span class="top"><span class="mono">${esc(c.course)}</span>
+        <span class="mono" style="color:var(--ink-3)">${c.credits}</span></span>
+        ${(c.needs && c.needs.length)
+            ? `<span class="dep">⟵ ${c.needs.map(esc).join(", ")}</span>` : ""}
+        ${(c.outside && c.outside.length)
+            ? `<span class="dep out">dışarıdan: ${c.outside.map(esc).join(", ")}</span>` : ""}
+      </li>`).join("")}</ul>
+    </div>`).join("");
+  stage.innerHTML = `<svg class="tierlinks" id="tierLinks" aria-hidden="true"></svg>` + cols;
+
+  stage.querySelectorAll(".tier li").forEach(li => li.addEventListener("click", () => {
+    const code = li.dataset.c;
+    tierFocus = (tierFocus === code) ? null : code;
+    paintTierFocus();
+  }));
+
+  const bagli = DATA.tiers.reduce((a,t) =>
+    a + t.courses.filter(c => (c.needs||[]).length).length, 0);
+  const disari = new Set();
+  DATA.tiers.forEach(t => t.courses.forEach(c => (c.outside||[]).forEach(x => disari.add(x))));
+  $("#tierFoot").innerHTML =
+    `${bagli} ders plan içinden bir önşarta bağlı` +
+    (disari.size ? ` · ${disari.size} önşart plan DIŞINDAN geliyor (anadalda almış olabilirsin)` : "") +
+    ` · kademe 0 = hemen alınabilir.`;
+
+  requestAnimationFrame(drawTierLinks);
+}
+
+function drawTierLinks(){
+  const stage = $("#tierStage"), svg = $("#tierLinks");
+  if (!stage || !svg) return;
+  const box = stage.getBoundingClientRect();
+  const at = {};
+  stage.querySelectorAll(".tier li").forEach(li => {
+    const r = li.getBoundingClientRect();
+    at[li.dataset.c] = {l:r.left-box.left, r:r.right-box.left, y:r.top-box.top+r.height/2};
+  });
+  svg.setAttribute("width", stage.scrollWidth);
+  svg.setAttribute("height", stage.scrollHeight);
+  const paths = [];
+  DATA.tiers.forEach(t => t.courses.forEach(c => (c.needs||[]).forEach(dep => {
+    const a = at[dep], b = at[c.course];
+    if (!a || !b) return;                       /* ders çizilmemişse çizgi de yok */
+    const d = Math.max(16, (b.l - a.r) / 2);
+    paths.push(`<path d="M ${a.r} ${a.y} C ${a.r+d} ${a.y}, ${b.l-d} ${b.y}, ${b.l} ${b.y}"
+                      data-a="${esc(dep)}" data-b="${esc(c.course)}"></path>`);
+  })));
+  svg.innerHTML = paths.join("");
+  paintTierFocus();
+}
+
+function paintTierFocus(){
+  const stage = $("#tierStage");
+  if (!stage) return;
+  const chain = tierFocus ? tierChain(tierFocus) : null;
+  stage.classList.toggle("focus", !!chain);
+  stage.querySelectorAll(".tier li").forEach(li => {
+    li.classList.toggle("on", !!chain && chain.has(li.dataset.c));
+    li.classList.toggle("root", li.dataset.c === tierFocus);
+  });
+  stage.querySelectorAll(".tierlinks path").forEach(p => p.classList.toggle(
+    "on", !!chain && chain.has(p.dataset.a) && chain.has(p.dataset.b)));
+}
+
+addEventListener("resize", () => requestAnimationFrame(drawTierLinks));
 
 /* ★ Tek giriş noktası. Sunucudan yeni durum gelince (program/dönem/transkript
    değişti) sayfa yenilenmeden buradan yeniden çiziliyor. */
@@ -2711,6 +2990,7 @@ function boot(){
   renderBasvuru();
   renderTiers();
   useMode(0);
+  renderSecNav();     // en sona: hangi bölümlerin açık olduğu ancak burada belli
 }
 boot();
 </script>

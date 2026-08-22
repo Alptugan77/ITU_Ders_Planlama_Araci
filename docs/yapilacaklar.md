@@ -1,6 +1,6 @@
 # Yapılacaklar
 
-Faz 1–16 bitti (485 test). Depo GitHub'a hazır; statik site yayında. Bu liste **sonrası** için: ne kaldı, neden önemli,
+Faz 1–18 bitti (535 test). Depo GitHub'a hazır; statik site yayında. Bu liste **sonrası** için: ne kaldı, neden önemli,
 ne kadar iş, neye bağlı.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
@@ -12,6 +12,14 @@ ne kadar iş, neye bağlı.
 > ekranı ✅ (1.3) · telefon düzeni ✅ (4.1) · nöbeti arayüzden yönetme ✅ (4.3) ·
 > 2 çözülemeyen önşart ✅ (3.x) · "şartlı başarmış"ın şartı bulundu ✅ ·
 > Gece Şeması tasarımı ✅
+> **Faz 14'te kapananlar:** statik site (Pyodide) ✅ (4.4)
+> **Faz 15'te kapananlar:** meşgul saatler ✅ · eksik ÇAP planları ✅ ·
+> haftalık programın yeri ✅
+> **Faz 16'da kapananlar:** yandal programları — fakülte düzeyinde ✅ (1.5)
+> **Faz 17'de kapananlar:** 85 ÇAP planında kaybolan 435 ders satırı ✅ ·
+> kademelerde önşart bağları ✅ · sessiz satır düşüşü için kalıcı kontrol ✅
+> **Faz 18'de kapananlar:** varsayılan kip "N. dönem + alttan" ✅ ·
+> başvuru bölümü pencereye indi ✅ · bölüm çubuğu ✅
 
 Sıralama tahmine değil, iki ölçüte dayanıyor: (a) kayıt gününde işe yarar mı,
 (b) yanlış cevap verme riski taşıyor mu. İkisi de "hayır" olan iş listede
@@ -136,7 +144,8 @@ her biri motorun bir köşesini kör bırakıyor.
 | **275 önşart hedefi katalogda yok** — kapatılmış dersler; "sağlanamaz" mı "yok say" mı karar ver | yanlış tarafa kararsa ders elenir ya da yanlışlıkla açılır | M |
 | **254 havuz etiketi `OTHER`** — kategori eşlemesi | ilerleme panelindeki kategori sayaçları eksik | M |
 | **1396 havuz seçeneğinin ders karşılığı yok** | seçmeli havuzda görünmeyen alternatifler | M |
-| **43 boş seçmeli havuz** (11'i grupId'li = parse hatası) — `--all-programs` sonrası ortaya çıktı | başka bölümlerin havuzları; seni etkiliyorsa `make plan-info` ile bak | M |
+| ~~**85 ÇAP planında 435 satır kayıp**~~ · ✅ **Faz 17** — iki dilli kod hücresi; `dropped_plan_rows` kontrolü artık kalıcı bekçi | plan "5 ders" görünüyordu | — |
+| **43 boş seçmeli havuz** (11'i grupId'li = parse hatası) — `--all-programs` sonrası ortaya çıktı. ⚠️ Bir kısmı Faz 17'deki "adı belli ama Z/S=S" hatası olabilir; **yeniden taramadan sonra tekrar say** | başka bölümlerin havuzları; seni etkiliyorsa `make plan-info` ile bak | M |
 | **`plan_host_program` boş** — OBS'den çekilmeli; `make verify` bu yüzden kırmızı | ÇAP planının doğru plan olduğu doğrulanamıyor | S · **OBS gerekir** |
 | **Resmi denklik yok** (D3) — bu çiftte OBS'de yayınlanmamış | Faz 10 keşfi ad+krediden aday üretiyor; resmi kaynak hâlâ boş | — · **OBS'ye bağlı** |
 
@@ -202,7 +211,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 400 test + gizlilik denetimi. Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 535 test + gizlilik denetimi. Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` dönemde bir kez yeter — 128 program, ~1081 plan, dakikalar
   sürüyor. Program değiştirmeyi düşünmüyorsan gerekmez.

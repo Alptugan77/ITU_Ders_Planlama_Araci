@@ -98,6 +98,31 @@ def normalize_course_code(raw: str) -> str:
     return s
 
 
+_CODE_ONLY_RE = re.compile(r"^[A-ZÇĞİÖŞÜ]{2,4} \d{3,4}[A-Z]*$")
+_SPLIT_RE = re.compile(r"[\n\r|/,;]+")
+
+
+def course_codes_in(cell_text: str) -> list[str]:
+    """Bir hücredeki BÜTÜN ders kodları — sıra korunur, tekrar atılır.
+
+    ★ 22.08.2026: OBS'nin yeni plan sayfalarında Türkçe ve İngilizce kod AYNI
+    hücrede duruyor:  ``EEF 110<br>EEF 110E<br>``. Bunlar aynı dersin iki dili;
+    öğrenci hangisini alırsa slot dolar.
+
+    ⚠️ AYIRICI ÖNEMLİ. `Node.text(strip=True)` bunları BİTİŞİK veriyor
+    ("EEF 110EEF 110E") ve o metinden kod çıkarmaya çalışmak sessizce YANLIŞ
+    kod üretir ("EEF 110EE" gibi). Bu yüzden çağıran taraf hücreyi
+    `text(separator="\\n")` ile okumak ZORUNDA; burada da yalnız ayırıcıyla
+    bölünmüş parçalara bakıyoruz, ham metinde kod ARAMIYORUZ.
+    """
+    out: list[str] = []
+    for part in _SPLIT_RE.split(cell_text or ""):
+        code = normalize_course_code(part)
+        if _CODE_ONLY_RE.match(code) and code not in out:
+            out.append(code)
+    return out
+
+
 def obs_code_to_program(obs_code: str) -> str:
     """'HTAE_LS' -> 'HTAE', 'EHB_MTM_LS' -> 'EHB_MTM'."""
     code = (obs_code or "").strip().upper()

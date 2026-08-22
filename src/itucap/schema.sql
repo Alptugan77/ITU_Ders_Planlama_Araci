@@ -101,6 +101,12 @@ CREATE TABLE IF NOT EXISTS plan_slot (
     term_no        INTEGER,                      -- ÇAP planlarında NULL
     slot_kind      TEXT CHECK (slot_kind IN ('REQUIRED', 'ELECTIVE_POOL')),
     course_code    TEXT,                         -- REQUIRED ise dolu
+    -- ★ Aynı dersin öbür dilindeki kodu/kodları, VİRGÜLLE ayrılmış: 'EEF 110E'.
+    --   (Kodun İÇİNDE boşluk var — ayırıcı boşluk OLAMAZ.)
+    --   OBS'nin yeni plan sayfaları iki kodu tek hücrede veriyor; ikisi de
+    --   slotu doldurur, ikisinin de şubesi önerilebilir.
+    alt_course_codes TEXT,
+    zs_raw         TEXT,                         -- ham 'Z'/'S' sütunu (atmıyoruz)
     pool_label_raw TEXT,                         -- ham etiket (denetim için ASLA silme)
     pool_category  TEXT,                         -- 'MT'|'ITB'|'TB'|'TM'|'ENG'|'SNT'|'OTHER'
     pool_group_id  TEXT,                         -- OBS grupId (_DersGrupSearch)

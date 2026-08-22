@@ -14,6 +14,7 @@ from __future__ import annotations
 import sqlite3
 
 from . import config
+from . import rules as R
 
 
 def resolve_plans(con, settings) -> tuple[int | None, int | None]:
@@ -51,16 +52,5 @@ def watch_codes(con, ucon, settings) -> set[str]:
     student_id = S.ensure_student(ucon)
     grades = S.grades(ucon, student_id)
     anadal_id, second_id = resolve_plans(con, settings)
-    codes: set[str] = set()
-    for plan_id in (anadal_id, second_id):
-        if plan_id is None:
-            continue
-        for row in con.execute(
-            """SELECT ps.course_code, ps.id FROM plan_slot ps WHERE ps.plan_id=?""",
-            (plan_id,)
-        ):
-            if row[0]:
-                codes.add(row[0])
-            codes.update(r[0] for r in con.execute(
-                "SELECT course_code FROM pool_option WHERE slot_id=?", (row[1],)))
+    codes = R.plan_codes(con, anadal_id, second_id, pools=True)
     return {c for c in codes if c and c not in grades}

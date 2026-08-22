@@ -192,7 +192,7 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
         if plan_id is None or not role:
             continue
         for slot in con.execute(
-            """SELECT ps.id, ps.slot_kind, ps.course_code, ps.term_no,
+            """SELECT ps.id, ps.slot_kind, ps.course_code, ps.alt_course_codes, ps.term_no,
                       COALESCE(ps.ects, c.ects)       AS ects,
                       COALESCE(ps.credits, c.credits) AS credits,
                       ps.pool_label_raw
@@ -205,7 +205,11 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
                 continue
             if R.slot_satisfied(con, slot["id"], grades, equivalences).satisfied:
                 continue
-            codes = ([slot["course_code"]] if slot["slot_kind"] == "REQUIRED"
+            # ★ Zorunlu slot iki kod taşıyabiliyor (EEF 110 / EEF 110E — aynı
+            # dersin iki dili). İkisinin de şubesi önerilebilmeli; yalnız ilkini
+            # denemek, o dönem sadece İngilizce şube açıldıysa dersi hiç
+            # göstermezdi.
+            codes = (R.slot_codes(slot) if slot["slot_kind"] == "REQUIRED"
                      else [r[0] for r in con.execute(
                          "SELECT course_code FROM pool_option WHERE slot_id=?", (slot["id"],))])
             pool_label = "" if slot["slot_kind"] == "REQUIRED" else (slot["pool_label_raw"] or "")
@@ -410,8 +414,14 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
                 cost += other.score
         return cost
 
-    def pools_used(chosen: list[Pick]) -> set[int]:
-        return {p.candidate.slot_id for p in chosen if p.candidate.pool_label}
+    def slots_used(chosen: list[Pick]) -> set[int]:
+        """Doldurulmuş plan slotları.
+
+        ★ Eskiden yalnız HAVUZ slotlarına bakıyordu. Zorunlu slot da tek dersle
+        dolar ve artık iki aday üretebiliyor: aynı dersin Türkçe ve İngilizce
+        kodu (EEF 110 / EEF 110E). İkisini birden programa koymak, öğrenciye
+        aynı dersi iki kez aldırmak olurdu."""
+        return {p.candidate.slot_id for p in chosen if p.candidate.slot_id}
 
     def search(index: int, chosen: list[Pick], load: float) -> None:
         if len(results) >= pool_size or budget[0] <= 0:
@@ -428,7 +438,7 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
         must = cand.course in pinned
         # ★ Bir seçmeli havuz slotu TEK ders ile dolar. Bu kontrol olmadan motor
         # aynı ITB havuzu için HUK 217 + HUK 218'i birlikte öneriyordu (20.08.2026).
-        pool_taken = bool(cand.pool_label) and cand.slot_id in pools_used(chosen)
+        pool_taken = bool(cand.slot_id) and cand.slot_id in slots_used(chosen)
         if not pool_taken and load + cand.load <= max_load:
             tried = 0
             # Önce en az değer yakan şube; eşitlikte en boş olan (kontenjan riski).

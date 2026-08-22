@@ -29,11 +29,18 @@ from selectolax.parser import HTMLParser
 from .. import config, db
 from ..normalize import (
     CATEGORIES,
+    course_codes_in,
     normalize_course_code,
     normalize_pool_label,
     obs_code_to_program,
     split_cap_plan_code,
 )
+
+# ★ Ayrıştırılamayan plan satırları. Sessizce düşürmek, bu projede tekrar
+# tekrar canımızı yakan hata biçimi (bkz. http.post_json). `pipeline` tarama
+# sonunda buradan rapor veriyor; ayrıca `quality.py` veritabanına bakarak
+# aynı boşluğu geriye dönük de yakalıyor (satır sayısı = MAX(position)+1).
+dropped_rows: list[tuple[int, list[str]]] = []
 
 _CODE_TITLE_RE = re.compile(r"^(?P<code>[A-Z0-9]+(?:_[A-Z0-9]+)+)\s+(?P<rest>.*)$")
 # "1. Semester" / "1. Yarıyıl" / "1.Yarıyıl"
@@ -192,7 +199,6 @@ def _term_numbers(tables) -> list[int | None]:
 
 def _slot_from_row(con, plan_id: int, cells, texts: list[str], term_no: int | None,
                    position: int) -> int:
-    first = texts[0]
     title = texts[1] if len(texts) > 1 else ""
     kind_col = texts[3] if len(texts) > 3 else ""
     credits = _num(texts[4]) if len(texts) > 4 else None
@@ -203,30 +209,62 @@ def _slot_from_row(con, plan_id: int, cells, texts: list[str], term_no: int | No
     href = link.attributes.get("href", "") if link else ""
     group_id = parse_qs(urlparse(href).query).get("grupId", [None])[0]
 
-    ects = _num(ects_raw)          # '4 / 5 / 6' aralığında None döner, ham hali korunur
+    # ★ AYIRICI ŞART. Yeni plan sayfalarında ilk hücre iki kod taşıyor
+    # ("EEF 110<br>EEF 110E"); `strip=True` bunları bitiştiriyor ve o metinden
+    # kod çıkarmaya çalışmak yanlış kod üretir. Bkz. normalize.course_codes_in.
+    codes = course_codes_in(cells[0].text(separator="\n", strip=True))
 
-    if group_id or kind_col.upper().startswith("S"):
+    ects = _num(ects_raw)          # '4 / 5 / 6' aralığında None döner, ham hali korunur
+    secmeli = kind_col.strip().upper().startswith(("S", "E"))   # Seçmeli / Elective
+
+    if group_id or not codes:
+        if not group_id and not codes:
+            # Ne grup bağlantısı ne ders kodu — havuz başlığı mı, ayrıştıramadığımız
+            # bir satır mı bilmiyoruz. Z/S sütunu doluysa havuz sayıyoruz;
+            # değilse SESSİZCE atmıyoruz, raporluyoruz.
+            if not secmeli:
+                dropped_rows.append((plan_id, texts))
+                return 0
         # 'Type' sütunu kategoriyi doğrudan verir; etiket parse'ı yedek.
         category = (type_raw or "").strip().upper()
         if category not in CATEGORIES:
             category, _ = normalize_pool_label(title)
         con.execute(
             """INSERT INTO plan_slot(plan_id,term_no,slot_kind,pool_label_raw,pool_category,
-                                     pool_group_id,credits,ects_raw,ects,type_raw,position)
-               VALUES (?,?,'ELECTIVE_POOL',?,?,?,?,?,?,?,?)""",
+                                     pool_group_id,credits,ects_raw,ects,type_raw,zs_raw,
+                                     position)
+               VALUES (?,?,'ELECTIVE_POOL',?,?,?,?,?,?,?,?,?)""",
             (plan_id, term_no, title, category, group_id, credits, ects_raw, ects,
-             type_raw, position),
+             type_raw, kind_col or None, position),
         )
         return 1
 
-    code = normalize_course_code(first)
-    if not re.match(r"^[A-ZÇĞİÖŞÜ]{2,4} \d{3,4}[A-Z]*$", code):
-        return 0
+    if secmeli:
+        # ★ ADI BELLİ ama ZORUNLU OLMAYAN ders (Z/S sütunu 'S', grup bağlantısı yok).
+        # Eskiden BOŞ bir havuz olarak yazılıyordu: seçeneği olmayan, hiçbir zaman
+        # dolamayan bir slot — ilerlemeyi sonsuza kadar eksik gösteriyordu.
+        # Doğrusu, seçeneği kendisi olan bir havuz: "seçmeli, seçenek EEF 206".
+        category = (type_raw or "").strip().upper()
+        if category not in CATEGORIES:
+            category, _ = normalize_pool_label(title)
+        cur = con.execute(
+            """INSERT INTO plan_slot(plan_id,term_no,slot_kind,pool_label_raw,pool_category,
+                                     credits,ects_raw,ects,type_raw,zs_raw,position)
+               VALUES (?,?,'ELECTIVE_POOL',?,?,?,?,?,?,?,?)""",
+            (plan_id, term_no, title or codes[0], category, credits, ects_raw, ects,
+             type_raw, kind_col or None, position),
+        )
+        for code in codes:
+            con.execute("INSERT OR IGNORE INTO pool_option(slot_id,course_code) VALUES (?,?)",
+                        (cur.lastrowid, code))
+        return 1
+
     con.execute(
-        """INSERT INTO plan_slot(plan_id,term_no,slot_kind,course_code,credits,ects_raw,
-                                 ects,type_raw,position)
-           VALUES (?,?,'REQUIRED',?,?,?,?,?,?)""",
-        (plan_id, term_no, code, credits, ects_raw, ects, type_raw, position),
+        """INSERT INTO plan_slot(plan_id,term_no,slot_kind,course_code,alt_course_codes,
+                                 credits,ects_raw,ects,type_raw,zs_raw,position)
+           VALUES (?,?,'REQUIRED',?,?,?,?,?,?,?,?)""",
+        (plan_id, term_no, codes[0], ",".join(codes[1:]) or None,
+         credits, ects_raw, ects, type_raw, kind_col or None, position),
     )
     return 1
 

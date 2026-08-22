@@ -156,6 +156,41 @@ def _cap_plan_size(con, mine=()):
             + "; ".join(parts))
 
 
+@check("dropped_plan_rows")
+def _dropped_plan_rows(con, mine=()):
+    """Sayfadaki satır sayısı ile yazılan slot sayısını KARŞILAŞTIRIR.
+
+    ★ 22.08.2026 — bu kontrol olmasaydı ELK ÇAP planı 28 satırın 5'iyle
+    "tamam" görünmeye devam ederdi. `position` her satır için artıyor, slot
+    ise yalnız ayrıştırılabilenler için yazılıyor; ikisi arasındaki fark tam
+    olarak SESSİZCE DÜŞEN satır sayısıdır.
+
+    Bu, tarayıcıdan bağımsız bir kanıt: eski bir veritabanında da çalışır,
+    tarayıcı düzeltildikten sonra da sıfır kalmalıdır.
+    """
+    rows = con.execute(
+        """SELECT p.id, p.plan_type,
+                  COALESCE(p.host_program_code || '_', '') || p.program_code AS ad,
+                  x.satir - x.slot AS dusen
+           FROM plan p JOIN (SELECT plan_id, COUNT(*) slot, MAX(position) + 1 satir
+                             FROM plan_slot WHERE position IS NOT NULL
+                             GROUP BY plan_id) x ON x.plan_id = p.id
+           WHERE x.satir > x.slot ORDER BY dusen DESC"""
+    ).fetchall()
+    if not rows:
+        return None
+    mine = {m for m in mine if m}
+    toplam = sum(r["dusen"] for r in rows)
+    ornek = ", ".join(f"{r['ad']}({r['dusen']})" for r in rows[:6])
+    benim = [r for r in rows if r["id"] in mine]
+    if benim:
+        return (f"★ SENİN planında {sum(r['dusen'] for r in benim)} satır ayrıştırılamadı "
+                f"({', '.join(str(r['id']) for r in benim)}) — plan EKSİK görünüyor, "
+                f"`make plan-info ID={benim[0]['id']}` ile bak")
+    return (f"{len(rows)} planda toplam {toplam} satır ayrıştırılamadı (seni etkilemiyor): "
+            f"{ornek}")
+
+
 @check("upstream_empty_plans", "info")
 def _upstream_empty(con):
     """Sayfada hiç ders tablosu yoktu -> kaynakta boş, bizim hatamız değil."""
@@ -244,7 +279,7 @@ def run(con: sqlite3.Connection, mine: tuple = ()) -> list[Finding]:
         # Kontroller iki imzadan birini kullanabilir: fn(con) ya da fn(con, mine)
         detail = fn(con, mine) if fn.__code__.co_argcount > 1 else fn(con)
         if detail:
-            if check_id == "cap_plan_size" and "SENİN" not in detail:
+            if check_id in ("cap_plan_size", "dropped_plan_rows") and "SENİN" not in detail:
                 severity = "warn"        # başka programın planı seni düşürmesin
             findings.append(Finding(check_id, severity, detail))
             con.execute(

@@ -368,7 +368,8 @@ def test_term_mode_is_a_separate_pool(dbs):
     """'Dönemlik + alttan' kendi adaylarını ve kendi programlarını taşımalı."""
     data = _collect(dbs, donem=5)
     keys = [m["key"] for m in data["modes"]]
-    assert keys == ["all", "term"]
+    # ★ 22.08.2026: sıra değişti — dönemlik kip artık VARSAYILAN (bkz. ui._modes).
+    assert keys == ["term", "all"]
     term = next(m for m in data["modes"] if m["key"] == "term")
     assert term["candidates"] and term["schedules"]
     assert "5" in term["label"]
@@ -473,8 +474,10 @@ def test_mode_switch_changes_the_candidate_table(page7):
     p, errors = page7
     assert p.locator(".modebtn").count() == 2
     first = p.locator("#cands tbody").inner_text()
+    once = p.locator('.modebtn[aria-pressed="true"]').inner_text().strip()
     p.locator(".modebtn").nth(1).click()
-    assert p.locator('.modebtn[aria-pressed="true"]').inner_text().strip() != "Tüm adaylar"
+    # Sıraya bağlı DEĞİL: hangi kip varsayılan olursa olsun, tıklayınca değişmeli.
+    assert p.locator('.modebtn[aria-pressed="true"]').inner_text().strip() != once
     assert p.locator("#modeNote").inner_text()
     p.locator(".modebtn").nth(0).click()
     assert p.locator("#cands tbody").inner_text() == first

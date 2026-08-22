@@ -42,38 +42,55 @@ def plan_sequence(con: sqlite3.Connection, plan_id: int,
 
     # AKTS önce slottan, yoksa ders kataloğundan (eski taramalarda slot AKTS'si boş).
     rows = con.execute(
-        """SELECT ps.course_code,
+        """SELECT ps.course_code, ps.alt_course_codes,
                   COALESCE(ps.ects, c.ects)       AS ects,
                   COALESCE(ps.credits, c.credits) AS credits
            FROM plan_slot ps
            LEFT JOIN course c ON c.code = ps.course_code
            WHERE ps.plan_id=? AND ps.slot_kind='REQUIRED' AND ps.course_code IS NOT NULL
            ORDER BY ps.position""", (plan_id,)).fetchall()
-    in_plan = {r[0] for r in rows}
+    # ★ Önşart metinleri dersin ÖBÜR dilindeki kodunu yazabiliyor
+    # ("EEF 211E önşarttır"). Kademelendirme yalnız ana koda baksaydı o bağ
+    # görünmez olur, ders yanlışlıkla 'kademe 0' sayılırdı.
+    in_plan = {r["course_code"] for r in rows}
+    alias: dict[str, str] = {}
+    for r in rows:
+        for code in (r["alt_course_codes"] or "").split(","):
+            alias[code] = r["course_code"]
+    in_plan |= set(alias)
 
     # Kademe = plan içi önşart grafındaki en uzun yol.
     # Plan DIŞI önşartlar kademeyi belirlemez (anadalda alınmış olabilirler),
     # ama ayrıca raporlanır ki gözden kaçmasın.
     tier: dict[str, int] = {}
 
+    def deps_of(course: str) -> set[str]:
+        """Plan içi önşartlar — öbür dilin kodu ANA koda indirgenerek.
+
+        İndirgemeseydik 'EEF 211E' ile 'EEF 211' graf'ta iki ayrı düğüm olur,
+        aynı ders hem kendi önşartı hem bağımsız bir kademe gibi görünürdü."""
+        found = _plan_deps(trees.get(course), in_plan)
+        return {alias.get(d, d) for d in found} - {course}
+
     def compute(course: str, seen: frozenset[str] = frozenset()) -> int:
         if course in tier:
             return tier[course]
         if course in seen:            # döngü emniyeti
             return 0
-        deps = _plan_deps(trees.get(course), in_plan)
-        value = 1 + max((compute(d, seen | {course}) for d in deps), default=-1)
+        value = 1 + max((compute(d, seen | {course}) for d in deps_of(course)), default=-1)
         tier[course] = value
         return value
 
     steps: list[Step] = []
-    for course, ects, credits in rows:
+    for row in rows:
+        course, ects, credits = row["course_code"], row["ects"], row["credits"]
         level = compute(course)
         tree = trees.get(course)
-        deps = sorted(_plan_deps(tree, in_plan))
+        deps = sorted(deps_of(course))
         outside = sorted((tree.courses() - in_plan) if tree else set())
 
-        if passed(grades.get(course)):
+        if any(passed(grades.get(c)) for c in
+               [course, *(row["alt_course_codes"] or "").split(",")]):
             status = "DONE"
         elif course in unparsed:
             status = "UNKNOWN"
@@ -129,9 +146,12 @@ def hidden_prerequisites(con: sqlite3.Connection, cap_plan_id: int,
 
 def _plan_courses(con: sqlite3.Connection, plan_id: int,
                   required_only: bool = False) -> set[str]:
-    codes = {r[0] for r in con.execute(
-        "SELECT course_code FROM plan_slot WHERE plan_id=? AND course_code IS NOT NULL",
-        (plan_id,))}
+    codes: set[str] = set()
+    for row in con.execute(
+            """SELECT course_code, alt_course_codes FROM plan_slot
+               WHERE plan_id=? AND course_code IS NOT NULL""", (plan_id,)):
+        codes.add(row[0])
+        codes |= {c for c in (row[1] or "").split(",") if c}   # öbür dilin kodu da plandadır
     if required_only:
         return codes
     codes |= {r[0] for r in con.execute(

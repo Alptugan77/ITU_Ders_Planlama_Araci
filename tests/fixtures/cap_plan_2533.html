@@ -1,0 +1,31 @@
+<!-- OBS'nin YENİ ÇAP plan düzeni (22.08.2026, plan 2533 = TUMMUH_ELK).
+
+     ★ Farkı: ders kodu hücresi İKİ kod taşıyor, aralarında <br> var.
+       Eski düzende Türkçe ve İngilizce ders AYRI SATIRDI.
+     Bu fixture, gerçek sayfadan kısaltılarak alındı; sütun sırası ve
+     hücre iç yapısı birebir aynı. -->
+<html><body>
+<table class="table">
+  <tr><th>Ders Kodu</th><th>Ders Adı</th><th>Ders Dili</th><th>Z/S</th><th>Kredi</th>
+      <th>AKTS</th><th>Teo.</th><th>Uyg.</th><th>Lab.</th><th>Türü</th></tr>
+
+  <tr><td><a href="/public/DersBilgi?dersKodu=EEF110">EEF 110</a><br>
+          <a href="/public/DersBilgi?dersKodu=EEF110E">EEF 110E</a><br></td>
+      <td>Programlama Diline Giriş(C)</td><td>Türkçe / English</td><td>Z</td>
+      <td>2</td><td>4,5</td><td>1</td><td>2</td><td>0</td><td>LA</td></tr>
+
+  <tr><td><a href="#">EEF 211</a><br><a href="#">EEF 211E</a><br></td>
+      <td>Elektrik Devre Temelleri</td><td>Türkçe / English</td><td>Z</td>
+      <td>3</td><td>5</td><td>3</td><td>0</td><td>0</td><td>LA</td></tr>
+
+  <!-- Adı belli AMA zorunlu olmayan ders: Z/S = S, grup bağlantısı YOK. -->
+  <tr><td><a href="#">EEF 206</a><br><a href="#">EEF 206E</a><br></td>
+      <td>İşaret İşleme ve Lineer Sist.</td><td>Türkçe / English</td><td>S</td>
+      <td>4</td><td>6</td><td>4</td><td>0</td><td>0</td><td>LA</td></tr>
+
+  <!-- Gerçek seçmeli havuz: grupId bağlantılı. -->
+  <tr><td><a href="/public/DersPlan/_DersGrupSearch?grupId=12559">Dersler</a></td>
+      <td>6.yy Seçime Bağlı Ders (MT) / 6.yy Elective Course</td><td></td><td>S</td>
+      <td>3</td><td>6</td><td></td><td></td><td></td><td>MT</td></tr>
+</table>
+</body></html>

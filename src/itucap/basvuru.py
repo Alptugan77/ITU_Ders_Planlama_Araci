@@ -316,9 +316,9 @@ def survey(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             # ★ Lisans planından ÇAP tahmini YAPMIYORUZ — bkz. modül başlığı.
             missing.append(Option(code, name, missing_plan=True))
             continue
-        slot_codes = [r[0] for r in con.execute(
-            "SELECT course_code FROM plan_slot WHERE plan_id=? "
-            "AND course_code IS NOT NULL", (row["id"],))]
+        # ★ Öbür dilin kodu da sayılır: İngilizce şubede alınmış ders,
+        # Türkçe kodla yazılmış slotu doldurur (bkz. rules.plan_codes).
+        slot_codes = R.plan_codes(con, row["id"])
         total = con.execute("SELECT COUNT(*) FROM plan_slot WHERE plan_id=?",
                             (row["id"],)).fetchone()[0]
         options.append(Option(
