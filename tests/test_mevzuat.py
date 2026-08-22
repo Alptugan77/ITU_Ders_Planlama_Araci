@@ -274,13 +274,46 @@ def test_catalog_fixes_ship_with_the_repo():
     assert "katalog-duzeltmeleri" not in ignored
 
 
-def test_gitignore_covers_every_personal_path():
-    """★ Depo herkese açık; kişisel veri yolları `.gitignore`da olmalı.
+def test_gitignore_actually_ignores_every_personal_path():
+    """★ Kişisel veri yollarının gerçekten yok sayıldığını GIT'e sorar.
 
-    Tek tek saymak kırılgan görünebilir ama bu listenin sessizce eksilmesi,
-    bir sonraki commit'te bir transkriptin herkese açılması demek."""
-    ignored = (config.ROOT / ".gitignore").read_text(encoding="utf-8")
-    for needle in ("data/user.sqlite3", "data/reference.sqlite3", "data/yedek/",
-                   "transkript", "data/*.html",
-                   "config/settings.toml", "config/denklikler.toml"):
-        assert needle in ignored, f"{needle} .gitignore'da yok"
+    Önce `.gitignore` metninde satır arıyordu; o test yazıma bağlıydı ve
+    kuralları sadeleştirince (yedi satır yerine tek `data/`) kırıldı — oysa
+    davranış aynıydı, hatta daha güçlüydü. Metin yerine SONUCU ölçmek doğru:
+    kural nasıl yazılırsa yazılsın, bu yolların hiçbiri depoya giremez.
+    """
+    import shutil
+    import subprocess
+
+    if not shutil.which("git") or not (config.ROOT / ".git").exists():
+        pytest.skip("git deposu değil")
+    yollar = [
+        "data/user.sqlite3", "data/reference.sqlite3",
+        "data/itucap.html", "data/yedek/transkript-20260101-000000.txt",
+        "data/ituhelper/courses.psv",
+        "transkript.txt", "transkript-yeni.txt",
+        "config/settings.toml", "config/denklikler.toml",
+    ]
+    r = subprocess.run(["git", "check-ignore", "--no-index", *yollar],
+                       cwd=config.ROOT, capture_output=True, text=True)
+    yoksayilan = set(r.stdout.split())
+    eksik = [y for y in yollar if y not in yoksayilan]
+    assert not eksik, f"depoya sızabilir: {eksik}"
+
+
+def test_shared_config_is_not_ignored():
+    """Ters yön: herkese ait dosyalar YOK SAYILMAMALI.
+
+    `data/` gibi geniş bir kural yazarken paylaşılan bir dosyayı da
+    kapatmak kolay; o zaman depo klonlanır ama çalışmaz."""
+    import shutil
+    import subprocess
+
+    if not shutil.which("git") or not (config.ROOT / ".git").exists():
+        pytest.skip("git deposu değil")
+    paylasilan = ["config/kurallar.toml", "config/katalog-duzeltmeleri.toml",
+                  "config/settings.example.toml", "config/denklikler.example.toml",
+                  "src/itucap/basvuru.py", "README.md", "LICENSE"]
+    r = subprocess.run(["git", "check-ignore", "--no-index", *paylasilan],
+                       cwd=config.ROOT, capture_output=True, text=True)
+    assert not r.stdout.split(), f"yanlışlıkla yok sayılıyor: {r.stdout.split()}"

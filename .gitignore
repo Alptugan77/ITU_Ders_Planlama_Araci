@@ -2,27 +2,35 @@
 __pycache__/
 *.pyc
 *.egg-info/
+.pytest_cache/
 
-# --- VERİ ---------------------------------------------------------------
-# Kullanıcı verisi ASLA commit edilmez (notlar = kişisel veri, KVKK)
-data/user.sqlite3*
-data/reference.sqlite3*
-data/ituhelper/
-data/raw_archive/
+# --- KİŞİSEL VERİ -------------------------------------------------------
+# ★ `data/` KLASÖRÜNÜN TAMAMI yok sayılıyor — tek tek dosya adı saymak yerine.
+#
+# Eskiden yedi ayrı kural vardı (user.sqlite3, yedek/, *.html, …). Her yeni
+# dosya türü o listeye eklenmeyi bekliyordu ve unutulan bir satır, bir
+# transkriptin herkese açılması demekti. Klasörün tamamını kapatmak tek
+# cümlelik bir garanti veriyor: `data/` altında ne üretilirse üretilsin
+# depoya giremez.
+#
+# Kod klasörü kendisi oluşturuyor (`db.connect` → `mkdir(parents=True)`),
+# o yüzden depoda tutulması gerekmiyor.
+data/
 
 # Elle girilen transkript (notlar = kişisel veri)
 transkript*.txt
-data/*.html
 *.transkript
 
-# Transkript yedekleri — kişisel veri
-data/yedek/
-
-# --- KİŞİSEL YAPILANDIRMA ------------------------------------------------
+# --- KİŞİSEL YAPILANDIRMA -----------------------------------------------
 # Hangi bölümde okuduğun ve kendi denklik beyanların kişisel bilgi.
 # Depoya `*.example.toml` girer; kendi kopyan girmez.
 config/settings.toml
 config/denklikler.toml
 
-# macOS
+# --- TESLİMAT / GEÇİCİ --------------------------------------------------
+*.tar.gz
+_to_delete/
+
+# --- İŞLETİM SİSTEMİ ----------------------------------------------------
 .DS_Store
+.fuse_hidden*
