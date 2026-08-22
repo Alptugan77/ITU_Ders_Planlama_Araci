@@ -8,7 +8,7 @@ make site                            # site/ klasörünü kur
 python3 -m http.server -d site 8000  # yerelde dene
 ```
 
-433 test (Faz 14'ten 14 yeni).
+439 test (Faz 14'ten 20 yeni).
 
 ## ★ Karar: çevirmek değil, taşımak
 
@@ -40,7 +40,7 @@ altında. Yani motor zaten taşınabilirdi; kimse denememişti.
 **satırı değişmeden** tarayıcıda çalışıyor. Kazanç:
 
 * tek kod tabanı — mevzuat `config/kurallar.toml`'da bir kez değişiyor,
-* **433 test web sürümünü de kapsıyor**, çünkü aynı kod,
+* **439 test web sürümünü de kapsıyor**, çünkü aynı kod,
 * yerel sürümle web sürümü ayrışamaz.
 
 Bedeli ~2.5 saniyelik ilk yükleme. Dönemde birkaç kez açılan bir araç için
@@ -131,6 +131,44 @@ sorumlusu olunmuyor.
 ziyaretçinin tarayıcısı üçüncü bir tarafa istek atardı; "hiçbir şey
 tarayıcından çıkmıyor" diyen bir aracın açılışta başkasına haber vermesi
 tutarsız olurdu. Yan fayda: CDN engellense de site çalışır.
+
+## ★★ Yayındaki ilk hata: test edilen sürüm ≠ yayınlanan sürüm
+
+Site ilk açılışta beyaz ekran ve şu hatayla geldi:
+
+```
+ModuleNotFoundError: No module named 'sqlite3'
+The module 'sqlite3' is unvendored from the Python standard library
+in the Pyodide distribution.
+```
+
+Sebep bir kod hatası değil, **iki farklı çalışma ortamı**:
+
+| | sqlite3 |
+|---|---|
+| `pyodide@314.x` — yerelde test ettiğim | stdlib'e **vendor edilmiş** |
+| `pyodide@0.28.3` — `app.js`teki CDN sabiti | stdlib'den **ayrılmış** |
+
+Motorun her modülü `import sqlite3` ile ayakta. Yerelde çalıştı çünkü
+paketlenmiş kopyayı kullandım; yayında CDN'e düştü ve orada sqlite3 yoktu.
+Yani testim doğru şeyi ölçtü, **yanlış ortamda**.
+
+★ Asıl hata sürüm seçimi değil, sürümün **iki yerde** durmasıydı. Düzeltme
+buna göre:
+
+* `PYODIDE_VERSION` yalnız `tools/site_kur.py`'de. `app.js` onu
+  `manifest.json`dan okuyor, GitHub Actions da oradan alıyor — sabit hiçbir
+  yerde tekrar edilmiyor.
+* Kurulum sırasında **paketlenen Pyodide denetleniyor**: sürüm beklenen mi,
+  `python_stdlib.zip` sqlite3 içeriyor mu. İçermiyorsa kurulum durur.
+  Tarayıcıda fark etmek yerine paketlerken bakmak bedava.
+* `app.js` yine de sqlite3'ü içeri almayı deniyor; yoksa `loadPackage` ile
+  yüklüyor, o da olmazsa **ne olduğunu söyleyen** bir hata veriyor.
+* Üç test ayrışmayı imkânsız kılıyor: `app.js`te sabit sürüm olmamalı,
+  akış sabit sürüm yazmamalı, sqlite3'süz paket kurulumu durdurmalı.
+
+Pyodide paketlenmeden kurulum yapılırsa artık uyarı basılıyor — o hâlde her
+ziyaretçi CDN'e istek atar ve gizlilik sözü delinir.
 
 ## ★ Çalışmayacak düğme gösterme
 

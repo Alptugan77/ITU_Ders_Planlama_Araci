@@ -59,7 +59,12 @@ jobs:
         # başkasına haber vermesi tutarsız olurdu. Yan fayda: CDN engellense
         # ya da düşse site çalışmaya devam eder.
         run: |
-          npm install pyodide@0.28.3 --silent --no-save
+          # ★ Sürüm tek kaynaktan: tools/site_kur.py. Burada sabit yazsaydık
+          # bir gün ayrışırdı — 22.08.2026'da tam olarak bu oldu ve site
+          # `ModuleNotFoundError: sqlite3` ile açılmadı.
+          V=$(python -c "import sys;sys.path.insert(0,'tools');import site_kur;print(site_kur.PYODIDE_VERSION)")
+          echo "pyodide sürümü: $V"
+          npm install "pyodide@$V" --silent --no-save
           echo "PYODIDE=$PWD/node_modules/pyodide" >> "$GITHUB_ENV"
 
       - name: Siteyi kur

@@ -17,7 +17,15 @@
  */
 "use strict";
 
-const CDN = "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/";
+/* ★★ Pyodide sürümü BURADA SABİT DEĞİL — `manifest.json`dan geliyor.
+   Sürüm `tools/site_kur.py`de tek yerde duruyor.
+
+   Sebep: 22.08.2026'da site `ModuleNotFoundError: sqlite3` ile açılmadı.
+   Yerelde `pyodide@latest` ile test edilmişti, burada ise 0.28.3 yazıyordu.
+   O sürümde sqlite3 stdlib'de yok — motor `import sqlite3` ile ayakta.
+   Test edilen sürüm ile yayınlanan sürüm aynı olmalı; sabit iki yerde
+   durdukça bir gün yine ayrışırdı. */
+const cdnUrl = (v) => `https://cdn.jsdelivr.net/pyodide/v${v}/full/`;
 const DB_ADI = "itucap", DEPO = "kullanici";
 // Kullanıcıya ait, kalıcı olması gereken dosyalar. Katalog burada YOK:
 // o herkese açık ve her açılışta yeniden indiriliyor.
@@ -121,26 +129,41 @@ async function calistir(){
   const manifest = await (await fetch("./manifest.json")).json();
 
   adim("Python çalışma ortamı yükleniyor (bir kez, sonra önbellekten)…");
-  // Yerel kopya varsa onu kullan (çevrimdışı ve CDN'siz çalışsın).
-  let indexURL = CDN;
+  const surum = (manifest.pyodide && manifest.pyodide.version) || "";
+  // Pakete alınmış kopya asıl yol: CDN'e istek atmıyoruz (gizlilik) ve
+  // CDN engellense de site çalışıyor. CDN yalnız son çare.
+  let indexURL = "./pyodide/";
   try{
-    if((await fetch("./pyodide/pyodide.js", {method: "HEAD"})).ok)
-      indexURL = "./pyodide/";
-  }catch(e){ /* CDN'de kal */ }
-  if(indexURL !== CDN){
-    await new Promise((ok, hata) => {
-      const s = document.createElement("script");
-      s.src = "./pyodide/pyodide.js"; s.onload = ok; s.onerror = hata;
-      document.head.appendChild(s);
-    });
-  }else{
-    await new Promise((ok, hata) => {
-      const s = document.createElement("script");
-      s.src = CDN + "pyodide.js"; s.onload = ok; s.onerror = hata;
-      document.head.appendChild(s);
-    });
-  }
+    if(!(await fetch("./pyodide/pyodide.js", {method: "HEAD"})).ok)
+      indexURL = cdnUrl(surum);
+  }catch(e){ indexURL = cdnUrl(surum); }
+  await new Promise((ok, hata) => {
+    const s = document.createElement("script");
+    s.src = indexURL + "pyodide.js";
+    s.onload = ok;
+    s.onerror = () => hata(new Error("Pyodide yüklenemedi: " + s.src));
+    document.head.appendChild(s);
+  });
   const py = await loadPyodide({ indexURL });
+
+  /* Motorun her modülü `import sqlite3` ile ayakta. Bazı Pyodide
+     sürümlerinde sqlite3 stdlib'den ayrılmış ve ayrı yükleniyor; bazılarında
+     vendor edilmiş. İkisini de karşılayalım — ve olmuyorsa anlaşılır bir
+     hata verelim, ham bir ModuleNotFoundError değil. */
+  try{
+    py.runPython("import sqlite3");
+  }catch(e){
+    adim("Veritabanı desteği yükleniyor…");
+    try{
+      await py.loadPackage("sqlite3");
+      py.runPython("import sqlite3");
+    }catch(e2){
+      throw new Error(
+        `Bu Pyodide sürümünde (${surum || "?"}) sqlite3 yok ve yüklenemedi. ` +
+        `Site sqlite3 içeren bir sürümle kurulmalı ` +
+        `(tools/site_kur.py → PYODIDE_VERSION).`);
+    }
+  }
 
   adim("Motor yükleniyor…");
   py.FS.mkdirTree("/app/itucap");

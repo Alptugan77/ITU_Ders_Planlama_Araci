@@ -1,6 +1,6 @@
 # Yapılacaklar
 
-Faz 1–14 bitti (433 test). Depo GitHub'a hazır; statik site çalışıyor. Bu liste **sonrası** için: ne kaldı, neden önemli,
+Faz 1–14 bitti (439 test). Depo GitHub'a hazır; statik site çalışıyor. Bu liste **sonrası** için: ne kaldı, neden önemli,
 ne kadar iş, neye bağlı.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik

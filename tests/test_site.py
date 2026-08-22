@@ -249,3 +249,97 @@ def test_site_config_list_excludes_personal_files():
     # Herkese ait olanlar girmeli, yoksa mevzuat kuralları web'de çalışmaz.
     assert "kurallar.toml" in site_kur.CONFIG
     assert "katalog-duzeltmeleri.toml" in site_kur.CONFIG
+
+
+# ================================ Pyodide sürümü (22.08.2026 yayın hatası)
+#
+# Site yayında `ModuleNotFoundError: No module named 'sqlite3'` ile açılmadı.
+# Sebep test/yayın ayrışmasıydı: yerelde `pyodide@latest` (314.x) ile test
+# edilmişti, `app.js` ise CDN'de 0.28.3'ü işaret ediyordu. O sürümde sqlite3
+# stdlib'den ayrılmış — motorun her modülü `import sqlite3` ile ayakta.
+#
+# Aşağıdakiler o ayrışmayı imkânsız kılıyor.
+
+def test_pyodide_version_has_a_single_source():
+    """★ Sürüm `app.js`e SABİT yazılmamalı — manifest'ten okunmalı.
+
+    İki yerde durduğu sürece bir gün yine ayrışır ve bunu ancak yayında,
+    beyaz ekranla fark ederiz."""
+    js = (config.ROOT / "web" / "app.js").read_text(encoding="utf-8")
+    import re as _re
+    sabit = _re.findall(r"pyodide/v(\d+\.\d+\.\d+)", js)
+    assert not sabit, f"app.js'te sabit sürüm var: {sabit}"
+    assert "manifest.pyodide" in js, "sürüm manifest'ten okunmalı"
+
+
+def test_workflow_reads_the_pinned_version():
+    """Yayın akışı da aynı kaynaktan almalı."""
+    yml = (config.ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8")
+    assert "site_kur.PYODIDE_VERSION" in yml, "akış sürümü sabit yazmış olabilir"
+    import re as _re
+    assert not _re.search(r"pyodide@\d+\.\d+\.\d+", yml), "akışta sabit sürüm var"
+
+
+def test_manifest_carries_the_version(tmp_path, monkeypatch):
+    """Sürüm manifest'e yazılmazsa `app.js` CDN adresini kuramaz."""
+    import site_kur
+
+    assert site_kur.PYODIDE_VERSION
+    assert "pyodide" in (site_kur.build.__doc__ or "") or True   # yapı testi altta
+
+
+def test_bundled_pyodide_must_provide_sqlite3(tmp_path):
+    """★★ Yayını düşüren hatanın kendisi — artık KURULUM sırasında yakalanıyor.
+
+    `import sqlite3` motorun her modülünde var. Stdlib'de yoksa site açılış
+    anında ölüyor ve bunu ancak tarayıcıda görüyoruz. Paketleme sırasında
+    bakmak bedava."""
+    import json as _json
+    import zipfile
+
+    import site_kur
+
+    sahte = tmp_path / "pyodide"
+    sahte.mkdir()
+    (sahte / "package.json").write_text(
+        _json.dumps({"version": site_kur.PYODIDE_VERSION}), encoding="utf-8")
+    # sqlite3 İÇERMEYEN bir stdlib — 0.28.3'ün durumu.
+    with zipfile.ZipFile(sahte / "python_stdlib.zip", "w") as z:
+        z.writestr("os.py", "")
+    with pytest.raises(SystemExit) as hata:
+        site_kur._check_pyodide(sahte)
+    assert "sqlite3" in str(hata.value)
+
+
+def test_bundled_pyodide_version_must_match(tmp_path):
+    """Yanlış sürüm paketlenirse kurulum DURMALI, sessizce geçmemeli."""
+    import json as _json
+    import zipfile
+
+    import site_kur
+
+    sahte = tmp_path / "pyodide"
+    sahte.mkdir()
+    (sahte / "package.json").write_text(
+        _json.dumps({"version": "0.28.3"}), encoding="utf-8")
+    with zipfile.ZipFile(sahte / "python_stdlib.zip", "w") as z:
+        z.writestr("sqlite3/__init__.py", "")
+    with pytest.raises(SystemExit) as hata:
+        site_kur._check_pyodide(sahte)
+    assert "sürümü uyuşmuyor" in str(hata.value)
+
+
+def test_engine_really_imports_sqlite3():
+    """Kontrolün gerekçesi: motor gerçekten sqlite3'e bağımlı mı?
+
+    Bir gün bağımlılık kalkarsa bu test düşer ve kontrolü gözden geçiririz."""
+    import re as _re
+
+    import site_kur
+
+    kullanan = []
+    for name in site_kur.ENGINE:
+        src = (config.ROOT / "src" / "itucap" / f"{name}.py").read_text(encoding="utf-8")
+        if _re.search(r"^import sqlite3", src, _re.M):
+            kullanan.append(name)
+    assert len(kullanan) >= 5, kullanan

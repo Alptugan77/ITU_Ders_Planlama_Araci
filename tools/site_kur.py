@@ -16,7 +16,7 @@ Motorun tamamı **standart kütüphane** kullanıyor (`sqlite3`, `re`, `tomllib`
 * **Tek kod tabanı.** Önşart ayrıştırıcısı, puanlama, mevzuat kuralları tek
   yerde. JS'e çevirseydik iki motor olurdu ve bir kural birinde düzelip
   öbüründe düzelmezdi — üstelik hangisinin doğru olduğunu kimse bilmezdi.
-* **Aynı testler.** 419 test web sürümünü de kapsıyor, çünkü aynı kod.
+* **Aynı testler.** 439 test web sürümünü de kapsıyor, çünkü aynı kod.
 * **Bakım.** Mevzuat değişince `config/kurallar.toml` değişiyor; iki dilde
   iki kez uygulanmıyor.
 
@@ -46,6 +46,26 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SITE = ROOT / "site"
+
+# ★★ PYODIDE SÜRÜMÜ — TEK KAYNAK.
+#
+# 22.08.2026'da site yayında `ModuleNotFoundError: No module named 'sqlite3'`
+# ile açılmadı. Sebep sürüm karışıklığıydı: yerelde `pyodide@latest` (314.x)
+# ile test etmiştim, `app.js` ise CDN'de **0.28.3**'ü işaret ediyordu. İki
+# ayrı çalışma ortamı:
+#
+#   0.28.3  → sqlite3 stdlib'de YOK, ayrı bir wheel olarak yükleniyor
+#   314.x   → sqlite3 stdlib'e VENDOR EDİLMİŞ (python_stdlib.zip içinde)
+#
+# Motor `import sqlite3` ile ayakta; ilk sürümde açılış anında patlıyordu.
+#
+# Ders: **test edilen sürüm, yayınlanan sürüm olmalı.** Sürüm artık burada
+# tek yerde duruyor; `app.js` onu manifest'ten okuyor, GitHub Actions da
+# buradan alıyor. `tests/test_site.py` üçünün aynı kaldığını kilitliyor.
+#
+# Bu sürüm sqlite3'ü vendor ettiği için ek bir paket indirmeye gerek yok —
+# çalışma anında CDN'e istek atmamak da gizlilik sözümüzün parçası.
+PYODIDE_VERSION = "314.0.5"
 
 # Tarayıcıya giden motor modülleri. Tarama (`sources/`, `pipeline`, `http`) ve
 # masaüstüne özgü olanlar (`watch` — macOS bildirimi) DIŞARIDA: hem gereksiz
@@ -131,6 +151,35 @@ def prune(src: Path, dst: Path) -> dict:
     return stats
 
 
+def _check_pyodide(d: Path) -> None:
+    """Paketlenen Pyodide beklediğimiz sürüm mü ve sqlite3 içeriyor mu?
+
+    ★ İkinci kontrol, yayını bir kez düşüren hatanın kendisi. `import sqlite3`
+    motorun her modülünde var; stdlib'de yoksa site açılış anında ölüyor ve
+    bunu ancak tarayıcıda fark ediyoruz. Kurulum sırasında bakmak bedava.
+    """
+    import zipfile
+
+    meta = d / "package.json"
+    if meta.exists():
+        v = json.loads(meta.read_text(encoding="utf-8")).get("version")
+        if v != PYODIDE_VERSION:
+            raise SystemExit(
+                f"❌ pyodide sürümü uyuşmuyor: paket {v}, beklenen "
+                f"{PYODIDE_VERSION}.\n"
+                f"   Test edilen sürüm ile yayınlanan sürüm aynı olmalı.\n"
+                f"   npm install pyodide@{PYODIDE_VERSION}")
+    stdlib = d / "python_stdlib.zip"
+    if stdlib.exists():
+        with zipfile.ZipFile(stdlib) as z:
+            if not any(n.startswith("sqlite3/") for n in z.namelist()):
+                raise SystemExit(
+                    f"❌ pyodide {PYODIDE_VERSION} sqlite3'ü vendor etmiyor.\n"
+                    "   Motor `import sqlite3` ile ayakta; site açılmaz.\n"
+                    "   sqlite3'ü vendor eden bir sürüm seç ya da wheel'i "
+                    "pakete ekle.")
+
+
 def build(pyodide_dir: Path | None = None) -> Path:
     sys.path.insert(0, str(ROOT / "src"))
     from itucap import ui as UI
@@ -170,6 +219,8 @@ def build(pyodide_dir: Path | None = None) -> Path:
 
     (SITE / "manifest.json").write_text(json.dumps({
         "engine": ENGINE, "config": CONFIG, "schema": SCHEMA,
+        "pyodide": {"version": PYODIDE_VERSION,
+                    "local": bool(pyodide_dir and pyodide_dir.exists())},
         "catalog": {"file": "katalog.sqlite3.gz", "bytes": gz, "raw": raw,
                     **{k: str(v) for k, v in stats.items()}},
     }, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -178,8 +229,13 @@ def build(pyodide_dir: Path | None = None) -> Path:
     (SITE / ".nojekyll").write_text("", encoding="utf-8")
 
     if pyodide_dir and pyodide_dir.exists():
+        _check_pyodide(pyodide_dir)
         shutil.copytree(pyodide_dir, SITE / "pyodide")
-        print(f"   pyodide yerel kopya: {SITE / 'pyodide'}")
+        print(f"   pyodide {PYODIDE_VERSION} pakete alındı (CDN'e istek yok)")
+    else:
+        print(f"   ⚠️  pyodide paketlenmedi — çalışma anında CDN'den "
+              f"({PYODIDE_VERSION}) indirilecek.")
+        print("      Yayında bunu yapma: her ziyaretçi üçüncü tarafa istek atar.")
 
     print(f"✅ {SITE}")
     print(f"   katalog {raw/1e6:.1f} MB → gzip {gz/1e6:.1f} MB · "

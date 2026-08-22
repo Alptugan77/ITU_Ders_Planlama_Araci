@@ -182,7 +182,7 @@ toplanıyor, yedeklemesi ve silmesi kolay.
 ## Test
 
 ```bash
-make test        # 433 test + gizlilik denetimi
+make test        # 439 test + gizlilik denetimi
 ```
 
 Gizlilik denetimi (`tools/gizlilik_denetimi.py`) dosya adına **değil
