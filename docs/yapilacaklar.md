@@ -1,6 +1,6 @@
 # Yapılacaklar
 
-Faz 1–12 bitti (382 test). Bu liste **sonrası** için: ne kaldı, neden önemli,
+Faz 1–12 bitti (400 test). Depo GitHub'a hazır. Bu liste **sonrası** için: ne kaldı, neden önemli,
 ne kadar iş, neye bağlı.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
@@ -129,14 +129,44 @@ yalnız **arz sorunlu** derste var — önşarta takılan ders nöbetle çözül
 
 ---
 
+## 4.4 Yayın — sunucu kararı bekliyor
+
+Depo açık kaynak olmaya hazır (MIT, README, CI, gizlilik denetimi). **Sunucuya
+koymak ayrı bir karar** ve mimariyi değiştiriyor; üç yol var:
+
+| Yol | Kimin verisi nerede | İş | Risk |
+|---|---|---|---|
+| **A. Statik site** (GitHub Pages) | her ziyaretçininki KENDİ tarayıcısında | birkaç gün — motorun okuma tarafı tarayıcıya taşınmalı | yok |
+| **B. Sadece kod açık** (şu anki durum) | herkes kendi makinesinde | bitti | yok |
+| **C. Çok kullanıcılı sunucu** | senin sunucunda, başkalarının notları | haftalar | ⚠️ KVKK'da **veri sorumlusu** olursun |
+
+★ Şu anki sunucu (`server.py`) **tek kişilik**: tek `user.sqlite3`, giriş yok.
+Olduğu gibi bir sunucuya konursa herkes aynı — yani senin — transkriptini
+görür ve değiştirir. Bu bir hata değil, tasarım kararı; C yolu seçilmeden
+sunucuya konmamalı.
+
+**A yolu neden önerilir:** ders katalogu (planlar, şubeler, önşartlar) zaten
+herkese açık veri — statik dosya olarak yayınlanabilir. Notlar hiç sunucuya
+gitmediği için saklanacak kişisel veri de olmuyor: KVKK yükümlülüğü doğmuyor,
+sunucu maliyeti sıfır, sızdıracak bir veritabanı yok.
+
+**A yolunun işi:** `prereq_node` ağaçları ve planlar zaten veritabanında
+hesaplanmış hâlde — JSON'a dökülebilir. Tarayıcıya taşınması gereken:
+slot doldurma (`rules.py`), aday puanlama ve çakışma araması
+(`recommend.py`), kademelendirme (`sequence.py`). Arayüzün kendisi zaten JS.
+
+---
+
 ## 5. Bilerek yapılmayanlar
 
 Bunlar "unutuldu" değil, **karar**:
 
 * **OBS'ye otomatik kayıt.** Araç asla senin adına ders kaydı yapmayacak.
   Şifre istemiyor, oturum açmıyor. Kayıt kararı ve tuşa basma sende.
-* **Buluta koymak / paylaşmak.** `data/` altındaki her şey kişisel veri.
-  Sunucu yalnız `127.0.0.1`'e bağlanıyor ve öyle kalacak.
+* **Notları buluta koymak.** `data/` altındaki her şey kişisel veri; klasörün
+  tamamı `.gitignore`da. Yerel sunucu yalnız `127.0.0.1`'e bağlanıyor ve öyle
+  kalacak. Araç herkese açılabilir (bkz. 4.4) ama **notlar hep kullanıcının
+  kendi makinesinde/tarayıcısında** kalmalı.
 * **Başka öğrencilerin verisi.** Tek kullanıcılık bir araç; çok kullanıcılı
   yapmak gizlilik yüzeyini büyütür, karşılığında bir şey kazandırmaz.
 * **Tahmini GNO'yu resmi gibi göstermek.** Hesap transkriptinden çıkıyor ve
@@ -151,7 +181,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 382 test. Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 400 test + gizlilik denetimi. Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` dönemde bir kez yeter — 128 program, ~1081 plan, dakikalar
   sürüyor. Program değiştirmeyi düşünmüyorsan gerekmez.
