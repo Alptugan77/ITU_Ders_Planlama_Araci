@@ -1,6 +1,6 @@
 # Yapılacaklar
 
-Faz 1–12 bitti (400 test). Depo GitHub'a hazır. Bu liste **sonrası** için: ne kaldı, neden önemli,
+Faz 1–13 bitti (419 test). Depo GitHub'a hazır. Bu liste **sonrası** için: ne kaldı, neden önemli,
 ne kadar iş, neye bağlı.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
@@ -62,6 +62,19 @@ işaretle (✓ / ✗ / **—** buradan bakılamaz), programlar kalan işe göre 
 "planı yok" listesinde. `make all-plans` (senin makinende çalışıyor) bunu
 doldurur ve ekran anlamlı hâle gelir. Lisans planından tahmin **bilerek
 yapılmıyor** — ÇAP planı lisansın küçük bir alt kümesi.
+
+### 1.4 Yarıyıl tabanını öneri motoruna sok · M
+**Neden:** Faz 13'te ikinci anadal yarıyıl tabanı (3'te başlayan 6, 5'te
+başlayan 9 kredi) eklendi ama motor bunu bir **uyarı** olarak gösteriyor,
+puanlamaya katmıyor. Gerçek veride önerilen program ikinci anadaldan 4 kredi
+içeriyordu — taban 9. Yani motor, kabul edilemez bir programı en iyi program
+diye öneriyor.
+
+**Ne:** `recommend.py` puanlamasına "ikinci anadal kredisi tabanın altındaysa
+ağır ceza" ekle; tabanı karşılayan program bulunamıyorsa bunu açıkça söyle
+(*"bu dönem açık ÇAP derslerinden tabanı karşılayan çakışmasız program yok —
+indirim talebi gerekebilir"*). Sert kısıt YAPMA: taban indirilebiliyor,
+imkânsız görünen durum aslında çözülebilir olabilir.
 
 ## 2. Motorun bir sonraki sıçraması
 

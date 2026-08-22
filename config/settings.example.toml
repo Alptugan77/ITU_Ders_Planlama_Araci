@@ -45,6 +45,12 @@ unit     = "kredi"
 max_load = 22            # dönem kredi tavanı — MADDE 17, GNO\'na göre 25/40 olabilir
                          # karşılaştırma: 2026-2027 Güz programın 24 kredi / 50 AKTS
 
+# ★ İKİNCİ ANADALA BAŞLADIĞIN yarıyıl (3 ya da 5) — bulunduğun dönem değil.
+# Yönerge yarıyıl tabanını buna bağlıyor: 3'te başlayan her yarıyıl en az 6,
+# 5'te başlayan en az 9 kredilik dersi İKİNCİ ANADALDAN almak zorunda.
+# 0 bırakırsan araç hiçbir taban iddia etmez (ve seni uyaramaz).
+cap_baslangic_yariyili = 0
+
 [scraper]
 request_delay_s = 1.0        # OBS'yi yorma: istekler arası en az 1 sn
 # ⚠️ SADECE ASCII — HTTP başlıklarında Türkçe karakter olamaz.

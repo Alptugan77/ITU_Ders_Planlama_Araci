@@ -196,3 +196,59 @@ min_gno   = 2.25
 ad        = "25 kredinin üzeri"
 max_kredi = 40
 min_gno   = 3.00
+
+# ---------------------------------------------------------------------------
+# İKİNCİ ANADALDAN ASGARİ YARIYIL KREDİSİ
+#
+# ÇAP/Yandal Yönergesi (kullanıcı 22.08.2026'da metni verdi):
+#
+#   "İkinci anadala 3. yarıyılda başlayan öğrenci her yarıyıl en az 6,
+#    5. yarıyılda başlayan öğrenci ise her yarıyıl en az 9 kredilik ders
+#    almak zorundadır. Öğrencinin talep etmesi halinde, akademik takvimde
+#    ilan edilen, bir dersten tümüyle çekilme tarihi sonuna kadar, ÇAP
+#    Koordinatörünün uygun görüşü ve Fakülte Yönetim Kurulu Kararı ile
+#    İkinci anadaldan alınması gereken yarıyıl kredisi yarıya kadar
+#    düşürülebilir."
+#
+# ★ Bu, MADDE 17'deki banttan BAŞKA bir kural ve ikisi karıştırılmamalı:
+#
+#     MADDE 17/1   → TOPLAM yük bandı (13–22). ÇAP öğrencisi bundan MUAF.
+#     bu madde     → yalnız İKİNCİ ANADALDAN alınacak asgari kredi.
+#
+#   Yani ÇAP öğrencisinin toplam alt sınırı yok ama ikinci anadal tarafında
+#   bir TABANI var. "ÇAP öğrencisi alt sınırdan muaf" diye bu kuralı da
+#   atlamak, öğrenciyi ÇAP'tan ilişik kesilmeye götürebilirdi.
+#
+# `baslangic_yariyili` = ÇAP'a BAŞLADIĞIN yarıyıl (bulunduğun değil).
+# Beyan edilmezse (`config/settings.toml` → cap_baslangic_yariyili = 0)
+# motor hiçbir taban iddia etmez.
+
+[[ikinci_anadal_taban]]
+baslangic_yariyili = 3
+min_kredi          = 6
+dogrulandi         = true
+kaynak             = "ÇAP/Yandal Yönergesi — ikinci anadal asgari yarıyıl kredisi"
+
+[[ikinci_anadal_taban]]
+baslangic_yariyili = 5
+min_kredi          = 9
+dogrulandi         = true
+kaynak             = "ÇAP/Yandal Yönergesi — ikinci anadal asgari yarıyıl kredisi"
+
+# İndirim hakkı — OTOMATİK DEĞİL.
+#
+# ★ Motor bu indirimi kendiliğinden uygulamıyor ve uygulamamalı: yönerge
+#   "düşürülebilir" diyor, "düşürülür" demiyor. Şartı var (talep + ÇAP
+#   Koordinatörü uygun görüşü + FYK kararı) ve süresi var (dersten tümüyle
+#   çekilme tarihi). Tabanı sessizce yarıya indirmek, alınmamış bir kararı
+#   alınmış varsaymak olurdu. Arayüz bunu bir ÇARE olarak gösteriyor:
+#   "tabanın altındasın, ama şu yolla yarıya indirilebilir".
+[ikinci_anadal_taban_indirim]
+oran       = 0.5          # "yarıya kadar"
+kosullar   = ["öğrencinin talebi",
+              "ÇAP Koordinatörünün uygun görüşü",
+              "Fakülte Yönetim Kurulu Kararı"]
+son_tarih  = "akademik takvimde ilan edilen, bir dersten tümüyle çekilme tarihi"
+otomatik   = false        # ⚠️ true YAPMA — alınmamış kararı varsaymak olur
+dogrulandi = true
+kaynak     = "ÇAP/Yandal Yönergesi — aynı madde"

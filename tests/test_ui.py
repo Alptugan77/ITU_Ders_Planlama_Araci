@@ -678,3 +678,70 @@ def test_day_list_does_not_mark_adjacent_courses(phone):
       return document.querySelectorAll('#daylist .row.clash').length;
     }""")
     assert marked == 0
+
+
+# ============================== Faz 13: ikinci anadal yarıyıl tabanı (arayüz)
+FLOOR_RULES = """
+[[ikinci_anadal_taban]]
+baslangic_yariyili = 5
+min_kredi = 9
+dogrulandi = true
+kaynak = "Yönerge"
+
+[ikinci_anadal_taban_indirim]
+oran = 0.5
+kosullar = ["öğrencinin talebi", "Fakülte Yönetim Kurulu Kararı"]
+son_tarih = "dersten tümüyle çekilme tarihi"
+otomatik = false
+dogrulandi = true
+"""
+
+
+def _collect_with_start(dbs, tmp_path, monkeypatch, start):
+    from itucap import config as C, policy as POL
+    monkeypatch.setattr(POL, "DEFAULT_PATH", _rules(tmp_path, FLOOR_RULES))
+    con, ucon, sid = dbs
+    settings = C.Settings(anadal_program="HTAE", cap_program="BLG",
+                          program_codes=["HTAE", "BLG", "BLGE"],
+                          cap_baslangic_yariyili=start)
+    return UI.collect(con, ucon, sid, settings, 10, 20)
+
+
+def test_floor_reaches_the_page(dbs, tmp_path, monkeypatch):
+    F = _collect_with_start(dbs, tmp_path, monkeypatch, 5)["secondFloor"]
+    assert F["min"] == 9.0 and F["startTerm"] == 5 and F["verified"]
+
+
+def test_undeclared_start_term_prompts_instead_of_claiming(dbs, tmp_path, monkeypatch):
+    """★ Beyan yoksa taban iddia edilmez — ama SESSİZ de kalınmaz.
+
+    Kullanıcı böyle bir kuralın varlığından haberdar olmalı; yoksa
+    karşılamadığı bir şartı hiç öğrenemez."""
+    F = _collect_with_start(dbs, tmp_path, monkeypatch, 0)["secondFloor"]
+    assert F["undeclared"] is True
+    assert F["setting"] == "cap_baslangic_yariyili"
+    assert "min" not in F                       # hiçbir sayı iddia edilmiyor
+
+
+def test_relief_is_marked_not_automatic_on_the_page(dbs, tmp_path, monkeypatch):
+    """Arayüz indirimi ÇARE olarak göstermeli, uygulanmış gibi değil."""
+    F = _collect_with_start(dbs, tmp_path, monkeypatch, 5)["secondFloor"]
+    r = F["relief"]
+    assert r["automatic"] is False
+    assert r["min"] == 4.5
+    assert r["conditions"] and r["deadline"]
+    # Taban indirilmemiş hâliyle duruyor:
+    assert F["min"] == 9.0
+
+
+def test_floor_panel_counts_only_the_second_program(dbs, tmp_path, monkeypatch,
+                                                    tmp_path_factory):
+    """★ Taban yalnız İKİNCİ ANADALDAN alınan krediyi sayar.
+
+    Toplam krediyi saysaydı anadal dersleri tabanı doldururdu ve öğrenci
+    ÇAP'tan hiç ders almadan şartı karşılıyor görünürdü."""
+    import re as _re
+    html = UI.render(_collect_with_start(dbs, tmp_path, monkeypatch, 5))
+    fn = html[html.index("function renderFloor()"):html.index("function renderLoad()")]
+    # Filtre anadal'ı dışlıyor mu?
+    assert _re.search(r'role\s*!==\s*"ANADAL"', fn), fn[:400]

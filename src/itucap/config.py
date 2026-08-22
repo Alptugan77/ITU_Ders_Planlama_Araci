@@ -72,6 +72,13 @@ class Settings:
     # ★ Bulunduğun dönem (1..8). 'Dönemlik + alttan' kipi bunu kullanıyor.
     # 0 = otomatik çıkar (geçilmiş slotların en derin dönemi).
     donem: int = 0
+    # ★ İKİNCİ ANADALA BAŞLADIĞIN yarıyıl (3 ya da 5) — bulunduğun değil.
+    # Yönerge yarıyıl tabanını buna bağlıyor: 3'te başlayan her yarıyıl en az
+    # 6, 5'te başlayan en az 9 kredi ikinci anadaldan almak zorunda.
+    # 0 = beyan edilmedi → motor hiçbir taban İDDİA ETMEZ. Yanlış bir taban
+    # iki yönde de zarar: uydurma bir kuralla "az aldın" demek, ya da gerçek
+    # tabanı atlayıp ilişik kesilmesine götürmek.
+    cap_baslangic_yariyili: int = 0
     request_delay_s: float = 1.0
     # HTTP başlıkları ASCII olmak zorunda — Türkçe karakter KOYMA (httpx patlar).
     # Yine de güvenlik için http.ascii_header() ile temizleniyor.
@@ -149,6 +156,7 @@ _EDITABLE = {
     "anadal_program", "anadal_plan_id", "second_kind",
     "cap_program", "cap_plan_id", "yandal_program", "yandal_plan_id",
     "donem", "term", "unit", "max_load", "program_codes", "watch_courses",
+    "cap_baslangic_yariyili",
 }
 
 

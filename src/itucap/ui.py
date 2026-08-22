@@ -275,6 +275,32 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                      if load_rule.next_band else None),
         }
 
+    # ★ İkinci anadaldan asgari yarıyıl kredisi — MADDE 17'den AYRI kural.
+    #   MADDE 17/1 → toplam yük bandı, ÇAP öğrencisi MUAF.
+    #   bu kural   → yalnız ikinci anadaldan alınacak TABAN.
+    # ÇAP öğrencisinin toplam alt sınırı yok ama ikinci anadal tarafında
+    # tabanı var; "muaf" diye bunu da atlamak ilişik kesilmesine götürebilirdi.
+    floor_info = None
+    if cap_id and settings.second_kind in ("cap", "yandal"):
+        floor = POL.second_floor(settings.cap_baslangic_yariyili)
+        if floor:
+            relief = floor.relief
+            floor_info = {
+                "min": floor.minimum, "startTerm": floor.start_term,
+                "verified": floor.verified, "source": floor.source,
+                "relief": ({"min": floor.relieved_minimum,
+                            "conditions": list(relief.conditions),
+                            "deadline": relief.deadline,
+                            # ⚠️ Otomatik DEĞİL. Yönerge "düşürülebilir" diyor;
+                            # şartı (talep + koordinatör + FYK) ve süresi var.
+                            "automatic": relief.automatic}
+                           if relief else None),
+            }
+        elif not settings.cap_baslangic_yariyili:
+            # Beyan yok → taban İDDİA EDİLMİYOR, ama sessiz de kalınmıyor:
+            # kullanıcı böyle bir kuralın varlığından haberdar olmalı.
+            floor_info = {"undeclared": True, "setting": "cap_baslangic_yariyili"}
+
     credit_info = {
         "earned": have_credits,
         "unknown": POL.unknown_credit_courses(con, grades),
@@ -310,6 +336,7 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         "credits": credit_info,
         "gpa": gpa_info,
         "load": load_info,
+        "secondFloor": floor_info,
         "taking": sorted(S.in_progress(ucon, student_id)),
         "panels": panels,
         "candidates": candidates_json(cands),
@@ -757,6 +784,7 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
   <h2 style="margin-bottom:14px">Kredi ve not eşikleri</h2>
   <div id="gpaBody"></div>
   <div id="loadBody"></div>
+  <div id="floorBody"></div>
   <div id="creditBody"></div>
 </section>
 
@@ -1324,6 +1352,83 @@ function courseDialogSetup(){
 }
 
 /* ---------- dönem kredi yükü (yönetmelik) ---------- */
+/* ---------- İkinci anadaldan asgari yarıyıl kredisi ----------
+   ÇAP/Yandal Yönergesi: 3. yarıyılda başlayan her yarıyıl en az 6, 5'te
+   başlayan en az 9 kredilik dersi İKİNCİ ANADALDAN almak zorunda.
+
+   ★ MADDE 17'deki banttan AYRI kural ve ikisi karıştırılmamalı:
+     MADDE 17/1 → TOPLAM yük bandı (13–22); ÇAP öğrencisi MUAF.
+     bu kural   → yalnız ikinci anadaldan alınacak TABAN.
+   "ÇAP muaf" diye bunu da atlamak, öğrenciyi ÇAP'tan ilişik kesilmeye
+   götürebilirdi. O yüzden ayrı bir panelde ve seçime göre CANLI hesaplanıyor.
+
+   ★ İndirim OTOMATİK DEĞİL: yönerge "düşürülebilir" diyor, "düşürülür"
+   demiyor. Tabanı sessizce yarıya çekmek, alınmamış bir FYK kararını
+   alınmış varsaymak olurdu. Bir ÇARE olarak gösteriliyor. */
+function renderFloor(){
+  const box = $("#floorBody");
+  const F = DATA.secondFloor;
+  if(!box) return;
+  if(!F){ box.innerHTML = ""; return; }
+
+  if(F.undeclared){
+    box.innerHTML = `<div class="note" style="margin-top:12px">
+      <b>İkinci anadaldan yarıyıl tabanı hesaplanamıyor.</b>
+      Yönerge, ÇAP'a <b>3.</b> yarıyılda başlayana her dönem en az <b>6</b>,
+      <b>5.</b> yarıyılda başlayana en az <b>9</b> kredi şartı koyuyor —
+      ama hangi yarıyılda başladığın beyan edilmemiş.
+      <span class="mono">config/settings.toml</span> içindeki
+      <span class="mono">${esc(F.setting)}</span> alanına yaz;
+      araç o zaman uyarabilir.</div>`;
+    return;
+  }
+
+  // Yalnız İKİNCİ programın kredileri — anadal sayılmaz.
+  const ikinci = picks().filter(p => p.cand.role !== "ANADAL");
+  const kredi = +ikinci.reduce((a,p) => a + (p.cand.credits || 0), 0).toFixed(1);
+  const ok = kredi + 1e-9 >= F.min;
+  const eksik = +(F.min - kredi).toFixed(1);
+  const R = F.relief;
+  const indirimYeterMi = R && kredi + 1e-9 >= R.min;
+
+  box.innerHTML = `
+    <div class="gauge" style="margin-top:14px;padding-top:14px;
+         border-top:1px solid var(--border)">
+      <div class="gaugebar" style="max-width:230px">
+        <div class="track"><i class="${ok ? "ok" : ""}"
+          style="width:${Math.min(100, F.min ? kredi / F.min * 100 : 0)}%"></i></div>
+        <div class="gaugelabel"><b class="mono" style="font-size:15px">${kredi}</b>
+          / ${F.min} kredi ${F.verified ? "" : "<b>⚠</b>"}
+          <span style="color:var(--ink-3)">— ${esc(LBL)} tarafından</span></div>
+      </div>
+      <div style="flex:2;min-width:250px;font-size:12.5px;color:var(--ink-2)">
+        <b>İkinci anadaldan yarıyıl tabanı.</b>
+        ÇAP'a <b>${F.startTerm}.</b> yarıyılda başladığın için her dönem
+        en az <b class="mono">${F.min}</b> kredilik dersi ikinci anadaldan
+        alman gerekiyor.
+        <div style="color:var(--ink-3);margin-top:4px">Bu, dönem kredi
+          bandından (MADDE 17) ayrı bir kural — o banttan ÇAP öğrencisi muaf,
+          bu tabandan değil.</div>
+        ${F.source ? `<div style="color:var(--ink-3)">${esc(F.source)}</div>` : ""}
+      </div>
+    </div>
+    ${ok ? "" : `<div class="note" style="border-left-color:var(--danger);margin-top:12px">
+      <b>Seçili programda ikinci anadaldan ${kredi} kredi var, taban ${F.min}.</b>
+      ${eksik} kredi eksik.
+      ${R ? `<div style="margin-top:6px">Yönerge tabanı
+        <b>${R.min}</b> krediye kadar indirmene izin veriyor — ama
+        <b>kendiliğinden olmuyor</b>:
+        ${R.conditions.map(c => `<span class="chip credit"
+          style="margin:0 4px 0 0">${esc(c)}</span>`).join("")}
+        gerekiyor${R.deadline ? `, son tarih: <b>${esc(R.deadline)}</b>` : ""}.
+        ${indirimYeterMi
+          ? `<b style="color:var(--anadal)">İndirim onaylanırsa şu anki
+             seçimin yeterli olur.</b>`
+          : `İndirim onaylansa bile ${+(R.min - kredi).toFixed(1)} kredi
+             daha gerekir.`}</div>` : ""}
+    </div>`}`;
+}
+
 function renderLoad(){
   const L = DATA.load;
   if(!L || !L.max){ $("#loadBody").innerHTML = ""; return; }
@@ -1923,6 +2028,7 @@ function render(){
   $("#editState").hidden = !edited();
   $("#reset").hidden = !edited();
   renderSaveState();
+  renderFloor();
 
   const cells = {}, spans = {}, timeless = [];
   picks().forEach(p => {
@@ -2391,6 +2497,7 @@ function boot(){
   renderHeader();
   renderGpa();
   renderLoad();
+  renderFloor();
   renderCredits();
   renderSuggestions();
   renderChanges();

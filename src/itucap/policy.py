@@ -445,3 +445,114 @@ def describe(rules: list[CreditRule] | None = None) -> str:
         if r.note:
             lines.append(f"    {r.note}")
     return "\n".join(lines)
+
+
+# ------------------------------- ikinci anadaldan asgari yarıyıl kredisi
+# ÇAP/Yandal Yönergesi:
+#   "İkinci anadala 3. yarıyılda başlayan öğrenci her yarıyıl en az 6,
+#    5. yarıyılda başlayan öğrenci ise her yarıyıl en az 9 kredilik ders
+#    almak zorundadır. … talep etmesi halinde … ÇAP Koordinatörünün uygun
+#    görüşü ve Fakülte Yönetim Kurulu Kararı ile … yarıya kadar
+#    düşürülebilir."
+#
+# ★ MADDE 17'deki banttan BAŞKA bir kural. Karıştırmak tehlikeli:
+#     MADDE 17/1 → TOPLAM yük bandı (13–22); ÇAP öğrencisi MUAF.
+#     bu kural   → yalnız İKİNCİ ANADALDAN alınacak asgari kredi.
+#   ÇAP öğrencisinin toplam alt sınırı yok ama ikinci anadal tarafında
+#   TABANI var. "ÇAP muaf" diye bunu da atlamak, öğrenciyi ÇAP'tan ilişik
+#   kesilmeye götürebilirdi.
+
+@dataclass(frozen=True)
+class FloorRelief:
+    """Tabanı indirme hakkı — KENDİLİĞİNDEN uygulanmaz."""
+    ratio: float                       # "yarıya kadar" → 0.5
+    conditions: tuple[str, ...] = ()
+    deadline: str = ""
+    automatic: bool = False
+    verified: bool = False
+    source: str = ""
+
+    def reduced(self, minimum: float) -> float:
+        return round(minimum * self.ratio, 2)
+
+
+@dataclass(frozen=True)
+class SecondFloor:
+    """Bu yarıyıl ikinci anadaldan alınması gereken asgari kredi."""
+    minimum: float
+    start_term: int
+    verified: bool = False
+    source: str = ""
+    relief: FloorRelief | None = None
+
+    def satisfied_by(self, credits: float) -> bool:
+        return credits + 1e-9 >= self.minimum
+
+    @property
+    def relieved_minimum(self) -> float | None:
+        """İndirim ONAYLANIRSA taban ne olurdu? Onaylanmış varsaymıyoruz."""
+        return self.relief.reduced(self.minimum) if self.relief else None
+
+
+def load_relief(path: Path | None = None) -> FloorRelief | None:
+    path = DEFAULT_PATH if path is None else path
+    if not path.exists():
+        return None
+    block = tomllib.loads(path.read_text(encoding="utf-8")).get(
+        "ikinci_anadal_taban_indirim") or {}
+    try:
+        ratio = float(block["oran"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return FloorRelief(
+        ratio=ratio,
+        conditions=tuple(str(c) for c in (block.get("kosullar") or [])),
+        deadline=str(block.get("son_tarih") or ""),
+        # ⚠️ Varsayılan False. Yönerge "düşürülebilir" diyor, "düşürülür"
+        # demiyor; şartı ve süresi var. Kendiliğinden uygulamak, alınmamış
+        # bir kurul kararını alınmış saymak olurdu.
+        automatic=bool(block.get("otomatik", False)),
+        verified=bool(block.get("dogrulandi")),
+        source=str(block.get("kaynak") or ""),
+    )
+
+
+def second_floor(start_term: int, path: Path | None = None) -> SecondFloor | None:
+    """ÇAP'a `start_term`. yarıyılda başlayan öğrencinin yarıyıl tabanı.
+
+    ★ `start_term` **başladığın** yarıyıl, bulunduğun değil. Beyan
+    edilmemişse (0) `None` döner — motor hiçbir taban iddia etmez. Yanlış
+    bir taban iki yönde de zarar: uydurulmuş bir kuralla "az aldın" demek,
+    ya da gerçek tabanı atlayıp ilişik kesilmesine götürmek.
+
+    Beyan edilen yarıyıl tam eşleşmiyorsa **en yakın küçük** basamak
+    uygulanır (yönerge 3 ve 5'i sayıyor; 4. yarıyılda başlayan için 3'ün
+    tabanı, 6'da başlayan için 5'inki). Yukarı yuvarlamak, yönergenin
+    söylemediği bir yükümlülük yaratırdı.
+    """
+    path = DEFAULT_PATH if path is None else path
+    if not path.exists() or not start_term:
+        return None
+    blocks = tomllib.loads(path.read_text(encoding="utf-8")).get(
+        "ikinci_anadal_taban") or []
+    tiers: list[tuple[int, float, bool, str]] = []
+    for b in blocks:
+        try:
+            tiers.append((int(b["baslangic_yariyili"]), float(b["min_kredi"]),
+                          bool(b.get("dogrulandi")), str(b.get("kaynak") or "")))
+        except (KeyError, TypeError, ValueError):
+            continue
+    if not tiers:
+        return None
+    tiers.sort()
+    hit = None
+    for term, minimum, verified, source in tiers:
+        if start_term >= term:
+            hit = (term, minimum, verified, source)
+    if hit is None:
+        # Beyan edilen en küçük basamağın altında başlamış — yönerge bu
+        # durumu saymıyor, biz de uydurmuyoruz.
+        return None
+    term, minimum, verified, source = hit
+    return SecondFloor(minimum=minimum, start_term=term, verified=verified,
+                       source=source, relief=load_relief(path))
