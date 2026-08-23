@@ -182,7 +182,24 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     if not donem:
         donem = R.infer_term(con, anadal_id, grades, equivalences)
         term_source = "tahmin"
+    # ★ Kredi tavanı GNO'dan (MADDE 17/2-a) — kullanıcı isteği 23.08.2026.
+    # Elle yazılan tavan GNO değiştiğinde eskiyor ve kimse güncellemiyor;
+    # motor da kayıtta reddedilecek bir program öneriyordu.
+    #
+    # ⚠️ Üç emniyet:
+    #   * Açık çağrıdaki `max_load` her zaman kazanır (testler, `--max-load`).
+    #   * `max_load_auto = false` ile elle ayar geri gelir.
+    #   * Tavan YALNIZ birim 'kredi' iken otomatik — yönetmelik krediden
+    #     konuşuyor, AKTS tavanı diye bir madde yok; AKTS'ye çevirmek
+    #     uydurma olurdu.
     limit = settings.max_load if max_load is None else max_load
+    limit_source = "ayar" if max_load is None else "çağrı"
+    if max_load is None and settings.max_load_auto and settings.unit == "kredi":
+        _gpa_now = POL.gpa(con, S.graded(ucon, student_id),
+                           S.uncertain_grades(ucon, student_id))
+        _rule = POL.load_limit(_gpa_now.value, second_kind=settings.second_kind)
+        if _rule and _rule.maximum:
+            limit, limit_source = _rule.maximum, "yönetmelik"
     limit_credits = limit if settings.unit == "kredi" else 0.0
 
     def build(max_term):
@@ -292,6 +309,9 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             "exempt": load_rule.exempt_from_minimum,
             "reasons": load_rule.reasons, "verified": load_rule.verified,
             "source": load_rule.source, "declared": limit_credits,
+            # Tavan nereden geldi: 'yönetmelik' (GNO'dan otomatik) | 'ayar' | 'çağrı'.
+            # Türetilmiş bir sayıyı beyan edilmiş gibi göstermemek için.
+            "limitSource": limit_source,
             "conflict": bool(load_rule.maximum
                              and limit_credits > load_rule.maximum + 1e-9),
             "next": ({"max": load_rule.next_band.max_credits,
@@ -461,7 +481,7 @@ _TEMPLATE = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ÇAP Panosu</title>
+<title>Ders Planlama Aracı</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -812,23 +832,26 @@ table.list tr:hover td{background:var(--surface-2)}
   max-height:320px;overflow-y:auto}
 .danger{color:var(--danger);border-color:currentColor}
 
-.tiers{overflow-x:auto;padding-bottom:4px}
-/* ★ Bağlantı çizgileri KAYAN katmanın içinde. Dışına koysaydık yatay kaydırma
-   sırasında çizgiler yerinde kalır, yanlış dersleri bağlıyormuş gibi görünürdü. */
-.tierstage{position:relative;display:flex;gap:10px;min-width:min-content;align-items:flex-start}
+.tiers{padding-bottom:4px}
+/* ★ Kademeler AŞAĞI doğru (kullanıcı isteği 23.08.2026). Yan yana sütunlarda
+   uzun plan yatay kaydırma istiyordu ve kademe sırası okunmuyordu; aşağı
+   akınca sıra doğal olarak okunuyor ve aralara nefes payı sığıyor.
+   Bağlantı çizgileri sahnenin İÇİNDE kalmaya devam ediyor. */
+.tierstage{position:relative;display:flex;flex-direction:column;gap:34px}
 .tierlinks{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:0}
 .tierlinks path{fill:none;stroke:var(--border-strong);stroke-width:1.4;opacity:.55}
 .tierlinks path.on{stroke:var(--cap);stroke-width:2.2;opacity:1}
 .tierstage.focus .tierlinks path{opacity:.1}
 .tierstage.focus .tierlinks path.on{opacity:1}
-.tier{min-width:172px;flex:1;position:relative;z-index:1}
-.tier h3{font-size:10.5px;color:var(--seal);font-weight:700;margin-bottom:8px;
+.tier{position:relative;z-index:1}
+.tier h3{font-size:10.5px;color:var(--seal);font-weight:700;margin-bottom:10px;
   letter-spacing:.16em;text-transform:uppercase;
   font-family:"Chivo",Helvetica,Arial,sans-serif;
   padding-bottom:6px;border-bottom:2px solid var(--border-strong)}
-.tier ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
-.tier li{font-size:12px;padding:5px 8px;border-radius:0;background:var(--surface-2);
-  border:1px solid var(--border);display:flex;flex-direction:column;gap:2px;cursor:pointer}
+.tier ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.tier li{font-size:12px;padding:6px 10px;border-radius:0;background:var(--surface-2);
+  border:1px solid var(--border);display:flex;flex-direction:column;gap:2px;
+  cursor:pointer;width:196px}
 .tier li .top{display:flex;justify-content:space-between;gap:6px}
 .tier li .dep{font-size:10px;line-height:1.35;color:var(--ink-3)}
 .tier li .dep.out{font-style:italic}
@@ -842,9 +865,13 @@ table.list tr:hover td{background:var(--surface-2)}
 .tierfoot{margin-top:10px;font-size:11.5px;color:var(--ink-3);line-height:1.6}
 
 /* Bölüm çubuğu — yapışkan, tek satır, dar ekranda yana kayıyor. */
-.secnav{position:sticky;top:0;z-index:20;display:flex;gap:2px;overflow-x:auto;
-  background:var(--bg);border-bottom:2px solid var(--border-strong);
-  margin:0 0 18px;padding:6px 0;scrollbar-width:none}
+/* ⚠️ `var(--bg)` diye bir jeton YOK — doğrusu `--ground`. Yanlış ad
+   çözümlenmeyince arka plan ŞEFFAF kalıyor ve kartlar çubuğun içinden
+   geçerken üst üste biniyordu (kullanıcı raporu 23.08.2026). */
+.secnav{position:sticky;top:0;z-index:30;display:flex;gap:2px;overflow-x:auto;
+  background:var(--ground);border-bottom:2px solid var(--border-strong);
+  box-shadow:0 6px 14px -8px rgba(0,0,0,.55);
+  margin:0 0 18px;padding:8px 0;scrollbar-width:none}
 .secnav::-webkit-scrollbar{display:none}
 .secnav a{flex:0 0 auto;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
   font-family:"Chivo",Helvetica,Arial,sans-serif;font-weight:700;
@@ -855,6 +882,18 @@ table.list tr:hover td{background:var(--surface-2)}
 .secnav:empty{display:none}
 /* Yapışkan çubuk, kaydırınca başlığın üstüne oturmasın diye hedefe pay. */
 section[id]{scroll-margin-top:56px}
+
+/* Kaydedilen program bölümü. */
+.savedhead{display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;
+  align-items:flex-end;margin-bottom:12px}
+.savedgrid{display:flex;flex-wrap:wrap;gap:8px}
+.savedcard{background:var(--surface-2);border:1px solid var(--border);
+  border-left:4px solid var(--anadal);padding:8px 11px;min-width:184px;flex:1 1 184px}
+.savedcard.cap{border-left-color:var(--cap)}
+.savedcard .crn{float:right;color:var(--ink-3)}
+.savedcard .when{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+.savedcard .miss{font-size:11.5px;color:var(--warn)}
+.savedtotals{margin-top:12px;font-size:12.5px;color:var(--ink-2)}
 
 /* Başvuru bölümünün KISA hâli — ayrıntı pencerede. */
 .basvuruline{display:flex;flex-direction:column;gap:8px;margin-top:12px}
@@ -891,7 +930,7 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
   <div class="masthead">
     <div>
       <div class="eyebrow" id="eyebrow"></div>
-      <h1 id="doctitle">Ders Planlama Raporu</h1>
+      <h1 id="doctitle">Ders Planlama Aracı</h1>
     </div>
     <button class="ghost" id="theme">Tema</button>
   </div>
@@ -905,6 +944,21 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
 <nav class="secnav" id="secnav" aria-label="Bölümler"></nav>
 
 <section class="setupbar" id="setupbar"></section>
+
+<!-- ★ KAYDEDİLEN PROGRAM en üstte (kullanıcı isteği 23.08.2026).
+     Kayıt haftasında araca dönmenin sebebi bu: "ben ne kaydetmiştim".
+     Aşağıdaki ızgara bir ÇALIŞMA alanı ve düzenlendikçe değişiyor; kayıtlı
+     program ise sabit bir kayıt. İkisini aynı yerde göstermek, hangisinin
+     hangisi olduğunu belirsizleştiriyordu. -->
+<section class="card pad" id="savedSection" hidden>
+  <div class="sechead"><div class="eyebrow">Kayıtlı</div><div class="rule"></div></div>
+  <div class="savedhead">
+    <div><h2>Kaydettiğin program</h2>
+      <div class="summary" id="savedWhen"></div></div>
+    <div class="toolbar" id="savedActions"></div>
+  </div>
+  <div id="savedList"></div>
+</section>
 
 <section class="panels" id="panels"></section>
 
@@ -1043,8 +1097,10 @@ function renderHeader(){
   LBL = DATA.secondLabel || "ÇAP";
   $("#eyebrow").textContent = `${DATA.anadal}${DATA.cap ? ` + ${DATA.cap} ${LBL}` : ""}`
     + (DATA.term ? ` · ${DATA.term}` : "");
-  $("#doctitle").textContent = DATA.cap ? `${LBL} Ders Planlama Raporu`
-                                        : "Ders Planlama Raporu";
+  /* ★ Başlıkta program adı YOK (kullanıcı isteği 23.08.2026): araç ÇAP'a
+     özel değil, yandalda ve ÇAP'sız kullanımda da aynı araç. Hangi programa
+     baktığın zaten üstteki eyebrow'da yazıyor. */
+  $("#doctitle").textContent = "Ders Planlama Aracı";
   $("#blockTitle").textContent = `${LBL}'ta neden alamıyorsun`;
   $("#tierTitle").textContent = `${LBL} kademeleri`;
   $("#gen").textContent = DATA.generatedAt;
@@ -1616,7 +1672,10 @@ function renderLoad(){
           <b class="mono" style="font-size:15px">${L.min ? L.min + "–" : "en çok "}${L.max}</b>
           kredi ${L.verified ? "" : "<b>⚠</b>"}</div>
         <div class="gaugelabel" style="color:var(--ink-3)">
-          şu an ayarlı: <b class="mono">${L.declared || "—"}</b></div>
+          ${{"yönetmelik": "motor bunu kullanıyor — GNO'ndan hesaplandı",
+             "ayar": "elle ayarlı (settings.toml)",
+             "çağrı": "bu çalıştırmaya özel"}[L.limitSource] || "şu an ayarlı"}:
+          <b class="mono">${L.declared || "—"}</b></div>
       </div>
       <div style="flex:2;min-width:250px;font-size:12.5px;color:var(--ink-2)">
         ${L.reasons.map(r => `<div>· ${esc(r)}</div>`).join("")}
@@ -1846,6 +1905,87 @@ function renderSuggestions(){
   });
 }
 
+/* ---------- kaydedilen program (en üstteki bölüm) ----------
+   ★ Kayıtlı program, aşağıdaki ÇALIŞMA ızgarasından ayrı duruyor: ızgara
+   düzenlendikçe değişiyor, bu ise sabit bir kayıt.
+
+   ⚠️ Aday havuzu KİPE göre değişiyor. Kaydedilen ders o anki kipin havuzunda
+   olmayabilir (varsayılan artık "N. dönem + alttan"). O yüzden şubeyi BÜTÜN
+   kiplerde arıyoruz — bulamazsak kodu ve CRN'i yine gösterip "bu kipte yok"
+   diyoruz. Sessizce eksik göstermek, kullanıcının kaydettiğini sandığı dersi
+   kaybetmesi demek olurdu. */
+function findSection(course, crn){
+  for(const m of MODES){
+    const c = (m.candidates || []).find(x => x.course === course);
+    const s = c && (c.sections || []).find(x => x.crn === crn);
+    if(s) return {cand: c, sec: s, mode: m};
+  }
+  return null;
+}
+
+function modeIndexFor(picks){
+  for(let i = 0; i < MODES.length; i++){
+    const ok = picks.every(p => (MODES[i].candidates || []).some(
+      c => c.course === p.course && (c.sections || []).some(s => s.crn === p.crn)));
+    if(ok) return i;
+  }
+  return -1;
+}
+
+function renderSaved(){
+  const sec = $("#savedSection");
+  if(!sec) return;
+  const saved = (DATA.savedPicks && DATA.savedPicks.picks) || [];
+  sec.hidden = !saved.length;
+  if(!saved.length) return;
+
+  const when = (DATA.savedPicks.savedAt || "").replace("T", " ").slice(0, 16);
+  $("#savedWhen").textContent = (when ? when + " tarihinde kaydedildi" : "kaydedildi")
+    + (DATA.term ? " · " + DATA.term : "");
+
+  let kredi = 0, akts = 0, eksik = 0;
+  const kart = saved.map(p => {
+    const hit = findSection(p.course, p.crn);
+    if(!hit){ eksik++; return `<div class="savedcard">
+      <b class="mono">${esc(p.course)}</b><span class="crn mono">${esc(p.crn)}</span>
+      <div class="miss">şube bu dönemin verisinde yok</div></div>`; }
+    kredi += hit.cand.credits || 0; akts += hit.cand.ects || 0;
+    const saat = (hit.sec.meetings || []).map(m =>
+      `${DAYS[m.day-1] || "?"} ${hhmm(m.start)}`).join(" · ") || "saati ilan edilmemiş";
+    return `<div class="savedcard ${hit.cand.role === "ANADAL" ? "" : "cap"}">
+      <b class="mono">${esc(p.course)}</b><span class="crn mono">${esc(p.crn)}</span>
+      <div class="when">${esc(hit.cand.name || "")}</div>
+      <div class="when mono">${esc(saat)}</div></div>`;
+  }).join("");
+
+  $("#savedList").innerHTML = `<div class="savedgrid">${kart}</div>
+    <div class="savedtotals">${saved.length} ders · <b class="mono">${kredi}</b> kredi
+      · <b class="mono">${akts}</b> AKTS
+      ${eksik ? ` · <b style="color:var(--warn)">${eksik} şube bulunamadı</b>` : ""}</div>`;
+
+  const i = modeIndexFor(saved);
+  $("#savedActions").innerHTML =
+    `<button class="ghost primary" id="savedOpen">Programa yükle</button>
+     <button class="ghost" id="savedCrn">CRN listesi</button>`;
+  $("#savedOpen").addEventListener("click", () => {
+    if(i >= 0 && i !== mode) useMode(i);       /* dersin bulunduğu kipe geç */
+    sel = saved.map(p => ({course: p.course, crn: p.crn}))
+               .filter(p => sectionOf(p.course, p.crn));
+    render();
+    $("#schedSection").scrollIntoView({behavior: "smooth", block: "start"});
+  });
+  $("#savedCrn").addEventListener("click", () => {
+    const line = saved.map(p => p.crn).join(" ");
+    openDialog(`<div class="eyebrow">Kayıt günü</div>
+      <h2 style="margin-bottom:4px">Kaydettiğin CRN'ler</h2>
+      <p class="modenote" style="margin:2px 0 10px">OBS'ye yazacağın numaralar.
+        Araç senin yerine kayıt YAPMAZ.</p>
+      <label class="field"><span>Tümü (kopyala)</span>
+        <input type="text" class="mono" readonly value="${esc(line)}"></label>
+      `);
+  });
+}
+
 /* ---------- programı kaydet / CRN listesi ---------- */
 function savedKey(){
   return (DATA.savedPicks && DATA.savedPicks.picks || [])
@@ -1855,6 +1995,7 @@ function currentKey(){
   return sel.map(x => x.course + "@" + x.crn).sort().join("|");
 }
 function renderSaveState(){
+  renderSaved();                 // kaydedilen bölüm her çizimde güncel kalsın
   const btn = $("#savePicks"), mark = $("#savedMark");
   const saved = DATA.savedPicks || {picks: [], savedAt: ""};
   const dirty = currentKey() !== savedKey();
@@ -2646,7 +2787,7 @@ let basvuruKind = "cap";
    Gizli bölüm çubukta da yok: veri gelince (transkript yüklenince, denklik
    önerisi çıkınca) bölüm açılıyor ve bağlantısı kendiliğinden beliriyor. */
 const SECTIONS = [
-  ["panels", "İlerleme"], ["schedSection", "Program"],
+  ["savedSection", "Kayıtlı"], ["panels", "İlerleme"], ["schedSection", "Program"],
   ["creditSection", "Eşikler"], ["suggestSection", "Denklik"],
   ["changeSection", "Değişim"], ["candSection", "Adaylar"],
   ["blockSection", "Darboğaz"], ["basvuruSection", "Başvuru"],
@@ -2942,7 +3083,8 @@ function drawTierLinks(){
   const at = {};
   stage.querySelectorAll(".tier li").forEach(li => {
     const r = li.getBoundingClientRect();
-    at[li.dataset.c] = {l:r.left-box.left, r:r.right-box.left, y:r.top-box.top+r.height/2};
+    at[li.dataset.c] = {x: r.left - box.left + r.width / 2,
+                        t: r.top - box.top, b: r.bottom - box.top};
   });
   svg.setAttribute("width", stage.scrollWidth);
   svg.setAttribute("height", stage.scrollHeight);
@@ -2950,8 +3092,11 @@ function drawTierLinks(){
   DATA.tiers.forEach(t => t.courses.forEach(c => (c.needs||[]).forEach(dep => {
     const a = at[dep], b = at[c.course];
     if (!a || !b) return;                       /* ders çizilmemişse çizgi de yok */
-    const d = Math.max(16, (b.l - a.r) / 2);
-    paths.push(`<path d="M ${a.r} ${a.y} C ${a.r+d} ${a.y}, ${b.l-d} ${b.y}, ${b.l} ${b.y}"
+    /* Kademeler artık AŞAĞI doğru: çizgi önşartın ALTINDAN çıkıp dersin
+       ÜSTÜNE giriyor. Yatay bezier bıraksaydık çizgiler kutuların üstünden
+       geçer, bağı göstermek yerine karartırdı. */
+    const d = Math.max(14, (b.t - a.b) / 2);
+    paths.push(`<path d="M ${a.x} ${a.b} C ${a.x} ${a.b+d}, ${b.x} ${b.t-d}, ${b.x} ${b.t}"
                       data-a="${esc(dep)}" data-b="${esc(c.course)}"></path>`);
   })));
   svg.innerHTML = paths.join("");
@@ -2990,6 +3135,7 @@ function boot(){
   renderBasvuru();
   renderTiers();
   useMode(0);
+  renderSaved();      // useMode'dan SONRA: MODES aday havuzu kurulmuş olmalı
   renderSecNav();     // en sona: hangi bölümlerin açık olduğu ancak burada belli
 }
 boot();

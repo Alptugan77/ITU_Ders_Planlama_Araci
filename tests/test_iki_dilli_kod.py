@@ -194,16 +194,108 @@ def test_kendi_planindaki_bosluk_one_cikar(plan):
     assert "SENİN" in quality._dropped_plan_rows(plan, mine=(2533,))
 
 
+class _Sabit:
+    def __init__(self, html):
+        self.html = html
+
+    def get(self, url, params=None):
+        return self.html
+
+
+_BASLIK = ("<tr><th>Ders Kodu</th><th>Ders Adı</th><th>Ders Dili</th><th>Z/S</th>"
+           "<th>Kredi</th><th>AKTS</th><th>Teo.</th><th>Uyg.</th><th>Lab.</th>"
+           "<th>Türü</th></tr>")
+
+
 def test_ayristirilamayan_satir_raporlanir(con):
-    """★ Anlaşılmayan satır SESSİZCE düşmüyor."""
-    html = ("<table><tr><td>çöp</td><td>satır</td><td></td><td></td>"
-            "<td>3</td><td>6</td></tr></table>")
-
-    class Junk:
-        def get(self, url, params=None):
-            return html
-
+    """★ Ders tablosunun İÇİNDEKİ anlaşılmayan satır sessizce düşmüyor."""
+    html = ("<table>" + _BASLIK +
+            "<tr><td>EEF 110</td><td>Ders</td><td>Türkçe</td><td>Z</td><td>2</td>"
+            "<td>4</td><td>1</td><td>2</td><td>0</td><td>LA</td></tr>"
+            "<tr><td>çöp</td><td>satır</td><td>-</td><td>-</td><td>3</td>"
+            "<td>6</td><td></td><td></td><td></td><td></td></tr></table>")
     obs_plan.dropped_rows.clear()
-    n = obs_plan.scrape_plan(Junk(), con, {**META, "plan_id": 9001}, fetch_pools=False)
-    assert n == 0
+    n = obs_plan.scrape_plan(_Sabit(html), con, {**META, "plan_id": 9001},
+                             fetch_pools=False)
+    assert n == 1
     assert obs_plan.dropped_rows and obs_plan.dropped_rows[0][0] == 9001
+
+
+def test_siniflandirilamayan_tablo_raporlanir(con):
+    """★ Yeni bir hata kapısı: satır değil, TABLO kaybolabilir.
+
+    Başlık satırı tanınmazsa tablo hiç gezilmez. Sessiz kalsaydık plan
+    "OBS'de boş yayınlanmış" görünürdü — kendi hatamızı kaynağın eksiği gibi
+    göstermek, düzeltilmesi en zor yalan türü."""
+    html = ("<table><tr><th>Kod</th><th>Ad</th><th>Bir şey</th><th>Başka</th>"
+            "<th>Daha</th><th>Fazla</th></tr>"
+            + "".join(f"<tr><td>EEF 21{i}</td><td>Ders {i}</td><td>x</td>"
+                      f"<td>y</td><td>3</td><td>6</td></tr>" for i in range(4))
+            + "</table>")
+    obs_plan.dropped_rows.clear()
+    obs_plan.scrape_plan(_Sabit(html), con, {**META, "plan_id": 9002}, fetch_pools=False)
+    assert any(p == 9002 and "sınıflandırılamayan" in r[0]
+               for p, r in obs_plan.dropped_rows)
+    # ★ "kaynakta boş" DEMİYORUZ — tablo vardı, biz anlayamadık.
+    assert con.execute("SELECT has_course_table FROM plan WHERE id=9002").fetchone()[0] == 1
+
+
+# ------------------------------------- eski düzen: TR ve EN AYRI SATIRDA
+def _iki_satir(kod_tr, kod_en, kredi_tr="3", kredi_en="3"):
+    return ("<table>" + _BASLIK
+            + f"<tr><td>{kod_en}</td><td>Circuits</td><td>English</td><td>Z</td>"
+              f"<td>{kredi_en}</td><td>5</td><td>3</td><td>0</td><td>0</td><td>LA</td></tr>"
+            + f"<tr><td>{kod_tr}</td><td>Devreler</td><td>Türkçe</td><td>Z</td>"
+              f"<td>{kredi_tr}</td><td>5</td><td>3</td><td>0</td><td>0</td><td>LA</td></tr>"
+            + "<tr><td>MAT 103</td><td>Matematik</td><td>Türkçe</td><td>Z</td>"
+              "<td>4</td><td>6</td><td>4</td><td>0</td><td>0</td><td>TB</td></tr></table>")
+
+
+def test_ayri_satirdaki_dil_cifti_birlesiyor(con):
+    """★ Eski sayfa düzeninde TR ve EN AYRI SATIR — her ikisini ayrı zorunlu
+    ders saymak planı iki katına çıkarıyordu (INS_ELK: sayfa 70 kredi diyor,
+    biz 121,5 topluyorduk)."""
+    obs_plan.scrape_plan(_Sabit(_iki_satir("EHB 211", "EHB 211E")), con,
+                         {**META, "plan_id": 9100}, fetch_pools=False)
+    rows = {r["course_code"]: r["alt_course_codes"] for r in con.execute(
+        "SELECT course_code, alt_course_codes FROM plan_slot WHERE plan_id=9100")}
+    assert rows == {"EHB 211": "EHB 211E", "MAT 103": None}
+
+
+def test_birlesince_kredi_iki_kez_sayilmiyor(con):
+    obs_plan.scrape_plan(_Sabit(_iki_satir("EHB 211", "EHB 211E")), con,
+                         {**META, "plan_id": 9101}, fetch_pools=False)
+    assert con.execute(
+        "SELECT SUM(credits) FROM plan_slot WHERE plan_id=9101").fetchone()[0] == 7.0
+
+
+def test_birlesince_pozisyon_bosluk_birakmiyor(con):
+    """★ Kendi düzeltmemizi 'satır kayboldu' diye raporlamamalıyız —
+    raporlasaydık kontrol güvenilmez olur ve okunmaz hâle gelirdi."""
+    obs_plan.scrape_plan(_Sabit(_iki_satir("EHB 211", "EHB 211E")), con,
+                         {**META, "plan_id": 9102}, fetch_pools=False)
+    satir, slot = con.execute(
+        "SELECT MAX(position)+1, COUNT(*) FROM plan_slot WHERE plan_id=9102").fetchone()
+    assert satir == slot == 2
+    assert quality._dropped_plan_rows(con) is None
+
+
+def test_kredisi_farkli_olan_birlestirilmiyor(con):
+    """★ 'X' ile 'XE' kredileri farklıysa aynı ders olduğundan EMİN DEĞİLİZ.
+
+    Birleştirmek, gerçekten iki ayrı dersi olan bir plandan ders silmek
+    olurdu — sessizce eksik plan, en pahalı hata."""
+    obs_plan.scrape_plan(_Sabit(_iki_satir("EHB 211", "EHB 211E", "3", "4")), con,
+                         {**META, "plan_id": 9103}, fetch_pools=False)
+    assert con.execute(
+        "SELECT COUNT(*) FROM plan_slot WHERE plan_id=9103").fetchone()[0] == 3
+
+
+def test_yeni_duzen_birlestirmeden_etkilenmiyor(plan):
+    """Regresyon: tek hücrede iki kod gelen plan zaten birleşikti — birleştirme
+    ondan slot SİLMEMELİ (fixture 4 satırlık kısaltılmış sürüm)."""
+    assert plan.execute(
+        "SELECT COUNT(*) FROM plan_slot WHERE plan_id=2533").fetchone()[0] == 4
+    assert plan.execute(
+        "SELECT COUNT(*) FROM plan_slot WHERE plan_id=2533 "
+        "AND alt_course_codes IS NOT NULL").fetchone()[0] == 2

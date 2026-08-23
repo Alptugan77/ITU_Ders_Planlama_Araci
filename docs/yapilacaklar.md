@@ -1,6 +1,6 @@
 # Yapılacaklar
 
-Faz 1–18 bitti (535 test). Depo GitHub'a hazır; statik site yayında. Bu liste **sonrası** için: ne kaldı, neden önemli,
+Faz 1–20 bitti (575 test). Depo GitHub'a hazır; statik site yayında. Bu liste **sonrası** için: ne kaldı, neden önemli,
 ne kadar iş, neye bağlı.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
@@ -20,6 +20,12 @@ ne kadar iş, neye bağlı.
 > kademelerde önşart bağları ✅ · sessiz satır düşüşü için kalıcı kontrol ✅
 > **Faz 18'de kapananlar:** varsayılan kip "N. dönem + alttan" ✅ ·
 > başvuru bölümü pencereye indi ✅ · bölüm çubuğu ✅
+> **Faz 19'da kapananlar:** yandal sayfa düzeni ✅ (yardımcı tablolar zorunlu
+> ders sanılıyordu) · eski düzende TR/EN çift sayımı ✅ · kredi çapraz
+> kontrolü ✅ · `plan_host_program` doldu ✅
+> **Faz 20'de kapananlar:** başlıkta ÇAP yok ✅ · üst çubuk opak ✅ ·
+> kademeler aşağı doğru ✅ · kaydedilen program en üstte ✅ · kredi tavanı
+> GNO'dan otomatik ✅ · planı olmayan bölüm listede yok ✅ · BLG/BLGE tek ✅
 
 Sıralama tahmine değil, iki ölçüte dayanıyor: (a) kayıt gününde işe yarar mı,
 (b) yanlış cevap verme riski taşıyor mu. İkisi de "hayır" olan iş listede
@@ -101,6 +107,19 @@ make all-plans                       # artık yandalı da çekiyor
 
 **Kalan:** `make all-plans` bir kez çalıştırılıp katalog yeniden yayınlanmalı.
 
+### 1.6 ÇAP ve yandal AYNI ANDA · L
+**Neden:** Kullanıcı 23.08.2026'da söyledi — ikisi birlikte alınabiliyor. Araç
+bugün `second_program` / `second_kind` / `second_role` ile **tek** ikinci
+program varsayıyor.
+
+**İyi haber:** veritabanı hazır. `enrollment` rol taşıyor, birden çok kayıt
+tutulabiliyor. Değişmesi gereken üst katman: `ui.collect()` iki plan kimliği
+alıyor, paneller ikili, eşikler tek "ikinci program" üzerinden hesaplanıyor.
+
+**Dikkat:** ÇAP'ın kendi ortalaması (Madde 18) ile yandalın yükü (Madde 22)
+FARKLI maddelerden geliyor. Tek kutuya sıkıştırılırsa biri öbürünün kuralıyla
+değerlendirilir — bu araçtaki en pahalı hata türü.
+
 ## 2. Motorun bir sonraki sıçraması
 
 ### 2.1 Çok dönemli plan · L
@@ -146,7 +165,7 @@ her biri motorun bir köşesini kör bırakıyor.
 | **1396 havuz seçeneğinin ders karşılığı yok** | seçmeli havuzda görünmeyen alternatifler | M |
 | ~~**85 ÇAP planında 435 satır kayıp**~~ · ✅ **Faz 17** — iki dilli kod hücresi; `dropped_plan_rows` kontrolü artık kalıcı bekçi | plan "5 ders" görünüyordu | — |
 | **43 boş seçmeli havuz** (11'i grupId'li = parse hatası) — `--all-programs` sonrası ortaya çıktı. ⚠️ Bir kısmı Faz 17'deki "adı belli ama Z/S=S" hatası olabilir; **yeniden taramadan sonra tekrar say** | başka bölümlerin havuzları; seni etkiliyorsa `make plan-info` ile bak | M |
-| **`plan_host_program` boş** — OBS'den çekilmeli; `make verify` bu yüzden kırmızı | ÇAP planının doğru plan olduğu doğrulanamıyor | S · **OBS gerekir** |
+| ~~**`plan_host_program` boş**~~ · ✅ **Faz 19** — yandal sayfalarında tablonun `id` niteliği yoktu, başlıktan tanınıyor | ÇAP planının doğru plan olduğu doğrulanabiliyor | — |
 | **Resmi denklik yok** (D3) — bu çiftte OBS'de yayınlanmamış | Faz 10 keşfi ad+krediden aday üretiyor; resmi kaynak hâlâ boş | — · **OBS'ye bağlı** |
 
 ---
@@ -211,7 +230,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 535 test + gizlilik denetimi. Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 575 test + gizlilik denetimi. Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` dönemde bir kez yeter — 128 program, ~1081 plan, dakikalar
   sürüyor. Program değiştirmeyi düşünmüyorsan gerekmez.

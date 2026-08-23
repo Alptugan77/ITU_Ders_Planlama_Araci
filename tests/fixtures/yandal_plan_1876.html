@@ -1,0 +1,49 @@
+<!-- OBS yandal plan düzeni (23.08.2026, plan 1876 = UCK_YD), kısaltılmış.
+
+     ★ ÇAP'tan farkı: ders tablosundan SONRA üç sütunluk yardımcı tablolar var
+       ve bunlar plan gereksinimi DEĞİL:
+         - "tamamlama dersleri"  (anadalında benzer ders varsa alınabilecekler)
+         - her seçmeli havuzun İÇERİĞİ (ayrı tablo, önünde havuzun adı)
+     ★ Ayrıca "İlişkili Programlar" tablosunun id="dersPlanProgramList" NİTELİĞİ
+       YOK — yalnız id'ye bakan kod onu ders tablosu sanıyordu. -->
+<html><body>
+
+<table class="table">
+  <tr><th>Ders Kodu</th><th>Ders Adı</th><th>Ders Dili</th><th>Z/S</th><th>Kredi</th>
+      <th>AKTS</th><th>Teo.</th><th>Uyg.</th><th>Lab.</th><th>Türü</th></tr>
+  <tr><td><a href="#">UCK 351</a><br><a href="#">UCK 351E</a><br></td>
+      <td>Aerodinamik</td><td>Türkçe / English</td><td>Z</td>
+      <td>3,5</td><td>4,5</td><td>3</td><td>1</td><td>0</td><td>TM</td></tr>
+  <tr><td><a href="#">UZB 331</a><br></td>
+      <td>Hava Uzay Yapıları</td><td>Türkçe</td><td>Z</td>
+      <td>3</td><td>4,5</td><td>3</td><td>0</td><td>0</td><td>TM</td></tr>
+  <tr><td><a href="#">UCK 322E</a><br></td>
+      <td>Aircraft Structures</td><td>English</td><td>Z</td>
+      <td>3</td><td>4,5</td><td>3</td><td>0</td><td>0</td><td>TM</td></tr>
+</table>
+
+<p>Toplam Kredi : 9,50 Toplam AKTS : 0,00</p>
+<p>Ders Plan Notu: Anadalda benzer ders olması durumunda alınabilecek tamamlama dersleri:</p>
+
+<table class="table">
+  <tr><th>Ders Kodu</th><th>Ders Adı</th><th>Kredi</th></tr>
+  <tr><td>UCK 421</td><td>Tepki ile Tahrik</td><td>3</td></tr>
+  <tr><td>UCK 363E</td><td>Automatic Control II</td><td>3</td></tr>
+  <tr><td></td><td>4.yy Seçime Bağlı Ders (TB) *</td><td>3</td></tr>
+</table>
+
+<p>4.yy Seçime Bağlı Ders(TB)</p>
+<table class="table">
+  <tr><th>Ders Kodu</th><th>Ders Adı</th><th>Kredi</th></tr>
+  <tr><td>FIZ 201</td><td>Modern Fizik</td><td>3</td></tr>
+  <tr><td>MAT 205</td><td>Kompleks Fonk Teorisi</td><td>3</td></tr>
+</table>
+
+<p>İlişkili Programlar:</p>
+<table class="table">
+  <tr><th>Birincil Program Kodu</th><th>Birincil Program Adı</th><th>Güncelleme Tarihi</th></tr>
+  <tr><td>BIO_LS</td><td>Moleküler Biyoloji ve Genetik</td><td>22.04.2025</td></tr>
+  <tr><td>MET_LS</td><td>Metalurji ve Malzeme Mühendisliği</td><td>22.04.2025</td></tr>
+</table>
+
+</body></html>

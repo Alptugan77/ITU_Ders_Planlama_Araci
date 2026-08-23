@@ -204,7 +204,13 @@ class State:
             "capBaslangic": settings.cap_baslangic_yariyili,
             "unit": settings.unit,
             "maxLoad": settings.max_load,
+            "maxLoadAuto": settings.max_load_auto,
             "grades": GRADES,
+            # ★ İkinci program seçimi: YALNIZ o tipte planı OLAN bölümler ve
+            # dil varyantları tekleştirilmiş (BLG + BLGE -> BLG).
+            # Planı olmayan bölümü listelemek, kullanıcıya seçtirip sonra
+            # "plan yok" demek olurdu; BLG/BLGE ayrımı ise ÇAP'ta hiç yok.
+            "secondPrograms": self.second_programs(),
             "programs": [dict(r) for r in self.con.execute(
                 """SELECT DISTINCT p.program_code AS code,
                           COALESCE(pr.name, p.program_code) AS name, p.plan_type
@@ -466,6 +472,22 @@ class State:
         from .normalize import normalize_course_code
         declared.remove(normalize_course_code(target))
         return declared.apply(self.con)
+
+    def second_programs(self) -> dict:
+        """{'cap': [{code,name}], 'yandal': [...]} — planı OLAN bölümler."""
+        from .normalize import merge_language_variants
+
+        out: dict[str, list] = {}
+        for kind in ("cap", "yandal"):
+            rows = {r[0]: r[1] for r in self.con.execute(
+                """SELECT DISTINCT p.program_code, COALESCE(pr.name, p.program_code)
+                   FROM plan p LEFT JOIN program pr ON pr.code = p.program_code
+                   WHERE p.plan_type=? AND p.program_code IS NOT NULL
+                     AND EXISTS (SELECT 1 FROM plan_slot s WHERE s.plan_id = p.id)""",
+                (kind,))}
+            out[kind] = [{"code": c, "name": rows.get(c, c)}
+                         for c in merge_language_variants(rows)]
+        return out
 
     def saved(self) -> dict:
         return S.load_picks(self.ucon, self.student_id, self.settings().term)

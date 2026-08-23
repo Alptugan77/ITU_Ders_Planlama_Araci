@@ -207,8 +207,13 @@ def test_pool_identity_is_exposed(dbs):
 def test_load_limit_travels_to_the_client(dbs):
     """Kullanıcı düzenleyince toplamı tarayıcı hesaplıyor; sınırı bilmeli."""
     data = _collect(dbs)
-    assert data["maxLoad"] == 35.0 and data["unit"] == "kredi"
+    # ★ 23.08.2026: tavan artık GNO'dan (MADDE 17). Bu öğrencinin notu yok,
+    # yönetmeliğin taban bandı geçerli — 35 gibi elle yazılmış bir sayı DEĞİL.
+    assert data["maxLoad"] == 22.0 and data["unit"] == "kredi"
+    assert data["load"]["limitSource"] == "yönetmelik"
     assert data["unitLabel"] == "kredi"
+    # Açık çağrı her zaman kazanır (testler, --max-load).
+    assert _collect(dbs, max_load=31.0)["maxLoad"] == 31.0
     for c in data["candidates"]:
         assert c["credits"] is not None and c["ects"] is not None
 

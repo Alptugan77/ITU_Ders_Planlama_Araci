@@ -77,6 +77,9 @@ CREATE TABLE IF NOT EXISTS plan (
     has_course_table  INTEGER,                   -- OBS sayfasında ders tablosu var mıydı?
                                                  -- 0 + slot yok = kaynakta boş (parse hatası DEĞİL)
     notes_raw         TEXT,                      -- sayfadaki serbest metin notlar
+    -- ★ Sayfanın KENDİ yazdığı 'Toplam Kredi'. Doğrulama çıpası:
+    --   bizim topladığımız kredi bunu tutmuyorsa ayrıştırma yanlış.
+    declared_credits  REAL,
     source            TEXT,                      -- 'obs' | 'itu-helper'
     source_url        TEXT,
     scraped_at        TEXT

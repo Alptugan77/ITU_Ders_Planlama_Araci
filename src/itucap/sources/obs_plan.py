@@ -107,34 +107,54 @@ def scrape_plan(client, con: sqlite3.Connection, meta: dict, fetch_pools: bool =
     """Bir planı çeker; plan + plan_slot + plan_host_program tablolarına yazar."""
     url = f"{config.EP['plan_detail']}/{meta['plan_id']}"
     tree = HTMLParser(client.get(url))
-    tables = tree.css("table")
+    tables = _tables(tree)
     if not tables:
         raise RuntimeError(
             f"Plan {meta['plan_id']}: tablo bulunamadı (sayfa yapısı değişmiş olabilir)")
 
-    host_table = tree.css_first("#dersPlanProgramList")
-    # NOT: selectolax aynı düğüm için farklı Python nesneleri döndürebiliyor,
-    # bu yüzden kimlik (`is`) ile değil id niteliğiyle eliyoruz.
-    course_tables = [t for t in tables if t.attributes.get("id") != "dersPlanProgramList"]
+    # ★ Tabloyu KONUMUNA göre değil BAŞLIĞINA göre sınıflandırıyoruz.
+    # Yandal sayfalarında ders tablosundan sonra üç sütunluk yardımcı tablolar
+    # geliyor (tamamlama dersleri, seçmeli havuz içerikleri) ve bunlar plan
+    # gereksinimi DEĞİL. Konuma güvenen eski kod hepsini zorunlu ders sanıyordu:
+    # UCK yandalı 8 ders / 22,5 kredi iken 43 zorunlu ders görünüyordu.
+    kinds = [_table_kind(t) for t in tables]
+    course_tables = [t for t, k in zip(tables, kinds) if k == "course"]
+    host_tables = [t for t, k in zip(tables, kinds) if k == "hosts"]
+    aux_tables = [t for t, k in zip(tables, kinds) if k == "aux"]
+
+    # ★ Sınıflandıramadığımız ama İÇİNDE DERS KODU olan tablo: sayfa düzeni
+    # değişmiş olabilir. Sessizce atlarsak plan "OBS'de boş yayınlanmış"
+    # görünür — bizim hatamızı kaynağın eksiği gibi göstermek, düzeltilmesi
+    # en zor yalan türü. Bu yüzden hem raporluyoruz hem `has_course_table`'ı
+    # dürüst tutuyoruz.
+    supheli = [t for t, k in zip(tables, kinds)
+               if k == "other" and _has_course_codes(t)]
+    for table in supheli:
+        dropped_rows.append((meta["plan_id"],
+                             ["<sınıflandırılamayan tablo>", *_header_cells(table)[:6]]))
+
     terms = _term_numbers(course_tables)
     is_term_based = any(t is not None for t in terms)
+    notes = _notes(tree, aux_tables)
 
     con.execute(
         """INSERT INTO plan(id,program_code,host_program_code,plan_type,obs_program_code,
                             title,iteration,is_term_based,has_course_table,notes_raw,
-                            source,source_url,scraped_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                            declared_credits,source,source_url,scraped_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
            ON CONFLICT(id) DO UPDATE SET
              program_code=excluded.program_code, host_program_code=excluded.host_program_code,
              plan_type=excluded.plan_type, title=excluded.title, iteration=excluded.iteration,
              is_term_based=excluded.is_term_based,
              has_course_table=excluded.has_course_table, notes_raw=excluded.notes_raw,
+             declared_credits=excluded.declared_credits,
              source=excluded.source, scraped_at=excluded.scraped_at""",
         (meta["plan_id"],
          meta.get("target_program_code") or obs_code_to_program(meta["obs_program_code"]),
          meta.get("host_program_code"), meta["plan_type"], meta["obs_program_code"],
-         meta["title"], meta["iteration"], int(is_term_based), int(bool(course_tables)),
-         _notes(tree), "obs", url, db.now()),
+         meta["title"], meta["iteration"], int(is_term_based),
+         int(bool(course_tables or supheli)),
+         notes, _declared_credits(tree), "obs", url, db.now()),
     )
     # idempotent yeniden yazım
     con.execute("DELETE FROM plan_slot WHERE plan_id=?", (meta["plan_id"],))
@@ -152,10 +172,12 @@ def scrape_plan(client, con: sqlite3.Connection, meta: dict, fetch_pools: bool =
             n += _slot_from_row(con, meta["plan_id"], cells, texts, term_no, position)
             position += 1
 
-    if host_table is not None:
-        for row in host_table.css("tbody tr"):
+    n -= _merge_language_pairs(con, meta["plan_id"])
+
+    for host_table in host_tables:
+        for row in host_table.css("tr"):
             cells = [c.text(strip=True) for c in row.css("td")]
-            if not cells or not cells[0]:
+            if not cells or not cells[0] or _HOST_HEAD_RE.search(cells[0]):
                 continue
             con.execute(
                 """INSERT OR REPLACE INTO plan_host_program(plan_id,program_code,obs_code,
@@ -169,6 +191,141 @@ def scrape_plan(client, con: sqlite3.Connection, meta: dict, fetch_pools: bool =
     if fetch_pools:
         fetch_pool_options(client, con, meta["plan_id"])
     return n
+
+
+def _merge_language_pairs(con: sqlite3.Connection, plan_id: int) -> int:
+    """'EHB 211' ile 'EHB 211E' AYRI SATIRDA geldiğinde tek slota indirir.
+
+    ★ 23.08.2026 — iki dilli kod hatasının ESKİ sayfa düzenindeki hâli.
+    Yeni sayfalar iki kodu tek hücrede veriyor (Faz 17 bunu çözdü); eski
+    sayfalarda Türkçe ve İngilizce ders AYRI SATIR. Her satırı ayrı zorunlu
+    ders saymak planı iki katına çıkarıyordu: INS_ELK ÇAP planı için sayfa
+    70 kredi diyor, biz 121,5 kredi topluyorduk. 109 ÇAP planı böyleydi.
+
+    Bunu bir kredi çapraz kontrolü ortaya çıkardı (`quality.plan_credit_mismatch`)
+    — ölçmeseydik "45 ders" doğru görünmeye devam ederdi.
+
+    ⚠️ KREDİ EŞİTLİĞİ ŞART. 'X' ile 'XE' aynı dersin iki dili ise kredileri
+    aynıdır. Farklıysa aynı ders olduklarından emin olamayız ve BİRLEŞTİRMİYORUZ;
+    kredi kontrolü o planı zaten işaret ediyor.
+    """
+    rows = con.execute(
+        """SELECT id, course_code, credits, position, alt_course_codes
+           FROM plan_slot
+           WHERE plan_id=? AND slot_kind='REQUIRED' AND course_code IS NOT NULL
+           ORDER BY position""", (plan_id,)).fetchall()
+    by_code = {r["course_code"]: r for r in rows}
+    silinecek, birlesen = [], 0
+    for row in rows:
+        code = row["course_code"]
+        if code.endswith("E"):
+            continue                       # çifti TÜRKÇE koddan yürüyoruz
+        esi = by_code.get(code + "E")
+        if esi is None or esi["id"] == row["id"]:
+            continue
+        if (row["credits"] is not None and esi["credits"] is not None
+                and abs(row["credits"] - esi["credits"]) > 0.01):
+            continue                       # aynı ders olduğundan emin değiliz
+        alt = [c for c in (row["alt_course_codes"] or "").split(",") if c]
+        if esi["course_code"] not in alt:
+            alt.append(esi["course_code"])
+        alt += [c for c in (esi["alt_course_codes"] or "").split(",")
+                if c and c not in alt and c != code]
+        con.execute("UPDATE plan_slot SET alt_course_codes=? WHERE id=?",
+                    (",".join(alt), row["id"]))
+        silinecek.append(esi["id"])
+        birlesen += 1
+    if not birlesen:
+        return 0
+    con.executemany("DELETE FROM plan_slot WHERE id=?", [(i,) for i in silinecek])
+    # ★ Pozisyonları sıkıştır. Boşluk bıraksaydık `dropped_plan_rows` kontrolü
+    # "satır kayboldu" derdi — kendi düzeltmemizi hata diye raporlamak,
+    # kontrolün güvenilirliğini yok ederdi.
+    for yeni, (eski,) in enumerate(con.execute(
+            "SELECT id FROM plan_slot WHERE plan_id=? ORDER BY position, id", (plan_id,))):
+        con.execute("UPDATE plan_slot SET position=? WHERE id=?", (yeni, eski))
+    return birlesen
+
+
+# ---------------------------------------------------- tablo sınıflandırması
+# ★ 23.08.2026 — yandal sayfalarının düzeni ÇAP'tan farklı:
+#
+#   TABLO 0   Ders Kodu | Ders Adı | Ders Dili | Z/S | Kredi | AKTS | …   ← PLAN
+#   TABLO 1+  Ders Kodu | Ders Adı | Kredi                                ← yardımcı
+#             ("tamamlama dersleri", seçmeli havuz içerikleri)
+#   SON       Birincil Program Kodu | Birincil Program Adı | …            ← anadallar
+#
+# Yardımcı tablolar plan GEREKSİNİMİ DEĞİL: "anadalında benzer ders varsa
+# bunlardan alabilirsin" listesi. Zorunlu ders sayınca UCK yandalı 8 ders
+# yerine 43 ders görünüyordu — planı üç katından fazla şişiren bir yalan.
+#
+# Ayrıca yandal sayfalarında anadal tablosunun `id="dersPlanProgramList"`
+# NİTELİĞİ YOK; yalnız id'ye bakan eski kod onu ders tablosu sanıyordu.
+_HOST_HEAD_RE = re.compile(r"birincil\s*program|primary\s*program", re.IGNORECASE)
+_COURSE_HEAD_RE = re.compile(r"ders\s*dili|course\s*language|\bz\s*/\s*s\b|compulsory",
+                             re.IGNORECASE)
+
+
+def _tables(tree) -> list:
+    """Sayfadaki EN İÇTEKİ tablolar, tekrarsız.
+
+    `css("table")` iç içe tabloları hem sarmalayan hem sarmalanan olarak
+    döndürüyor; ikisini de gezersek aynı ders iki kez yazılır (UCK yandalında
+    tam olarak bu oluyordu: UCK 421 iki farklı 'dönem'de görünüyordu).
+    """
+    out, gorulen = [], set()
+    for t in tree.css("table"):
+        # ⚠️ selectolax'te `node.css(...)` DÜĞÜMÜN KENDİSİNİ de sayıyor.
+        # `if t.css("table")` yazmak her tabloyu eler ve sayfa boş görünür.
+        if len(t.css("table")) > 1:
+            continue                       # sarmalayıcı: içteki zaten gelecek
+        key = t.html
+        if key in gorulen:
+            continue
+        gorulen.add(key)
+        out.append(t)
+    return out
+
+
+def _header_cells(table) -> list[str]:
+    """Tablonun ilk DOLU satırı — başlık satırı."""
+    for row in table.css("tr"):
+        texts = [c.text(strip=True) for c in (row.css("th") or row.css("td"))]
+        if any(texts):
+            return texts
+    return []
+
+
+def _has_course_codes(table, esik: int = 3) -> bool:
+    """Tabloda gerçek ders kodu var mı? (sınıflandırılamayan tabloyu ayırmak için)"""
+    n = 0
+    for row in table.css("tr"):
+        cells = row.css("td")
+        if cells and course_codes_in(cells[0].text(separator="\n", strip=True)):
+            n += 1
+            if n >= esik:
+                return True
+    return False
+
+
+def _table_kind(table) -> str:
+    """'course' | 'hosts' | 'aux' | 'other' — başlık satırına bakarak."""
+    if table.attributes.get("id") == "dersPlanProgramList":
+        return "hosts"
+    head = _header_cells(table)
+    if not head:
+        return "other"
+    birlesik = " | ".join(head)
+    if _HOST_HEAD_RE.search(birlesik):
+        return "hosts"
+    if len(head) >= 8 and _COURSE_HEAD_RE.search(birlesik):
+        return "course"
+    if len(head) <= 4 and _HEADER_ROW_RE.search(birlesik):
+        return "aux"
+    # Tanımadığımız ama ders kodu taşıyan tablo: eskiden ders tablosu sayılırdı.
+    # Kredi/Z/S sütunu olmadan ders tablosu olamaz; 'other' diyip GEÇMİYORUZ,
+    # yardımcı sayıp notlara alıyoruz — böylece içerik kaybolmuyor.
+    return "aux" if len(head) <= 4 else "other"
 
 
 def _term_numbers(tables) -> list[int | None]:
@@ -318,14 +475,53 @@ def fetch_pool_options(client, con: sqlite3.Connection, plan_id: int) -> int:
     return total
 
 
-def _notes(tree: HTMLParser) -> str | None:
-    """Plan sayfasındaki serbest metin notlar (denklik/kredi şartları buraya gömülü)."""
+def _notes(tree: HTMLParser, aux_tables=()) -> str | None:
+    """Plan sayfasındaki serbest metin notlar (denklik/kredi şartları buraya gömülü).
+
+    Yardımcı tablolar da buraya yazılıyor. Slot ÜRETMİYORUZ (plan gereksinimi
+    değiller) ama içeriği de ATMIYORUZ — "anadalında benzer ders varsa şunları
+    alabilirsin" bilgisi danışmanla konuşurken gereken tam şey.
+    """
     chunks = []
     for node in tree.css("div.alert, div.panel-body > p, .card-body > p, .aciklama"):
         text = node.text(strip=True)
         if 30 < len(text) < 4000:
             chunks.append(text)
+    satirlar = []
+    for table in aux_tables:
+        for row in table.css("tr"):
+            cells = [c.text(separator=" ", strip=True) for c in row.css("td")]
+            if cells and any(cells) and not _HEADER_ROW_RE.search(cells[0]):
+                satirlar.append(" · ".join(x for x in cells if x))
+    if satirlar:
+        chunks.append("Yardımcı listeler (tamamlama dersleri / seçmeli havuz "
+                      "içerikleri) — plan gereksinimi DEĞİL:\n"
+                      + "\n".join(dict.fromkeys(satirlar)))
     return "\n\n".join(dict.fromkeys(chunks)) or None
+
+
+_TOPLAM_KREDI_RE = re.compile(
+    r"(?:Toplam\s*Kredi|Total\s*Credits?)\s*:?\s*([\d]+(?:[.,]\d+)?)", re.IGNORECASE)
+
+
+def _declared_credits(tree: HTMLParser) -> float | None:
+    """Sayfanın kendi yazdığı 'Toplam Kredi'.
+
+    ★ Bu bir DOĞRULAMA çıpası: kaynağın söylediği sayı ile bizim topladığımız
+    kredi tutmuyorsa ayrıştırmada bir şey yanlış demektir. Yandal hatası
+    (43 zorunlu ders / 22,5 kredi) bu kontrol olsaydı ilk taramada yakalanırdı.
+    """
+    return _num_tr(_TOPLAM_KREDI_RE.search(tree.body.text(separator=" ") if tree.body else ""))
+
+
+def _num_tr(m):
+    if not m:
+        return None
+    try:
+        return float(m.group(1).replace(".", "").replace(",", ".")) \
+            if "," in m.group(1) else float(m.group(1))
+    except ValueError:
+        return None
 
 
 def _num(v):

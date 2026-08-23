@@ -38,7 +38,7 @@ from dataclasses import dataclass, field
 from typing import Mapping
 
 from . import config
-from .normalize import strip_accents
+from .normalize import base_program_code, merge_language_variants, strip_accents
 from . import policy as POL
 from . import rules as R
 from . import student as S
@@ -306,10 +306,19 @@ def survey(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
 
     plans = {code: best_plan(rows) for code, rows in by_program.items()}
 
+    # ★ Dil varyantı tekleştirme (kullanıcı isteği 23.08.2026): ÇAP/yandal
+    # seçiminde BLG ile BLGE ayrımı YOK — plan bölüme tanımlı, dile değil.
+    # İkisini ayrı satır göstermek, kullanıcıya olmayan bir seçim yaptırıyordu.
+    # ⚠️ Yalnız ikisi de listede varsa; 'HTAE'nin 'HTA' diye bir eşi yok.
+    goster = set(merge_language_variants(names))
+    for kod in list(names):
+        if kod not in goster and kod in plans and base_program_code(kod) not in plans:
+            goster.add(kod)          # eşinin PLANI yoksa varyantı gizlemeyiz
+
     options: list[Option] = []
     missing: list[Option] = []
     for code, name in sorted(names.items()):
-        if code in exclude:
+        if code in exclude or code not in goster:
             continue
         row = plans.get(code)
         if row is None:

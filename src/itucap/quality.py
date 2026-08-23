@@ -191,6 +191,46 @@ def _dropped_plan_rows(con, mine=()):
             f"{ornek}")
 
 
+@check("plan_credit_mismatch")
+def _plan_credit_mismatch(con, mine=()):
+    """Sayfanın yazdığı 'Toplam Kredi' ile bizim topladığımız kredi.
+
+    ★ 23.08.2026 — ayrıştırmadan BAĞIMSIZ bir çıpa. Düşen satır kontrolü
+    "az yazdık"ı yakalıyor; bu kontrol "ÇOK yazdık"ı yakalıyor. İkincisi
+    daha sinsi: eksik veri eksik görünür, uydurulmuş veri DOĞRU görünür.
+    Yandal planlarında yardımcı tablolar zorunlu ders sanılıyordu ve
+    22,5 kredilik plan 43 ders topluyordu — bu kontrol olsaydı ilk taramada
+    yakalanırdı.
+
+    ⚠️ Sayfa toplam yazmamışsa KARŞILAŞTIRMA YOK. Bilinmeyeni 0 sayıp
+    "tutmuyor" demek, olmayan bir hata uydurmak olurdu.
+    """
+    rows = con.execute(
+        """SELECT p.id, coalesce(p.host_program_code||'_','')||p.program_code ad,
+                  p.declared_credits ilan, ROUND(SUM(coalesce(s.credits,0)),2) toplam
+           FROM plan p JOIN plan_slot s ON s.plan_id=p.id
+           WHERE p.declared_credits IS NOT NULL AND p.declared_credits > 0
+           GROUP BY p.id
+           HAVING ABS(toplam - p.declared_credits) > 0.5 + 0.1*p.declared_credits
+           ORDER BY ABS(toplam - p.declared_credits) DESC"""
+    ).fetchall()
+    if not rows:
+        return None
+    mine = {m for m in mine if m}
+    benim = [r for r in rows if r["id"] in mine]
+    hedef = benim or rows
+
+    def ornek(items):
+        return ", ".join(f"{r['id']}({r['ad']}: {r['toplam']:g} kredi topladık, "
+                         f"sayfa {r['ilan']:g} diyor)" for r in items[:4])
+
+    if benim:
+        return (f"★ SENİN planında kredi tutmuyor: {ornek(benim)} — "
+                f"ayrıştırmada bir şey yanlış, `make plan-info ID={benim[0]['id']}`")
+    return (f"{len(rows)} planda kredi toplamı sayfayla tutmuyor "
+            f"(seni etkilemiyor): {ornek(hedef)}")
+
+
 @check("upstream_empty_plans", "info")
 def _upstream_empty(con):
     """Sayfada hiç ders tablosu yoktu -> kaynakta boş, bizim hatamız değil."""
@@ -279,7 +319,8 @@ def run(con: sqlite3.Connection, mine: tuple = ()) -> list[Finding]:
         # Kontroller iki imzadan birini kullanabilir: fn(con) ya da fn(con, mine)
         detail = fn(con, mine) if fn.__code__.co_argcount > 1 else fn(con)
         if detail:
-            if check_id in ("cap_plan_size", "dropped_plan_rows") and "SENİN" not in detail:
+            if check_id in ("cap_plan_size", "dropped_plan_rows", "plan_credit_mismatch") \
+                    and "SENİN" not in detail:
                 severity = "warn"        # başka programın planı seni düşürmesin
             findings.append(Finding(check_id, severity, detail))
             con.execute(

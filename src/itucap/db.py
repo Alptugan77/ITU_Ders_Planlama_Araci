@@ -24,6 +24,7 @@ ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("plan_slot", "ects", "REAL"),
     ("plan_slot", "alt_course_codes", "TEXT"),
     ("plan_slot", "zs_raw", "TEXT"),
+    ("plan", "declared_credits", "REAL"),
 ]
 
 

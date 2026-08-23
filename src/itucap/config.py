@@ -106,6 +106,10 @@ class Settings:
     # her yerde gösterilir ama sınır bu birimden hesaplanır.
     unit: str = "kredi"                 # 'kredi' | 'akts'
     max_load: float = 35.0              # dönem üst sınırı, seçilen birimde
+    # ★ Tavanı GNO'ya göre yönetmelikten al (MADDE 17/2-a). Kullanıcı isteği
+    # 23.08.2026. Elle bir sayı dayatmak, GNO değiştiğinde eskiyen ve kimsenin
+    # güncellemediği bir ayar demekti. `false` yaparsan `max_load` aynen geçerli.
+    max_load_auto: bool = True
 
     @classmethod
     def load(cls, path: Path | None = None) -> "Settings":
@@ -168,7 +172,7 @@ class Settings:
 _EDITABLE = {
     "anadal_program", "anadal_plan_id", "second_kind",
     "cap_program", "cap_plan_id", "yandal_program", "yandal_plan_id",
-    "donem", "term", "unit", "max_load", "program_codes", "watch_courses",
+    "donem", "term", "unit", "max_load", "max_load_auto", "program_codes", "watch_courses",
     "cap_baslangic_yariyili", "mesgul",
 }
 

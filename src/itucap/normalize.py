@@ -123,6 +123,29 @@ def course_codes_in(cell_text: str) -> list[str]:
     return out
 
 
+def base_program_code(code: str) -> str:
+    """'BLGE' -> 'BLG'. Programın dil varyantını kanonik koda indirger.
+
+    İTÜ'de aynı bölümün Türkçe ve İngilizce programı ayrı kodla duruyor
+    (BLG / BLGE). ÇAP–yandal seçiminde bu ayrım YOK: ÇAP planı bölüme
+    tanımlı, dile değil. İkisini ayrı program gibi listelemek kullanıcıya
+    olmayan bir seçim yaptırıyordu.
+    """
+    code = (code or "").strip().upper()
+    return code[:-1] if len(code) > 2 and code.endswith("E") else code
+
+
+def merge_language_variants(codes) -> list[str]:
+    """Dil varyantlarını tekleştirir: {'BLG','BLGE','HTAE'} -> ['BLG','HTAE'].
+
+    ⚠️ Yalnız İKİSİ DE varsa birleştiriyoruz. 'HTAE'nin 'HTA' diye bir eşi
+    yok; körlemesine son harfi atmak var olmayan bir programa yönlendirirdi.
+    """
+    codes = {str(c).strip().upper() for c in codes if c}
+    return sorted(c for c in codes
+                  if not (c.endswith("E") and base_program_code(c) in codes))
+
+
 def obs_code_to_program(obs_code: str) -> str:
     """'HTAE_LS' -> 'HTAE', 'EHB_MTM_LS' -> 'EHB_MTM'."""
     code = (obs_code or "").strip().upper()
