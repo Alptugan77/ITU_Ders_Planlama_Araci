@@ -1,6 +1,6 @@
 # Yapılacaklar
 
-Faz 1–26 bitti (802 test). Depo GitHub'a hazır; statik site yayında. Bu liste **sonrası** için: ne kaldı, neden önemli,
+Faz 1–27 bitti (834 test). Depo GitHub'a hazır; statik site yayında. Bu liste **sonrası** için: ne kaldı, neden önemli,
 ne kadar iş, neye bağlı.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
@@ -49,6 +49,10 @@ ne kadar iş, neye bağlı.
 > ★★ transkriptsizken "%0 tamamlandı" iddiası kalktı ✅ · başlık altı önce
 > aracı tanıtıyor ✅ · "şimdilik böyle kalsın" ✅ · kurulum sonrası
 > "şimdi ne yapabilirsin" ✅ · telefonda adım satırı ✅
+>
+> **Faz 27'de kapananlar:** ★★ tercih ağırlıkları ✅ (§2.2) · "neden bu
+> puan" kırılımı ✅ (§3.1) · yazdırma düzeni ✅ (§3.2) · klavye ✅ (§3.3) ·
+> önerileri yan yana karşılaştır ✅ (§3.4)
 >
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ **Depoda `git remote` YOK** — 27 commit yerelde, site Faz 23'ten kalma.

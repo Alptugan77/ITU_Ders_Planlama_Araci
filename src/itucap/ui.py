@@ -284,8 +284,10 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         # sayıyor ve çakışan şubeyi hiç önermiyor. Ayrı bir çakışma yolu
         # yazmak iki tanım demek olurdu (bkz. REC.busy_sections).
         return cs, REC.build_schedules(cs, max_load=limit, limit=n_schedules,
-                                       fixed=busy, floors=floors)
+                                       fixed=busy, floors=floors, prefs=prefs)
 
+    # ★ Faz 27 — yumuşak tercihler. SIRALAMAYA giriyor, eleme YAPMIYOR.
+    prefs = settings.preferences()
     busy = REC.busy_sections(settings.mesgul)
     # ★ Yarıyıl kredi tabanı artık motora GİRİYOR (yapılacaklar 1.4).
     # Faz 13'ten beri yalnız bir uyarıydı; gerçek veride önerilen program
@@ -347,7 +349,15 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             out.append({
                 "ects": sched.ects, "credits": sched.credits, "load": sched.load,
                 "score": sched.score,
+                # ★ Motorun kendi puanı ile tercih farkı AYRI taşınıyor:
+                # "puan 22.5" tek başına, tercihin ne kadar etkilediğini
+                # gizliyordu. Arayüz ikisini de yazıyor.
+                "baseScore": sched.base_score,
+                "prefDelta": sched.pref_delta,
+                "prefReasons": sched.pref_reasons(),
                 "campusChanges": sched.campus_changes(),
+                # Yan yana karşılaştırma için (Faz 27): programın "şekli".
+                "shape": _program_sekli(sched),
                 # ★ Taban eksiği program BAŞINA raporlanıyor: motor tabanı
                 # karşılayamıyorsa bunu SÖYLÜYOR, sessizce en iyi görünen
                 # programı sunmuyor (yapılacaklar 1.4).
@@ -435,6 +445,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             "credits": c.credits, "slotId": c.slot_id, "planId": c.plan_id,
             "termNo": c.term_no, "pool": c.pool_label,
             "score": c.score, "unlocks": c.unlocks, "critical": c.critical,
+            # ★ Puanın kırılımı — "neden bu ders önde" sorusunun cevabı.
+            "parts": c.parts,
             # `unlocks` katalogdaki toplam, `opens` SENİN planındaki liste.
             # İkisi ayrı sayı; birini öbürünün yerine yazmak yanlış olurdu.
             "opens": _acilanlar(c.course),
@@ -707,6 +719,39 @@ def _onboarding(con, ucon, student_id, settings, anadal_id, seconds) -> dict | N
             "SELECT COUNT(DISTINCT program_code) FROM plan "
             "WHERE plan_type='lisans'").fetchone()[0],
         "lessonCount": con.execute("SELECT COUNT(*) FROM lesson").fetchone()[0],
+    }
+
+
+def _program_sekli(sched) -> dict:
+    """Bir programın karşılaştırılabilir "şekli" (Faz 27).
+
+    "Öneri 1 / 2 / 3" arasında geçiş vardı ama farkı görmek için ızgarayı
+    iki kez ezberlemek gerekiyordu. Karşılaştırma ekranının ihtiyacı olan
+    şey ders listesi değil, ŞEKİL: hangi günler dolu, en erken saat, kaç
+    boş gün, kaç çevrimiçi.
+    """
+    gunler: dict[int, list[tuple[int, int]]] = {}
+    online = 0
+    for p in sched.picks:
+        if p.section.online:
+            online += 1
+        for m in p.section.meetings:
+            gunler.setdefault(m.day, []).append((m.start, m.end))
+    # ⚠️ Saati ilan edilmemiş ders hiçbir güne düşmüyor; "boş gün" sayısı
+    # onu boşluk sanmasın diye ayrıca raporlanıyor.
+    saatsiz = sum(1 for p in sched.picks if not p.section.meetings)
+    ilk = min((s for gun in gunler.values() for s, _ in gun), default=None)
+    son = max((e for gun in gunler.values() for _, e in gun), default=None)
+    return {
+        "days": sorted(gunler),
+        "freeDays": [g for g in range(1, 6) if g not in gunler],
+        "earliest": ilk, "latest": son,
+        "online": online, "timeless": saatsiz,
+        # Günlük "boşluk" (ders arası bekleme) toplamı — dakika.
+        "gaps": sum(
+            max(0, b - a)
+            for gun in gunler.values()
+            for (_, a), (b, _) in zip(sorted(gun), sorted(gun)[1:])),
     }
 
 
@@ -1031,6 +1076,12 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
   cursor:pointer;white-space:nowrap}
 .candcount{margin-left:auto;font-size:12px;color:var(--ink-3);
   font-variant-numeric:tabular-nums}
+/* Klavye ipucu — dar ekranda gizli (orada klavye yok). */
+.kisayol{font-size:11px;color:var(--ink-3);white-space:nowrap}
+@media (max-width:700px){.kisayol{display:none}}
+/* Klavye odağı — fare seçimi gibi görünmeli ki nerede olduğun belli olsun. */
+#cands tbody tr.odak{outline:2px solid var(--seal);outline-offset:-2px;
+  background:var(--seal-soft)}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
 /* Gelişmiş alan — ilk kurulumda kapalı. Nadir kullanılan bir metin kutusunu
    zorunlu alanların yanına koymak, kurulumu üç kat karmaşık gösteriyordu. */
@@ -1232,6 +1283,34 @@ table.list tr:hover td{background:var(--surface-2)}
 /* Bozuk ayar dosyası — sayfa açılıyor ama sessiz kalmıyor. */
 .note.ayarhata{border-left:3px solid var(--danger);padding-left:10px;
   margin:14px 0}
+/* Puan kırılımı — "neden bu puan". Eksi katkı da aynı görsel dilde. */
+.puan{margin-top:10px;border-top:1px solid var(--border);padding-top:8px}
+.puan>summary{cursor:pointer;font-size:12.5px;color:var(--seal)}
+.puanliste{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.puansatir{display:grid;grid-template-columns:1fr 90px 46px;gap:8px;
+  align-items:center;font-size:12px}
+.puansatir .ad{color:var(--ink-2)}
+.puansatir .bar{height:7px;background:var(--surface-2);border:1px solid var(--border)}
+.puansatir .bar>i{display:block;height:100%;background:var(--seal)}
+.puansatir.eksi .bar>i{background:var(--warn)}
+.puansatir .deger{text-align:right;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.puansatir.eksi .deger{color:var(--warn)}
+.puantoplam{margin-top:8px;font-size:11.5px;color:var(--ink-3);line-height:1.6}
+/* Tercihin programa etkisi. */
+.tercihnot{font-size:12px}
+.tercihnot.ok{color:var(--anadal)}
+.tercihnot.uymaz{color:var(--warn)}
+/* Yan yana karşılaştırma tablosu. */
+table.cmp{border-collapse:collapse;width:100%;font-size:12.5px}
+table.cmp th,table.cmp td{border:1px solid var(--border);padding:6px 9px;
+  text-align:left;vertical-align:top}
+table.cmp thead th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-3)}
+table.cmp tbody th{color:var(--ink-2);font-weight:600;white-space:nowrap}
+table.cmp .secili{background:var(--seal-soft)}
+table.cmp .meta{font-size:11px;color:var(--ink-3)}
+table.cmp .meta.eksi{color:var(--warn)}
+table.cmp .meta.arti{color:var(--anadal)}
 /* Arz uyarısı — planındaki ders bu dönem alınamıyorsa, ÜSTTE. */
 .note.arz{margin-top:10px;border-left:3px solid var(--warn);padding-left:10px}
 .note.arz .meta{color:var(--ink-3);font-size:12px}
@@ -1420,6 +1499,34 @@ dialog::backdrop{background:rgba(8,16,26,.5)}
 dialog .pad{padding:22px 24px}
 footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);padding-top:14px;
   line-height:1.7}
+/* ★ Faz 27 — YAZDIRMA (yapılacaklar §3.2).
+   Kayıt günü ekran yerine kâğıda bakan çok: ızgara + CRN listesi tek sayfa.
+   ⚠️ Yazdırılan sayfa, ekranın bir fotoğrafı değil: düğmeler, süzgeçler,
+   gezinme çubuğu kâğıtta işe yaramaz — çıkarılıyor. Kalan şey kayıt
+   masasında lazım olan şey. */
+@media print{
+  @page{margin:12mm}
+  html,body{background:#fff;color:#000}
+  header,#secnav,#setupbar,#hero,#sonraki,.toolbar,.candbar,.modes,
+  #candSection,#blockSection,#suggestSection,#changeSection,#basvuruSection,
+  #tierSection,#creditSection,.tabs,#notime .blockitem button,
+  #arzUyari,#ayarHatasi,dialog{display:none !important}
+  /* Kâğıtta kart kenarlığı ve gölge gürültü. */
+  .card{border:0;box-shadow:none;padding:0;margin:0 0 10mm}
+  section[id]{break-inside:avoid}
+  #grid{width:100%}
+  #grid td,#grid th{border-color:#999}
+  .blk{border:1px solid #666;background:#fff !important;color:#000 !important}
+  .blk .mono{color:#000}
+  /* ★ CRN listesi kâğıtta ASIL İŞ — ızgaranın altına basılıyor.
+     Ekranda pencerede duruyor; yazdırırken pencere açık olmayabilir. */
+  #printCrn{display:block !important}
+  a[href]::after{content:""}          /* URL'leri metne eklemesin */
+}
+#printCrn{display:none}
+#printCrn table{width:100%;border-collapse:collapse;font-size:11pt}
+#printCrn th,#printCrn td{border:1px solid #999;padding:4px 6px;text-align:left}
+
 @media (prefers-reduced-motion:no-preference){
   .blk,.tab,.ghost,.opt{transition:background .12s ease,color .12s ease}
 }
@@ -1485,7 +1592,9 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
       <div class="modes" id="modes" style="margin-top:10px"></div>
       <div class="modenote" id="modeNote"></div>
     </div>
-    <div class="tabs" id="tabs"></div>
+    <div class="tabs" id="tabs">
+      <!-- Faz 27: önerileri yan yana karşılaştır. -->
+    </div>
   </div>
   <div class="summary" id="schedSummary"></div>
   <!-- C3: arz uyarısı — kayıt gününden ÖNCE bilinmesi gereken şey. -->
@@ -1509,6 +1618,9 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
        yana kaydırma istediği için telefonda kullanışsızdı (yapılacaklar 4.1). -->
   <div class="daylist" id="daylist" style="margin-top:14px"></div>
   <div id="notime" style="margin-top:14px"></div>
+  <!-- ★ Yazdırınca ızgaranın altına basılan CRN listesi (Faz 27).
+       Ekranda gizli: orada CRN'ler zaten "Kayıt günü" penceresinde. -->
+  <div id="printCrn"></div>
 </section>
 
 
@@ -1556,6 +1668,7 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
     <!-- ★ Faz 25/B1 — planında OLMAYAN dersi de aramak/eklemek için. -->
     <button class="ghost" id="katalogBtn">Katalogda ara</button>
     <span class="candcount" id="candCount"></span>
+    <span class="kisayol">↑↓ gez · Enter ekle · / ara</span>
   </div>
   <div style="overflow-x:auto;margin-top:12px">
     <table class="list" id="cands">
@@ -1775,16 +1888,29 @@ function setupBar(){
       <button class="ghost" data-setup="program">Program</button>
       <button class="ghost" data-setup="donem">Dönem</button>
       <button class="ghost primary" data-setup="plan">Plandan işaretle</button>
-      <button class="ghost" data-setup="dersler">Geçtiğin dersler</button>`
+      <button class="ghost" data-setup="dersler">Geçtiğin dersler</button>
+      <button class="ghost" data-setup="tercih">Tercihler${
+        tercihSayisi() ? ` <span class="chip">${tercihSayisi()}</span>` : ""}</button>`
     : `<span class="ro">Düzenlemek için <span class="mono">make app</span></span>
        <button class="ghost" disabled>Program</button>
        <button class="ghost" disabled>Dönem</button>
        <button class="ghost" disabled>Plandan işaretle</button>
-       <button class="ghost" disabled>Geçtiğin dersler</button>`}`;
+       <button class="ghost" disabled>Geçtiğin dersler</button>
+       <button class="ghost" disabled>Tercihler</button>`}`;
   $("#setupbar").querySelectorAll("[data-setup]").forEach(b =>
     b.addEventListener("click", () => ({program: programDialog, donem: termDialog,
-                                        plan: checklistDialog,
+                                        plan: checklistDialog, tercih: tercihDialog,
                                         dersler: courseDialogSetup})[b.dataset.setup]()));
+}
+
+/** Kaç tercih etkin — çubukta rozet olarak. Sıfırsa rozet YOK: "0" yazmak
+    kullanıcıya bir şey söylemiyor, yer kaplıyor. */
+function tercihSayisi(){
+  const P = (SETUP && SETUP.prefs) || {};
+  return (P.enErken ? 1 : 0) + ((P.bosGunler || []).length ? 1 : 0)
+    + (P.kampus ? 1 : 0) + (P.cevrimici ? 1 : 0)
+    + ((P.istenenHocalar || []).length ? 1 : 0)
+    + ((P.istenmeyenHocalar || []).length ? 1 : 0);
 }
 
 function openSetup(html, wire){
@@ -1949,6 +2075,93 @@ function programDialog(){
         secondKind: kind,
         secondPrograms: secim,
         programCodes: $("#fCodes").value.split(/[,\s]+/).filter(Boolean),
+      }));
+    });
+  });
+}
+
+/* ---------- 1b. tercihler (Faz 27) ----------
+   ★★ Bunlar YUMUŞAK. "Sabah dersi istemiyorum"u eleme kuralı yapmak,
+   gerçek veride kayıt edilebilir tek programı imkânsız gösterebilirdi
+   (14 ÇAP dersinden yalnız 2–3'ü bir dönemde alınabiliyor). Tercih, iki
+   ÇALIŞAN program arasında seçim yaptırıyor; çalışan tek programı elemiyor.
+   Pencere bunu AÇIKÇA yazıyor, yoksa kullanıcı "istemiyorum dedim ama yine
+   koydu" diye aracı hatalı sanar. */
+const TERCIH_GUN = [[1, "Pzt"], [2, "Sal"], [3, "Çar"], [4, "Per"], [5, "Cum"]];
+const TERCIH_SAAT = [[0, "önemsiz"], [510, "08:30"], [570, "09:30"],
+                     [630, "10:30"], [690, "11:30"]];
+
+function tercihDialog(){
+  const P = (SETUP && SETUP.prefs) || {};
+  let erken = P.enErken || 0;
+  let gunler = new Set(P.bosGunler || []);
+  openSetup(`
+    <div class="eyebrow">Kurulum</div>
+    <h2 style="margin-bottom:4px">Tercihlerin</h2>
+    <p class="modenote" style="margin:2px 0 4px">Bunlar <b>eleme değil,
+      sıralama</b>: araç önce çalışan programları bulur, sonra tercihlerine
+      en uygun olanı öne alır. Tek çalışan program tercihine uymuyorsa yine
+      de gösterilir — <b>çünkü gösterilmemesi işine yaramaz.</b></p>
+
+    <label class="field"><span>Şu saatten önce ders istemiyorum</span>
+      <div class="radios" id="fErken">
+        ${TERCIH_SAAT.map(([v, l]) =>
+          `<button data-v="${v}" aria-pressed="${v === erken}">${l}</button>`).join("")}
+      </div></label>
+
+    <label class="field"><span>Boş kalmasını istediğim günler</span>
+      <div class="terms" id="fGun">
+        ${TERCIH_GUN.map(([v, l]) => `<button data-v="${v}"
+          aria-pressed="${gunler.has(v)}" style="width:auto;padding:7px 12px"
+          >${l}</button>`).join("")}
+      </div>
+      <span class="hint">Beşini birden seçemezsin.</span></label>
+
+    <div class="grid2" style="margin-top:14px">
+      <label class="tickbox"><input type="checkbox" id="fKampus"
+        ${P.kampus ? "checked" : ""}> Aynı gün kampüs değiştirmek istemiyorum</label>
+      <label class="tickbox"><input type="checkbox" id="fOnline"
+        ${P.cevrimici ? "checked" : ""}> Çevrimiçi şubeyi yeğlerim</label>
+    </div>
+
+    <details class="adv"${(P.istenenHocalar || []).length
+      || (P.istenmeyenHocalar || []).length ? " open" : ""}>
+      <summary>Öğretim üyesi</summary>
+      <label class="field"><span>İstediğim hocalar</span>
+        <input type="text" id="fHocaVar"
+          value="${esc((P.istenenHocalar || []).join(", "))}"
+          placeholder="Buzluca, Şule Itır"></label>
+      <label class="field"><span>İstemediğim hocalar</span>
+        <input type="text" id="fHocaYok"
+          value="${esc((P.istenmeyenHocalar || []).join(", "))}">
+        <span class="hint">Ad parçası yeter. Virgülle ayır.
+          ⚠️ 3417 şubenin 887'sinde hoca ilan edilmemiş — onlar hiçbir
+          tercihe uymaz, ne artı ne eksi alır.</span></label>
+    </details>`, () => {
+    $("#fErken").querySelectorAll("button").forEach(b =>
+      b.addEventListener("click", () => {
+        erken = +b.dataset.v;
+        $("#fErken").querySelectorAll("button").forEach(x =>
+          x.setAttribute("aria-pressed", +x.dataset.v === erken));
+      }));
+    $("#fGun").querySelectorAll("button").forEach(b =>
+      b.addEventListener("click", () => {
+        const v = +b.dataset.v;
+        if(gunler.has(v)) gunler.delete(v);
+        else if(gunler.size >= 4) { say("beş günün beşini boş isteyemezsin", true); return; }
+        else gunler.add(v);
+        b.setAttribute("aria-pressed", gunler.has(v));
+        say("");
+      }));
+    $("#setupSave").addEventListener("click", () => {
+      const ayir = (id) => $(id).value.split(",").map(s => s.trim()).filter(Boolean);
+      save(() => api("/api/tercih", {
+        enErken: erken,
+        bosGunler: [...gunler],
+        kampus: $("#fKampus").checked,
+        cevrimici: $("#fOnline").checked,
+        istenenHocalar: ayir("#fHocaVar"),
+        istenmeyenHocalar: ayir("#fHocaYok"),
       }));
     });
   });
@@ -3432,6 +3645,51 @@ function renderArzUyarisi(){
       <a href="#blockSection" id="arzDetay">Darboğaz bölümünde ayrıntı</a>.</div>`;
 }
 
+/* ---------- yazdırma için CRN listesi (Faz 27) ----------
+   Ekranda gizli, kâğıtta ızgaranın altında. Kayıt masasında bakılan şey bu:
+   hangi CRN, hangi ders, hangi saat. */
+function renderPrintCrn(){
+  const el = $("#printCrn");
+  if(!el) return;
+  const ps = picks().slice().sort((a, b) =>
+    a.cand.course.localeCompare(b.cand.course));
+  if(!ps.length){ el.innerHTML = ""; return; }
+  el.innerHTML = `
+    <h3 style="margin:8mm 0 3mm;font-size:12pt">Kayıt listesi — ${
+      ps.length} ders · ${totals().credits} kredi</h3>
+    <table><thead><tr><th>CRN</th><th>Ders</th><th>Ad</th>
+      <th>Gün / saat</th><th>Kredi</th></tr></thead>
+      <tbody>${ps.map(p => `<tr>
+        <td class="mono">${esc(p.sec.crn)}</td>
+        <td class="mono">${esc(p.cand.course)}</td>
+        <td>${esc((p.cand.name || "").slice(0, 40))}</td>
+        <td>${p.sec.meetings.length
+          ? p.sec.meetings.map(m =>
+              `${DAYS[m.day-1]} ${hhmm(m.start)}–${hhmm(m.end)}`).join("<br>")
+          : "saati ilan edilmemiş"}</td>
+        <td class="mono">${p.cand.credits}</td>
+      </tr>`).join("")}</tbody></table>
+    <div style="margin-top:3mm;font-size:9pt">
+      ${esc(veriYasiMetni())} · Bu liste bilgilendirme amaçlıdır;
+      kaydı OBS'den sen yaparsın.</div>`;
+}
+
+/* ---------- tercihin bu programa etkisi (Faz 27) ----------
+   ⚠️ Tercih tanımlıysa AMA bu program ona uymuyorsa da yazıyor. Sessiz
+   kalmak, "istemiyorum dedim, yine koydu" hissini açıklamasız bırakırdı;
+   sebebini söylemek, aracı hatalı sanmayı önlüyor. */
+function tercihNotu(){
+  const s = M().schedules[active];
+  if(!s || !tercihSayisi()) return "";
+  const d = s.prefDelta || 0;
+  const sebep = (s.prefReasons || []).join(" · ");
+  if(!d && !sebep)
+    return `<span class="tercihnot ok">tercihlerine uyuyor</span>`;
+  return `<span class="tercihnot ${d < 0 ? "uymaz" : "ok"}"
+    title="Tercih eleme değil sıralama: uymayan program da gösterilir.">
+    tercih ${d > 0 ? "+" : ""}${d}${sebep ? " · " + esc(sebep) : ""}</span>`;
+}
+
 function totals(){
   const ps = picks();
   const sum = (f) => +ps.reduce((a,p) => a + f(p.cand), 0).toFixed(1);
@@ -3486,8 +3744,86 @@ function renderTabs(){
        Öneri ${i+1} · ${s.credits} kredi${eksik.length
          ? ` <span style="color:var(--danger)">· taban ✗</span>` : ""}</button>`;
   }).join("") || `<span class="empty">öneri üretilemedi</span>`;
-  $("#tabs").querySelectorAll(".tab").forEach(b =>
+  /* ★ Faz 27 — yan yana karşılaştırma. Sekmeler arasında geçiş vardı ama
+     farkı görmek için ızgarayı iki kez ezberlemek gerekiyordu. */
+  if(M().schedules.length > 1)
+    $("#tabs").innerHTML += `<button class="tab" id="karsilastir">Karşılaştır</button>`;
+  $("#tabs").querySelectorAll(".tab[data-i]").forEach(b =>
     b.addEventListener("click", () => { active = +b.dataset.i; resetTo(active); }));
+  const k = $("#karsilastir");
+  if(k) k.addEventListener("click", karsilastirDialog);
+}
+
+/* ---------- önerileri yan yana (Faz 27, yapılacaklar §3.4) ----------
+   ★ Karşılaştırmanın ihtiyacı olan şey ders listesi değil, ŞEKİL: hangi
+   günler dolu, ne zaman başlıyor, kaç boş gün, arada ne kadar bekleme.
+   Ders kodlarını üç kolonda dökmek, farkı bulmayı yine kullanıcıya
+   bırakırdı — o zaten sekmelerde yapabiliyordu. */
+const GUNAD = ["Pzt", "Sal", "Çar", "Per", "Cum"];
+
+function karsilastirDialog(){
+  const list = M().schedules;
+  if(list.length < 2){ openDialog(`<div class="empty">Tek öneri var.</div>`); return; }
+  const dersKumeleri = list.map(s => new Set(s.picks.map(p => p.course)));
+  /* Hepsinde ortak olan dersler farkı GÖSTERMİYOR; ayıklanınca tabloda
+     yalnız gerçekten değişen dersler kalıyor. */
+  const ortak = [...dersKumeleri[0]].filter(c => dersKumeleri.every(k => k.has(c)));
+  const satir = (baslik, hucre, ipucu) => `<tr>
+    <th${ipucu ? ` title="${esc(ipucu)}"` : ""}>${baslik}</th>
+    ${list.map((s, i) => `<td class="${i === active ? "secili" : ""}">${hucre(s, i)}</td>`).join("")}
+  </tr>`;
+  const dk = (m) => m === null || m === undefined ? "—"
+    : `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  openDialog(`
+    <div class="eyebrow">Karşılaştırma</div>
+    <h2 style="margin-bottom:4px">Öneriler yan yana</h2>
+    <p class="modenote" style="margin:2px 0 10px">${ortak.length
+      ? `<b class="mono">${ortak.length}</b> ders üçünde de aynı; aşağıda
+         yalnız <b>değişenler</b> var.`
+      : "Önerilerin ortak dersi yok."}</p>
+    <div class="scroll"><table class="cmp">
+      <thead><tr><th></th>${list.map((s, i) =>
+        `<th class="${i === active ? "secili" : ""}">Öneri ${i + 1}</th>`).join("")}</tr></thead>
+      <tbody>
+        ${satir("Kredi", s => `<b class="mono">${s.credits}</b>`)}
+        ${satir("Ders", s => `<b class="mono">${s.picks.length}</b>`)}
+        ${satir("Puan", s => `<b class="mono">${s.score}</b>${
+          s.prefDelta ? `<div class="meta ${s.prefDelta < 0 ? "eksi" : "arti"}">
+            tercih ${s.prefDelta > 0 ? "+" : ""}${s.prefDelta}</div>` : ""}`,
+          "Yüksek puan = bu dönem kaçırmak daha pahalı")}
+        ${satir("Dolu günler", s => (s.shape.days || [])
+          .map(d => GUNAD[d - 1]).join(" ") || "—")}
+        ${satir("Boş gün", s => (s.shape.freeDays || [])
+          .map(d => `<b>${GUNAD[d - 1]}</b>`).join(" ") || "—")}
+        ${satir("En erken", s => `<span class="mono">${dk(s.shape.earliest)}</span>`)}
+        ${satir("En geç", s => `<span class="mono">${dk(s.shape.latest)}</span>`)}
+        ${satir("Ders arası bekleme", s => `<span class="mono">${
+          Math.round((s.shape.gaps || 0) / 60 * 10) / 10} sa</span>`,
+          "Aynı gün içindeki toplam boşluk")}
+        ${satir("Kampüs değişimi", s => `<span class="mono">${s.campusChanges}</span>`)}
+        ${satir("Çevrimiçi", s => `<span class="mono">${s.shape.online || 0}</span>`)}
+        ${list.some(s => s.shape.timeless)
+          ? satir("Saati ilan edilmemiş", s => `<span class="mono">${
+              s.shape.timeless || 0}</span>`,
+              "Bu dersler ızgarada görünmüyor; çakışma denetimine de girmiyor")
+          : ""}
+        ${satir("Değişen dersler", s => {
+          const farkli = s.picks.map(p => p.course).filter(c => !ortak.includes(c));
+          return farkli.length
+            ? farkli.map(c => `<div class="mono">${esc(c)}</div>`).join("")
+            : `<span class="meta">—</span>`;
+        })}
+        ${satir("", (s, i) => i === active
+          ? `<span class="chip">şu an açık</span>`
+          : `<button class="ghost" data-sec="${i}">Bunu seç</button>`)}
+      </tbody>
+    </table></div>`);
+  $("#detailBody").querySelectorAll("[data-sec]").forEach(b =>
+    b.addEventListener("click", () => {
+      $("#detail").close();
+      active = +b.dataset.sec;
+      resetTo(active);
+    }));
 }
 
 /* Dar ekran görünümü: gün gün dikey liste (yapılacaklar 4.1).
@@ -3551,13 +3887,15 @@ function render(){
       kredisi <b>plan dışı</b> — yüke sayılır, şart doldurmaz</span>` : ""}
     <span>sınır <b class="mono">${DATA.maxLoad} ${DATA.unitLabel}</b>${
       over ? ' <span class="over">aşıldı</span>' : ""}</span>
-    <span>puan <b class="mono">${t.score}</b></span>`;
+    <span>puan <b class="mono">${t.score}</b></span>
+    ${tercihNotu()}`;
   $("#editState").hidden = !edited();
   $("#reset").hidden = !edited();
   renderSaveState();
   renderFloor();
   renderArzUyarisi();
   renderGeri();
+  renderPrintCrn();
 
   const cells = {}, spans = {}, timeless = [];
   /* ★ Meşgul saatler ders bloklarıyla AYNI hücre haritasına giriyor.
@@ -3733,6 +4071,33 @@ function optionRow(cand, section, note){
     </button>`;
 }
 
+/* ---------- "neden bu puan" (Faz 27, yapılacaklar §3.1) ----------
+   ★ Gerekçe METNİ vardı ("119 dersin önşartı") ama bunun puana 30 mu 3 mü
+   kattığı görünmüyordu. Sıralamaya güvenmek için ağırlığın büyüklüğünü
+   görmek gerekiyor.
+
+   ⚠️ Çubuk MUTLAK değere göre ölçekleniyor: eksi katkılar (ertelenebilir
+   ders −20) da aynı görsel dilde okunmalı, yoksa "puanı düşüren şey" hiç
+   görünmüyor. */
+function puanKirilimi(cand){
+  const parts = cand.parts || [];
+  if(!parts.length) return "";
+  const enBuyuk = Math.max(...parts.map(p => Math.abs(p.points)), 1);
+  const toplam = parts.reduce((a, p) => a + p.points, 0);
+  return `<details class="puan"${parts.length <= 3 ? " open" : ""}>
+    <summary>Puan <b class="mono">${cand.score}</b> — neden?</summary>
+    <div class="puanliste">${parts.map(p => `
+      <div class="puansatir ${p.points < 0 ? "eksi" : ""}">
+        <span class="ad">${esc(p.label)}</span>
+        <span class="bar"><i style="width:${
+          (Math.abs(p.points) / enBuyuk * 100).toFixed(0)}%"></i></span>
+        <span class="mono deger">${p.points > 0 ? "+" : ""}${p.points}</span>
+      </div>`).join("")}</div>
+    <div class="puantoplam">toplam <b class="mono">${Math.round(toplam * 10) / 10}</b>
+      · yüksek puan = <b>bu dönem kaçırmak daha pahalı</b>, "daha iyi ders" değil</div>
+  </details>`;
+}
+
 function courseDialog(course){
   const cand = CAND[course], cur = sel.find(x => x.course === course);
   if(!cand || !cur) return;
@@ -3747,8 +4112,9 @@ function courseDialog(course){
     <h2 class="mono">${esc(cand.course)}</h2>
     <div style="color:var(--ink-2);font-size:13px;margin:2px 0 6px">${esc(cand.name)}</div>
     <div class="meta" style="color:var(--ink-3);font-size:12px">
-      ${cand.credits} kredi · ${cand.ects} AKTS · puan ${cand.score}
+      ${cand.credits} kredi · ${cand.ects} AKTS
       ${cand.reasons.length ? "<br>" + cand.reasons.map(esc).join("; ") : ""}</div>
+    ${puanKirilimi(cand)}
     ${fits.length ? `<div class="chipline"><span class="chip">başka şube</span>
       <span style="color:var(--ink-3);font-size:12px">${fits.length} seçenek</span></div>
       <div class="optlist">${fits.map(s => optionRow(cand, s, "")).join("")}</div>` : ""}
@@ -4113,6 +4479,53 @@ $("#candFree").addEventListener("change", (e) => {
   FILT.free = e.target.checked; renderCandidates();
 });
 $("#katalogBtn").addEventListener("click", () => katalogDialog());
+
+/* ---------- klavye (Faz 27, yapılacaklar §3.3) ----------
+   Aday tablosunda her şey fareyle yapılıyordu. Kayıt haftasında liste
+   uzun ve tek tek tıklamak yoruyor.
+
+   ⚠️ Kısayollar YAZI ALANINDA çalışmıyor: arama kutusuna "j" yazan kişi
+   satır atlamamalı. Tek istisna arama kutusunda ok tuşları — oradan
+   listeye geçmek doğal.  */
+let CAND_ODAK = -1;
+
+function candSatirlar(){
+  return [...document.querySelectorAll("#cands tbody tr[data-course]")];
+}
+
+function candOdakla(i){
+  const satirlar = candSatirlar();
+  if(!satirlar.length) return;
+  CAND_ODAK = Math.max(0, Math.min(satirlar.length - 1, i));
+  satirlar.forEach((tr, n) => tr.classList.toggle("odak", n === CAND_ODAK));
+  satirlar[CAND_ODAK].scrollIntoView({block: "nearest"});
+}
+
+document.addEventListener("keydown", (e) => {
+  const t = e.target;
+  const yaziAlani = t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName);
+  const aramaKutusu = t && t.id === "candQ";
+  if(document.querySelector("dialog[open]")) return;   /* pencere açıkken karışmasın */
+
+  /* "/" aramaya odaklanır — listelerde yerleşik alışkanlık. */
+  if(e.key === "/" && !yaziAlani){
+    const q = $("#candQ");
+    if(q){ e.preventDefault(); q.focus(); q.select(); }
+    return;
+  }
+  if(yaziAlani && !aramaKutusu) return;
+
+  if(e.key === "ArrowDown" || (e.key === "j" && !yaziAlani)){
+    e.preventDefault(); candOdakla(CAND_ODAK + 1);
+  }else if(e.key === "ArrowUp" || (e.key === "k" && !yaziAlani)){
+    e.preventDefault(); candOdakla(CAND_ODAK - 1);
+  }else if(e.key === "Enter" && CAND_ODAK >= 0){
+    const tr = candSatirlar()[CAND_ODAK];
+    if(tr){ e.preventDefault(); addDialog(tr.dataset.course); }
+  }else if(e.key === "Escape" && aramaKutusu){
+    t.value = ""; FILT.q = ""; renderCandidates(); t.blur();
+  }
+});
 
 function addDialog(course){
   const cand = CAND[course];

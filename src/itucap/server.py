@@ -191,6 +191,9 @@ class State:
             return {}
         if path == "/api/crn":
             return {"crn": self.resolve_crns(b.get("crns") or [])}
+        if path == "/api/tercih":
+            self.save_prefs(b)
+            return {}
         if path == "/api/katalog":
             return {"katalog": self.search_catalog(str(b.get("q") or ""))}
         if path == "/api/ders":
@@ -274,6 +277,15 @@ class State:
             # İzleme listesi (yapılacaklar 4.3). BOŞ liste "planındaki tüm
             # açık dersleri izle" demek — arayüz bu ayrımı yazmak zorunda.
             "watchCourses": [str(c).upper() for c in (settings.watch_courses or [])],
+            # ★ Faz 27 — yumuşak tercihler. Sıralamaya girer, ELEME YAPMAZ.
+            "prefs": {
+                "enErken": settings.tercih_en_erken,
+                "bosGunler": list(settings.tercih_bos_gunler or []),
+                "kampus": bool(settings.tercih_kampus_degisimi),
+                "cevrimici": bool(settings.tercih_cevrimici),
+                "istenenHocalar": list(settings.tercih_istenen_hocalar or []),
+                "istenmeyenHocalar": list(settings.tercih_istenmeyen_hocalar or []),
+            },
         }
 
     def transcript(self) -> list[dict]:
@@ -723,6 +735,38 @@ class State:
             raise ValueError("kredi tavanı 1–60 arasında olmalı")
         config.update_settings({"max_load": value})
         return value
+
+    # ★ Faz 27 — tercihler. Doğrulama BURADA, çünkü arayüz tek giriş yolu
+    # değil (statik sitede de aynı `dispatch` çağrılıyor).
+    GUN_ADI = {1: "Pzt", 2: "Sal", 3: "Çar", 4: "Per", 5: "Cum"}
+
+    def save_prefs(self, body: dict) -> dict:
+        erken = int(body.get("enErken") or 0)
+        if not 0 <= erken <= 24 * 60:
+            raise ValueError("saat 00:00–24:00 arasında olmalı")
+        gunler = [int(g) for g in (body.get("bosGunler") or [])
+                  if str(g).strip().lstrip("-").isdigit()]
+        gunler = sorted({g for g in gunler if 1 <= g <= 5})
+        # ⚠️ BEŞ günün beşini de boş istemek, hiçbir program üretilememesi
+        # değil (tercih yumuşak) ama anlamsız bir istek: kullanıcıya
+        # söylüyoruz, sessizce kabul edip sonucu bozmuyoruz.
+        if len(gunler) >= 5:
+            raise ValueError("beş günün beşini birden boş isteyemezsin")
+
+        def adlar(anahtar: str) -> list[str]:
+            return [s for s in (str(x).strip()
+                                for x in (body.get(anahtar) or [])) if s][:10]
+
+        degerler = {
+            "tercih_en_erken": erken,
+            "tercih_bos_gunler": gunler,
+            "tercih_kampus_degisimi": bool(body.get("kampus")),
+            "tercih_cevrimici": bool(body.get("cevrimici")),
+            "tercih_istenen_hocalar": adlar("istenenHocalar"),
+            "tercih_istenmeyen_hocalar": adlar("istenmeyenHocalar"),
+        }
+        config.update_settings(degerler)
+        return degerler
 
     def save_term(self, donem: int, cap_baslangic: int | None = None) -> int:
         donem = int(donem)

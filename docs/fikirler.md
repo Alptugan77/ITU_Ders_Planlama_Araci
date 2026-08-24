@@ -1,8 +1,9 @@
 # Kalan eksikler ve geliştirilmesi gerekenler
 
-24.08.2026, **Faz 26 sonrası**. A–D bölümleri (15 madde) bitti
-(`docs/faz25-ders-secim-araci.md`); ilk 30 saniye elden geçti
-(`docs/faz26-ilk-30-saniye.md`).
+24.08.2026, **Faz 27 sonrası**. A–D bölümleri bitti
+(`docs/faz25-ders-secim-araci.md`), ilk 30 saniye elden geçti
+(`docs/faz26-ilk-30-saniye.md`), **arayüz listesinin (§3) tamamı ve tercih
+ağırlıkları (§2.2) bitti** (`docs/faz27-arayuz.md`).
 
 Bu liste **bundan sonrası**. Hepsi ölçülmüş: "şu veri var / şu kadar eksik"
 dediğim yerde kataloğa bakıp saydım.
@@ -72,11 +73,11 @@ sayısıyla bir *alt sınır* veriyor ama bir *plan* vermiyor.
 ⚠️ Arz belirsizliği belirleyici: 14 ÇAP dersinden 11'i arz sorunlu. Plan
 veriden çok varsayıma dayanacak; bunu gizlememek gerek.
 
-### 2.2 Tercih ağırlıkları · **M**
-"Sabah dersi istemiyorum", "Cuma boş olsun", "kampüs değişimi olmasın",
-"şu hoca". Faz 25'te hoca ve çevrimiçi bilgisi arayüze çıktı — artık
-**ölçüt olarak** kullanılabilir hale geldiler. Yumuşak ağırlık, sert kısıt
-değil.
+### 2.2 ~~Tercih ağırlıkları~~ · ✅ **Faz 27'de kapandı**
+★★ İlk denemem çalışmadı ve bu öğreticiydi: tercihi ayrı bir sıralama
+anahtarı yapınca HİÇBİR ŞEY değişmedi — `blocking_cost` float ve neredeyse
+hiç eşitlenmiyor, ikinci anahtara sıra gelmiyordu. İkisi de "puan"
+cinsinden olduğu için TOPLANINCA çalıştı.
 
 ### 2.3 Yaz okulu · **M**
 Alttan ders taşıyan ÇAP öğrencisi için en önemli tıkanıklık çözücü. Dönem
@@ -84,23 +85,22 @@ kavramı şu an Güz/Bahar varsayıyor.
 
 ---
 
-## 3. Arayüzde sırada ne var
+## 3. ~~Arayüzde sırada ne var~~ · ✅ **Faz 27'de tamamı kapandı**
 
-### 3.1 Ders kartında "neden bu puan" · **S**
-Puan hesaplanıyor, gerekçeler listeleniyor, ama ağırlıkların hangisinin ne
-kadar katkı yaptığı görünmüyor. Küçük bir kırılım, sıralamaya güveni
-artırır.
+3.1 puan kırılımı ✅ · 3.2 yazdırma ✅ · 3.3 klavye ✅ · 3.4 karşılaştırma ✅
 
-### 3.2 Programı yazdırma düzeni · **S**
-Kayıt günü ekran yerine kâğıda bakan çok. `@media print` ile ızgara +
-CRN listesi tek sayfa.
+Bu bölümün yerine gelen yeni fikirler:
 
-### 3.3 Klavye ile gezinme · **M**
-Aday tablosunda ok tuşları, Enter ile ekle. Şu an her şey fare.
+### 3.5 Tercih karşılanamıyorsa NE BIRAKMALI · **M**
+Faz 27'de ölçüldü: "Pzt + Cuma boş" istendiğinde motor ikisini birden
+sağlayamıyor ve −10 farkla en yakınını sunuyor. Doğru davranış ama
+kullanıcıya *"neyi bırakırsan olur"* denmiyor.
+**Ne:** "ITB 037E'yi çıkarırsan Cuma boşalıyor" gibi tek adımlık öneri.
 
-### 3.4 Karşılaştırma: iki program yan yana · **M**
-"Öneri 1" ile "Öneri 2" arasında geçiş var ama yan yana koyup farkı
-görmek yok.
+### 3.6 Tercihi kaydetmeden dene · **S**
+Tercih değiştirmek için pencereyi açıp kaydetmek gerekiyor. Seçenek
+değişirken sonucun canlı güncellenmesi, "hangi tercih neye mal oluyor"u
+doğrudan gösterirdi.
 
 ---
 

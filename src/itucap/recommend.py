@@ -104,6 +104,10 @@ class Candidate:
     prereq_unknown: bool = False
     score: float = 0.0
     reasons: list[str] = field(default_factory=list)
+    # ★ Puanın kırılımı (Faz 27): [{"key","points","label"}]. Gerekçe METNİ
+    # vardı ama ağırlığın büyüklüğü görünmüyordu — "119 dersin önşartı" 30
+    # puan mı 3 puan mı kattı, belli değildi.
+    parts: list[dict] = field(default_factory=list)
     unit: str = "kredi"       # yük hangi birimden sayılıyor
 
     @property
@@ -309,42 +313,200 @@ WEIGHTS = {
 DEFERRABLE_SECTIONS = 10
 
 
+# ---------------------------------------------------------------- tercihler
+@dataclass
+class Preferences:
+    """Kullanıcının YUMUŞAK tercihleri (Faz 27, yapılacaklar §2.2).
+
+    ★★ Bunlar SERT KISIT DEĞİL, sıralama ağırlığı.
+
+    Sebebi ölçülmüş bir davranış: gerçek veride 14 ÇAP dersinden yalnız 2–3'ü
+    bir dönemde alınabiliyor. "Sabah dersi istemiyorum"u sert kısıt yapmak,
+    kayıt edilebilir tek programı imkânsız gösterebilirdi. Tercih, iki
+    ÇALIŞAN program arasında seçim yaptırır; çalışan tek programı elemez.
+
+    ⚠️ Aynı sebeple ağırlıklar `WEIGHTS` düzeyinde küçük tutuluyor: bir
+    tercih, ÇAP dersini ya da kritik yolu asla ezmemeli.
+    """
+    # Bu saatten önce başlayan ders istenmiyor (dakika; 0 = önemsiz).
+    en_erken: int = 0
+    # Boş kalması istenen günler (1=Pzt … 5=Cum).
+    bos_gunler: tuple[int, ...] = ()
+    kampus_degisimi_istemiyorum: bool = False
+    cevrimici_tercih: bool = False
+    # İstenen / istenmeyen öğretim üyeleri (küçük harfe indirilmiş parçalar).
+    istenen_hocalar: tuple[str, ...] = ()
+    istenmeyen_hocalar: tuple[str, ...] = ()
+
+    @property
+    def var_mi(self) -> bool:
+        return bool(self.en_erken or self.bos_gunler
+                    or self.kampus_degisimi_istemiyorum or self.cevrimici_tercih
+                    or self.istenen_hocalar or self.istenmeyen_hocalar)
+
+
+# Tercih ağırlıkları — WEIGHTS'in en küçüğünün (scarcity 15) altında kalıyor:
+# bir tercih, kritik yolu (100) ya da ÇAP dersini (50) asla ezemesin.
+TERCIH_AGIRLIK = {
+    "erken": -6,        # istenmeyen saatteki HER ders için
+    "bos_gun": -10,     # boş istenen güne düşen HER ders için
+    "kampus": -5,       # her kampüs değişimi için
+    "online": 3,        # çevrimiçi HER şube için
+    "hoca_istenen": 8,
+    "hoca_istenmeyen": -12,
+}
+
+
+def _hoca_eslesir(ad: str | None, parcalar: Iterable[str]) -> bool:
+    """Ad parçası eşleşmesi — 'buzluca' ile 'Feza Buzluca' tutar.
+
+    ⚠️ Boş parça HER ADI eşleştirirdi; süzülüyor.
+    """
+    temiz = (ad or "").casefold()
+    if not temiz:
+        return False
+    return any(p for p in parcalar if p and p.casefold() in temiz)
+
+
+def sube_tercih_puani(sec: "Section", tercih: Preferences | None) -> float:
+    """TEK bir şubenin tercih puanı — şube SEÇİMİNDE kullanılıyor.
+
+    ★★ Faz 27'nin asıl işi burada. Programı bütün olarak puanlamak yetmiyor:
+    motor zaten çakışmasız programı buluyor ve aynı dersin sabah şubesiyle
+    öğleden sonra şubesi arasında tercihe bakmadan seçim yapıyordu. Ölçüldü:
+    "sabah istemiyorum" yalnız program puanına girdiğinde üç önerinin üçü de
+    aynı sabah şubesini içeriyordu — yani tercih hiçbir şeyi değiştirmiyordu.
+
+    ⚠️ Yine YUMUŞAK: `blocking_cost` (ileriye bakış) daha ağır basıyor.
+    Tercih, iki eşdeğer şube arasında ayırt edici; değerli bir dersi
+    programdan düşürecek kadar güçlü değil.
+    """
+    if tercih is None or not tercih.var_mi:
+        return 0.0
+    puan = 0.0
+    if sec.online and tercih.cevrimici_tercih:
+        puan += TERCIH_AGIRLIK["online"]
+    if _hoca_eslesir(sec.instructor, tercih.istenen_hocalar):
+        puan += TERCIH_AGIRLIK["hoca_istenen"]
+    if _hoca_eslesir(sec.instructor, tercih.istenmeyen_hocalar):
+        puan += TERCIH_AGIRLIK["hoca_istenmeyen"]
+    for m in sec.meetings:
+        if tercih.en_erken and m.start < tercih.en_erken:
+            puan += TERCIH_AGIRLIK["erken"]
+        if m.day in tercih.bos_gunler:
+            puan += TERCIH_AGIRLIK["bos_gun"]
+    return puan
+
+
+def tercih_puani(picks: Iterable["Pick"], tercih: Preferences | None,
+                 kampus_degisimi: int = 0) -> tuple[float, list[str]]:
+    """Bir programın tercihlere göre puan farkı ve gerekçeleri.
+
+    Ayrı bir fonksiyon: hem `Schedule.score` hem arayüz aynı sayıyı
+    göstermeli. İki yerde ayrı hesaplamak, "puan 22.5 ama neden" sorusunu
+    cevaplanamaz hale getirirdi.
+    """
+    if tercih is None or not tercih.var_mi:
+        return 0.0, []
+    puan = 0.0
+    sebep: list[str] = []
+    erken = bos = online = istenen = istenmeyen = 0
+    for p in picks:
+        sec = p.section
+        if sec.online:
+            online += 1
+        if _hoca_eslesir(sec.instructor, tercih.istenen_hocalar):
+            istenen += 1
+        if _hoca_eslesir(sec.instructor, tercih.istenmeyen_hocalar):
+            istenmeyen += 1
+        for m in sec.meetings:
+            if tercih.en_erken and m.start < tercih.en_erken:
+                erken += 1
+            if m.day in tercih.bos_gunler:
+                bos += 1
+    if erken:
+        puan += TERCIH_AGIRLIK["erken"] * erken
+        sebep.append(f"{erken} ders istediğinden erken başlıyor")
+    if bos:
+        puan += TERCIH_AGIRLIK["bos_gun"] * bos
+        sebep.append(f"{bos} ders boş istediğin güne düşüyor")
+    if tercih.kampus_degisimi_istemiyorum and kampus_degisimi:
+        puan += TERCIH_AGIRLIK["kampus"] * kampus_degisimi
+        sebep.append(f"{kampus_degisimi} kampüs değişimi")
+    if tercih.cevrimici_tercih and online:
+        puan += TERCIH_AGIRLIK["online"] * online
+        sebep.append(f"{online} çevrimiçi şube")
+    if istenen:
+        puan += TERCIH_AGIRLIK["hoca_istenen"] * istenen
+        sebep.append(f"{istenen} derste istediğin hoca")
+    if istenmeyen:
+        puan += TERCIH_AGIRLIK["hoca_istenmeyen"] * istenmeyen
+        sebep.append(f"{istenmeyen} derste istemediğin hoca")
+    return round(puan, 1), sebep
+
+
 def score_all(cands: list[Candidate]) -> list[Candidate]:
+    """Adayları puanla ve puanın NEREDEN geldiğini kaydet.
+
+    ★ Faz 27 — `parts` eklendi (yapılacaklar §3.1). Eskiden yalnız gerekçe
+    METNİ vardı: "119 dersin önşartı" yazıyordu ama bunun puana 30 mu 3 mü
+    kattığı görünmüyordu. Sıralamaya güvenmek için ağırlığın büyüklüğünü
+    görmek gerekiyor — özellikle "neden bu ders önde" sorusunda.
+    """
     max_unlock = max((c.unlocks for c in cands), default=1) or 1
     max_tier = max((c.tier for c in cands), default=0)
     for c in cands:
         score = 0.0
         c.reasons = []
+        c.parts = []
+
+        def kat(anahtar: str, deger: float, etiket: str, sebep: str = "") -> None:
+            """Puana ekle ve kırılımda sakla. Sıfır katkı KAYDEDİLMİYOR —
+            listeyi 'bu terim seni etkilemedi' satırlarıyla doldurmak,
+            gerçekten etkileyenleri gizler."""
+            nonlocal score
+            if not deger:
+                return
+            score += deger
+            c.parts.append({"key": anahtar, "points": round(deger, 1),
+                            "label": etiket})
+            if sebep:
+                c.reasons.append(sebep)
+
         if c.critical:
-            score += WEIGHTS["critical"]
-            c.reasons.append("kritik yolda — ÇAP'ın süresini bu zincir belirliyor")
+            kat("critical", WEIGHTS["critical"], "kritik yolda",
+                "kritik yolda — ÇAP'ın süresini bu zincir belirliyor")
         share = c.unlocks / max_unlock
-        score += WEIGHTS["unlock"] * share
-        if c.unlocks:
-            c.reasons.append(f"{c.unlocks} dersin önşartı")
+        kat("unlock", WEIGHTS["unlock"] * share,
+            f"{c.unlocks} dersin önşartı",
+            f"{c.unlocks} dersin önşartı" if c.unlocks else "")
         if c.required:
-            score += WEIGHTS["required"]
+            kat("required", WEIGHTS["required"], "zorunlu ders")
         else:
             c.reasons.append("seçmeli havuzdan")
         if max_tier:
-            score += WEIGHTS["early_tier"] * (max_tier - c.tier) / max_tier
+            kat("early_tier", WEIGHTS["early_tier"] * (max_tier - c.tier) / max_tier,
+                "zincirin başında")
         best = max((s.fill_ratio for s in c.sections), default=1.0)
         if best > 0.85:
-            score += WEIGHTS["scarcity"]
-            c.reasons.append("kontenjan kritik")
+            kat("scarcity", WEIGHTS["scarcity"], "kontenjan kritik",
+                "kontenjan kritik")
         if len(c.sections) == 1:
-            score += WEIGHTS["scarcity"] / 2
-            c.reasons.append("tek şube")
+            kat("single", WEIGHTS["scarcity"] / 2, "tek şube", "tek şube")
         elif len(c.sections) > DEFERRABLE_SECTIONS:
-            score += WEIGHTS["deferrable"]
-            c.reasons.append(f"{len(c.sections)} şube — her dönem açılıyor, ertelenebilir")
+            kat("deferrable", WEIGHTS["deferrable"],
+                f"{len(c.sections)} şube — ertelenebilir",
+                f"{len(c.sections)} şube — her dönem açılıyor, ertelenebilir")
         if c.role != "ANADAL":
-            score += WEIGHTS["cap_role"]
             label = "Yandal" if c.role == "YANDAL" else "ÇAP"
-            c.reasons.append(f"{label} dersi — arzı kısıtlı")
+            kat("cap_role", WEIGHTS["cap_role"], f"{label} dersi — arzı kısıtlı",
+                f"{label} dersi — arzı kısıtlı")
         if c.prereq_unknown:
             c.reasons.append("⚠ önşartı okunamadı — danışmanına sor")
         c.score = round(score, 1)
+        # ⚠️ Kırılım toplamı puanla TUTMALI. Ayrışırlarsa arayüz yalan söyler;
+        # test bunu kilitliyor (test_faz27).
+        c.parts.sort(key=lambda x: -abs(x["points"]))
     cands.sort(key=lambda x: (-x.score, x.course))
     return cands
 
@@ -359,6 +521,9 @@ class Pick:
 @dataclass
 class Schedule:
     picks: list[Pick]
+    # ★ Tercihler programa BAĞLI taşınıyor: `score` iki yerden okunuyor
+    # (sıralama ve arayüz) ve ikisinin aynı sayıyı vermesi gerekiyor.
+    prefs: "Preferences | None" = None
 
     @property
     def ects(self) -> float:
@@ -373,8 +538,20 @@ class Schedule:
         return round(sum(p.candidate.load for p in self.picks), 1)
 
     @property
-    def score(self) -> float:
+    def base_score(self) -> float:
+        """Tercihlerden BAĞIMSIZ puan — motorun kendi değerlendirmesi."""
         return round(sum(p.candidate.score for p in self.picks), 1)
+
+    @property
+    def score(self) -> float:
+        return round(self.base_score + self.pref_delta, 1)
+
+    @property
+    def pref_delta(self) -> float:
+        return tercih_puani(self.picks, self.prefs, self.campus_changes())[0]
+
+    def pref_reasons(self) -> list[str]:
+        return tercih_puani(self.picks, self.prefs, self.campus_changes())[1]
 
     def campus_changes(self) -> int:
         """Aynı gün içinde kampüs değiştiren ardışık ders çifti sayısı."""
@@ -426,7 +603,8 @@ POOL_FACTOR = 60          # kaç aday program toplanıp sıralanacak (limit × b
 def build_schedules(cands: list[Candidate], max_load: float = 35.0,
                     limit: int = 3, pinned: Iterable[str] = (),
                     fixed: Iterable[Section] = (),
-                    floors: dict[str, float] | None = None) -> list[Schedule]:
+                    floors: dict[str, float] | None = None,
+                    prefs: Preferences | None = None) -> list[Schedule]:
     """Greedy + backtracking. Farklı DERS KÜMELERİ üretir, aynı kümenin
     farklı CRN varyantlarını tekrar etmez (alternatifler ayrıca raporlanır).
 
@@ -487,7 +665,7 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
                 key = tuple(sorted(p.candidate.course for p in chosen))
                 if key not in seen:
                     seen.add(key)
-                    results.append(Schedule(list(chosen)))
+                    results.append(Schedule(list(chosen), prefs))
             return
         cand = cands[index]
         must = cand.course in pinned
@@ -500,8 +678,24 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
             # Saati ilan edilmemiş şube hiçbir şeyle çakışmadığı için ileriye
             # bakış maliyeti 0 çıkıyor ve metriği kandırıyor. Belirsizlik avantaj
             # değil: saatli şubeler önce denenir, saatsiz olan son çare.
+            # ★★ Faz 27: tercih ŞUBE SEÇİMİNE giriyor ve `blocking_cost` ile
+            # AYNI ÖLÇEKTE toplanıyor — ikisi de "puan" cinsinden.
+            #
+            # ⚠️ İlk denemede tercihi ayrı bir sıralama anahtarı yapmıştım;
+            # ölçtüm, HİÇBİR ŞEYİ değiştirmedi: `blocking_cost` bir float ve
+            # neredeyse hiç eşitlenmiyor, dolayısıyla ikinci anahtara sıra
+            # hiç gelmiyordu. FIZ 102E'nin hem 08:30 hem 14:30 şubesi varken
+            # "sabah istemiyorum" seçili kullanıcıya yine 08:30 veriliyordu.
+            #
+            # Toplayınca anlam doğru çıkıyor: 6 puanlık bir tercih, 6 puandan
+            # AZ değer yakan bir şube farkını çevirebilir; daha fazlasını
+            # çeviremez. Ders puanları 40–100 aralığında olduğu için tercih
+            # hiçbir zaman değerli bir dersi programdan düşüremiyor.
+            def _sube_maliyeti(s: Section) -> float:
+                return blocking_cost(s, index) - sube_tercih_puani(s, prefs)
+
             ordered = sorted(cand.sections,
-                             key=lambda s: (not s.meetings, blocking_cost(s, index),
+                             key=lambda s: (not s.meetings, _sube_maliyeti(s),
                                             -s.free, s.crn))
             for section in ordered:
                 if not fits(section, chosen):

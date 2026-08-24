@@ -100,6 +100,20 @@ class Settings:
     # ★ Kontenjan nöbetinin izleyeceği dersler (Faz 11). Boşsa planlarının
     # açık slotlarındaki dersler izlenir — dar liste daha az gürültü demek.
     watch_courses: list[str] = field(default_factory=list)
+    # ★★ Faz 27 — YUMUŞAK TERCİHLER (yapılacaklar §2.2).
+    #
+    # Bunlar SERT KISIT DEĞİL, sıralama ağırlığı: "sabah dersi istemiyorum"u
+    # eleme kuralı yapmak, gerçek veride kayıt edilebilir tek programı
+    # imkânsız gösterebilirdi (14 ÇAP dersinden yalnız 2–3'ü bir dönemde
+    # alınabiliyor). Tercih, iki ÇALIŞAN program arasında seçim yaptırır.
+    #
+    # `tercih_en_erken` dakika cinsinden (540 = 09:00); 0 = önemsiz.
+    tercih_en_erken: int = 0
+    tercih_bos_gunler: list[int] = field(default_factory=list)   # 1=Pzt … 5=Cum
+    tercih_kampus_degisimi: bool = False        # True = istemiyorum
+    tercih_cevrimici: bool = False              # True = çevrimiçi şubeyi yeğle
+    tercih_istenen_hocalar: list[str] = field(default_factory=list)
+    tercih_istenmeyen_hocalar: list[str] = field(default_factory=list)
     # ★ Bulunduğun dönem (1..8). 'Dönemlik + alttan' kipi bunu kullanıyor.
     # 0 = otomatik çıkar (geçilmiş slotların en derin dönemi).
     donem: int = 0
@@ -248,6 +262,29 @@ class Settings:
     def unit_label(self) -> str:
         return "kredi" if self.unit == "kredi" else "AKTS"
 
+    def preferences(self):
+        """Motorun anladığı biçime çevir.
+
+        ⚠️ Tek yerde çevriliyor: ayar alanları ile motorun alanları ayrı
+        adlarda ve iki yerde çevirmek, birinin unutulduğu sessiz bir hataya
+        açık olurdu (ör. arayüz tercihe göre gösterip motorun saymaması).
+        """
+        from .recommend import Preferences
+
+        return Preferences(
+            en_erken=int(self.tercih_en_erken or 0),
+            bos_gunler=tuple(int(g) for g in (self.tercih_bos_gunler or [])
+                             if str(g).strip().isdigit() and 1 <= int(g) <= 7),
+            kampus_degisimi_istemiyorum=bool(self.tercih_kampus_degisimi),
+            cevrimici_tercih=bool(self.tercih_cevrimici),
+            istenen_hocalar=tuple(
+                s for s in (str(x).strip() for x in (self.tercih_istenen_hocalar or []))
+                if s),
+            istenmeyen_hocalar=tuple(
+                s for s in (str(x).strip() for x in (self.tercih_istenmeyen_hocalar or []))
+                if s),
+        )
+
 
 # ------------------------------------------------------- ayarları geri yazma
 # ★ Arayüzden program/dönem seçilebiliyor; seçim `settings.toml`'a dönmeli.
@@ -260,6 +297,8 @@ _EDITABLE = {
     "cap_program", "cap_plan_id", "yandal_program", "yandal_plan_id",
     "donem", "term", "unit", "max_load", "max_load_auto", "program_codes", "watch_courses",
     "cap_baslangic_yariyili", "mesgul",
+    "tercih_en_erken", "tercih_bos_gunler", "tercih_kampus_degisimi",
+    "tercih_cevrimici", "tercih_istenen_hocalar", "tercih_istenmeyen_hocalar",
 }
 
 
