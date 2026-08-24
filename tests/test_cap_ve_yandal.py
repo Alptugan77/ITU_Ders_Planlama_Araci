@@ -256,6 +256,7 @@ def test_basvuruda_iki_program_da_haric(dbs):
 def test_tek_program_davranisi_DEGISMEDI(dbs):
     con, ucon, sid = dbs
     s = config.Settings(anadal_program="HTAE", cap_program="BLG",
+                        second_kind="cap",
                         program_codes=["HTAE", "BLG"])
     data = UI.collect(con, ucon, sid, s, 10, 20)          # eski konumsal çağrı
     assert [p["role"] for p in data["panels"]] == ["ANADAL", "CAP"]

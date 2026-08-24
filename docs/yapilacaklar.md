@@ -1,6 +1,6 @@
 # Yapılacaklar
 
-Faz 1–23 bitti (656 test). Depo GitHub'a hazır; statik site yayında. Bu liste **sonrası** için: ne kaldı, neden önemli,
+Faz 1–26 bitti (802 test). Depo GitHub'a hazır; statik site yayında. Bu liste **sonrası** için: ne kaldı, neden önemli,
 ne kadar iş, neye bağlı.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
@@ -32,6 +32,26 @@ ne kadar iş, neye bağlı.
 > yarıyıl tabanı motorun puanlamasında ✅ (1.4)
 > **Faz 23'te kapananlar:** kategori etiketleri 1236→26 ✅ · kredi ARALIK
 > olarak saklanıyor ✅ · boş havuzun sebebi yazıyor ✅ (§3)
+> **Faz 24'te kapananlar:** ★★ ilk giren herkes geliştiricinin raporunu
+> görüyordu ✅ · ★★ ilk kaydetme `settings.toml`'u bozup uygulamayı
+> kilitliyordu ✅ · bölüm kutusu "AIN"de açılıyordu ✅ · transkriptsizken
+> tavan/eşik/gizlilik iddiaları ✅ · karşılama kartı ✅ · aday tablosunda
+> arama ✅ · `hidden` gerçekten gizliyor ✅
+> **Faz 25'te kapananlar:** çevrimiçi ders ✅ · doluluk çubuğu ✅ ·
+> "açtıkları" listesi ✅ · ★ PLAN DIŞI ders ekleme ✅ · yedek plan ✅ ·
+> takvime aktar (.ics) ✅ · paylaşılabilir bağlantı ✅ · hocaya göre arama ✅ ·
+> kayıt öncesi kontrol ✅ · kayıt günü nöbet kipi ✅ · arz uyarısı üstte ✅ ·
+> ★★ bozuk ayar dosyası + kapalı döngü ✅ · geri al ✅ · verinin yaşı ✅ ·
+> kendi kendini denetleyen tur ✅
+>
+> **Faz 26'da kapananlar:** "tek adımda başla" ✅ · tek birincil eylem ✅ ·
+> eylem adları ("Aç" değil) ✅ · sırası gelmemiş adım kapalı ✅ ·
+> ★★ transkriptsizken "%0 tamamlandı" iddiası kalktı ✅ · başlık altı önce
+> aracı tanıtıyor ✅ · "şimdilik böyle kalsın" ✅ · kurulum sonrası
+> "şimdi ne yapabilirsin" ✅ · telefonda adım satırı ✅
+>
+> ➜ Kalan eksikler: **`docs/fikirler.md`**
+> ⚠️ **Depoda `git remote` YOK** — 27 commit yerelde, site Faz 23'ten kalma.
 
 Sıralama tahmine değil, iki ölçüte dayanıyor: (a) kayıt gününde işe yarar mı,
 (b) yanlış cevap verme riski taşıyor mu. İkisi de "hayır" olan iş listede

@@ -78,15 +78,23 @@ SECOND_CHOICES: dict[str, tuple[str, ...]] = {
 
 @dataclass
 class Settings:
-    anadal_program: str = "HTAE"
-    cap_program: str = "BLG"
+    # ★★ VARSAYILAN BOŞ (23.08.2026). Eskiden "HTAE"/"BLG" yazıyordu —
+    # geliştiricinin kendi bölümleri. `settings.toml` siteye girmiyor
+    # (kişisel), yani YAYINLANAN SİTEYE İLK GİREN HERKES o iki programın
+    # raporunu görüyordu: dolu bir haftalık program, "%0 tamamlandı,
+    # 54 ders kaldı"… hiç seçmediği bir bölüm için.
+    #
+    # Boş varsayılan, aracın seçilmemiş bir şeyi seçilmiş gibi göstermesini
+    # engelliyor; arayüz bu durumda rapor yerine KARŞILAMA ekranı açıyor.
+    anadal_program: str = ""
+    cap_program: str = ""
     term: str = ""
     anadal_plan_id: int | None = None
     cap_plan_id: int | None = None
     # ★ İkinci program ÇAP olmak zorunda değil. Yandal da aynı motorla
     # çalışıyor: ayrı plan, ayrı ilerleme, ayrı renk. Fark yalnız etikette
     # ve OBS'den hangi plan tipinin çekildiğinde.
-    second_kind: str = "cap"                 # 'cap' | 'yandal' | 'yok'
+    second_kind: str = "yok"                 # 'cap' | 'yandal' | 'yok'
     yandal_program: str = ""
     yandal_plan_id: int | None = None
     # ★ Kontenjan nöbetinin izleyeceği dersler (Faz 11). Boşsa planlarının
@@ -127,17 +135,45 @@ class Settings:
     # güncellemediği bir ayar demekti. `false` yaparsan `max_load` aynen geçerli.
     max_load_auto: bool = True
 
+    # ★ Faz 25/D1 — bozuk ayar dosyası sayfayı KİLİTLEMESİN (24.08.2026).
+    #
+    # Faz 24'te yazıcı hatası düzeldi ama ELLE bozulmuş bir dosya hâlâ her
+    # isteği ham bir `tomllib` hatasına çeviriyordu: uygulama hiç açılmıyor,
+    # ekranda `{"error": "Cannot declare ('student',) twice"}` yazıyor.
+    #
+    # ⚠️ Sessizce yok saymak da olmaz: yanlış ayarla çalışmak, çalışmamaktan
+    # kötü — kullanıcı başka bir bölümün raporuna bakıp doğru sanır. Bu yüzden
+    # varsayılana düşüyoruz (yani HİÇBİR bölüm seçili değil, karşılama kartı
+    # açılıyor) ve hatayı `load_error` alanında TAŞIYORUZ; arayüz bunu
+    # tepede yazmak zorunda.
+    load_error: str = ""
+
     @classmethod
     def load(cls, path: Path | None = None) -> "Settings":
         path = path or ROOT / "config" / "settings.toml"
         if not path.exists():
             return cls()
-        raw = tomllib.loads(path.read_text(encoding="utf-8"))
+        try:
+            raw = tomllib.loads(path.read_text(encoding="utf-8"))
+        except (tomllib.TOMLDecodeError, OSError, UnicodeDecodeError) as exc:
+            obj = cls()
+            obj.load_error = f"{path.name}: {exc}"
+            return obj
         merged: dict = {}
         for section in ("student", "scraper"):
             merged.update(raw.get(section, {}))
         known = {f for f in cls.__dataclass_fields__}
         obj = cls(**{k: v for k, v in merged.items() if k in known})
+        # ★ `second_kind` dosyada YAZMIYORSA program kodlarından çıkarılıyor.
+        # Varsayılanı düz "yok" bırakmak, `cap_program = "BLG"` yazmış ama
+        # `second_kind` yazmamış bir kullanıcının ÇAP'ını sessizce yok
+        # sayardı — beyan edilmiş bir şeyi görmezden gelmek.
+        # Hiçbir program kodu yoksa "yok" doğru: ilk ziyaretçi bir program
+        # SEÇMEDİ, aracın onun adına seçmesi de saçma olurdu.
+        if "second_kind" not in merged:
+            varlar = [k for k in ("cap", "yandal") if obj.program_of(k)]
+            obj.second_kind = ("ikisi" if len(varlar) == 2
+                               else (varlar[0] if varlar else "yok"))
         if obj.second_kind not in SECOND_CHOICES:
             obj.second_kind = "cap"
         if not obj.program_codes:       # beyan yoksa kendi kodlarına düş
@@ -271,11 +307,19 @@ def update_settings(values: dict, path: Path | None = None) -> Path:
     pending = dict(values)
 
     section = ""
+    # `student_end` = yeni anahtarın ekleneceği yer: [student] bloğunun son
+    # satırı. ★ BAŞLIĞIN KENDİSİ de çapa: blok BOŞSA (yeni kurulan dosyada
+    # ya da elle yazılmış boş blokta) eskiden -1 kalıyordu ve aşağıdaki
+    # `else` dalı İKİNCİ bir `[student]` başlığı ekliyordu. tomllib bunu
+    # "Cannot declare ('student',) twice" diye reddediyor; ilk kaydetme
+    # uygulamayı bir daha açılmaz hale getiriyordu.
     student_end = -1
     for i, line in enumerate(lines):
         stripped = line.strip()
         if stripped.startswith("[") and stripped.endswith("]"):
             section = stripped[1:-1]
+            if section == "student":
+                student_end = i
             continue
         if section == "student":
             student_end = i
@@ -293,5 +337,32 @@ def update_settings(values: dict, path: Path | None = None) -> Path:
             lines[student_end + 1:student_end + 1] = block
         else:
             lines += ["", "[student]", *block]
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    metin = "\n".join(lines) + "\n"
+
+    # ★★ Faz 25/D1 — YAZDIĞIMIZ DOSYA OKUNABİLİR OLMALI (24.08.2026).
+    #
+    # Bozuk bir `settings.toml` arayüzden düzeltilemiyordu: yazıcı satır
+    # bazlı çalıştığı için bozukluğu (ör. iki `[student]` başlığı) olduğu
+    # gibi koruyordu. Kullanıcı hatayı görüyor, "Program"dan yeniden
+    # seçiyor, aynı hatayı yine görüyordu — kapalı bir döngü.
+    try:
+        tomllib.loads(metin)
+    except tomllib.TOMLDecodeError:
+        try:
+            tomllib.loads(path.read_text(encoding="utf-8") if path.exists() else "")
+        except tomllib.TOMLDecodeError:
+            # Girdi ZATEN bozuktu: kurtarabileceğimiz bir yapı yok.
+            # ⚠️ Dosyayı silmiyoruz — içinde kullanıcının notları olabilir;
+            # yanına yedekliyoruz ve temiz bir dosya yazıyoruz.
+            if path.exists():
+                path.with_suffix(path.suffix + ".bozuk").write_text(
+                    path.read_text(encoding="utf-8"), encoding="utf-8")
+            metin = "[student]\n" + "\n".join(
+                f"{k} = {_toml_value(v)}" for k, v in values.items()) + "\n"
+        else:
+            # Girdi sağlamdı, çıktı bozuk → HATA BİZDE. Sessizce üstüne
+            # yazmak, kullanıcının çalışan ayarını bozmak olurdu.
+            raise ValueError(
+                "ayar yazıcısı geçersiz TOML üretti; dosya değiştirilmedi")
+    path.write_text(metin, encoding="utf-8")
     return path

@@ -59,6 +59,7 @@ def dbs(tmp_path, monkeypatch):
 def _collect(dbs):
     con, ucon, sid = dbs
     settings = config.Settings(anadal_program="HTAE", cap_program="BLG",
+                               second_kind="cap",
                                program_codes=["HTAE", "BLG"])
     return UI.collect(con, ucon, sid, settings, 10, 20)
 

@@ -44,6 +44,7 @@ from urllib.parse import parse_qs, urlparse
 from . import changes as CH
 from . import config, db, declared
 from . import policy as POL
+from . import recommend as REC
 from . import student as S
 from . import ui as UI
 
@@ -70,6 +71,16 @@ def can_refresh() -> bool:
 
     return all(importlib.util.find_spec(m) is not None
                for m in ("httpx", "selectolax"))
+
+
+# ★ Hiçbir şey YAZMAYAN uçlar. `dispatch` bunlardan sonra `snapshot()`
+# çağırmıyor: bütün raporu yeniden kurmak ölçülen ~1.5 sn'yi harf başına
+# ödemek demek olurdu (Faz 25/B1).
+#
+# ⚠️ Bu listeye bir uç eklemek "bu uç durumu DEĞİŞTİRMİYOR" demektir.
+# Yazan bir ucu buraya koymak, kullanıcının değişikliği yaptığını ama
+# ekranda göremediği bir hata üretir — sessiz ve bulması zor.
+READ_ONLY_PATHS = frozenset({"/api/katalog", "/api/ders", "/api/crn"})
 
 
 class State:
@@ -180,6 +191,10 @@ class State:
             return {}
         if path == "/api/crn":
             return {"crn": self.resolve_crns(b.get("crns") or [])}
+        if path == "/api/katalog":
+            return {"katalog": self.search_catalog(str(b.get("q") or ""))}
+        if path == "/api/ders":
+            return {"crn": self.course_sections(str(b.get("course") or ""))}
         if path == "/api/watch":
             return self.toggle_watch(str(b.get("course") or ""))
         if path == "/api/mesgul":
@@ -199,6 +214,12 @@ class State:
         extra = self._route(path, body)
         if extra is None:
             return None
+        # ★ SALT OKUNUR uçlar tam durumu YENİDEN HESAPLAMIYOR (Faz 25/B1).
+        # `snapshot()` bütün raporu kuruyor (adaylar, programlar, kademeler):
+        # ölçüldü, tek çağrı ~1.5 sn. Harf başına arama yapan bir uç için bu
+        # kullanılamaz. Bu uçlar hiçbir şey YAZMADIĞI için durum da değişmiyor.
+        if path in READ_ONLY_PATHS:
+            return extra
         # ★★ Yazdıktan sonra ANA DOSYAYI eksiksiz bırak (23.08.2026).
         # Tarayıcı sürümü kalıcılığı `user.sqlite3` dosyasını KOPYALAYARAK
         # sağlıyor; WAL kipinde veri yan dosyada kalıyordu ve kopyalanan ana
@@ -569,7 +590,7 @@ class State:
         satirlar = {r["crn"]: r for r in self.con.execute(
             f"""SELECT l.crn, l.course_code, COALESCE(c.name,'') AS name,
                        COALESCE(c.credits,0) AS credits, COALESCE(c.ects,0) AS ects,
-                       l.capacity, l.enrolled
+                       l.capacity, l.enrolled, l.instructor, l.teaching_method
                 FROM lesson l LEFT JOIN course c ON c.code = l.course_code
                 WHERE l.crn IN ({marks})""", temiz)}
         from .plans import anadal_plan as _anadal_plan
@@ -593,6 +614,10 @@ class State:
                 "crn": crn, "course": row["course_code"], "name": row["name"],
                 "credits": float(row["credits"] or 0), "ects": float(row["ects"] or 0),
                 "capacity": row["capacity"] or 0, "enrolled": row["enrolled"] or 0,
+                # Şube seçerken bakılan iki şey: hoca ve saat (Faz 24/25).
+                "instructor": UI._hoca(row["instructor"]),
+                "online": REC.Section("", "", None, 0, 0, (),
+                                      row["teaching_method"]).online,
                 # ★ Planlarında OLMAYAN ders de gösteriliyor ('PLAN DIŞI').
                 # Gizleseydik kullanıcı gerçek programını göremezdi; serbest
                 # seçmeli ya da başka bir ders de kayıtta olabiliyor.
@@ -607,6 +632,84 @@ class State:
             })
         return {"found": found,
                 "missing": [c for c in temiz if c not in satirlar]}
+
+    # ------------------------------------------------------ katalog araması
+    # ★ Faz 25/B1 — PLAN DIŞI ders ekleme (24.08.2026).
+    #
+    # Araç bugüne kadar yalnız PLANINDAKİ dersleri ekletiyordu. Oysa normal
+    # bir ders seçim aracının asıl işlerinden biri "şu dersi programıma
+    # sığdırabilir miyim" sorusu; ders başka bölümün olabilir, serbest
+    # seçmeli olabilir, sırf merak edilen bir ders olabilir.
+    #
+    # ⚠️ Buradaki tuzak projenin ana hata sınıfı: plan dışı bir dersi
+    # "şu şartı karşıladı" saymak. `role='PLAN_DISI'` tam da bunu engelliyor —
+    # kredisi yüke ve çakışmaya girer, hiçbir slotu DOLDURMAZ.
+    KATALOG_LIMIT = 40
+
+    def search_catalog(self, q: str) -> dict:
+        """Açık şubesi olan dersler arasında kod/ad araması.
+
+        İki dilde de arar: 'olasılık' yazan kişi 'MAT 271E — Probability'yi
+        bulmalı (katalogda gerçekten var olan eş kod üzerinden).
+        """
+        q = (q or "").strip()
+        if len(q) < 2:
+            return {"items": [], "total": 0, "note": "en az iki harf yaz"}
+        like = f"%{q.lower()}%"
+        # Eş kodun adı da aransın: 'MAT 271E' için 'MAT 271'in adı.
+        satirlar = self.con.execute(
+            """SELECT c.code, COALESCE(c.name,'') AS name,
+                      COALESCE(c.credits,0) AS credits, COALESCE(c.ects,0) AS ects,
+                      COUNT(l.crn) AS subeler,
+                      COALESCE(es.name,'') AS alt_name
+               FROM course c
+               JOIN lesson l ON l.course_code = c.code
+               LEFT JOIN course es ON es.code =
+                    (CASE WHEN c.code LIKE '%E'
+                          THEN substr(c.code, 1, length(c.code)-1)
+                          ELSE c.code || 'E' END)
+               WHERE lower(c.code) LIKE ?
+                  OR lower(c.name) LIKE ?
+                  OR lower(COALESCE(es.name,'')) LIKE ?
+               GROUP BY c.code
+               ORDER BY (lower(c.code) LIKE ?) DESC, c.code
+               LIMIT ?""",
+            (like, like, like, f"{q.lower()}%", self.KATALOG_LIMIT + 1)).fetchall()
+        kesildi = len(satirlar) > self.KATALOG_LIMIT
+        satirlar = satirlar[:self.KATALOG_LIMIT]
+        # Hangi ders planında var? Rolü doğru yazabilmek için.
+        from .plans import anadal_plan as _anadal_plan
+        from .plans import resolve_seconds as _resolve_seconds
+
+        settings = self.settings()
+        rol_of: dict[str, str] = {}
+        for plan_id, rol in ((_anadal_plan(self.con, settings), "ANADAL"),
+                             *((s["planId"], s["role"])
+                               for s in _resolve_seconds(self.con, settings))):
+            if plan_id:
+                for kod in self._plan_codes(plan_id):
+                    rol_of.setdefault(kod, rol)
+        return {
+            "items": [{
+                "course": r["code"], "name": r["name"], "altName": r["alt_name"],
+                "credits": float(r["credits"] or 0), "ects": float(r["ects"] or 0),
+                "sectionCount": r["subeler"],
+                "role": rol_of.get(r["code"], "PLAN_DISI"),
+            } for r in satirlar],
+            # ⚠️ Kesme SESSİZ değil: "40 sonuç" ile "40+ sonuç" farklı şeyler.
+            "truncated": kesildi,
+        }
+
+    def course_sections(self, course: str) -> dict:
+        """Bir dersin şubeleri — plan dışı ders eklerken şube seçtirmek için.
+
+        `resolve_crns` ile AYNI biçimde döner: arayüzün tek bir ekleme yolu
+        var (`loadFromCrn`), iki ayrı biçim iki ayrı hata demek olurdu.
+        """
+        course = (course or "").strip().upper()
+        crns = [r[0] for r in self.con.execute(
+            "SELECT crn FROM lesson WHERE upper(course_code)=?", (course,))]
+        return self.resolve_crns(crns)
 
     def _plan_codes(self, plan_id: int) -> set[str]:
         from . import rules as R

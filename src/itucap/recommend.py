@@ -58,6 +58,15 @@ class Section:
     capacity: int
     enrolled: int
     meetings: tuple[Meeting, ...]
+    # ★ Ders yöntemi (24.08.2026). OBS'de 3417 şubenin HEPSİNDE dolu, 139'u
+    # "Virtual (Online)". Çevrimiçi şube KAMPÜS DEĞİŞTİRMİYOR — `campuses()`
+    # bunu bilmeden kampüs değişimi sayıyordu.
+    method: str | None = None
+
+    @property
+    def online(self) -> bool:
+        return "online" in (self.method or "").lower() \
+            or "virtual" in (self.method or "").lower()
 
     @property
     def free(self) -> int:
@@ -68,6 +77,11 @@ class Section:
         return (self.enrolled or 0) / self.capacity if self.capacity else 1.0
 
     def campuses(self) -> set[str]:
+        # ⚠️ Çevrimiçi ders bir kampüste DEĞİL. Bina kodu yazsa bile
+        # (kayıtlı derslik) öğrenci oraya gitmiyor; kampüs değişimi
+        # sayımına katmak var olmayan bir yolculuk uydurmak olurdu.
+        if self.online:
+            return set()
         return {m.campus for m in self.meetings if m.campus}
 
 
@@ -112,7 +126,8 @@ def load_sections(con: sqlite3.Connection, course: str,
     """Dersin, öğrencinin PROGRAM KODUYLA alabileceği şubeleri."""
     out: list[Section] = []
     for row in con.execute(
-        """SELECT crn, instructor, capacity, enrolled FROM lesson WHERE course_code=?""",
+        """SELECT crn, instructor, capacity, enrolled, teaching_method
+           FROM lesson WHERE course_code=?""",
         (course,),
     ):
         progs = {r[0] for r in con.execute(
@@ -128,7 +143,8 @@ def load_sections(con: sqlite3.Connection, course: str,
                    LEFT JOIN building b ON b.code = lm.building
                    WHERE lm.crn=? ORDER BY lm.day_of_week, lm.start_min""", (row[0],))
         )
-        out.append(Section(row[0], course, row[1], row[2] or 0, row[3] or 0, meetings))
+        out.append(Section(row[0], course, row[1], row[2] or 0, row[3] or 0,
+                           meetings, row[4]))
     return out
 
 

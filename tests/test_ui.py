@@ -78,6 +78,7 @@ def dbs(tmp_path, monkeypatch):
 def _collect(dbs, **kw):
     con, ucon, sid = dbs
     settings = config.Settings(anadal_program="HTAE", cap_program="BLG",
+                               second_kind="cap",
                                program_codes=["HTAE", "BLG", "BLGE"])
     return UI.collect(con, ucon, sid, settings, 10, 20, **kw)
 
@@ -440,6 +441,15 @@ def test_projection_and_mode_hooks_exist(dbs):
 @pytest.fixture()
 def page7(dbs, tmp_path):
     pytest.importorskip("playwright.sync_api")
+    # ⚠️ İLERLEME PROJEKSİYONU transkript İSTER (Faz 26): geçilen ders
+    # girilmemişken panel yüzde göstermiyor, "ilerleme bilinmiyor" diyor —
+    # "%0 tamamlandı" hakkında hiçbir şey bilmediğimiz kişiye "hiçbir şey
+    # yapmamışsın" demek olurdu. O yüzden bu fixture'ın notu var.
+    con, ucon, sid = dbs
+    con.execute("UPDATE course SET credits=3.0 WHERE code='GEO 303E'")
+    con.commit()
+    S.add_entries(ucon, sid, [S.make_entry("GEO 303E", "AA")])
+    ucon.commit()
     dest = UI.write(_collect(dbs, donem=5), tmp_path / "ui7.html")
     try:
         pw, browser, page, errors = _page(dest)
@@ -713,6 +723,7 @@ def _collect_with_start(dbs, tmp_path, monkeypatch, start):
     monkeypatch.setattr(POL, "DEFAULT_PATH", _rules(tmp_path, FLOOR_RULES))
     con, ucon, sid = dbs
     settings = C.Settings(anadal_program="HTAE", cap_program="BLG",
+                          second_kind="cap",
                           program_codes=["HTAE", "BLG", "BLGE"],
                           cap_baslangic_yariyili=start)
     return UI.collect(con, ucon, sid, settings, 10, 20)

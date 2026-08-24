@@ -139,18 +139,31 @@ class Survey:
 
 
 def _checks(kind: str, gpa_value: float, credits: float,
-            rules_path=None) -> list[Check]:
+            rules_path=None, has_data: bool = True) -> list[Check]:
+    """`has_data=False` → transkript girilmemiş: hiçbir şart DEĞERLENDİRİLMEZ.
+
+    ★ 23.08.2026: transkript yokken GNO 0.00 çıkıyor ve bütün şartlar ✗
+    işaretleniyordu — ekran "başvuramazsın" diyordu. Oysa bilinen bir şey yok.
+    Veri yokluğunu başarısızlık gibi göstermek, bu araçtaki en pahalı hata
+    türünün ta kendisi.
+    """
     out: list[Check] = []
+    yok = "Transkript girilmedi — bu şart buradan değerlendirilemiyor."
     for t in POL.load_thresholds(path=rules_path, program=kind, kind="basvuru"):
         out.append(Check(
-            key=t.key, label=t.label, ok=gpa_value + 1e-9 >= t.minimum,
-            detail=f"GNO {gpa_value:.2f} / gereken {t.minimum:.2f}",
+            key=t.key, label=t.label,
+            ok=(gpa_value + 1e-9 >= t.minimum) if has_data else None,
+            detail=(f"GNO {gpa_value:.2f} / gereken {t.minimum:.2f}"
+                    if has_data else f"{yok} Gereken: {t.minimum:.2f}"),
             source=t.source or t.note,
         ))
 
     lo = CAP_CREDIT_MIN if kind == "cap" else YANDAL_CREDIT_MIN
     hi = CAP_CREDIT_MAX if kind == "cap" else None
-    if hi is None:
+    if not has_data:
+        ok, detail = None, (yok + (f" Pencere: {lo:g}–{hi:g}" if hi
+                                   else f" En az: {lo:g}"))
+    elif hi is None:
         ok = credits + 1e-9 >= lo
         detail = f"{credits:g} kredi / en az {lo:g}"
     else:
@@ -265,7 +278,8 @@ def survey(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     have_credits = POL.earned_credits(con, graded)
     passed_codes = {c for c, g in graded.items() if R.passed(g)}
 
-    checks = _checks(kind, gpa.value, have_credits, rules_path)
+    checks = _checks(kind, gpa.value, have_credits, rules_path,
+                     has_data=bool(graded))
 
     # ★ Yandal programları LİSANS PROGRAMI DEĞİL: 'ECN_YD' (Economics Minor),
     # 'ECN' lisans programından ayrı bir şey ve `level='YD'` ile saklanıyor.

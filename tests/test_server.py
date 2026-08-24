@@ -130,6 +130,53 @@ def test_missing_key_is_appended_to_student_section(sandbox):
     assert s.yandal_program == "BLG" and s.yandal_plan_id == 30
 
 
+def test_ayar_dosyasi_YOKKEN_yazilan_dosya_OKUNABILIYOR(tmp_path):
+    """★★ Faz 24 — siteye/araca ilk giren kişinin `settings.toml`'u YOK.
+
+    O durumda yazıcı dosyayı `["[student]"]` ile kuruyordu ama `student_end`
+    yalnız İÇERİK satırlarında güncelleniyordu; boş blokta -1 kalıyor ve
+    ikinci bir `[student]` başlığı ekleniyordu. Sonuç:
+
+        [student]
+
+        [student]
+        anadal_program = "BLG"
+
+    tomllib bunu 'Cannot declare (student,) twice' diye reddediyor ve
+    uygulama bir daha AÇILMIYOR — ilk kaydetmede kendini kilitliyordu."""
+    path = tmp_path / "settings.toml"
+    config.update_settings({"anadal_program": "BLG", "second_kind": "yok"},
+                           path=path)
+    metin = path.read_text(encoding="utf-8")
+    assert metin.count("[student]") == 1, metin
+    s = config.Settings.load(path)             # tomllib patlamamalı
+    assert s.anadal_program == "BLG" and s.second_kind == "yok"
+
+
+def test_bos_student_blogu_ikiye_KATLANMIYOR(tmp_path):
+    """Aynı hata elle yazılmış boş blokta da vardı."""
+    path = tmp_path / "settings.toml"
+    path.write_text("# not\n[student]\n\n[scraper]\nuser_agent = \"x\"\n",
+                    encoding="utf-8")
+    config.update_settings({"donem": 3}, path=path)
+    metin = path.read_text(encoding="utf-8")
+    assert metin.count("[student]") == 1, metin
+    assert metin.index("donem") < metin.index("[scraper]"), metin
+    assert config.Settings.load(path).donem == 3
+
+
+def test_ard_arda_kaydetmeler_dosyayi_BOZMUYOR(tmp_path):
+    """İlk kurulumda üç adım = üç ayrı kaydetme. Üçü de aynı dosyaya."""
+    path = tmp_path / "settings.toml"
+    for degerler in ({"anadal_program": "BLG"}, {"donem": 4},
+                     {"cap_program": "MAT", "second_kind": "cap"}):
+        config.update_settings(degerler, path=path)
+        config.Settings.load(path)             # her adımdan sonra okunabilmeli
+    s = config.Settings.load(path)
+    assert (s.anadal_program, s.donem, s.cap_program) == ("BLG", 4, "MAT")
+    assert path.read_text(encoding="utf-8").count("[student]") == 1
+
+
 def test_unknown_key_is_refused(sandbox):
     """★ Arayüzden gelen rastgele alan yapılandırmaya sızmasın."""
     with pytest.raises(ValueError):

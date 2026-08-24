@@ -453,6 +453,23 @@ def unlock_counts(trees: Mapping[str, Node]) -> dict[str, int]:
     return counts
 
 
+def unlock_map(trees: Mapping[str, Node]) -> dict[str, list[str]]:
+    """Her dersin HANGİ derslerin önşartında geçtiği.
+
+    `unlock_counts` yalnız sayıyı veriyordu; arayüz "119 dersin önşartı"
+    diyip hangileri olduğunu söyleyemiyordu. Sayı ikna edici değil, liste
+    ikna edici: "bunu almazsan şu 4 ders gelecek dönem kapalı kalır".
+
+    Sıralı ve tekrarsız döner — arayüz kesip göstereceği için sıranın
+    kararlı olması gerekiyor.
+    """
+    out: dict[str, set[str]] = {}
+    for target, tree in trees.items():
+        for course in tree.courses():
+            out.setdefault(course, set()).add(target)
+    return {k: sorted(v) for k, v in out.items()}
+
+
 def depth_of(trees: Mapping[str, Node], course: str, _seen: set[str] | None = None) -> int:
     """Önşart zinciri derinliği: bu dersi alabilmek için kaç kademe gerekiyor.
 

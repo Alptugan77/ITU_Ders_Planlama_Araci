@@ -128,6 +128,7 @@ def test_json_taban_eksigini_tasiyor(dbs):
 
     con, ucon, sid = dbs
     s = config.Settings(anadal_program="HTAE", cap_program="BLG",
+                        second_kind="cap",
                         program_codes=["HTAE", "BLG"], cap_baslangic_yariyili=5)
     data = UI.collect(con, ucon, sid, s, 10, 20)
     assert data["schedules"], "öneri yok"

@@ -178,6 +178,7 @@ def test_cap_credit_window_is_a_window_not_a_floor(dbs, rules, credits, ok,
     Yalnız alt sınır kontrol edilseydi 8. dönemdeki bir öğrenciye
     'başvurabilirsin' denirdi — yönerge en geç 5. döneme izin veriyor."""
     con, ucon = dbs
+    _grade(ucon, "MAT 103E", "AA")       # transkript VAR → şart bakılabilir
     monkeypatch.setattr(POL, "earned_credits", lambda *a, **k: credits)
     s = B.survey(con, ucon, 1, "cap", rules_path=rules)
     win = [c for c in s.checks if c.key == "kredi_penceresi"][0]
@@ -186,9 +187,33 @@ def test_cap_credit_window_is_a_window_not_a_floor(dbs, rules, credits, ok,
 
 def test_yandal_credit_check_has_no_upper_bound(dbs, rules, monkeypatch):
     con, ucon = dbs
+    _grade(ucon, "MAT 103E", "AA")
     monkeypatch.setattr(POL, "earned_credits", lambda *a, **k: 120.0)
     s = B.survey(con, ucon, 1, "yandal", rules_path=rules)
     assert [c for c in s.checks if c.key == "kredi_penceresi"][0].ok is True
+
+
+# ------------------------------------------------ transkript girilmemişken
+def test_transkript_yokken_hicbir_sart_DUSMUS_gorunmez(dbs, rules):
+    """★ Faz 24 — siteye ilk giren kişide transkript boş.
+
+    Boş transkript "GNO 0.00, kredi 0" demek DEĞİL; "bilmiyoruz" demek.
+    Eskiden her eşik ✗ ile işaretleniyordu ve araç, hakkında hiçbir şey
+    bilmediği kişiye 'başvuramazsın' diyordu. Artık hepsi bilinmeyen."""
+    con, ucon = dbs
+    s = B.survey(con, ucon, 1, "cap", rules_path=rules)
+    assert s.checks, "şart listesi hiç üretilmemiş"
+    assert all(c.ok is None for c in s.checks), \
+        [(c.key, c.ok) for c in s.checks if c.ok is not None]
+    assert not any(c.blocking for c in s.checks)
+
+
+def test_transkript_gelince_sartlar_YENIDEN_degerlendiriliyor(dbs, rules):
+    """Bilinmeyen kalıcı değil: tek ders bile girilse eşik konuşmaya başlar."""
+    con, ucon = dbs
+    _grade(ucon, "MAT 103E", "DD")       # GNO 1.00 → eşiğin altında
+    s = B.survey(con, ucon, 1, "cap", rules_path=rules)
+    assert any(c.key == "basvuru" and c.ok is False for c in s.checks)
 
 
 # --------------------------------------------------------- plan eksikliği

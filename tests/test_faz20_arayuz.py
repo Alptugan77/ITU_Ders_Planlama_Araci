@@ -179,6 +179,7 @@ def test_auto_kapatilinca_ayar_gecerli(dbs):
 
     con, ucon, sid = dbs
     s = config.Settings(anadal_program="HTAE", cap_program="BLG",
+                        second_kind="cap",
                         program_codes=["HTAE", "BLG"], max_load=17.0,
                         max_load_auto=False)
     data = UI.collect(con, ucon, sid, s, 10, 20)
@@ -192,6 +193,7 @@ def test_akts_biriminde_tavan_UYDURULMUYOR(dbs):
 
     con, ucon, sid = dbs
     s = config.Settings(anadal_program="HTAE", cap_program="BLG",
+                        second_kind="cap",
                         program_codes=["HTAE", "BLG"], unit="akts", max_load=45.0)
     data = UI.collect(con, ucon, sid, s, 10, 20)
     assert data["maxLoad"] == 45.0

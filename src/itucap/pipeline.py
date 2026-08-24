@@ -745,7 +745,8 @@ def cmd_watch(args) -> int:
     from . import watch
 
     return watch.run(every=args.every, once=args.once,
-                     only_good=args.only_good, skip_obs=args.skip_obs)
+                     only_good=args.only_good, skip_obs=args.skip_obs,
+                     kayit=args.kayit)
 
 
 def cmd_plan_info(args) -> int:
@@ -945,6 +946,11 @@ def main(argv=None) -> int:
     w.add_argument("--only-good", action="store_true",
                    help="yalnız FIRSAT bildir (yer açıldı / ders açıldı)")
     w.add_argument("--skip-obs", action="store_true")
+    # ★ Kayıt günü kipi: 1 dk aralık, 2 saat sonra kendiliğinden durur.
+    # AÇIKÇA istenmesi gerekiyor — sınırı topluca düşürmek İTÜ sunucularını
+    # gereksiz yormak olurdu.
+    w.add_argument("--kayit", action="store_true",
+                   help="kayıt günü kipi: 1 dk aralık, 2 saat sonra durur")
     w.set_defaults(func=cmd_watch)
 
     pi = sub.add_parser("plan-info", help="bir planın ham durumu (neden boş?)")

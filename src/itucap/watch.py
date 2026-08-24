@@ -41,8 +41,20 @@ import time
 from . import changes as CH
 from . import config, db
 
-MIN_INTERVAL = 300          # 5 dk — bunun altına inilemez
+MIN_INTERVAL = 300          # 5 dk — normal nöbette bunun altına inilemez
 DEFAULT_INTERVAL = 600
+
+# ★ Faz 25/C2 — KAYIT GÜNÜ kipi (24.08.2026).
+#
+# Kayıt gününde kontenjan dakikalar içinde değişiyor; 10 dakikada bir bakan
+# nöbet o gün işe yaramıyor. Ama sınırı topluca düşürmek İTÜ sunucularını
+# gereksiz yere yormak demek — bu araç kimsenin altyapısını meşgul etmemeli.
+#
+# Uzlaşma: ayrı ve AÇIKÇA istenen bir kip, daha kısa aralık, ve KENDİ KENDİNE
+# BİTEN bir süre. Unutulup günlerce dönen bir nöbet, asıl kaçınmak istediğimiz
+# şey; sınır olmadan kısa aralık vermek onu davet ederdi.
+KAYIT_INTERVAL = 60         # 1 dk
+KAYIT_MAX_SURE = 2 * 3600   # 2 saat sonra kendiliğinden duruyor
 
 
 def notify(title: str, message: str) -> bool:
@@ -115,21 +127,39 @@ def tick(settings, skip_obs: bool = False) -> CH.Diff:
 
 
 def run(every: int = DEFAULT_INTERVAL, once: bool = False,
-        only_good: bool = False, skip_obs: bool = False) -> int:
+        only_good: bool = False, skip_obs: bool = False,
+        kayit: bool = False) -> int:
     settings = config.Settings.load()
-    every = max(MIN_INTERVAL, int(every))
+    taban = KAYIT_INTERVAL if kayit else MIN_INTERVAL
+    if kayit and every == DEFAULT_INTERVAL:
+        every = KAYIT_INTERVAL          # kip seçildiyse varsayılan da değişsin
+    every = max(taban, int(every))
     con = db.reference_db()
     ucon = db.user_db()
     codes = watch_codes(con, ucon, settings)
     source = "beyan" if settings.watch_courses else "planlarındaki açık dersler"
     print(f"👁  Nöbet başladı — {len(codes)} ders izleniyor ({source})")
-    print(f"   aralık: {every // 60} dk · Ctrl+C ile dur")
+    aralik = f"{every // 60} dk" if every >= 60 else f"{every} sn"
+    print(f"   aralık: {aralik} · Ctrl+C ile dur")
+    if kayit:
+        print(f"   ⚡ KAYIT GÜNÜ kipi — {KAYIT_MAX_SURE // 3600} saat sonra "
+              "kendiliğinden duruyor.")
+        print("   ⚠️  Bu kip OBS'ye sık istek atıyor; kayıt penceresi dışında "
+              "kullanma.")
     if settings.watch_courses:
         print("   " + ", ".join(sorted(codes)[:12]))
     can_notify = True
     rounds = 0
+    basladi = time.monotonic()
     try:
         while True:
+            # ⚠️ Süre sınırı SESSİZ değil: neden durduğunu yazıyor, yoksa
+            # kullanıcı nöbetin çöktüğünü sanar ve bir daha güvenmez.
+            if kayit and time.monotonic() - basladi > KAYIT_MAX_SURE:
+                print(f"\n⏹  kayıt günü kipi {KAYIT_MAX_SURE // 3600} saat "
+                      f"doldu, nöbet durdu ({rounds} tur). Devam için "
+                      "komutu yeniden çalıştır.")
+                return 0
             rounds += 1
             stamp = time.strftime("%H:%M:%S")
             diff = tick(settings, skip_obs=skip_obs)
