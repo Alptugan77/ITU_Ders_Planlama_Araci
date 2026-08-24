@@ -17,29 +17,47 @@ from . import config
 from . import rules as R
 
 
-def resolve_plans(con, settings) -> tuple[int | None, int | None]:
-    """(anadal_plan_id, ikinci_plan_id) — OBS kaynaklı olan tercih edilir.
-
-    İkinci plan ÇAP ya da yandal olabilir; `second_kind` hangisini arayacağımızı
-    söylüyor. `second_kind='yok'` ise ikinci plan None döner ve motor tek
-    programla çalışır.
-    """
-    anadal = con.execute(
+def anadal_plan(con, settings) -> int | None:
+    row = con.execute(
         """SELECT id FROM plan WHERE program_code=? AND plan_type='lisans'
             ORDER BY (source='obs') DESC, id DESC LIMIT 1""",
         (settings.anadal_program,)).fetchone()
-    anadal_id = anadal[0] if anadal else None
-    if settings.second_kind == "yok":
-        return anadal_id, None
-    second_id = settings.second_plan_id
-    if second_id is None:
-        plan_type = config.SECOND_KINDS[settings.second_kind][2]
-        row = con.execute(
-            """SELECT id FROM plan WHERE program_code=? AND plan_type=?
-                ORDER BY (source='obs') DESC, id DESC LIMIT 1""",
-            (settings.second_program, plan_type)).fetchone()
-        second_id = row[0] if row else None
-    return anadal_id, second_id
+    return row[0] if row else None
+
+
+def resolve_seconds(con, settings) -> list[dict]:
+    """Etkin ikinci programların planları.
+
+    ★ ÇAP ve yandal AYNI ANDA alınabiliyor (kullanıcı teyidi 23.08.2026),
+    o yüzden burası bir LİSTE döndürüyor. `resolve_plans` bunun ilkini veren
+    eski imza; iki programı da hesaba katması gereken yerler buraya bakmalı.
+
+    Planı bulunamayan tür listede KALIYOR (`plan_id=None`). Sessizce atmak,
+    "yandalım var ama araç göstermiyor" ile "yandal planı çekilmemiş"i aynı
+    şeye çevirirdi — arayüz farkı söyleyebilmeli.
+    """
+    out: list[dict] = []
+    for kind, role, label, code, plan_id in settings.seconds:
+        if plan_id is None:
+            row = con.execute(
+                """SELECT id FROM plan WHERE program_code=? AND plan_type=?
+                    ORDER BY (source='obs') DESC, id DESC LIMIT 1""",
+                (code, config.SECOND_KINDS[kind][2])).fetchone()
+            plan_id = row[0] if row else None
+        out.append({"kind": kind, "role": role, "label": label,
+                    "program": code, "planId": plan_id})
+    return out
+
+
+def resolve_plans(con, settings) -> tuple[int | None, int | None]:
+    """(anadal_plan_id, İLK ikinci plan) — eski imza, tek program bekleyenler için.
+
+    ⚠️ İki ikinci program varken bu yalnız birincisini verir. Kredi tabanı,
+    eşikler, paneller gibi HER İKİSİNİ ilgilendiren yerlerde
+    `resolve_seconds` kullan.
+    """
+    seconds = resolve_seconds(con, settings)
+    return anadal_plan(con, settings), (seconds[0]["planId"] if seconds else None)
 
 
 def watch_codes(con, ucon, settings) -> set[str]:
@@ -51,6 +69,7 @@ def watch_codes(con, ucon, settings) -> set[str]:
 
     student_id = S.ensure_student(ucon)
     grades = S.grades(ucon, student_id)
-    anadal_id, second_id = resolve_plans(con, settings)
-    codes = R.plan_codes(con, anadal_id, second_id, pools=True)
+    ids = [anadal_plan(con, settings),
+           *(s["planId"] for s in resolve_seconds(con, settings))]
+    codes = R.plan_codes(con, *ids, pools=True)
     return {c for c in codes if c and c not in grades}

@@ -66,7 +66,9 @@ def _basvuru_info(con: sqlite3.Connection, ucon: sqlite3.Connection,
     from . import basvuru as B
 
     try:
-        exclude = {settings.anadal_program, settings.second_program}
+        # İki ikinci program da hariç: zaten kayıtlı olduğun programı
+        # "başvurabilirsin" diye listelemek anlamsız.
+        exclude = {settings.anadal_program, *(s[3] for s in settings.seconds)}
         old, con.row_factory = con.row_factory, sqlite3.Row
         try:
             return {k: B.to_json(B.survey(con, ucon, student_id, k,
@@ -81,8 +83,7 @@ def _basvuru_info(con: sqlite3.Connection, ucon: sqlite3.Connection,
 
 
 def _threshold_info(con: sqlite3.Connection, ucon: sqlite3.Connection,
-                    student_id: int, gpa, second_kind: str,
-                    cap_id: int | None) -> list[dict]:
+                    student_id: int, gpa, seconds: list[dict]) -> list[dict]:
     """GNO eşiklerini öğrencinin GERÇEK durumuna göre değerlendirir.
 
     Üç incelik, üçü de yanlış cevap üretmemek için:
@@ -101,53 +102,118 @@ def _threshold_info(con: sqlite3.Connection, ucon: sqlite3.Connection,
        ortalama hesaplanamaz; eşik `ok=None` ile "henüz belli değil" olarak
        döner — ✗ göstermek "kaldın" demek olurdu, oysa daha başlamamış.
     """
-    kinds = {"cap", "yandal"}
-    scope = second_kind if second_kind in kinds else "genel"
     graded = S.graded(ucon, student_id)
     uncertain = S.uncertain_grades(ucon, student_id)
+    kapsamlar = ([(s["kind"], s["label"], s["planId"]) for s in seconds]
+                 or [("genel", "", None)])
 
-    # İkinci anadalın KENDİ ortalaması — yalnız ÇAP planındaki dersler.
-    second_gpa = None
-    if cap_id:
-        plan_codes = R.plan_codes(con, cap_id)
-        subset = {c: g for c, g in graded.items() if c in plan_codes}
-        if subset:
-            g2 = POL.gpa(con, subset, uncertain)
-            if g2.counted:
-                second_gpa = g2
+    # ★ 4. incelik (23.08.2026): ÇAP ve yandal AYNI ANDA olabiliyor ve
+    # eşikleri FARKLI maddelerden geliyor (Madde 18 / Madde 22). Tek kapsamla
+    # hesaplasaydık biri öbürünün kuralıyla değerlendirilirdi — bu araçtaki
+    # en pahalı hata türü, çünkü ekranda doğru görünür.
+    out: list[dict] = []
+    gorulen: dict[str, dict] = {}
+    for scope, scope_label, plan_id in kapsamlar:
+        # İkinci anadalın KENDİ ortalaması — yalnız O PLANIN dersleri.
+        second_gpa = None
+        if plan_id:
+            subset = {c: g for c, g in graded.items()
+                      if c in R.plan_codes(con, plan_id)}
+            if subset:
+                g2 = POL.gpa(con, subset, uncertain)
+                if g2.counted:
+                    second_gpa = g2
 
-    out = []
-    for t in POL.load_thresholds(program=scope):
-        against, basis = gpa.value, "genel"
-        if t.key == "cap_mezuniyet_ikinci":
-            if second_gpa is None:
-                out.append({"key": t.key, "label": t.label, "min": t.minimum,
-                            "verified": t.verified, "note": t.note,
-                            "kind": t.kind, "source": t.source,
-                            "basis": "ikinci anadal", "ok": None,
-                            "why": "ÇAP planında notlu ders yok — "
-                                   "ikinci anadal ortalaması henüz hesaplanamıyor."})
+        for t in POL.load_thresholds(program=scope):
+            if t.key in gorulen:
+                # İki kapsamda da çıkan eşik GENEL bir kuraldır (ör. mezuniyet
+                # GNO 2.00). İki kez göstermek, iki ayrı şart varmış izlenimi
+                # verirdi.
+                gorulen[t.key]["scope"] = "genel"
+                gorulen[t.key]["scopeLabel"] = ""
                 continue
-            against, basis = second_gpa.value, "ikinci anadal"
-        out.append({"key": t.key, "label": t.label, "min": t.minimum,
+            against, basis = gpa.value, "genel"
+            item = {"key": t.key, "label": t.label, "min": t.minimum,
                     "verified": t.verified, "note": t.note,
-                    "kind": t.kind, "source": t.source, "basis": basis,
-                    "value": against, "tolerance": t.tolerance,
-                    "ok": against + 1e-9 >= t.minimum})
+                    "kind": t.kind, "source": t.source,
+                    "scope": scope, "scopeLabel": scope_label}
+            if t.key == "cap_mezuniyet_ikinci":
+                if second_gpa is None:
+                    item.update({"basis": "ikinci anadal", "ok": None,
+                                 "why": "ÇAP planında notlu ders yok — "
+                                        "ikinci anadal ortalaması henüz "
+                                        "hesaplanamıyor."})
+                    out.append(item)
+                    gorulen[t.key] = item
+                    continue
+                against, basis = second_gpa.value, "ikinci anadal"
+            item.update({"basis": basis, "value": against,
+                         "tolerance": t.tolerance,
+                         "ok": against + 1e-9 >= t.minimum})
+            out.append(item)
+            gorulen[t.key] = item
+    return out
+
+
+def second_programs(settings: config.Settings, cap_id: int | None,
+                    yandal_id: int | None) -> list[dict]:
+    """Etkin ikinci programlar: [{kind, role, label, program, planId}, …].
+
+    ★ ÇAP ve yandal AYNI ANDA alınabiliyor (kullanıcı teyidi 23.08.2026).
+
+    ⚠️ İki çağrı biçimi var ve ikisini de bozmadan taşımak gerekiyordu:
+      * `collect(..., cap_id)` — TEK ikinci program; hangi tür olduğunu
+        `settings.second_kind` söylüyor. Eski çağrılar (testler, `make ui`)
+        böyle. `cap_id` adı tarihsel; içi yandal planı da olabilir.
+      * `collect(..., cap_id, yandal_id=…)` — ikisi birden.
+    """
+    if yandal_id is None:
+        kinds = settings.second_kinds
+        if not kinds or cap_id is None:
+            return []
+        kind = kinds[0]
+        rol, etiket, _ = config.SECOND_KINDS[kind]
+        return [{"kind": kind, "role": rol, "label": etiket,
+                 "program": settings.program_of(kind), "planId": cap_id}]
+    out = []
+    for kind, pid in (("cap", cap_id), ("yandal", yandal_id)):
+        if pid is None:
+            continue
+        rol, etiket, _ = config.SECOND_KINDS[kind]
+        out.append({"kind": kind, "role": rol, "label": etiket,
+                    "program": settings.program_of(kind), "planId": pid})
     return out
 
 
 def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             settings: config.Settings, anadal_id: int | None, cap_id: int | None,
             max_load: float | None = None, n_schedules: int = 3,
-            donem: int | None = None) -> dict:
+            donem: int | None = None, yandal_id: int | None = None,
+            seconds: list[dict] | None = None) -> dict:
+    """`seconds` verilirse ikinci programlar DOĞRUDAN oradan gelir.
+
+    ★ Sunucu bunu kullanıyor. `cap_id` konumsal argümanı tarihsel bir
+    isim — içinde yandal planı da olabiliyordu ve "hangi tür" sorusunun
+    cevabı `settings.second_kind`'daydı. İki program birden gelince bu
+    belirsizlik hataya döndü (yandal seçiliyken rol CAP çıkıyordu), o yüzden
+    çağıran taraf artık listeyi açıkça verebiliyor.
+    """
     grades = S.grades(ucon, student_id)
     equivalences = R.load_equivalences(con)
-    second_role = settings.second_role or "CAP"
-    second_label = settings.second_label or "ÇAP"
+    if seconds is None:
+        seconds = second_programs(settings, cap_id, yandal_id)
+    seconds = [s for s in seconds if s.get("planId")]
+    # Tekil değerler eski davranış için: İLK ikinci program.
+    second_role = (seconds[0]["role"] if seconds else "") or "CAP"
+    second_label = (seconds[0]["label"] if seconds else "") or "ÇAP"
+    # ★ Yarıyıl tabanı ve ÇAP mezuniyet ortalaması YALNIZ ÇAP'a ait
+    # (Yönerge Madde 18 / MADDE 17). Yandal planını ÇAP kurallarıyla
+    # değerlendirmek, uygulanmayan bir kuralda "kaldın" demek olurdu.
+    cap_plan_id = next((s["planId"] for s in seconds if s["kind"] == "cap"), None)
 
     panels = []
-    for plan_id, role in ((anadal_id, "ANADAL"), (cap_id, second_role)):
+    for plan_id, role in ((anadal_id, "ANADAL"),
+                          *((s["planId"], s["role"]) for s in seconds)):
         if plan_id is None:
             continue
         plan = con.execute("SELECT * FROM plan WHERE id=?", (plan_id,)).fetchone()
@@ -197,23 +263,38 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     if max_load is None and settings.max_load_auto and settings.unit == "kredi":
         _gpa_now = POL.gpa(con, S.graded(ucon, student_id),
                            S.uncertain_grades(ucon, student_id))
-        _rule = POL.load_limit(_gpa_now.value, second_kind=settings.second_kind)
+        # ★ MADDE 17/1 muafiyeti ÇAP öğrencisine ait. İki program birden
+        # varsa muafiyet yine geçerli — belirleyici olan ÇAP'ın varlığı.
+        _rule = POL.load_limit(_gpa_now.value,
+                               second_kind=("cap" if "cap" in settings.second_kinds
+                                            else settings.second_kind))
         if _rule and _rule.maximum:
             limit, limit_source = _rule.maximum, "yönetmelik"
     limit_credits = limit if settings.unit == "kredi" else 0.0
 
     def build(max_term):
-        cs = REC.candidates(con, ucon, student_id, anadal_id, cap_id,
+        cs = REC.candidates(con, ucon, student_id, anadal_id,
+                            seconds[0]["planId"] if seconds else None,
                             settings.anadal_program, settings.second_program,
                             settings.allowed_programs, settings.unit,
-                            second_role=second_role, max_term=max_term)
+                            second_role=second_role, max_term=max_term,
+                            second_plans=[(s["role"], s["planId"]) for s in seconds])
         # ★ Meşgul saatler `fixed` olarak giriyor: motor onları "zaten dolu"
         # sayıyor ve çakışan şubeyi hiç önermiyor. Ayrı bir çakışma yolu
         # yazmak iki tanım demek olurdu (bkz. REC.busy_sections).
         return cs, REC.build_schedules(cs, max_load=limit, limit=n_schedules,
-                                       fixed=busy)
+                                       fixed=busy, floors=floors)
 
     busy = REC.busy_sections(settings.mesgul)
+    # ★ Yarıyıl kredi tabanı artık motora GİRİYOR (yapılacaklar 1.4).
+    # Faz 13'ten beri yalnız bir uyarıydı; gerçek veride önerilen program
+    # ikinci anadaldan 4 kredi içeriyordu, taban 9'du.
+    #
+    # ⚠️ İNDİRİMLİ değil İLAN EDİLEN taban kullanılıyor: yönerge indirimi
+    # "düşürülebilir" diyor (talep + koordinatör + FYK). Otomatik uygulamak,
+    # alınmamış bir kararı alınmış saymak olurdu.
+    _floor = POL.second_floor(settings.cap_baslangic_yariyili) if cap_plan_id else None
+    floors = {"CAP": _floor.minimum} if _floor else None
     cands, schedules = build(None)
     # ★ İkinci kip: dönemlik + alttan. Ayrı bir aday havuzu ve ayrı programlar.
     term_cands, term_scheds = build(donem) if donem else ([], [])
@@ -237,6 +318,13 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                 "ects": sched.ects, "credits": sched.credits, "load": sched.load,
                 "score": sched.score,
                 "campusChanges": sched.campus_changes(),
+                # ★ Taban eksiği program BAŞINA raporlanıyor: motor tabanı
+                # karşılayamıyorsa bunu SÖYLÜYOR, sessizce en iyi görünen
+                # programı sunmuyor (yapılacaklar 1.4).
+                "floorGaps": [{"role": rol, "missing": eksik}
+                              for rol, eksik in sched.floor_gaps(floors).items()],
+                "creditsByRole": [{"role": rol, "credits": kr}
+                                  for rol, kr in sched.credits_by_role().items()],
                 "picks": [{
                     "course": p.candidate.course,
                     "name": names.get(p.candidate.course, ""),
@@ -263,20 +351,26 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
 
     schedule_json = schedules_json(schedules, cands)
 
+    # ★ Darboğaz HER ikinci program için ayrı hesaplanıyor ve hangisine ait
+    # olduğu satırda yazıyor — iki programın engellerini tek listede
+    # ayrımsız göstermek "hangi program yüzünden takıldım" sorusunu
+    # cevapsız bırakırdı.
     blockers = []
-    if cap_id:
-        blockers = [{"course": b.course, "reason": b.reason, "detail": b.detail,
-                     "name": names.get(b.course, "")}
-                    for b in REC.cap_blockers(con, ucon, student_id, cap_id,
-                                              settings.second_program,
-                                              settings.allowed_programs)]
+    for s in seconds:
+        blockers += [{"course": b.course, "reason": b.reason, "detail": b.detail,
+                      "name": names.get(b.course, ""),
+                      "role": s["role"], "label": s["label"],
+                      "program": s["program"]}
+                     for b in REC.cap_blockers(con, ucon, student_id, s["planId"],
+                                               s["program"],
+                                               settings.allowed_programs)]
 
     # ★ Kredi eşiği (bitirme çalışması) — kaç kredin var, eşik ne, NEYİ tutuyor.
     # Son madde önemli: kural sessizce eleseydi kullanıcı 'GEO 4901E neden
     # kayboldu' diye soracaktı. Eleyen kural kendini göstermek zorunda.
     rules = POL.load_rules()
     have_credits = POL.earned_credits(con, grades)
-    plan_courses = R.plan_codes(con, anadal_id, cap_id)
+    plan_courses = R.plan_codes(con, anadal_id, *(s["planId"] for s in seconds))
     # ★ GNO — transkriptten TAHMİN. Kesinmiş gibi göstermemek için eksiklik
     # kaynakları ayrıca taşınıyor; eşikler doğrulanma durumuyla birlikte.
     gpa = POL.gpa(con, S.graded(ucon, student_id), S.uncertain_grades(ucon, student_id))
@@ -285,8 +379,7 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         "partial": gpa.partial,
         "noCredit": gpa.skipped_no_credit, "notGraded": gpa.skipped_not_graded,
         "uncertain": gpa.uncertain, "conditional": gpa.conditional,
-        "thresholds": _threshold_info(con, ucon, student_id, gpa,
-                                      settings.second_kind, cap_id),
+        "thresholds": _threshold_info(con, ucon, student_id, gpa, seconds),
     }
     # ★ Şartlı başarı (MADDE 20/2-b + MADDE 31/1). Faz 11'de "şart bilinmiyor"
     # deniyordu; 22.08.2026'da yönetmelikten bulundu: şart, mezuniyet anındaki
@@ -301,7 +394,9 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
 
     # ★ Yönetmelik MADDE 17 — dönem kredi yükü. Beyan edilen tavan ile
     # yönetmelik hesabı ÇELİŞEBİLİR; sessizce ezmiyoruz, ikisini de gösteriyoruz.
-    load_rule = POL.load_limit(gpa.value, second_kind=settings.second_kind)
+    load_rule = POL.load_limit(gpa.value,
+                               second_kind=("cap" if "cap" in settings.second_kinds
+                                            else settings.second_kind))
     load_info = None
     if load_rule:
         load_info = {
@@ -324,8 +419,13 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     #   bu kural   → yalnız ikinci anadaldan alınacak TABAN.
     # ÇAP öğrencisinin toplam alt sınırı yok ama ikinci anadal tarafında
     # tabanı var; "muaf" diye bunu da atlamak ilişik kesilmesine götürebilirdi.
+    # ★ 23.08.2026: bu kural YALNIZ ÇAP'a ait. Yönerge "İkinci anadala N.
+    # yarıyılda başlayan öğrenci…" diyor; "ikinci anadal" = ÇAP. Yandalın
+    # kendi maddeleri var (Madde 22+) ve orada böyle bir taban bulamadık.
+    # Eskiden ikisine de uygulanıyordu — yandal öğrencisine var olmayan bir
+    # kuralla "az aldın" demek olurdu.
     floor_info = None
-    if cap_id and settings.second_kind in ("cap", "yandal"):
+    if cap_plan_id:
         floor = POL.second_floor(settings.cap_baslangic_yariyili)
         if floor:
             relief = floor.relief
@@ -358,24 +458,34 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         } for r in rules],
     }
 
-    steps = SEQ.plan_sequence(con, cap_id, grades) if cap_id else []
     # ★ Kademeler arasındaki ÖNŞART BAĞLARI (kullanıcı isteği 22.08.2026).
     # `blockers` = bu dersin plan İÇİNDEKİ önşartları; tersini de veriyoruz ki
     # arayüz "bu dersi geçmezsem neler kilitli kalır" sorusunu da çizebilsin.
     # Plan DIŞI önşartlar (`external`) ayrı duruyor: onlar anadalda alınmış
     # olabilir, kademeyi belirlemezler — ikisini karıştırmak yanıltıcı olurdu.
-    opens: dict[str, list[str]] = {}
-    for st in steps:
-        for dep in st.blockers:
-            opens.setdefault(dep, []).append(st.course)
-    tiers: dict[int, list] = {}
-    for st in steps:
-        tiers.setdefault(st.tier, []).append(
-            {"course": st.course, "name": names.get(st.course, ""),
-             "ects": st.ects or 0, "credits": st.credits or 0,
-             "status": st.status, "unlocks": st.unlocks,
-             "needs": st.blockers, "opens": sorted(opens.get(st.course, [])),
-             "outside": st.external[:6]})
+    #
+    # ★ 23.08.2026: her ikinci program KENDİ kademelerini alıyor. Tek listede
+    # birleştirseydik iki ayrı programın zincirleri birbirine bağlıymış gibi
+    # görünürdü — oysa aralarında önşart ilişkisi yok.
+    def _tiers_of(plan_id):
+        steps = SEQ.plan_sequence(con, plan_id, grades) if plan_id else []
+        opens: dict[str, list[str]] = {}
+        for st in steps:
+            for dep in st.blockers:
+                opens.setdefault(dep, []).append(st.course)
+        tiers: dict[int, list] = {}
+        for st in steps:
+            tiers.setdefault(st.tier, []).append(
+                {"course": st.course, "name": names.get(st.course, ""),
+                 "ects": st.ects or 0, "credits": st.credits or 0,
+                 "status": st.status, "unlocks": st.unlocks,
+                 "needs": st.blockers, "opens": sorted(opens.get(st.course, [])),
+                 "outside": st.external[:6]})
+        return [{"tier": k, "courses": v} for k, v in sorted(tiers.items())]
+
+    tier_groups = [{"role": s["role"], "label": s["label"],
+                    "program": s["program"], "planId": s["planId"],
+                    "tiers": _tiers_of(s["planId"])} for s in seconds]
 
     return {
         "generatedAt": __import__("datetime").datetime.now().strftime("%d.%m.%Y %H:%M"),
@@ -386,6 +496,10 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         "cap": settings.second_program,
         "secondRole": second_role,
         "secondLabel": second_label,
+        # ★ Etkin ikinci programların TAMAMI (ÇAP ve/veya yandal).
+        # Tekil `cap`/`secondRole` alanları ilkini gösteriyor ve eski
+        # çağrı yerleri için duruyor.
+        "seconds": seconds,
         "donem": donem,
         "donemSource": term_source,
         "credits": credit_info,
@@ -406,14 +520,17 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
              "note": f"{len(cands)} aday · plandaki tüm açık dersler",
              "candidates": candidates_json(cands), "schedules": schedule_json},
             {"key": "term", "label": f"{donem}. dönem + alttan",
-             "note": _term_note(term_cands, donem, second_label if cap_id else ""),
+             "note": _term_note(term_cands, donem,
+                                ("ikinci program" if len(seconds) > 1
+                                 else (second_label if seconds else ""))),
              "candidates": candidates_json(term_cands),
              "schedules": schedules_json(term_scheds, term_cands)},
         ) if donem else [],
         "blockers": blockers,
         # ★ FAZ 12 — "başvurabilir miyim" (yapılacaklar 1.3).
         "basvuru": _basvuru_info(con, ucon, student_id, settings),
-        "tiers": [{"tier": t, "courses": v} for t, v in sorted(tiers.items())],
+        # Her ikinci programın KENDİ kademe zinciri.
+        "tierGroups": tier_groups,
         "lessonCount": con.execute("SELECT COUNT(*) FROM lesson").fetchone()[0],
         "uncertain": S.uncertain_grades(ucon, student_id),
     }
@@ -519,6 +636,9 @@ _TEMPLATE = r"""<!doctype html>
   --seal:#8FA3E8; --seal-soft:#1A2036;
   --anadal:#5FC0A6; --anadal-soft:#123029; --anadal-ink:#8FD8C3;
   --cap:#D9A05B; --cap-soft:#2E2415; --cap-ink:#EFC48E;
+  /* ★ Yandal AYRI renk: ÇAP ve yandal aynı anda olabiliyor, aynı renkte
+     olsalardı panelde ve ızgarada hangisi olduğu anlaşılmazdı. */
+  --yandal:#7FB2C9; --yandal-soft:#16252C; --yandal-ink:#A9D2E4;
   --danger:#E0836F; --warn:#D9B061;
   --shadow:0 18px 44px -20px rgba(0,0,0,.85);
   --r:0px;
@@ -531,6 +651,8 @@ _TEMPLATE = r"""<!doctype html>
     --seal:#3B4E9E; --seal-soft:#E7EAF7;
     --anadal:#0A6B58; --anadal-soft:#D6EBE5; --anadal-ink:#074A3D;
     --cap:#8A5210; --cap-soft:#F6E7D2; --cap-ink:#633B08;
+  --yandal:#1F5C77; --yandal-soft:#DCECF4; --yandal-ink:#154457;
+    --yandal:#1F5C77; --yandal-soft:#DCECF4; --yandal-ink:#154457;
     --danger:#C02D18; --warn:#7A5709;
     --shadow:0 18px 44px -26px rgba(10,15,30,.5);
   }
@@ -585,7 +707,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:18px}
 .panel{border-top:6px solid var(--accent)}
 .panel[data-role="ANADAL"]{--accent:var(--anadal);--soft:var(--anadal-soft)}
-.panel[data-role="CAP"],.panel[data-role="YANDAL"]{--accent:var(--cap);--soft:var(--cap-soft)}
+.panel[data-role="CAP"]{--accent:var(--cap);--soft:var(--cap-soft)}
+.panel[data-role="YANDAL"]{--accent:var(--yandal);--soft:var(--yandal-soft)}
 .panel .top{display:flex;align-items:baseline;gap:10px;justify-content:space-between}
 .panel .pct{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
   font-size:27px;font-weight:600;color:var(--accent);letter-spacing:-.03em}
@@ -738,7 +861,8 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
   width:100%;text-align:left;padding:11px 12px;background:var(--soft);
   color:var(--accent-ink);border-left:5px solid var(--accent);font-size:13.5px}
 .daylist .row[data-role="ANADAL"]{--accent:var(--anadal);--soft:var(--anadal-soft);--accent-ink:var(--anadal-ink)}
-.daylist .row[data-role="CAP"],.daylist .row[data-role="YANDAL"]{--accent:var(--cap);--soft:var(--cap-soft);--accent-ink:var(--cap-ink)}
+.daylist .row[data-role="CAP"]{--accent:var(--cap);--soft:var(--cap-soft);--accent-ink:var(--cap-ink)}
+.daylist .row[data-role="YANDAL"]{--accent:var(--yandal);--soft:var(--yandal-soft);--accent-ink:var(--yandal-ink)}
 .daylist .row small{color:var(--ink-2);font-size:11.5px;display:block}
 .daylist .row.clash{border-left-color:var(--danger);
   box-shadow:inset 0 0 0 1px var(--danger)}
@@ -781,7 +905,10 @@ table.grid td.free:hover{background:var(--surface-2);
   cursor:pointer;border-left:5px solid var(--accent);background:var(--soft);
   color:var(--accent-ink);overflow:hidden}
 .blk[data-role="ANADAL"]{--accent:var(--anadal);--soft:var(--anadal-soft);--accent-ink:var(--anadal-ink)}
-.blk[data-role="CAP"],.blk[data-role="YANDAL"]{--accent:var(--cap);--soft:var(--cap-soft);--accent-ink:var(--cap-ink)}
+.blk[data-role="CAP"]{--accent:var(--cap);--soft:var(--cap-soft);--accent-ink:var(--cap-ink)}
+.blk[data-role="YANDAL"]{--accent:var(--yandal);--soft:var(--yandal-soft);--accent-ink:var(--yandal-ink)}
+.blk[data-role="PLAN_DISI"],.daylist .row[data-role="PLAN_DISI"]{
+  --accent:var(--ink-3);--soft:var(--surface-2);--accent-ink:var(--ink-2)}
 /* Ders konulamayacak saat — okul dışı iş. Taralı, çünkü bir DERS değil:
    veri renklerini (yeşil/kehribar) kullansaydı programın parçası sanılırdı. */
 .blk.mesgul{--accent:var(--ink-3);border-left-color:var(--border-strong);
@@ -804,7 +931,11 @@ table.list tr:hover td{background:var(--surface-2)}
   letter-spacing:.08em;text-transform:uppercase;
   font-family:"Chivo",Helvetica,Arial,sans-serif}
 .tag.ANADAL{background:var(--anadal-soft);color:var(--anadal-ink)}
-.tag.CAP,.tag.YANDAL{background:var(--cap-soft);color:var(--cap-ink)}
+.tag.CAP{background:var(--cap-soft);color:var(--cap-ink)}
+.tag.YANDAL{background:var(--yandal-soft);color:var(--yandal-ink)}
+/* CRN'den yüklenen, planlarında olmayan ders — nötr renk, çünkü
+   hangi programa saydığını biz bilmiyoruz. */
+.tag.PLAN_DISI{background:var(--surface-2);color:var(--ink-3)}
 .why{color:var(--ink-3);font-size:12px;margin-top:3px}
 .score{font-weight:600}
 
@@ -863,6 +994,10 @@ table.list tr:hover td{background:var(--surface-2)}
 .tierstage.focus .tier li.on{opacity:1}
 .tier li.root{outline:2px solid var(--cap);outline-offset:1px}
 .tierfoot{margin-top:10px;font-size:11.5px;color:var(--ink-3);line-height:1.6}
+.tiergroup + .tiergroup{margin-top:26px;padding-top:22px;
+  border-top:1px dashed var(--border-strong)}
+.tiergroup > h3{font-size:13px;margin-bottom:12px;display:flex;gap:8px;align-items:center}
+.tiergroup > h3 .tag{font-size:10px}
 
 /* Bölüm çubuğu — yapışkan, tek satır, dar ekranda yana kayıyor. */
 /* ⚠️ `var(--bg)` diye bir jeton YOK — doğrusu `--ground`. Yanlış ad
@@ -976,6 +1111,7 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
   <div class="summary" id="schedSummary"></div>
   <div class="toolbar">
     <span id="editState" class="chip edited" hidden>değiştirildi</span>
+    <button class="ghost" id="crnLoad">CRN'den yükle</button>
     <button class="ghost primary" id="savePicks" hidden>Programı kaydet</button>
     <button class="ghost" id="reset" hidden>Öneriye dön</button>
     <button class="ghost" id="crnBtn">CRN listesi</button>
@@ -1066,12 +1202,8 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
   <div class="summary">Her kademe en az bir dönem. Kademe sayısı, ikinci programı
     bitirebileceğin en kısa süredir. <b>Çizgiler önşart bağıdır</b> — bir derse
     tıklarsan yalnız o dersin zinciri kalır, ikinci tıkta hepsi geri gelir.</div>
-  <div class="tiers" id="tiers" style="margin-top:14px">
-    <div class="tierstage" id="tierStage">
-      <svg class="tierlinks" id="tierLinks" aria-hidden="true"></svg>
-    </div>
-  </div>
-  <div class="tierfoot" id="tierFoot"></div>
+  <!-- Her ikinci programın KENDİ zinciri; aralarında önşart ilişkisi yok. -->
+  <div id="tierGroups" style="margin-top:14px"></div>
 </section>
 
 <footer>
@@ -1093,16 +1225,23 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c =>
 const hhmm = (m) => String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
 
 let LBL = DATA.secondLabel || "ÇAP";
+/* ★ ÇAP ve yandal aynı anda olabiliyor: başlıklar TEK programa göre
+   yazıldığında öbürü yokmuş gibi görünüyordu. */
+const SECONDS = () => DATA.seconds || [];
 function renderHeader(){
   LBL = DATA.secondLabel || "ÇAP";
-  $("#eyebrow").textContent = `${DATA.anadal}${DATA.cap ? ` + ${DATA.cap} ${LBL}` : ""}`
+  const ikili = SECONDS().length > 1;
+  $("#eyebrow").textContent = [DATA.anadal,
+      ...SECONDS().map(s => `${s.program} ${s.label}`)].filter(Boolean).join(" + ")
     + (DATA.term ? ` · ${DATA.term}` : "");
   /* ★ Başlıkta program adı YOK (kullanıcı isteği 23.08.2026): araç ÇAP'a
      özel değil, yandalda ve ÇAP'sız kullanımda da aynı araç. Hangi programa
      baktığın zaten üstteki eyebrow'da yazıyor. */
   $("#doctitle").textContent = "Ders Planlama Aracı";
-  $("#blockTitle").textContent = `${LBL}'ta neden alamıyorsun`;
-  $("#tierTitle").textContent = `${LBL} kademeleri`;
+  $("#blockTitle").textContent = ikili
+    ? "İkinci programlarında neden alamıyorsun"
+    : `${LBL}'ta neden alamıyorsun`;
+  $("#tierTitle").textContent = ikili ? "Kademeler" : `${LBL} kademeleri`;
   $("#gen").textContent = DATA.generatedAt;
   $("#subtitle").textContent =
     `${DATA.lessonCount} açık şube · dönem yükü sınırı ${DATA.maxLoad} ${DATA.unitLabel}` +
@@ -1163,11 +1302,14 @@ function applyState(next){
 function setupBar(){
   const s = SETUP;
   const who = s
-    ? `<b>${esc(s.anadalProgram)}</b> anadal` + (s.secondProgram
-        ? ` · <b>${esc(s.secondProgram)}</b> ${esc(LBL)}` : " · ikinci program yok")
+    ? `<b>${esc(s.anadalProgram)}</b> anadal`
+      + (SECONDS().length
+         ? SECONDS().map(x => ` · <b>${esc(x.program)}</b> ${esc(x.label)}`).join("")
+         : " · ikinci program yok")
       + ` · <b>${DATA.donem || "?"}. dönem</b> (${esc(DATA.donemSource)})`
       + ` · <b>${s.transcript.length}</b> ders girilmiş`
-    : `<b>${esc(DATA.anadal)}</b>` + (DATA.cap ? ` · <b>${esc(DATA.cap)}</b>` : "")
+    : `<b>${esc(DATA.anadal)}</b>`
+      + SECONDS().map(x => ` · <b>${esc(x.program)}</b> ${esc(x.label)}`).join("")
       + ` · <b>${DATA.donem || "?"}. dönem</b>`;
   $("#setupbar").innerHTML = `<div class="who">${who}</div>
     ${LIVE ? `
@@ -1220,11 +1362,21 @@ async function save(fn){
 }
 
 /* ---------- 1. program seçimi ---------- */
+/* ★ ÇAP ve yandal AYNI ANDA alınabiliyor (23.08.2026): 'İkisi' seçilince
+   iki ayrı bölüm+plan kutusu birden açılıyor. Her tür KENDİ listesinden
+   seçiliyor — o türde planı olmayan bölüm hiç görünmüyor. */
+const KIND_LABEL = {cap: "ÇAP", yandal: "Yandal"};
+
 function programDialog(){
   const s = SETUP;
   const codes = [...new Set(s.programs.map(p => p.code))].sort();
   const opts = (sel) => codes.map(c =>
     `<option value="${esc(c)}"${c === sel ? " selected" : ""}>${esc(c)}</option>`).join("");
+  const kindsOf = (k) => k === "ikisi" ? ["cap", "yandal"] : (k === "yok" ? [] : [k]);
+  const secondOpts = (k, sel) => ((s.secondPrograms || {})[k] || [])
+    .map(p => `<option value="${esc(p.code)}"${p.code === sel ? " selected" : ""}
+      >${esc(p.code)} — ${esc(p.name)}</option>`).join("")
+    || `<option value="">bu tipte plan yok — make all-plans</option>`;
   openSetup(`
     <div class="eyebrow">Kurulum</div>
     <h2 style="margin-bottom:4px">Program seçimi</h2>
@@ -1236,34 +1388,41 @@ function programDialog(){
         <select id="fAnadal">${opts(s.anadalProgram)}</select></label>
       <label class="field"><span>İkinci program</span>
         <div class="radios" id="fKind">
-          ${[["cap","ÇAP"],["yandal","Yandal"],["yok","Yok"]].map(([k,l]) =>
+          ${[["cap","ÇAP"],["yandal","Yandal"],["ikisi","İkisi"],["yok","Yok"]].map(([k,l]) =>
             `<button data-k="${k}" aria-pressed="${k===s.secondKind}">${l}</button>`).join("")}
         </div></label>
     </div>
-    <div id="fSecondWrap">
-      <label class="field"><span>İkinci programın bölümü</span>
-        <select id="fSecond">${opts(s.secondProgram)}</select></label>
-      <label class="field"><span>Plan</span>
-        <select id="fPlan"></select>
-        <span class="hint">Planı boş bırakırsan en güncel OBS planı seçilir.</span></label>
-    </div>
+    ${["cap","yandal"].map(k => `
+      <div id="fWrap-${k}" hidden>
+        <label class="field"><span>${KIND_LABEL[k]} bölümü</span>
+          <select id="fProg-${k}">${secondOpts(k,
+            ((s.secondChoice || {})[k] || {}).program)}</select></label>
+        <label class="field"><span>${KIND_LABEL[k]} planı</span>
+          <select id="fPlan-${k}"></select>
+          <span class="hint">Planı boş bırakırsan en güncel OBS planı seçilir.</span></label>
+      </div>`).join("")}
     <label class="field"><span>Kayıt yapabildiğin program kodları</span>
       <input type="text" id="fCodes" value="${esc(s.programCodes.join(", "))}">
       <span class="hint">Bir şubenin "Dersi Alabilen Programlar" listesinde bunlardan
         biri varsa dersi alabilirsin. Virgülle ayır.</span></label>`, () => {
     let kind = s.secondKind;
-    const wrap = $("#fSecondWrap");
-    const fillPlans = () => {
-      const want = kind === "yok" ? null : kind;
-      const code = $("#fSecond").value;
-      const list = s.plans.filter(p => p.plan_type === want && p.program_code === code);
-      $("#fPlan").innerHTML = `<option value="">otomatik (en güncel)</option>` +
-        list.map(p => `<option value="${p.id}"${p.id === s.secondPlanId ? " selected" : ""}
+    const fillPlans = (k) => {
+      const code = $("#fProg-" + k).value;
+      const secili = ((s.secondChoice || {})[k] || {}).planId;
+      const list = s.plans.filter(p => p.plan_type === k && p.program_code === code);
+      $("#fPlan-" + k).innerHTML = `<option value="">otomatik (en güncel)</option>` +
+        list.map(p => `<option value="${p.id}"${p.id === secili ? " selected" : ""}
           >${p.id} · ${p.slots} slot · ${esc((p.title || "").slice(0, 54))}</option>`).join("");
-      if(!list.length) $("#fPlan").innerHTML +=
-        `<option disabled>bu tipte plan yok — make refresh gerekebilir</option>`;
+      if(!list.length) $("#fPlan-" + k).innerHTML +=
+        `<option disabled>bu bölümde ${KIND_LABEL[k]} planı yok</option>`;
     };
-    const sync = () => { wrap.hidden = kind === "yok"; if(kind !== "yok") fillPlans(); };
+    const sync = () => {
+      const acik = kindsOf(kind);
+      ["cap","yandal"].forEach(k => {
+        $("#fWrap-" + k).hidden = !acik.includes(k);
+        if(acik.includes(k)) fillPlans(k);
+      });
+    };
     $("#fKind").querySelectorAll("button").forEach(b =>
       b.addEventListener("click", () => {
         kind = b.dataset.k;
@@ -1271,15 +1430,27 @@ function programDialog(){
           x.setAttribute("aria-pressed", x.dataset.k === kind));
         sync();
       }));
-    $("#fSecond").addEventListener("change", fillPlans);
+    ["cap","yandal"].forEach(k =>
+      $("#fProg-" + k).addEventListener("change", () => fillPlans(k)));
     sync();
-    $("#setupSave").addEventListener("click", () => save(() => api("/api/programs", {
-      anadalProgram: $("#fAnadal").value,
-      secondKind: kind,
-      secondProgram: $("#fSecond").value,
-      secondPlanId: $("#fPlan").value || null,
-      programCodes: $("#fCodes").value.split(/[,\s]+/).filter(Boolean),
-    })));
+    $("#setupSave").addEventListener("click", () => {
+      const secim = {};
+      kindsOf(kind).forEach(k => secim[k] = {
+        program: $("#fProg-" + k).value,
+        planId: $("#fPlan-" + k).value || null,
+      });
+      const eksik = kindsOf(kind).filter(k => !secim[k].program);
+      if(eksik.length){
+        say(eksik.map(k => KIND_LABEL[k]).join(" ve ") + " bölümü seçilmedi", true);
+        return;
+      }
+      save(() => api("/api/programs", {
+        anadalProgram: $("#fAnadal").value,
+        secondKind: kind,
+        secondPrograms: secim,
+        programCodes: $("#fCodes").value.split(/[,\s]+/).filter(Boolean),
+      }));
+    });
   });
 }
 
@@ -1622,7 +1793,20 @@ function renderFloor(){
   const R = F.relief;
   const indirimYeterMi = R && kredi + 1e-9 >= R.min;
 
+  /* ★ Motor tabanı hiç karşılayamıyorsa bunu SÖYLÜYORUZ. Sessiz kalıp en
+     yüksek puanlı programı sunmak, kullanıcıyı kayıt gününde şaşırtırdı. */
+  const oneriler = M().schedules || [];
+  const hicbiriOlmuyor = oneriler.length > 0 &&
+    oneriler.every(s => (s.floorGaps || []).length);
+
   box.innerHTML = `
+    ${hicbiriOlmuyor ? `<div class="note" style="margin-top:12px;
+        border-left-color:var(--warn)">
+      <b>Bu dönem açık derslerden tabanı karşılayan çakışmasız program
+      bulunamadı.</b> Motor ${oneriler.length} öneri üretti, hiçbiri
+      ${F.min} krediye ulaşmıyor — arz, çakışma ya da önşart yüzünden.
+      Bu <b>imkânsız</b> demek değil: taban indirilebiliyor (aşağıda) ve
+      dönem başında yeni şube açılabiliyor. Danışmanınla konuş.</div>` : ""}
     <div class="gauge" style="margin-top:14px;padding-top:14px;
          border-top:1px solid var(--border)">
       <div class="gaugebar" style="max-width:230px">
@@ -1712,10 +1896,16 @@ function renderGpa(){
   const mark = t => t.ok === null ? "—" : (t.ok ? "✓" : "✗");
   const groups = Object.keys(STAGE).filter(k => g.thresholds.some(t => t.kind === k));
   const loose = g.thresholds.filter(t => !groups.includes(t.kind));
+  /* ★ Hangi PROGRAMIN kuralı olduğu yazıyor. ÇAP ve yandal aynı anda
+     alınabiliyor ve eşikleri farklı maddelerden geliyor; etiketsiz
+     gösterirsek biri öbürünün kuralı sanılır. 'genel' olanda etiket yok —
+     ikisine de uygulanan kural. */
+  const cokProgram = (DATA.seconds || []).length > 1;
   const chipOf = t => `
     <span class="cat" style="${style(t)}"
       title="${esc([t.note, t.why, t.source].filter(Boolean).join(" · "))}"
-      >${esc(t.label)} ≥ ${t.min.toFixed(2)}
+      >${cokProgram && t.scopeLabel ? `<b>${esc(t.scopeLabel)}</b> · ` : ""}
+      ${esc(t.label)} ≥ ${t.min.toFixed(2)}
       ${mark(t)}${t.verified ? "" : " ⚠"}${t.tolerance ? " ¹" : ""}</span>`;
   const chips = groups.map(k => `
     <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:7px">
@@ -2021,6 +2211,89 @@ function wirePicks(){
   };
   const crn = $("#crnBtn");
   if(crn) crn.onclick = crnDialog;
+  const yukle = $("#crnLoad");
+  if(yukle) yukle.onclick = crnLoadDialog;
+}
+
+/* ---------- CRN'den program yükle ----------
+   ★ Kullanıcı isteği 23.08.2026. OBS'de kaydını yaptıktan sonra CRN'leri
+   yapıştırıp GERÇEK programını görebilmek için.
+
+   ⚠️ Planında OLMAYAN ders de yükleniyor ('plan dışı' etiketiyle). Gizleseydik
+   kullanıcı gerçek programını göremezdi — serbest seçmeli, ortak zorunlu ya da
+   başka bir bölümden alınan ders de kayıtta olabiliyor.
+   ⚠️ Bulunamayan CRN sessizce atılmıyor: 8 yapıştırıp 6 ders görürsen hangi
+   ikisinin düştüğünü bilmelisin. */
+function crnLoadDialog(){
+  openDialog(`
+    <div class="eyebrow">Kayıt sonrası</div>
+    <h2 style="margin-bottom:4px">CRN'den program yükle</h2>
+    <p class="modenote" style="margin:2px 0 10px">OBS'de kaydını yaptıysan
+      CRN'leri buraya yapıştır — ızgarada gerçek programın görünsün.
+      Bu bir <b>görüntüleme</b>; araç OBS'ye hiçbir şey yazmaz.</p>
+    <label class="field"><span>CRN'ler (boşluk, virgül ya da satır)</span>
+      <textarea id="crnIn" rows="4" class="mono"
+        placeholder="12486 13524 12550"></textarea></label>
+    <div class="dlgactions"><span class="msg" id="crnMsg"></span>
+      <button class="ghost primary" id="crnGo">Yükle</button></div>`);
+  const not = (metin, kotu) => {
+    const el = $("#crnMsg");
+    if(el){ el.textContent = metin; el.className = "msg" + (kotu ? " bad" : ""); }
+  };
+  $("#crnGo").addEventListener("click", async () => {
+    const liste = ($("#crnIn").value.match(/\d{3,}/g) || []);
+    if(!liste.length){ not("CRN bulunamadı", true); return; }
+    not("aranıyor…");
+    try{
+      const cevap = await api("/api/crn", {crns: liste});
+      const bulunan = (cevap.crn && cevap.crn.found) || [];
+      const eksik = (cevap.crn && cevap.crn.missing) || [];
+      if(!bulunan.length){
+        not(`hiçbiri bulunamadı (${eksik.join(", ")})`, true); return;
+      }
+      loadFromCrn(bulunan);
+      $("#detail").close();
+      if(eksik.length)
+        alertLine(`${bulunan.length} ders yüklendi · ${eksik.length} CRN ` +
+                  `bu dönemin verisinde YOK: ${eksik.join(", ")}`);
+    }catch(err){ not(err.message, true); }
+  });
+}
+
+/* Bulunan şubeleri aday havuzuna ENJEKTE edip seçime alıyor.
+   Havuza koymadan `sel`e yazmak işe yaramaz: ızgara `CAND` üzerinden
+   çiziliyor ve bilmediği dersi gösteremez. */
+function loadFromCrn(bulunan){
+  bulunan.forEach(x => {
+    const sec = {crn: x.crn, capacity: x.capacity, enrolled: x.enrolled,
+                 free: Math.max(0, (x.capacity||0) - (x.enrolled||0)),
+                 meetings: (x.meetings || []).map(m => ({
+                   day: m.day, start: m.start, end: m.end,
+                   building: m.building, campus: m.campus}))};
+    const eski = CAND[x.course];
+    if(eski){
+      if(!eski.sections.some(s => s.crn === x.crn)) eski.sections.push(sec);
+    }else{
+      CAND[x.course] = {course: x.course, name: x.name,
+                        role: x.role === "PLAN_DISI" ? "PLAN_DISI" : x.role,
+                        ects: x.ects, credits: x.credits, unlocks: 0, tier: 0,
+                        critical: false, required: false, slotId: 0, planId: 0,
+                        poolLabel: "", score: 0, reasons: [], sections: [sec]};
+    }
+  });
+  sel = bulunan.map(x => ({course: x.course, crn: x.crn}));
+  render();
+  $("#schedSection").scrollIntoView({behavior: "smooth", block: "start"});
+}
+
+function alertLine(metin){
+  const el = $("#schedSummary");
+  if(!el) return;
+  const d = document.createElement("div");
+  d.className = "note";
+  d.style.marginTop = "8px";
+  d.textContent = metin;
+  el.appendChild(d);
 }
 
 function crnDialog(){
@@ -2154,7 +2427,8 @@ function renderCredits(){
 function panelHTML(p, plan){
   const pctAfter = p.slotsTotal
     ? Math.round(1000 * (p.slotsDone + plan.slots) / p.slotsTotal) / 10 : p.percent;
-  const kind = {ANADAL:"Anadal", CAP:"Çift anadal", YANDAL:"Yandal"}[p.role] || p.role;
+  const kind = {ANADAL:"Anadal", CAP:"Çift anadal", YANDAL:"Yandal",
+              PLAN_DISI:"Plan dışı"}[p.role] || p.role;
   const gain = (a) => a ? ` <span class="gain">+${a}</span>` : "";
   return `<article class="card pad panel" data-role="${p.role}">
     <div class="top">
@@ -2291,10 +2565,19 @@ function edited(){
 
 /* ---------- sekmeler + ızgara ---------- */
 function renderTabs(){
-  $("#tabs").innerHTML = M().schedules.map((s,i) =>
-    `<button class="tab" role="tab" aria-selected="${i===active}" data-i="${i}">
-       Öneri ${i+1} · ${s.credits} kredi</button>`).join("")
-    || `<span class="empty">öneri üretilemedi</span>`;
+  /* ★ Taban eksiği sekmede GÖRÜNÜYOR (yapılacaklar 1.4). Motor artık tabanı
+     karşılayan programı öne alıyor; karşılamayan da listede kalıyor çünkü
+     taban indirilebilir ve o dönem açılan ders yetmiyor olabilir. Ama
+     hangisinin eksik olduğu yazmadan sunmak, kabul edilemez bir programı
+     "en iyi" diye göstermek olurdu. */
+  $("#tabs").innerHTML = M().schedules.map((s,i) => {
+    const eksik = (s.floorGaps || []);
+    return `<button class="tab" role="tab" aria-selected="${i===active}" data-i="${i}"
+       ${eksik.length ? `title="taban eksiği: ${eksik.map(g =>
+         `${g.role} ${g.missing} kredi`).join(", ")}"` : ""}>
+       Öneri ${i+1} · ${s.credits} kredi${eksik.length
+         ? ` <span style="color:var(--danger)">· taban ✗</span>` : ""}</button>`;
+  }).join("") || `<span class="empty">öneri üretilemedi</span>`;
   $("#tabs").querySelectorAll(".tab").forEach(b =>
     b.addEventListener("click", () => { active = +b.dataset.i; resetTo(active); }));
 }
@@ -2972,7 +3255,13 @@ let bhtml = "";
          koymak, işe yaramayacak bir eylem önermek olurdu. */
       const watchable = DATA.live && (k === "ACILMAMIS" || k === "PROGRAMA_KAPALI");
       const on = watchable && watching().has(b.course);
-      return `<div class="blockitem"><b class="mono">${esc(b.course)}</b> ${esc(b.detail)}
+      /* İki ikinci program varsa hangisine ait olduğu YAZIYOR — ayrımsız
+         liste "hangi program yüzünden takıldım" sorusunu cevapsız bırakırdı. */
+      const etiket = SECONDS().length > 1 && b.label
+        ? `<span class="tag ${b.role === "YANDAL" ? "YANDAL" : "CAP"}"
+             style="margin-left:6px">${esc(b.label)}</span>` : "";
+      return `<div class="blockitem"><b class="mono">${esc(b.course)}</b>${etiket}
+        ${esc(b.detail)}
         ${watchable ? `<button class="watchmini" data-course="${esc(b.course)}"
           style="margin-left:6px;font-size:10.5px;letter-spacing:.05em;
           text-transform:uppercase;border:1px solid currentColor;padding:1px 6px;
@@ -3016,9 +3305,9 @@ $("#blockSection").hidden = !DATA.blockers.length;
    çizgiyle göstermek "bu ÇAP dersi şu ÇAP dersine bağlı" izlenimi verirdi. */
 let tierFocus = null;
 
-function tierGraph(){
+function tierGraph(tiers){
   const needs = {}, opens = {};
-  DATA.tiers.forEach(t => t.courses.forEach(c => {
+  tiers.forEach(t => t.courses.forEach(c => {
     needs[c.course] = c.needs || [];
     opens[c.course] = c.opens || [];
   }));
@@ -3026,8 +3315,8 @@ function tierGraph(){
 }
 
 /* Zincir = seçilen dersin bütün ataları + bütün torunları. */
-function tierChain(code){
-  const g = tierGraph(), out = new Set([code]);
+function tierChain(tiers, code){
+  const g = tierGraph(tiers), out = new Set([code]);
   const walk = (node, map) => (map[node] || []).forEach(n => {
     if (!out.has(n)) { out.add(n); walk(n, map); }
   });
@@ -3036,14 +3325,32 @@ function tierChain(code){
 }
 
 function renderTiers(){
-  const stage = $("#tierStage");
-  if (!stage) return;
+  const wrap = $("#tierGroups");
+  if (!wrap) return;
   tierFocus = null;                     /* veri değiştiyse eski seçim geçersiz */
-  if (!DATA.tiers.length){
-    stage.innerHTML = `<div class="empty">kademe verisi yok</div>`;
-    $("#tierFoot").textContent = ""; return;
+  const gruplar = (DATA.tierGroups || []).filter(g => (g.tiers || []).length);
+  if (!gruplar.length){
+    wrap.innerHTML = `<div class="empty">kademe verisi yok</div>`;
+    return;
   }
-  const cols = DATA.tiers.map(t => `
+  /* ★ Her programın KENDİ sahnesi. Tek sahnede birleştirseydik iki ayrı
+     programın zincirleri birbirine bağlıymış gibi görünürdü. */
+  wrap.innerHTML = gruplar.map((g, i) => `
+    <section class="tiergroup" data-g="${i}">
+      ${gruplar.length > 1 ? `<h3><span class="tag ${g.role === "ANADAL" ? "ANADAL" : "CAP"}"
+        >${esc(g.label || g.role)}</span> ${esc(g.program || "")}</h3>` : ""}
+      <div class="tiers"><div class="tierstage" id="tierStage${i}">
+        <svg class="tierlinks" id="tierLinks${i}" aria-hidden="true"></svg>
+      </div></div>
+      <div class="tierfoot" id="tierFoot${i}"></div>
+    </section>`).join("");
+  gruplar.forEach((g, i) => renderTierGroup(g, i));
+  requestAnimationFrame(drawTierLinks);
+}
+
+function renderTierGroup(grup, i){
+  const stage = $("#tierStage" + i);
+  const cols = grup.tiers.map(t => `
     <div class="tier">
       <h3>Kademe ${t.tier} · ${t.courses.reduce((a,c)=>a+c.credits,0)} kredi</h3>
       <ul>${t.courses.map(c => `<li data-s="${c.status}" data-c="${esc(c.course)}"
@@ -3056,7 +3363,7 @@ function renderTiers(){
             ? `<span class="dep out">dışarıdan: ${c.outside.map(esc).join(", ")}</span>` : ""}
       </li>`).join("")}</ul>
     </div>`).join("");
-  stage.innerHTML = `<svg class="tierlinks" id="tierLinks" aria-hidden="true"></svg>` + cols;
+  stage.innerHTML = `<svg class="tierlinks" id="tierLinks${i}" aria-hidden="true"></svg>` + cols;
 
   stage.querySelectorAll(".tier li").forEach(li => li.addEventListener("click", () => {
     const code = li.dataset.c;
@@ -3064,20 +3371,23 @@ function renderTiers(){
     paintTierFocus();
   }));
 
-  const bagli = DATA.tiers.reduce((a,t) =>
+  const bagli = grup.tiers.reduce((a,t) =>
     a + t.courses.filter(c => (c.needs||[]).length).length, 0);
   const disari = new Set();
-  DATA.tiers.forEach(t => t.courses.forEach(c => (c.outside||[]).forEach(x => disari.add(x))));
-  $("#tierFoot").innerHTML =
+  grup.tiers.forEach(t => t.courses.forEach(c => (c.outside||[]).forEach(x => disari.add(x))));
+  $("#tierFoot" + i).innerHTML =
     `${bagli} ders plan içinden bir önşarta bağlı` +
     (disari.size ? ` · ${disari.size} önşart plan DIŞINDAN geliyor (anadalda almış olabilirsin)` : "") +
     ` · kademe 0 = hemen alınabilir.`;
-
-  requestAnimationFrame(drawTierLinks);
 }
 
 function drawTierLinks(){
-  const stage = $("#tierStage"), svg = $("#tierLinks");
+  (DATA.tierGroups || []).forEach((g, i) => drawTierGroupLinks(g, i));
+  paintTierFocus();
+}
+
+function drawTierGroupLinks(grup, i){
+  const stage = $("#tierStage" + i), svg = $("#tierLinks" + i);
   if (!stage || !svg) return;
   const box = stage.getBoundingClientRect();
   const at = {};
@@ -3089,7 +3399,7 @@ function drawTierLinks(){
   svg.setAttribute("width", stage.scrollWidth);
   svg.setAttribute("height", stage.scrollHeight);
   const paths = [];
-  DATA.tiers.forEach(t => t.courses.forEach(c => (c.needs||[]).forEach(dep => {
+  (grup.tiers || []).forEach(t => t.courses.forEach(c => (c.needs||[]).forEach(dep => {
     const a = at[dep], b = at[c.course];
     if (!a || !b) return;                       /* ders çizilmemişse çizgi de yok */
     /* Kademeler artık AŞAĞI doğru: çizgi önşartın ALTINDAN çıkıp dersin
@@ -3100,20 +3410,25 @@ function drawTierLinks(){
                       data-a="${esc(dep)}" data-b="${esc(c.course)}"></path>`);
   })));
   svg.innerHTML = paths.join("");
-  paintTierFocus();
 }
 
 function paintTierFocus(){
-  const stage = $("#tierStage");
-  if (!stage) return;
-  const chain = tierFocus ? tierChain(tierFocus) : null;
-  stage.classList.toggle("focus", !!chain);
-  stage.querySelectorAll(".tier li").forEach(li => {
-    li.classList.toggle("on", !!chain && chain.has(li.dataset.c));
-    li.classList.toggle("root", li.dataset.c === tierFocus);
+  (DATA.tierGroups || []).forEach((g, i) => {
+    const stage = $("#tierStage" + i);
+    if (!stage) return;
+    /* Zincir GRUBUN KENDİ grafından: iki program arasında önşart bağı yok,
+       birinde seçilen ders öbürünü söndürmemeli ama aydınlatmamalı da. */
+    const kendinde = (g.tiers || []).some(t =>
+      t.courses.some(c => c.course === tierFocus));
+    const chain = (tierFocus && kendinde) ? tierChain(g.tiers, tierFocus) : null;
+    stage.classList.toggle("focus", !!chain);
+    stage.querySelectorAll(".tier li").forEach(li => {
+      li.classList.toggle("on", !!chain && chain.has(li.dataset.c));
+      li.classList.toggle("root", li.dataset.c === tierFocus);
+    });
+    stage.querySelectorAll(".tierlinks path").forEach(p => p.classList.toggle(
+      "on", !!chain && chain.has(p.dataset.a) && chain.has(p.dataset.b)));
   });
-  stage.querySelectorAll(".tierlinks path").forEach(p => p.classList.toggle(
-    "on", !!chain && chain.has(p.dataset.a) && chain.has(p.dataset.b)));
 }
 
 addEventListener("resize", () => requestAnimationFrame(drawTierLinks));

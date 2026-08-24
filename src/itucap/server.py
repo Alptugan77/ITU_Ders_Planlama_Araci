@@ -102,12 +102,24 @@ class State:
         from .plans import resolve_plans as _resolve_plans
         return _resolve_plans(self.con, self.settings())
 
+    def second_plan_ids(self) -> dict[str, int | None]:
+        """{'cap': id|None, 'yandal': id|None} — ikisi AYNI ANDA olabilir."""
+        from .plans import resolve_seconds as _resolve_seconds
+        return {s["kind"]: s["planId"]
+                for s in _resolve_seconds(self.con, self.settings())}
+
     def snapshot(self) -> dict:
         settings = self.settings()
-        anadal_id, second_id = self.plan_ids()
+        from .plans import anadal_plan as _anadal_plan
+        anadal_id = _anadal_plan(self.con, settings)
+        from .plans import resolve_seconds as _resolve_seconds
+        ikinci = _resolve_seconds(self.con, settings)
+        # ★ İkinci programları AÇIKÇA veriyoruz. `cap_id` konumsalı tarihsel
+        # bir isim (içinde yandal planı da olabiliyor) ve iki program birden
+        # gelince belirsizleşiyor — liste o belirsizliği ortadan kaldırıyor.
         data = UI.collect(self.con, self.ucon, self.student_id, settings,
-                          anadal_id, second_id, max_load=self.max_load,
-                          n_schedules=self.n_schedules)
+                          anadal_id, None, max_load=self.max_load,
+                          n_schedules=self.n_schedules, seconds=ikinci)
         data["live"] = True
         data["token"] = self.token
         data["setup"] = self.setup()
@@ -166,6 +178,8 @@ class State:
                            b.get("capBaslangic")
                            if b.get("capBaslangic") is not None else None)
             return {}
+        if path == "/api/crn":
+            return {"crn": self.resolve_crns(b.get("crns") or [])}
         if path == "/api/watch":
             return self.toggle_watch(str(b.get("course") or ""))
         if path == "/api/mesgul":
@@ -185,6 +199,12 @@ class State:
         extra = self._route(path, body)
         if extra is None:
             return None
+        # ★★ Yazdıktan sonra ANA DOSYAYI eksiksiz bırak (23.08.2026).
+        # Tarayıcı sürümü kalıcılığı `user.sqlite3` dosyasını KOPYALAYARAK
+        # sağlıyor; WAL kipinde veri yan dosyada kalıyordu ve kopyalanan ana
+        # dosya boş çıkıyordu. Kip artık tarayıcıda TRUNCATE ama bu çağrı
+        # kuşak farkı olan (eskiden WAL açılmış) veritabanlarını da kurtarıyor.
+        db.checkpoint(self.ucon)
         return {**extra, **self.snapshot()}
 
     def setup(self) -> dict:
@@ -197,6 +217,10 @@ class State:
             "secondKind": settings.second_kind,
             "secondProgram": settings.second_program,
             "secondPlanId": second_id,
+            # ★ Her tür için AYRI seçim — 'ikisi' seçilince iki kutu birden.
+            "secondChoice": {k: {"program": settings.program_of(k),
+                                 "planId": settings.plan_id_of(k)}
+                             for k in ("cap", "yandal")},
             "programCodes": sorted(settings.allowed_programs),
             "donem": settings.donem,
             # ÇAP'a başlanan yarıyıl — ikinci anadal kredi tabanını
@@ -369,13 +393,21 @@ class State:
         values["anadal_program"] = anadal
         if body.get("anadalPlanId"):
             values["anadal_plan_id"] = int(body["anadalPlanId"])
-        if kind != "yok":
-            second = _clean_code(body.get("secondProgram"))
-            if not second:
-                raise ValueError("ikinci programın kodu boş olamaz")
-            values[f"{kind}_program"] = second
-            if body.get("secondPlanId"):
-                values[f"{kind}_plan_id"] = int(body["secondPlanId"])
+        # ★ 'ikisi' seçilirse İKİ program da geliyor: {cap: {...}, yandal: {...}}.
+        # Tek program seçimlerinde eski gövde biçimi (secondProgram) hâlâ
+        # geçerli — statik site ve eski çağrılar bozulmasın.
+        istenen = config.SECOND_CHOICES.get(kind, ())
+        gelen = body.get("secondPrograms") or {}
+        for k in istenen:
+            kod = _clean_code((gelen.get(k) or {}).get("program")
+                              if gelen else body.get("secondProgram"))
+            if not kod:
+                raise ValueError(f"{k} programının kodu boş olamaz")
+            values[f"{k}_program"] = kod
+            plan_id = ((gelen.get(k) or {}).get("planId") if gelen
+                       else body.get("secondPlanId"))
+            if plan_id:
+                values[f"{k}_plan_id"] = int(plan_id)
         codes = [_clean_code(c) for c in (body.get("programCodes") or [])]
         codes = [c for c in codes if c]
         if codes:
@@ -509,6 +541,78 @@ class State:
     def restore_backup(self, name: str) -> int:
         return S.restore(self.ucon, self.student_id, str(name))
 
+    # ------------------------------------------------------- CRN çözümleme
+    # ★ Kullanıcı isteği 23.08.2026: "CRN ile program yükleme olursa iyi olur".
+    # OBS'de kaydını yaptıktan sonra CRN'leri yapıştırıp GERÇEK programını
+    # görebilmek için.
+    #
+    # ⚠️ Bu bir OKUMA ama yazma yolundan geçiyor. Sebep: iki taşıyıcı
+    # (yerel sunucu + tarayıcıdaki Pyodide) yalnız `dispatch`i paylaşıyor;
+    # ayrı bir okuma yolu açmak, web sürümünün onu KOPYALAMASI demek olurdu
+    # ve iki kopya zamanla ayrışırdı (bkz. `_route` başlığı).
+    def resolve_crns(self, crns) -> dict:
+        """CRN listesini şubelere çevirir.
+
+        Bulunamayanı SESSİZCE ATMIYORUZ: kullanıcı 8 CRN yapıştırıp 6 ders
+        görürse hangi ikisinin düştüğünü bilmeli — yanlış derse kayıt olmuş
+        sanmaktan iyidir.
+        """
+        temiz, gorulen = [], set()
+        for raw in crns:
+            kod = re.sub(r"\D", "", str(raw or ""))
+            if kod and kod not in gorulen:
+                gorulen.add(kod)
+                temiz.append(kod)
+        if not temiz:
+            return {"found": [], "missing": []}
+        marks = ",".join("?" * len(temiz))
+        satirlar = {r["crn"]: r for r in self.con.execute(
+            f"""SELECT l.crn, l.course_code, COALESCE(c.name,'') AS name,
+                       COALESCE(c.credits,0) AS credits, COALESCE(c.ects,0) AS ects,
+                       l.capacity, l.enrolled
+                FROM lesson l LEFT JOIN course c ON c.code = l.course_code
+                WHERE l.crn IN ({marks})""", temiz)}
+        from .plans import anadal_plan as _anadal_plan
+        from .plans import resolve_seconds as _resolve_seconds
+
+        settings = self.settings()
+        rol_of: dict[str, str] = {}
+        for plan_id, rol in ((_anadal_plan(self.con, settings), "ANADAL"),
+                             *((s["planId"], s["role"])
+                               for s in _resolve_seconds(self.con, settings))):
+            if plan_id:
+                for kod in self._plan_codes(plan_id):
+                    rol_of.setdefault(kod, rol)
+
+        found = []
+        for crn in temiz:
+            row = satirlar.get(crn)
+            if row is None:
+                continue
+            found.append({
+                "crn": crn, "course": row["course_code"], "name": row["name"],
+                "credits": float(row["credits"] or 0), "ects": float(row["ects"] or 0),
+                "capacity": row["capacity"] or 0, "enrolled": row["enrolled"] or 0,
+                # ★ Planlarında OLMAYAN ders de gösteriliyor ('PLAN DIŞI').
+                # Gizleseydik kullanıcı gerçek programını göremezdi; serbest
+                # seçmeli ya da başka bir ders de kayıtta olabiliyor.
+                "role": rol_of.get(row["course_code"], "PLAN_DISI"),
+                "meetings": [dict(m) for m in self.con.execute(
+                    """SELECT lm.day_of_week AS day, lm.start_min AS start,
+                              lm.end_min AS end, lm.building, b.campus
+                       FROM lesson_meeting lm
+                       LEFT JOIN building b ON b.code = lm.building
+                       WHERE lm.crn=? ORDER BY lm.day_of_week, lm.start_min""",
+                    (crn,))],
+            })
+        return {"found": found,
+                "missing": [c for c in temiz if c not in satirlar]}
+
+    def _plan_codes(self, plan_id: int) -> set[str]:
+        from . import rules as R
+
+        return R.plan_codes(self.con, plan_id, pools=True)
+
     def save_max_load(self, value: float) -> float:
         """Dönem kredi tavanını değiştirir (yönetmeliğe uydurmak için)."""
         value = float(value)
@@ -592,16 +696,23 @@ class State:
 
         Eski kayıtlar silinmezse ilerleme paneli kapatılmış bir programı
         göstermeye devam ederdi."""
+        from .plans import anadal_plan as _anadal_plan
+        from .plans import resolve_seconds as _resolve_seconds
+
         settings = self.settings()
-        anadal_id, second_id = self.plan_ids()
         self.ucon.execute("DELETE FROM student_enrollment WHERE student_id=?",
                           (self.student_id,))
+        anadal_id = _anadal_plan(self.con, settings)
         if anadal_id:
             S.enroll(self.ucon, self.student_id, anadal_id, "ANADAL",
                      settings.anadal_program)
-        if second_id and settings.second_role:
-            S.enroll(self.ucon, self.student_id, second_id, settings.second_role,
-                     settings.second_program)
+        # ★ ÇAP ve yandal AYNI ANDA: `enrollment` tablosu baştan beri rol
+        # taşıyordu ve birden çok kayıt tutabiliyordu; tek kaydı yazan biz
+        # kısıtlıyorduk.
+        for s in _resolve_seconds(self.con, settings):
+            if s["planId"] and s["role"]:
+                S.enroll(self.ucon, self.student_id, s["planId"], s["role"],
+                         s["program"])
         self.ucon.commit()
 
 

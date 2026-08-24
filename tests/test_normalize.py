@@ -18,10 +18,61 @@ def test_pool_label(raw, cat, term):
     assert N.normalize_pool_label(raw) == (cat, term)
 
 
-def test_unmatched_is_logged():
+def test_cozulemeyen_etiket_kaydediliyor():
+    """★ 23.08.2026 — İKİ AYRI LİSTE, çünkü iki ayrı şey.
+
+    'Selective' kaynakta kategori TAŞIMIYOR: düzeltilecek bir şey yok,
+    kategori uydurmak veri uydurmak olurdu.
+    'Seçmeli MT Ders' ise kategori taşıyor ama yerleştiremedik — BİZİM
+    eksiğimiz. İkisini tek listede toplamak, düzeltilebilir olanı
+    düzeltilemezlerin içinde görünmez kılıyordu."""
     N.unmatched_labels.clear()
+    N.uncategorised_labels.clear()
     N.normalize_pool_label("Selective")
-    assert "Selective" in N.unmatched_labels  # sessizce yutulmuyor
+    assert N.uncategorised_labels == ["Selective"]
+    assert N.unmatched_labels == []
+
+    N.normalize_pool_label("Seçmeli MT Ders")           # kategori var, çözülemedi
+    assert N.unmatched_labels == ["Seçmeli MT Ders"]
+
+
+@pytest.mark.parametrize("raw,cat", [
+    # ★ 23.08.2026'da 1400 gerçek etikette ölçülen biçimler (45 kazanç, 0 kayıp)
+    ("MT Seçim Dersi", "MT"),                       # başta
+    ("MT Seçim Dersi 2 (E)", "MT"),                 # başta + arap sıra + parantez
+    ("Seçime Bağlı Ders MT VI", "MT"),              # roma V'in ötesi
+    ("Seçime Bağlı Ders MT 1", "MT"),               # arap sıra
+    ("8th Semester Elective CrseI-MT", "MT"),       # tireyle sonda
+    ("6.yy Zorunlu Seçmeli Ders III (MT-Tasarım)", "MT"),   # parantezde son ek
+    ("3rd Semester Elect. Course-ITB", "ITB"),
+])
+def test_kategori_bicimleri(raw, cat):
+    assert N.normalize_pool_label(raw)[0] == cat
+
+
+@pytest.mark.parametrize("raw", [
+    "Intr. to Sci & Eng Comp.",          # ★ 'Eng' bir DERS ADI parçası
+    "Intro. to Scientific&Eng.Comp.",
+    "Selective", "Temel Meslek VI", "Stüdyo IV",
+])
+def test_ders_adindaki_kelime_kategori_SANILMIYOR(raw):
+    """★ Harf duyarsız arasaydık 48 slotu yanlışlıkla ENG diye etiketlerdik.
+    Kategori kodları kaynakta her zaman BÜYÜK HARF."""
+    assert N.normalize_pool_label(raw)[0] == "OTHER"
+
+
+@pytest.mark.parametrize("raw,alt,ust", [
+    ("2 / 2,5 / 3", 2.0, 3.0),
+    ("3", 3.0, 3.0),
+    ("4,5", 4.5, 4.5),
+    ("", None, None),
+    ("—", None, None),
+])
+def test_kredi_araligi(raw, alt, ust):
+    """★ Aralıktan TEK SAYI seçmiyoruz — ortalama ya da en küçüğü almak,
+    kaynakta olmayan bir sayı uydurmak olurdu ve o sayı kredi tavanına,
+    yarıyıl tabanına, ilerleme yüzdesine akardı."""
+    assert N.parse_credit_range(raw) == (alt, ust)
 
 
 @pytest.mark.parametrize("raw,out", [

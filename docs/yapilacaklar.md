@@ -1,6 +1,6 @@
 # Yapılacaklar
 
-Faz 1–20 bitti (575 test). Depo GitHub'a hazır; statik site yayında. Bu liste **sonrası** için: ne kaldı, neden önemli,
+Faz 1–23 bitti (656 test). Depo GitHub'a hazır; statik site yayında. Bu liste **sonrası** için: ne kaldı, neden önemli,
 ne kadar iş, neye bağlı.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
@@ -26,6 +26,12 @@ ne kadar iş, neye bağlı.
 > **Faz 20'de kapananlar:** başlıkta ÇAP yok ✅ · üst çubuk opak ✅ ·
 > kademeler aşağı doğru ✅ · kaydedilen program en üstte ✅ · kredi tavanı
 > GNO'dan otomatik ✅ · planı olmayan bölüm listede yok ✅ · BLG/BLGE tek ✅
+> **Faz 21'de kapananlar:** ÇAP ve yandal AYNI ANDA ✅ (1.6) · eşikler kapsam
+> taşıyor ✅ · yarıyıl tabanı yalnız ÇAP'ta ✅ · yandala ayrı renk ✅
+> **Faz 22'de kapananlar:** ★ veri kaybı (WAL) ✅ · CRN'den program yükleme ✅ ·
+> yarıyıl tabanı motorun puanlamasında ✅ (1.4)
+> **Faz 23'te kapananlar:** kategori etiketleri 1236→26 ✅ · kredi ARALIK
+> olarak saklanıyor ✅ · boş havuzun sebebi yazıyor ✅ (§3)
 
 Sıralama tahmine değil, iki ölçüte dayanıyor: (a) kayıt gününde işe yarar mı,
 (b) yanlış cevap verme riski taşıyor mu. İkisi de "hayır" olan iş listede
@@ -77,48 +83,14 @@ işaretle (✓ / ✗ / **—** buradan bakılamaz), programlar kalan işe göre 
 doldurur ve ekran anlamlı hâle gelir. Lisans planından tahmin **bilerek
 yapılmıyor** — ÇAP planı lisansın küçük bir alt kümesi.
 
-### 1.4 Yarıyıl tabanını öneri motoruna sok · M
-**Neden:** Faz 13'te ikinci anadal yarıyıl tabanı (3'te başlayan 6, 5'te
-başlayan 9 kredi) eklendi ama motor bunu bir **uyarı** olarak gösteriyor,
-puanlamaya katmıyor. Gerçek veride önerilen program ikinci anadaldan 4 kredi
-içeriyordu — taban 9. Yani motor, kabul edilemez bir programı en iyi program
-diye öneriyor.
+### 1.4 ~~Yarıyıl tabanını öneri motoruna sok~~ · ✅ **Faz 22'de kapandı**
+`build_schedules(..., floors={"CAP": 9})`. Tabanı karşılayan program öne
+geçiyor, karşılamayan **elenmiyor** (taban indirilebiliyor, ayrıca o dönem
+açılan ders yetmiyor olabilir), her önerinin yanında `floorGaps` var ve hiçbiri
+karşılamıyorsa arayüz bunu açıkça söylüyor.
 
-**Ne:** `recommend.py` puanlamasına "ikinci anadal kredisi tabanın altındaysa
-ağır ceza" ekle; tabanı karşılayan program bulunamıyorsa bunu açıkça söyle
-(*"bu dönem açık ÇAP derslerinden tabanı karşılayan çakışmasız program yok —
-indirim talebi gerekebilir"*). Sert kısıt YAPMA: taban indirilebiliyor,
-imkânsız görünen durum aslında çözülebilir olabilir.
-
-### 1.5 ~~Yandal planlarını çek~~ · ✅ **Faz 16'da çözüldü**
-Sorun OBS'de değil bizdeydi. Yandal programları lisans bölümlerinden bağımsız,
-fakülte düzeyinde tanımlı ve kodları farklı: `ECN_YD`, `BHB_YD`, `SUS_YD`.
-Tarayıcı `f"{program}_LS"` tahmin ediyordu — yanlış soru.
-
-Kademeli menü (fakülte + plan tipi) doğru kodları veriyor. O adım "atlanabilir"
-diye işaretliydi ve hiç çağrılmamıştı; içindeki parametre adı da yanlıştı
-(`akademikBirimId`, doğrusu **`birimId`**). Kullanılmayan yol, test edilmemiş
-yoldur.
-
-```bash
-make kesif T=yandal ARGS=--planlar   # tanı
-make all-plans                       # artık yandalı da çekiyor
-```
-
-**Kalan:** `make all-plans` bir kez çalıştırılıp katalog yeniden yayınlanmalı.
-
-### 1.6 ÇAP ve yandal AYNI ANDA · L
-**Neden:** Kullanıcı 23.08.2026'da söyledi — ikisi birlikte alınabiliyor. Araç
-bugün `second_program` / `second_kind` / `second_role` ile **tek** ikinci
-program varsayıyor.
-
-**İyi haber:** veritabanı hazır. `enrollment` rol taşıyor, birden çok kayıt
-tutulabiliyor. Değişmesi gereken üst katman: `ui.collect()` iki plan kimliği
-alıyor, paneller ikili, eşikler tek "ikinci program" üzerinden hesaplanıyor.
-
-**Dikkat:** ÇAP'ın kendi ortalaması (Madde 18) ile yandalın yükü (Madde 22)
-FARKLI maddelerden geliyor. Tek kutuya sıkıştırılırsa biri öbürünün kuralıyla
-değerlendirilir — bu araçtaki en pahalı hata türü.
+Gerçek veride ölçüldü: taban 9 iken en iyi programda **4 ÇAP kredisi** vardı —
+artık bu yazıyor.
 
 ## 2. Motorun bir sonraki sıçraması
 
@@ -161,10 +133,10 @@ her biri motorun bir köşesini kör bırakıyor.
 |---|---|---|
 | ~~**2 çözülemeyen önşart**~~ · ✅ **Faz 12** — ikisi de önşart değilmiş (katalogda ders adı / dil yazılmış); `[[onsart_beyani]]` ile kapandı | 0 çözülemeyen önşart kaldı | — |
 | **275 önşart hedefi katalogda yok** — kapatılmış dersler; "sağlanamaz" mı "yok say" mı karar ver | yanlış tarafa kararsa ders elenir ya da yanlışlıkla açılır | M |
-| **254 havuz etiketi `OTHER`** — kategori eşlemesi | ilerleme panelindeki kategori sayaçları eksik | M |
+| ~~**havuz etiketi `OTHER`**~~ · ✅ **Faz 23** — ölçüldü: 1236 slotun 1210'unda kaynakta kategori YOK, düzeltilebilir olan 26. Uyarı ikiye ayrıldı | kategori sayaçlarındaki boşluk artık açıklanıyor | — |
 | **1396 havuz seçeneğinin ders karşılığı yok** | seçmeli havuzda görünmeyen alternatifler | M |
 | ~~**85 ÇAP planında 435 satır kayıp**~~ · ✅ **Faz 17** — iki dilli kod hücresi; `dropped_plan_rows` kontrolü artık kalıcı bekçi | plan "5 ders" görünüyordu | — |
-| **43 boş seçmeli havuz** (11'i grupId'li = parse hatası) — `--all-programs` sonrası ortaya çıktı. ⚠️ Bir kısmı Faz 17'deki "adı belli ama Z/S=S" hatası olabilir; **yeniden taramadan sonra tekrar say** | başka bölümlerin havuzları; seni etkiliyorsa `make plan-info` ile bak | M |
+| **13 boş seçmeli havuz** — Faz 23'te sebep ayrıştırıldı (`pool_status`): OBS'nin tablosuz sayfa döndürdükleri bizim hatamız değil. Yeniden taramadan sonra gerçek parse hatası kalırsa o bakılır | başka bölümlerin havuzları | S |
 | ~~**`plan_host_program` boş**~~ · ✅ **Faz 19** — yandal sayfalarında tablonun `id` niteliği yoktu, başlıktan tanınıyor | ÇAP planının doğru plan olduğu doğrulanabiliyor | — |
 | **Resmi denklik yok** (D3) — bu çiftte OBS'de yayınlanmamış | Faz 10 keşfi ad+krediden aday üretiyor; resmi kaynak hâlâ boş | — · **OBS'ye bağlı** |
 
@@ -230,7 +202,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 575 test + gizlilik denetimi. Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 656 test + gizlilik denetimi. Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` dönemde bir kez yeter — 128 program, ~1081 plan, dakikalar
   sürüyor. Program değiştirmeyi düşünmüyorsan gerekmez.

@@ -30,6 +30,7 @@ from .. import config, db
 from ..normalize import (
     CATEGORIES,
     course_codes_in,
+    parse_credit_range,
     normalize_course_code,
     normalize_pool_label,
     obs_code_to_program,
@@ -358,7 +359,12 @@ def _slot_from_row(con, plan_id: int, cells, texts: list[str], term_no: int | No
                    position: int) -> int:
     title = texts[1] if len(texts) > 1 else ""
     kind_col = texts[3] if len(texts) > 3 else ""
-    credits = _num(texts[4]) if len(texts) > 4 else None
+    credits_raw = texts[4] if len(texts) > 4 else None
+    # ★ Kredi ARALIK olabiliyor ("2 / 2,5 / 3"): havuzdan hangi dersi seçtiğine
+    # bağlı. Aralıktan tek sayı seçmek uydurma olurdu; `credits` yalnız TEK
+    # değerde dolu, aralık `credits_min/max` ile duruyor.
+    kr_min, kr_max = parse_credit_range(credits_raw or "")
+    credits = kr_min if (kr_min is not None and kr_min == kr_max) else None
     ects_raw = texts[5] if len(texts) > 5 else None
     type_raw = texts[9] if len(texts) > 9 else (texts[-1] if texts else None)
 
@@ -388,11 +394,11 @@ def _slot_from_row(con, plan_id: int, cells, texts: list[str], term_no: int | No
             category, _ = normalize_pool_label(title)
         con.execute(
             """INSERT INTO plan_slot(plan_id,term_no,slot_kind,pool_label_raw,pool_category,
-                                     pool_group_id,credits,ects_raw,ects,type_raw,zs_raw,
-                                     position)
-               VALUES (?,?,'ELECTIVE_POOL',?,?,?,?,?,?,?,?,?)""",
-            (plan_id, term_no, title, category, group_id, credits, ects_raw, ects,
-             type_raw, kind_col or None, position),
+                                     pool_group_id,credits,credits_raw,credits_min,
+                                     credits_max,ects_raw,ects,type_raw,zs_raw,position)
+               VALUES (?,?,'ELECTIVE_POOL',?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (plan_id, term_no, title, category, group_id, credits, credits_raw,
+             kr_min, kr_max, ects_raw, ects, type_raw, kind_col or None, position),
         )
         return 1
 
@@ -406,10 +412,11 @@ def _slot_from_row(con, plan_id: int, cells, texts: list[str], term_no: int | No
             category, _ = normalize_pool_label(title)
         cur = con.execute(
             """INSERT INTO plan_slot(plan_id,term_no,slot_kind,pool_label_raw,pool_category,
-                                     credits,ects_raw,ects,type_raw,zs_raw,position)
-               VALUES (?,?,'ELECTIVE_POOL',?,?,?,?,?,?,?,?)""",
-            (plan_id, term_no, title or codes[0], category, credits, ects_raw, ects,
-             type_raw, kind_col or None, position),
+                                     credits,credits_raw,credits_min,credits_max,
+                                     ects_raw,ects,type_raw,zs_raw,position)
+               VALUES (?,?,'ELECTIVE_POOL',?,?,?,?,?,?,?,?,?,?,?)""",
+            (plan_id, term_no, title or codes[0], category, credits, credits_raw,
+             kr_min, kr_max, ects_raw, ects, type_raw, kind_col or None, position),
         )
         for code in codes:
             con.execute("INSERT OR IGNORE INTO pool_option(slot_id,course_code) VALUES (?,?)",
@@ -418,10 +425,12 @@ def _slot_from_row(con, plan_id: int, cells, texts: list[str], term_no: int | No
 
     con.execute(
         """INSERT INTO plan_slot(plan_id,term_no,slot_kind,course_code,alt_course_codes,
-                                 credits,ects_raw,ects,type_raw,zs_raw,position)
-           VALUES (?,?,'REQUIRED',?,?,?,?,?,?,?,?)""",
+                                 credits,credits_raw,credits_min,credits_max,
+                                 ects_raw,ects,type_raw,zs_raw,position)
+           VALUES (?,?,'REQUIRED',?,?,?,?,?,?,?,?,?,?,?)""",
         (plan_id, term_no, codes[0], ",".join(codes[1:]) or None,
-         credits, ects_raw, ects, type_raw, kind_col or None, position),
+         credits, credits_raw, kr_min, kr_max, ects_raw, ects,
+         type_raw, kind_col or None, position),
     )
     return 1
 
@@ -452,7 +461,21 @@ def _pool_code(cell) -> str | None:
 
 
 def fetch_pool_options(client, con: sqlite3.Connection, plan_id: int) -> int:
-    """Seçmeli havuzların içeriğini _DersGrupSearch partial view'ından çeker."""
+    """Seçmeli havuzların içeriğini _DersGrupSearch partial view'ından çeker.
+
+    ★ 23.08.2026 — SONUCU KAYDEDİYORUZ (`pool_status`). Boş bir havuzun iki
+    ayrı sebebi olabiliyor ve kalite raporu bugüne kadar ikisini de "PARSE
+    HATASI" diye gösteriyordu:
+
+        'no_table' — OBS sayfayı ders tablosu OLMADAN döndürdü (ölçüldü:
+                     grup 11083'ün arşivlenmiş cevabında hiç <table> yok).
+                     Bizim hatamız DEĞİL.
+        'no_codes' — tablo var ama içinden ders kodu çıkaramadık.
+                     BİZİM hatamız, düzeltilebilir.
+
+    İkisini ayırmadan "yapı değişmiş olabilir" demek, kaynağın eksiğini
+    kendi hatamız gibi göstermekti — ve tersi de olabilirdi.
+    """
     total = 0
     rows = con.execute(
         "SELECT id, pool_group_id FROM plan_slot WHERE plan_id=? AND pool_group_id IS NOT NULL",
@@ -460,7 +483,9 @@ def fetch_pool_options(client, con: sqlite3.Connection, plan_id: int) -> int:
     ).fetchall()
     for row in rows:
         tree = HTMLParser(client.get(config.EP["pool_group"], {"grupId": row["pool_group_id"]}))
-        for tr in tree.css("table tr"):
+        satirlar = tree.css("table tr")
+        n = 0
+        for tr in satirlar:
             cells = tr.css("td")
             if not cells:
                 continue
@@ -470,7 +495,10 @@ def fetch_pool_options(client, con: sqlite3.Connection, plan_id: int) -> int:
                     "INSERT OR IGNORE INTO pool_option(slot_id,course_code) VALUES (?,?)",
                     (row["id"], code),
                 )
-                total += 1
+                n += 1
+        total += n
+        durum = "ok" if n else ("no_codes" if satirlar else "no_table")
+        con.execute("UPDATE plan_slot SET pool_status=? WHERE id=?", (durum, row["id"]))
     con.commit()
     return total
 

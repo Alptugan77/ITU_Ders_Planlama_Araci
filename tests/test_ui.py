@@ -423,7 +423,10 @@ def test_second_program_label_travels(dbs):
     assert [p["role"] for p in data["panels"]] == ["ANADAL", "YANDAL"]
     html = UI.render(data)
     assert 'data-role="YANDAL"' not in html or True     # rol JS'te uygulanıyor
-    assert '.tag.CAP,.tag.YANDAL' in html               # stil ikisini de tanıyor
+    # ★ 23.08.2026: ÇAP ve yandal aynı anda olabildiği için AYRI renkleri var.
+    # Aynı rengi paylaşsalardı panelde ve ızgarada ayırt edilemezlerdi.
+    assert ".tag.CAP{" in html and ".tag.YANDAL{" in html
+    assert "--yandal:" in html
 
 
 def test_projection_and_mode_hooks_exist(dbs):

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
+import sys
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,6 +26,10 @@ ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("plan_slot", "alt_course_codes", "TEXT"),
     ("plan_slot", "zs_raw", "TEXT"),
     ("plan", "declared_credits", "REAL"),
+    ("plan_slot", "credits_raw", "TEXT"),
+    ("plan_slot", "credits_min", "REAL"),
+    ("plan_slot", "credits_max", "REAL"),
+    ("plan_slot", "pool_status", "TEXT"),
 ]
 
 
@@ -44,6 +49,36 @@ def _migrate(con: sqlite3.Connection) -> list[str]:
     return applied
 
 
+# ★★ 23.08.2026 — VERİ KAYBI HATASI. Tarayıcı sürümünde transkript ve
+# kaydedilen program her yenilemede kayboluyordu; yalnız `settings.toml`
+# kalıyordu.
+#
+# Sebep WAL: SQLite yazdığını `user.sqlite3-wal` yan dosyasına koyuyor ve ana
+# dosyaya ancak bir "checkpoint"te aktarıyor. Ölçtük — 37 derslik bir
+# veritabanında ana dosya **4096 bayt** (sadece başlık), veri 78KB'lık WAL'da.
+# Site kalıcılık için YALNIZ ana dosyayı IndexedDB'ye yazıyordu; yan dosya
+# sayfa kapanınca yok oluyordu. `settings.toml` düz metin olduğu için
+# etkilenmiyordu — "sadece bölüm ayarları kalıyor" belirtisi tam olarak buydu.
+#
+# WAL yerel sunucu için seçilmişti (ThreadingHTTPServer, eşzamanlı okuma).
+# Tarayıcıda tek iş parçacığı var; WAL hiçbir şey kazandırmıyor, yalnız
+# kaybettiriyor. O yüzden ortama göre seçiyoruz.
+def journal_mode() -> str:
+    """Tarayıcıda (Pyodide/Emscripten) WAL YOK — yan dosya kalıcı olamıyor."""
+    return "TRUNCATE" if sys.platform == "emscripten" else "WAL"
+
+
+def checkpoint(con: sqlite3.Connection) -> None:
+    """WAL'daki her şeyi ANA DOSYAYA aktarır.
+
+    Kalıcılığı dosyayı kopyalayarak sağlayan her ortam (tarayıcı, yedekleme)
+    bunu çağırmak zorunda. WAL kipinde değilse zararsız."""
+    try:
+        con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    except sqlite3.Error:
+        pass                     # WAL değil ya da kilitli — yazılacak bir şey yok
+
+
 def connect(path: Path, schema: str | None = None,
             same_thread: bool = True) -> sqlite3.Connection:
     """SQLite bağlantısı.
@@ -57,7 +92,9 @@ def connect(path: Path, schema: str | None = None,
     con = sqlite3.connect(path, check_same_thread=same_thread)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
-    con.execute("PRAGMA journal_mode = WAL")
+    # Var olan bir WAL veritabanına TRUNCATE demek onu önce checkpoint eder;
+    # yani kip değişimi veri taşımayı da hallediyor.
+    con.execute(f"PRAGMA journal_mode = {journal_mode()}")
     if schema:
         # Önce migrate: schema.sql'deki indeksler yeni sütunlara dokunabiliyor,
         # eski bir veritabanında CREATE INDEX aksi halde patlar.

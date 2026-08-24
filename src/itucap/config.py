@@ -59,6 +59,22 @@ SECOND_KINDS = {
     "yok":    ("",       "",       ""),
 }
 
+# ★ İkinci program SEÇİMİ — ÇAP ve yandal AYNI ANDA alınabiliyor
+# (kullanıcı teyidi 23.08.2026). Bu yüzden `second_kind` artık "hangi tür"
+# değil "hangi türLER" sorusunun cevabı.
+#
+# Neden tek bir alan? `settings.toml` yazıcısı satır bazlı ve yorumları
+# koruyor; skaler ve liste yazabiliyor ama `[[tablo]]` yazamıyor. Tek bir
+# skaler seçim, iki ayrı bayrağın birbiriyle çelişme ihtimalini de ortadan
+# kaldırıyor — bu projede tekrar tekrar canımızı yakan şey iki kaynağın
+# aynı soruya farklı cevap vermesiydi.
+SECOND_CHOICES: dict[str, tuple[str, ...]] = {
+    "cap":    ("cap",),
+    "yandal": ("yandal",),
+    "ikisi":  ("cap", "yandal"),
+    "yok":    (),
+}
+
 
 @dataclass
 class Settings:
@@ -122,37 +138,71 @@ class Settings:
             merged.update(raw.get(section, {}))
         known = {f for f in cls.__dataclass_fields__}
         obj = cls(**{k: v for k, v in merged.items() if k in known})
-        if obj.second_kind not in SECOND_KINDS:
+        if obj.second_kind not in SECOND_CHOICES:
             obj.second_kind = "cap"
         if not obj.program_codes:       # beyan yoksa kendi kodlarına düş
-            obj.program_codes = [c for c in (obj.anadal_program, obj.second_program) if c]
+            obj.program_codes = [c for c in (obj.anadal_program,
+                                             *(s[3] for s in obj.seconds)) if c]
         # ★ İkinci program yandal ise OBS'den yandal planı çekilmeli; kullanıcı
         # scrape_plan_types'ı ayrıca güncellemek zorunda kalmasın.
-        need = SECOND_KINDS[obj.second_kind][2]
-        if need and need not in obj.scrape_plan_types:
-            obj.scrape_plan_types = [*obj.scrape_plan_types, need]
+        for kind in obj.second_kinds:
+            need = SECOND_KINDS[kind][2]
+            if need and need not in obj.scrape_plan_types:
+                obj.scrape_plan_types = [*obj.scrape_plan_types, need]
         return obj
 
     # ------------------------------------------------------- ikinci program
     @property
+    def second_kinds(self) -> tuple[str, ...]:
+        """Etkin ikinci program türleri, sırayla: ('cap',) | ('cap','yandal') | ()
+
+        ★ ÇAP ve yandal aynı anda alınabiliyor. Tekil `second_*` özellikleri
+        BİRİNCİSİNİ döndürüyor ve eski çağrı yerleri için duruyor; iki
+        programın da hesaba katılması gereken yerler bu listeyi kullanmalı.
+        """
+        return SECOND_CHOICES.get(self.second_kind, ("cap",))
+
+    def program_of(self, kind: str) -> str:
+        return ({"cap": self.cap_program, "yandal": self.yandal_program}
+                .get(kind, "") or "")
+
+    def plan_id_of(self, kind: str) -> int | None:
+        return {"cap": self.cap_plan_id, "yandal": self.yandal_plan_id}.get(kind)
+
+    @property
+    def seconds(self) -> list[tuple[str, str, str, str, int | None]]:
+        """[(kind, rol, etiket, program_kodu, plan_id), …] — program kodu OLANLAR.
+
+        ⚠️ Kodu boş olan tür atlanıyor: "ikisi" seçilip yandal kodu
+        girilmemişse ortada bir yandal YOK. Boş kodla devam etmek, olmayan
+        bir programın planını aramak ve "plan bulunamadı" demek olurdu.
+        """
+        out = []
+        for kind in self.second_kinds:
+            code = self.program_of(kind)
+            if not code:
+                continue
+            rol, etiket, _ = SECOND_KINDS[kind]
+            out.append((kind, rol, etiket, code, self.plan_id_of(kind)))
+        return out
+
+    @property
     def second_role(self) -> str:
         """'CAP' | 'YANDAL' | '' — planlarda ve arayüzde kullanılan rol."""
-        return SECOND_KINDS[self.second_kind][0]
+        return SECOND_KINDS[self.second_kinds[0]][0] if self.second_kinds else ""
 
     @property
     def second_label(self) -> str:
         """'ÇAP' | 'Yandal' | '' — insan tarafı."""
-        return SECOND_KINDS[self.second_kind][1]
+        return SECOND_KINDS[self.second_kinds[0]][1] if self.second_kinds else ""
 
     @property
     def second_program(self) -> str:
-        return {"cap": self.cap_program, "yandal": self.yandal_program}.get(
-            self.second_kind, "") or ""
+        return self.program_of(self.second_kinds[0]) if self.second_kinds else ""
 
     @property
     def second_plan_id(self) -> int | None:
-        return {"cap": self.cap_plan_id, "yandal": self.yandal_plan_id}.get(
-            self.second_kind)
+        return self.plan_id_of(self.second_kinds[0]) if self.second_kinds else None
 
     @property
     def allowed_programs(self) -> set[str]:

@@ -155,7 +155,8 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
                anadal_program: str, cap_program: str,
                allowed_programs: Iterable[str] = (), unit: str = "kredi",
                second_role: str = "CAP", max_term: int | None = None,
-               credit_rules: list[POL.CreditRule] | None = None
+               credit_rules: list[POL.CreditRule] | None = None,
+               second_plans: list[tuple[str, int]] | None = None,
                ) -> list[Candidate]:
     """Bu dönem alınabilecek dersler.
 
@@ -179,16 +180,29 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
     rules = POL.load_rules() if credit_rules is None else credit_rules
     have_credits = POL.earned_credits(con, grades)
 
-    cap_steps = SEQ.plan_sequence(con, cap_plan_id, grades) if cap_plan_id else []
+    # ★ ÇAP ve yandal AYNI ANDA (23.08.2026). `second_plans` verilirse
+    # [(rol, plan_id), …] olarak birden çok ikinci program gelir; verilmezse
+    # eski tekil davranış sürer.
+    ikinciler = (second_plans if second_plans is not None
+                 else ([(second_role, cap_plan_id)] if cap_plan_id and second_role else []))
+
+    # Kritik yol ve kademe HER ikinci programdan toplanıyor. Yalnız birine
+    # baksaydık öbür programın zincir başı dersleri "kritik değil" görünür,
+    # öneri sıralaması onları geri atardı.
+    cap_steps = []
+    for _rol, pid in ikinciler:
+        cap_steps += SEQ.plan_sequence(con, pid, grades)
     critical = critical_courses([s for s in cap_steps if s.status != "DONE"])
-    tier_of = {s.course: s.tier for s in cap_steps}
+    tier_of: dict[str, int] = {}
+    for s in cap_steps:                     # aynı ders iki planda ise EN DERİN kademe
+        tier_of[s.course] = max(tier_of.get(s.course, 0), s.tier)
 
     out: list[Candidate] = []
     # ★ Öğrenci hangi program kodlarıyla kayıt yapabiliyorsa o kodlar geçerli
     # (HTAE + BLG + BLGE). Kardeş kod OTOMATİK türetilmez — 'HTA' ile 'HTAE'yi
     # eşitlemek İngilizce programdaki öğrenciye Türkçe şube açardı.
     allowed = {c.upper() for c in allowed_programs} or {anadal_program, cap_program}
-    for plan_id, role in ((anadal_plan_id, "ANADAL"), (cap_plan_id, second_role)):
+    for plan_id, role in ((anadal_plan_id, "ANADAL"), *((p, r) for r, p in ikinciler)):
         if plan_id is None or not role:
             continue
         for slot in con.execute(
@@ -363,6 +377,30 @@ class Schedule:
     def courses(self) -> tuple[str, ...]:
         return tuple(sorted(p.candidate.course for p in self.picks))
 
+    # ---------------------------------------------- yarıyıl kredi tabanı
+    # ★ Yapılacaklar 1.4 (23.08.2026). Taban Faz 13'te eklenmişti ama yalnız
+    # bir UYARIYDI; motor onu bilmiyordu. Gerçek veride sonuç şuydu: önerilen
+    # program ikinci anadaldan **4 kredi** içeriyordu, taban ise 9. Yani motor
+    # kabul edilemez bir programı "en iyi program" diye sunuyordu.
+    def credits_by_role(self) -> dict[str, float]:
+        out: dict[str, float] = {}
+        for p in self.picks:
+            out[p.candidate.role] = round(
+                out.get(p.candidate.role, 0.0) + (p.candidate.credits or 0.0), 1)
+        return out
+
+    def floor_gaps(self, floors: dict[str, float] | None) -> dict[str, float]:
+        """{rol: eksik kredi} — tabanı karşılamayan roller."""
+        if not floors:
+            return {}
+        var = self.credits_by_role()
+        return {rol: round(taban - var.get(rol, 0.0), 1)
+                for rol, taban in floors.items()
+                if taban and var.get(rol, 0.0) + 1e-9 < taban}
+
+    def meets_floors(self, floors: dict[str, float] | None) -> bool:
+        return not self.floor_gaps(floors)
+
 
 SECTION_BRANCHES = 3      # bir ders için denenecek alternatif şube sayısı
 SEARCH_BUDGET = 300_000   # emniyet supabı: arama düğümü üst sınırı
@@ -371,7 +409,8 @@ POOL_FACTOR = 60          # kaç aday program toplanıp sıralanacak (limit × b
 
 def build_schedules(cands: list[Candidate], max_load: float = 35.0,
                     limit: int = 3, pinned: Iterable[str] = (),
-                    fixed: Iterable[Section] = ()) -> list[Schedule]:
+                    fixed: Iterable[Section] = (),
+                    floors: dict[str, float] | None = None) -> list[Schedule]:
     """Greedy + backtracking. Farklı DERS KÜMELERİ üretir, aynı kümenin
     farklı CRN varyantlarını tekrar etmez (alternatifler ayrıca raporlanır).
 
@@ -463,8 +502,16 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
     search(0, [], 0.0)
     if pinned:
         results = [s for s in results if pinned <= set(s.courses())]
-    # Puanı en yüksek programlar; eşitlikte daha dolu ve daha az kampüs değişimi
-    results.sort(key=lambda s: (-s.score, -s.load, s.campus_changes()))
+    # ★ Yarıyıl kredi tabanını KARŞILAYAN programlar önce (yapılacaklar 1.4).
+    #
+    # ⚠️ SERT KISIT DEĞİL. Yönerge tabanın "ÇAP Koordinatörünün uygun görüşü ve
+    # Fakülte Yönetim Kurulu Kararı ile yarıya kadar düşürülebileceğini"
+    # söylüyor; ayrıca o dönem açılan ders yetmiyor olabilir. Karşılayan hiç
+    # program yoksa eleyip boş liste döndürmek, çözülebilir bir durumu
+    # imkânsız göstermek olurdu. Onun yerine SIRALAMA değişiyor ve eksik
+    # `floor_gaps` ile raporlanıyor — arayüz bunu yazıyor.
+    results.sort(key=lambda s: (not s.meets_floors(floors),
+                                -s.score, -s.load, s.campus_changes()))
     return results[:limit]
 
 

@@ -113,7 +113,13 @@ CREATE TABLE IF NOT EXISTS plan_slot (
     pool_label_raw TEXT,                         -- ham etiket (denetim için ASLA silme)
     pool_category  TEXT,                         -- 'MT'|'ITB'|'TB'|'TM'|'ENG'|'SNT'|'OTHER'
     pool_group_id  TEXT,                         -- OBS grupId (_DersGrupSearch)
-    credits        REAL,
+    credits        REAL,                         -- tek değerse; aralıksa NULL
+    -- ★ Havuz slotunun kredisi ARALIK olabiliyor ("2 / 2,5 / 3"): hangi dersi
+    --   seçtiğine bağlı. Aralıktan tek sayı seçmek uydurma olurdu; aralığı
+    --   aralık olarak saklıyoruz ve toplamlar buna göre yapılıyor.
+    credits_raw    TEXT,
+    credits_min    REAL,
+    credits_max    REAL,
     ects_raw       TEXT,                         -- '4 / 5 / 6' ya da '4,5' olabilir
     ects           REAL,                         -- tek değerse sayısal karşılığı
     type_raw       TEXT,                         -- OBS 'Type' sütunu: MT/TB/TM/ITB/EC/LA

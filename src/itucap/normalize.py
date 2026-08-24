@@ -14,17 +14,54 @@ from .config import DAY_CODES, DAY_INDEX
 # --------------------------------------------------------------- kategoriler
 CATEGORIES = {"MT", "ITB", "TB", "TM", "ENG", "GE", "ED", "SNT", "OTHER"}
 
-# Kategori parantez içinde olabilir ("(MT)", "(MT I)", "( ITB )") ya da hiç parantez
-# olmadan serbest metinde geçebilir ("Seçime Bağlı Ders MT II"). Roma rakamı sıra
-# numarasıdır (I/II/III), kategorinin parçası değildir.
-_ROMAN = r"(?:\s+(?:I{1,3}|IV|V))?"
-_CAT_PAREN_RE = re.compile(rf"\(\s*(MT|ITB|TB|TM|ENG|GE|ED|SNT){_ROMAN}\s*\)", re.IGNORECASE)
-_CAT_BARE_RE = re.compile(rf"\b(MT|ITB|TB|TM|ENG|GE|ED|SNT){_ROMAN}\s*$", re.IGNORECASE)
+# ★ Kategori kodu etikette DÖRT biçimde geçiyor (23.08.2026'da 1400 gerçek
+# etiket üzerinde ölçüldü):
+#
+#     parantez içinde   "8.yy Elective Course (MT)"  ·  "(MT-Tasarım)"
+#     sonda             "Seçime Bağlı Ders MT VI"    ·  "…Crse I-MT"
+#     başta             "MT Seçim Dersi 2 (E)"
+#     ayrıca            "English Course" → ENG (yedek kural)
+#
+# Sıra numarası roma ya da arap olabiliyor (I…X, 1…12) ve kategorinin parçası
+# DEĞİL. Eski kalıp yalnız I–V'i tanıyordu; "MT VI" ve "MT 1" OTHER'a düşüyordu.
+#
+# ★★ BÜYÜK HARF ŞART — `re.IGNORECASE` YOK. Sebebi ölçüldü: "Intr. to Sci &
+# Eng Comp." bir DERS ADI ve içindeki "Eng" kategori değil. Harf duyarsız
+# arasaydık 48 slotu yanlışlıkla ENG diye etiketlerdik. Kategori kodları
+# kaynakta her zaman büyük harf; ders adlarındaki İngilizce kelimeler değil.
+_CAT = "MT|ITB|TB|TM|ENG|GE|ED|SNT"
+_ROMAN = r"(?:I{1,3}|IV|VI{0,3}|IX|X)"
+_ORDINAL = rf"(?:\s+(?:{_ROMAN}|\d{{1,2}}))?"
+_CAT_PAREN_RE = re.compile(rf"\(\s*({_CAT})(?:{_ORDINAL}|\s*-\s*[^)]*)?\s*\)")
+_CAT_TAIL_RE = re.compile(rf"(?:^|[\s(/-])({_CAT}){_ORDINAL}\s*(?:\([^)]*\))?\s*$")
+_CAT_HEAD_RE = re.compile(rf"^({_CAT})\s+\S")
+# Etikette kategoriye BENZEYEN bir belirteç var mı? (gerçek boşluk ile
+# "kaynakta kategori yok"u ayırmak için — bkz. `uncategorised_labels`)
+_CAT_ANY_RE = re.compile(rf"(?:^|[\s(/-])({_CAT})(?:[\s)/-]|$)")
+
 _TERM_RE = re.compile(r"(\d{1,2})\s*\.?\s*(?:yy|yarıyıl|yariyil)", re.IGNORECASE)
 _TERM_EN_RE = re.compile(r"(\d{1,2})\s*(?:st|nd|rd|th)?\s*Semester", re.IGNORECASE)
 _ENGLISH_RE = re.compile(r"English\s+Course", re.IGNORECASE)
 
-unmatched_labels: list[str] = []  # sessizce yutma: pipeline sonunda raporlanır
+# ★ İKİ AYRI LİSTE, çünkü iki ayrı şey:
+#   unmatched_labels     — kategori BENZERİ bir kod var ama yerleştiremedik.
+#                          Bu BİZİM eksiğimiz, düzeltilebilir.
+#   uncategorised_labels — kaynakta kategori YOK ("Stüdyo IV", "Temel Meslek II").
+#                          Düzeltilecek bir şey yok; kategori uydurmak veri
+#                          uydurmak olurdu.
+# Tek liste tutmak, düzeltilebilir 66 etiketi düzeltilemez 226'nın içinde
+# görünmez kılıyordu.
+unmatched_labels: list[str] = []
+uncategorised_labels: list[str] = []
+
+
+def label_category(label: str) -> str | None:
+    """Etiketten kategori kodu — bulunamazsa None."""
+    for rx in (_CAT_PAREN_RE, _CAT_TAIL_RE, _CAT_HEAD_RE):
+        m = rx.search(label)
+        if m:
+            return m.group(1)
+    return "ENG" if _ENGLISH_RE.search(label) else None
 
 
 def normalize_pool_label(raw: str) -> tuple[str, int | None]:
@@ -32,10 +69,7 @@ def normalize_pool_label(raw: str) -> tuple[str, int | None]:
     if not raw:
         return "OTHER", None
     label = raw.strip()
-    m = _CAT_PAREN_RE.search(label) or _CAT_BARE_RE.search(label)
-    category = m.group(1).upper() if m else None
-    if category is None and _ENGLISH_RE.search(label):
-        category = "ENG"
+    category = label_category(label)
     term = None
     for rx in (_TERM_RE, _TERM_EN_RE):
         t = rx.search(label)
@@ -44,8 +78,28 @@ def normalize_pool_label(raw: str) -> tuple[str, int | None]:
             break
     if category is None:
         category = "OTHER"
-        unmatched_labels.append(label)
+        (unmatched_labels if _CAT_ANY_RE.search(label)
+         else uncategorised_labels).append(label)
     return category, term
+
+
+# ------------------------------------------------------------- kredi aralığı
+# ★ 23.08.2026: havuz slotlarının kredisi TEK SAYI OLMAYABİLİYOR —
+# "2 / 2,5 / 3" gibi bir ARALIK, çünkü havuzdan hangi dersi seçtiğine bağlı.
+# `float()` bunu çözemiyordu ve kredi sessizce NULL kalıyordu: katalogdaki
+# 4923 havuz slotunun kredisi yoktu ve planların toplamı sayfadakinden düşük
+# çıkıyordu (65 planda "kredi tutmuyor" uyarısı).
+#
+# ⚠️ Aralıktan TEK BİR SAYI SEÇMİYORUZ. Ortalama ya da en küçüğü almak,
+# kaynakta olmayan bir sayı uydurmak olurdu — ve o sayı kredi tavanına,
+# yarıyıl tabanına, ilerleme yüzdesine akardı. Aralık aralık olarak duruyor.
+_NUM_RE = re.compile(r"\d+(?:[.,]\d+)?")
+
+
+def parse_credit_range(raw: str) -> tuple[float | None, float | None]:
+    """'2 / 2,5 / 3' -> (2.0, 3.0) · '3' -> (3.0, 3.0) · '' -> (None, None)."""
+    sayilar = [float(x.replace(",", ".")) for x in _NUM_RE.findall(raw or "")]
+    return (min(sayilar), max(sayilar)) if sayilar else (None, None)
 
 
 # ------------------------------------------------------------------ zamanlar

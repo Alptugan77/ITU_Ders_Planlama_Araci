@@ -10,7 +10,7 @@ import sqlite3
 from dataclasses import dataclass
 
 from . import db
-from .normalize import unmatched_labels
+from .normalize import uncategorised_labels, unmatched_labels
 
 
 @dataclass
@@ -55,10 +55,15 @@ def _orphan_pool_option(con):
 
 @check("empty_pool", "warn")
 def _empty_pool(con):
-    """OBS'den grupId ile çekilen bir havuz boşsa bu PARSE HATASIDIR.
+    """Boş seçmeli havuzlar — SEBEBİYLE birlikte.
 
     18.08.2026: havuz hücresi kodu ve adı birlikte taşıdığı için tüm havuzlar
     sessizce boş kalmıştı; seçmeli dersler 'sayılmıyor' görünüyordu.
+
+    ★ 23.08.2026: bu kontrol grupId'li her boş havuza "PARSE HATASI" diyordu.
+    Ölçtük — grup 11083'ün arşivlenmiş cevabında hiç `<table>` yok, yani OBS
+    boş sayfa döndürüyor. Kaynağın eksiğini kendi hatamız gibi göstermek,
+    düzeltilmesi en zor yalan türü; `pool_status` artık ikisini ayırıyor.
     """
     total, empty = con.execute(
         """SELECT COUNT(*),
@@ -67,16 +72,22 @@ def _empty_pool(con):
     ).fetchone()
     if not total or not empty:
         return None
-    with_group = con.execute(
-        """SELECT COUNT(*) FROM plan_slot ps
+    durum = dict(con.execute(
+        """SELECT COALESCE(ps.pool_status,'?'), COUNT(*) FROM plan_slot ps
            WHERE ps.slot_kind='ELECTIVE_POOL' AND ps.pool_group_id IS NOT NULL
-             AND NOT EXISTS (SELECT 1 FROM pool_option po WHERE po.slot_id = ps.id)"""
-    ).fetchone()[0]
-    detail = f"{empty}/{total} seçmeli havuz BOŞ"
-    if with_group:
-        return (f"{detail} — bunların {with_group} tanesi OBS grupId'sine sahip, "
-                f"yani PARSE HATASI (havuz sayfası yapısı değişmiş olabilir)")
-    return f"{detail} (kaynakta seçenek tanımlı değil)"
+             AND NOT EXISTS (SELECT 1 FROM pool_option po WHERE po.slot_id = ps.id)
+           GROUP BY 1"""))
+    parts = [f"{empty}/{total} seçmeli havuz BOŞ"]
+    if durum.get("no_codes"):
+        parts.append(f"★ {durum['no_codes']} tanesinde tablo VARDI ama kod "
+                     f"çıkaramadık — PARSE HATASI")
+    if durum.get("no_table"):
+        parts.append(f"{durum['no_table']} tanesinde OBS ders tablosu olmayan "
+                     f"sayfa döndürdü (kaynakta boş)")
+    if durum.get("?"):
+        parts.append(f"{durum['?']} tanesi bu tarayıcı sürümünden önce "
+                     f"çekilmiş (sebep kaydedilmemiş) — `make all-plans` netleştirir")
+    return " · ".join(parts)
 
 
 @check("too_many_terms")
@@ -205,14 +216,22 @@ def _plan_credit_mismatch(con, mine=()):
     ⚠️ Sayfa toplam yazmamışsa KARŞILAŞTIRMA YOK. Bilinmeyeni 0 sayıp
     "tutmuyor" demek, olmayan bir hata uydurmak olurdu.
     """
+    # ★ 23.08.2026: kredi ARALIK olabiliyor ("2 / 2,5 / 3"). Tek sayı gibi
+    # toplayınca 65 planda sahte "tutmuyor" uyarısı çıkıyordu — kontrolün
+    # kendisi yanlış alarm üretiyordu, ki bu onu okunmaz hâle getirir.
+    # Artık ALT ve ÜST toplam hesaplanıyor; ilan edilen kredi bu aralığın
+    # içindeyse tutuyor demektir.
     rows = con.execute(
         """SELECT p.id, coalesce(p.host_program_code||'_','')||p.program_code ad,
-                  p.declared_credits ilan, ROUND(SUM(coalesce(s.credits,0)),2) toplam
+                  p.declared_credits ilan,
+                  ROUND(SUM(coalesce(s.credits_min, s.credits, 0)),2) alt,
+                  ROUND(SUM(coalesce(s.credits_max, s.credits, 0)),2) ust
            FROM plan p JOIN plan_slot s ON s.plan_id=p.id
            WHERE p.declared_credits IS NOT NULL AND p.declared_credits > 0
            GROUP BY p.id
-           HAVING ABS(toplam - p.declared_credits) > 0.5 + 0.1*p.declared_credits
-           ORDER BY ABS(toplam - p.declared_credits) DESC"""
+           HAVING p.declared_credits < alt - (0.5 + 0.1*p.declared_credits)
+               OR p.declared_credits > ust + (0.5 + 0.1*p.declared_credits)
+           ORDER BY ABS(ust - p.declared_credits) DESC"""
     ).fetchall()
     if not rows:
         return None
@@ -221,8 +240,11 @@ def _plan_credit_mismatch(con, mine=()):
     hedef = benim or rows
 
     def ornek(items):
-        return ", ".join(f"{r['id']}({r['ad']}: {r['toplam']:g} kredi topladık, "
-                         f"sayfa {r['ilan']:g} diyor)" for r in items[:4])
+        return ", ".join(
+            f"{r['id']}({r['ad']}: "
+            + (f"{r['alt']:g} kredi" if r["alt"] == r["ust"]
+               else f"{r['alt']:g}–{r['ust']:g} kredi")
+            + f" topladık, sayfa {r['ilan']:g} diyor)" for r in items[:4])
 
     if benim:
         return (f"★ SENİN planında kredi tutmuyor: {ornek(benim)} — "
@@ -302,9 +324,29 @@ def _prereq_orphan(con):
 
 @check("unmatched_pool_labels", "warn")
 def _unmatched(con):
+    """★ Kategori TAŞIYAN ama çözemediğimiz etiketler — BİZİM eksiğimiz.
+
+    23.08.2026'ya kadar bu kontrol "kaynakta kategori yok" olanları da
+    sayıyordu (226 etiket) ve rakam düzeltilebilir 66'yı görünmez kılıyordu.
+    Düzeltilemeyecek bir şeyi uyarı diye göstermek, uyarıyı okunmaz yapar.
+    """
     if unmatched_labels:
         uniq = list(dict.fromkeys(unmatched_labels))
-        return f"{len(uniq)} havuz etiketi kategoriye eşlenemedi (OTHER): {uniq[:8]}"
+        return (f"{len(uniq)} havuz etiketi kategori KODU taşıyor ama "
+                f"çözülemedi: {uniq[:8]}")
+
+
+@check("uncategorised_pool_labels", "info")
+def _uncategorised(con):
+    """Kaynakta kategori YOK ("Stüdyo IV", "Temel Meslek II", "Selective").
+
+    Düzeltilecek bir şey yok — kategori uydurmak veri uydurmak olurdu.
+    Bilgi olarak duruyor çünkü kategori sayaçlarındaki boşluğu açıklıyor.
+    """
+    if uncategorised_labels:
+        uniq = list(dict.fromkeys(uncategorised_labels))
+        return (f"{len(uniq)} havuz etiketinde kaynakta kategori yok "
+                f"(kategori sayaçlarına girmiyorlar): {uniq[:6]}")
 
 
 def run(con: sqlite3.Connection, mine: tuple = ()) -> list[Finding]:
