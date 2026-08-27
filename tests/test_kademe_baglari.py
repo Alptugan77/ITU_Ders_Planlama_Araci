@@ -158,16 +158,19 @@ def page(dbs, tmp_path):
 
 
 def test_cizgiler_ciziliyor(page):
-    """★ Çizgi SAYISI önşart sayısına eşit olmalı — 'svg var' yetmez."""
+    """★ Çizgi SAYISI önşart sayısına eşit olmalı — 'svg var' yetmez.
+    Her bağ İKİ yol: zemin kılıfı + çizgi (kesişimler okunsun diye)."""
     p, errors = page
     assert errors == []
-    assert p.locator("#tierLinks0 path").count() == 2      # 101→201, 201→301
+    assert p.locator("#tierLinks0 path.line").count() == 2    # 101→201, 201→301
+    assert p.locator("#tierLinks0 path.casing").count() == 2  # her çizginin kılıfı
 
 
 def test_cizgi_dogru_dersleri_bagliyor(page):
     p, _ = page
+    # data-a/data-b yalnız .line yollarında; kılıf salt görsel.
     baglar = {(el.get_attribute("data-a"), el.get_attribute("data-b"))
-              for el in p.locator("#tierLinks0 path").all()}
+              for el in p.locator("#tierLinks0 path.line").all()}
     assert baglar == {("BLG 101E", "BLG 201E"), ("BLG 201E", "BLG 301E")}
 
 
@@ -192,10 +195,32 @@ def test_ikinci_tik_seçimi_kaldiriyor(page):
 
 
 def test_onsart_metni_kutuda_yaziyor(page):
-    """Çizgi çizilemese bile bilgi kaybolmasın diye metin de var."""
+    """Çizgi çizilemese bile bilgi kaybolmasın. Plan İÇİ önşart doğrudan
+    ('önce …') yazılı; plan DIŞI önşart kompakt rozette ama kodları DOM'da
+    ve rozete basınca AÇILIYOR — mobilde de erişilir (yalnız tooltip değil)."""
     p, _ = page
+    # Plan içi önşart doğrudan görünür.
     assert "BLG 201E" in p.locator('#tierStage0 li[data-c="BLG 301E"]').inner_text()
-    assert "MAT 103E" in p.locator('#tierStage0 li[data-c="BLG 210E"]').inner_text()
+    # Plan dışı önşart: rozet görünür, kod DOM'da (kaybolmadı), tık ile açılır.
+    kutu = p.locator('#tierStage0 li[data-c="BLG 210E"]')
+    rozet = kutu.locator(".dispre")
+    assert "dış önşart" in kutu.inner_text()
+    assert "MAT 103E" in kutu.inner_html()           # bilgi DOM'da, kaybolmadı
+    assert rozet.get_attribute("aria-expanded") == "false"
+    rozet.click()
+    assert rozet.get_attribute("aria-expanded") == "true"
+    assert "MAT 103E" in kutu.inner_text()           # dokununca görünür oluyor
+
+
+def test_dis_onsart_rozeti_dersi_kilitlemiyor(page):
+    """Rozete basmak zinciri KİLİTLEMEZ (stopPropagation); yalnız kodları
+    açar. (Üstüne gelince önizleme çıkabilir ama fare çekilince kalmaz —
+    kilit çıksaydı kalırdı.)"""
+    p, _ = page
+    p.locator('#tierStage0 li[data-c="BLG 210E"] .dispre').click()
+    p.mouse.move(0, 0)                               # hover önizlemesini kaldır
+    p.wait_for_timeout(150)
+    assert p.locator("#tierStage0.focus").count() == 0
 
 
 def test_cizgiler_kutularin_ustune_biniyor_mu(page):

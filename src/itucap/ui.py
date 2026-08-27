@@ -35,6 +35,70 @@ from . import sequence as SEQ
 from . import student as S
 
 
+def _acik_denklikler(con, equivalences, expanded, gereken, allowed,
+                     names, section_json) -> list[dict]:
+    """Almam gereken bir dersin DENKLİĞİ bu dönem açıksa, onu bilgileriyle
+    listeler (kullanıcı isteği 27.08.2026).
+
+    Denklik yönü: `{kaynaklar} → hedef`. Kaynak dersleri alınca hedef
+    sağlanmış sayılıyor. Yani planında gereken 'hedef' dersin yerine, bu
+    dönem AÇIK olan 'kaynak' dersi alabilirsin. Örnek: MAT 210E gerekiyor,
+    onun denkliği GEO 220E bu dönem açık — GEO 220E'yi al, MAT 210E sayılır.
+
+    Bu, aday listesinden FARKLI bir bilgi: aday listesi planındaki açık
+    dersleri gösteriyor; burada gösterilen kaynak ders planında olmayabilir
+    ama denklik yoluyla bir gereksinimi karşılıyor (çoğu zaman bir anadal
+    dersi aynı anda ÇAP gereksinimini karşılıyor — ÇAP öğrencisi için asıl
+    kazanç bu).
+
+    ⚠️ Hangi denklikler gösterilir:
+      · Zaten SAĞLANMIŞ hedef (aldın ya da denklikle kazandın) → GÖSTERİLMEZ.
+      · Kaynağın en az biri AÇIK ve henüz ALINMAMIŞ olmalı — yoksa eyleme
+        dönük bir şey yok.
+      · Kullanıcının kendi BEYANI (user_declared) niyeti açıkça bildiriyor;
+        her zaman gösterilir. Resmi denklik ise yalnız hedef GERÇEKTEN
+        gereken bir plan dersiyse (yoksa katalog çapında gürültü olurdu).
+    """
+    out: list[dict] = []
+    gorulen: set = set()
+    for e in equivalences:
+        if R.passed(expanded.get(e.target)):
+            continue
+        beyan = e.confidence == "user_declared"
+        if not beyan and e.target not in gereken:
+            continue
+        kaynaklar = []
+        for code, min_not in e.sources:
+            secs = REC.load_sections(con, code, allowed)
+            kaynaklar.append({
+                "code": code, "name": names.get(code, ""), "minGrade": min_not,
+                "passed": R.passed(expanded.get(code)),
+                "open": bool(secs),
+                "sections": [section_json(s) for s in secs],
+            })
+        if not any(k["open"] and not k["passed"] for k in kaynaklar):
+            continue
+        # Dil varyantını tekleştir: MAT 210E ve MAT 210 aynı kaynaktan aynı
+        # şeyi anlatıyor; kullanıcı tek satır görmeli.
+        base = e.target[:-1] if e.target.endswith("E") else e.target
+        anahtar = (frozenset(k["code"] for k in kaynaklar), base)
+        if anahtar in gorulen:
+            continue
+        gorulen.add(anahtar)
+        out.append({
+            "target": e.target, "targetName": names.get(e.target, ""),
+            "needed": e.target in gereken, "declared": beyan,
+            "confidence": e.confidence, "note": e.note or "",
+            "sources": kaynaklar,
+            # Hepsi ya açık ya alınmış mı — yani denkliği ŞİMDİ tamamlayabilir
+            # misin (çok kaynaklı denklikte biri kapalıysa tamamlanamaz).
+            "allReady": all(k["open"] or k["passed"] for k in kaynaklar),
+        })
+    # Gereken olanlar önce, sonra alfabetik.
+    out.sort(key=lambda x: (not x["needed"], x["target"]))
+    return out
+
+
 def _busy_info(declared) -> list[dict]:
     """Meşgul saatleri arayüze taşır — ham metniyle birlikte.
 
@@ -224,6 +288,12 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     # değerlendirmek, uygulanmayan bir kuralda "kaldın" demek olurdu.
     cap_plan_id = next((s["planId"] for s in seconds if s["kind"] == "cap"), None)
 
+    # ★ "Açık denkliği olan gereken dersler" için: bütün planların DOLMAMIŞ
+    # slot dersleri (kullanıcı isteği 27.08.2026). `_open_slot_courses`
+    # havuz seçeneklerini de kapsıyor ve sağlanmış slotu atlıyor.
+    from .discover import _open_slot_courses as _dolmamis
+    gereken_dersler: set[str] = set()
+
     panels = []
     for plan_id, role in ((anadal_id, "ANADAL"),
                           *((s["planId"], s["role"]) for s in seconds)):
@@ -232,6 +302,7 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         plan = con.execute("SELECT * FROM plan WHERE id=?", (plan_id,)).fetchone()
         if plan is None:
             continue                     # plan silinmiş/çekilmemiş -> panelsiz devam
+        gereken_dersler |= _dolmamis(con, plan_id, grades, equivalences)
         stats = R.plan_progress(con, plan_id, grades, equivalences)
         open_codes = [r[0] for r in con.execute(
             """SELECT course_code FROM plan_slot WHERE id IN (%s)
@@ -699,6 +770,13 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         "blockers": blockers,
         # ★ FAZ 12 — "başvurabilir miyim" (yapılacaklar 1.3).
         "basvuru": _basvuru_info(con, ucon, student_id, settings),
+        # ★ Almam gereken bir dersin DENKLİĞİ bu dönem açıksa (kullanıcı
+        # isteği 27.08.2026). Aday listesinden ayrı: burada gösterilen ders
+        # planımda olmayabilir ama denklikle bir gereksinimi karşılıyor.
+        "openEquivalents": _acik_denklikler(
+            con, equivalences,
+            R.expand_with_equivalences(grades, equivalences)[0],
+            gereken_dersler, settings.allowed_programs, names, section_json),
         # Her ikinci programın KENDİ kademe zinciri.
         "tierGroups": tier_groups,
         "lessonCount": con.execute("SELECT COUNT(*) FROM lesson").fetchone()[0],
@@ -1541,6 +1619,21 @@ table.list tr:hover td{background:var(--surface-2)}
 .chip{display:inline-block;white-space:nowrap;font-size:10.5px;font-weight:600;
   padding:3px 9px;border-radius:0;margin-bottom:3px;
   letter-spacing:.05em;text-transform:uppercase;border:1px solid currentColor}
+/* Denkliği açık gereken dersler (kullanıcı isteği 27.08.2026). */
+.denkrow{padding:10px 0;border-top:1px solid var(--border)}
+.denkrow:first-child{border-top:0}
+.denkhedef{font-size:13px;color:var(--ink-2);margin-bottom:6px;
+  display:flex;flex-wrap:wrap;gap:6px;align-items:baseline}
+.denkhedef .denkad{color:var(--ink-3);font-size:12px}
+.denkok{color:var(--ink-3);font-size:12px}
+.denkkaynak{border:1px solid var(--border);background:var(--surface);
+  padding:8px 10px;margin-top:6px;cursor:pointer}
+.denkkaynak:hover{background:var(--surface-2)}
+.denkkaynak.bilgi{cursor:default}
+.denkkaynak.bilgi:hover{background:var(--surface)}
+.denkkaynak .denkad{color:var(--ink-3);font-size:12px;margin-left:6px}
+.denkkaynak .denkmeta{color:var(--ink-3);font-size:11.5px;margin-top:2px}
+.denknot{font-size:11.5px;color:var(--ink-3);margin-top:6px}
 .chip.supply{color:var(--danger)}
 .chip.prereq{color:var(--warn)}
 .chip.credit{color:var(--seal)}
@@ -1645,31 +1738,65 @@ table.cmp .meta.arti{color:var(--anadal)}
    uzun plan yatay kaydırma istiyordu ve kademe sırası okunmuyordu; aşağı
    akınca sıra doğal olarak okunuyor ve aralara nefes payı sığıyor.
    Bağlantı çizgileri sahnenin İÇİNDE kalmaya devam ediyor. */
-.tierstage{position:relative;display:flex;flex-direction:column;gap:34px}
+.tierstage{position:relative;display:flex;flex-direction:column;gap:38px}
 .tierlinks{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:0}
-.tierlinks path{fill:none;stroke:var(--border-strong);stroke-width:1.4;opacity:.55}
-.tierlinks path.on{stroke:var(--cap);stroke-width:2.2;opacity:1}
-.tierstage.focus .tierlinks path{opacity:.1}
-.tierstage.focus .tierlinks path.on{opacity:1}
+/* ★ Çizgi tasarımı (27.08.2026). Eski hâlde çizgiler dururken NEREDEYSE
+   GÖRÜNMEZDİ (opacity .55, kenarlık rengi) ve yapı ancak tıklayınca ortaya
+   çıkıyordu. İki iyileştirme:
+   1. KILIF: her çizginin altına zemin renginde kalın bir kat — çizgiler
+      kesişince ve kutu kenarından geçince ayrışıyor (kartografide "casing").
+   2. Dinlenmede de OKUNUR: bağ rengi (seal) ve daha belirgin. */
+.tierlinks path.casing{fill:none;stroke:var(--ground);stroke-width:5;
+  stroke-linecap:round}
+.tierlinks path.line{fill:none;stroke:var(--seal);stroke-width:1.6;opacity:.55;
+  stroke-linecap:round;transition:opacity .12s,stroke .12s,stroke-width .12s}
+.tierstage.focus .tierlinks path.line{opacity:.08}
+.tierstage.focus .tierlinks path.line.on{stroke:var(--cap);stroke-width:2.6;opacity:1}
 .tier{position:relative;z-index:1}
-.tier h3{font-size:10.5px;color:var(--seal);font-weight:700;margin-bottom:10px;
+.tier > h3{font-size:10.5px;color:var(--seal);font-weight:700;margin-bottom:10px;
   letter-spacing:.16em;text-transform:uppercase;
   font-family:"Chivo",Helvetica,Arial,sans-serif;
   padding-bottom:6px;border-bottom:2px solid var(--border-strong)}
 .tier ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
-.tier li{font-size:12px;padding:6px 10px;border-radius:0;background:var(--surface-2);
-  border:1px solid var(--border);display:flex;flex-direction:column;gap:2px;
-  cursor:pointer;width:196px}
-.tier li .top{display:flex;justify-content:space-between;gap:6px}
-.tier li .dep{font-size:10px;line-height:1.35;color:var(--ink-3)}
-.tier li .dep.out{font-style:italic}
-.tier li[data-s="DONE"]{opacity:.5}
+.tier li{font-size:12px;padding:7px 10px;border-radius:0;background:var(--surface-2);
+  border:1px solid var(--border);border-left:3px solid var(--border-strong);
+  display:flex;flex-direction:column;gap:3px;cursor:pointer;width:196px;
+  transition:opacity .12s,box-shadow .12s}
+.tier li:hover{box-shadow:0 2px 10px -4px rgba(0,0,0,.5)}
+.tier li .top{display:flex;justify-content:space-between;gap:6px;align-items:baseline}
+/* Plan İÇİ önşart — çizginin temsil ettiği bağ. "önce:" ile okunuyor. */
+.tier li .dep{font-size:10.5px;line-height:1.35;color:var(--ink-2)}
+.tier li .dep b{color:var(--ink);font-weight:600}
+/* Plan DIŞI önşart artık KOMPAKT rozet — eskiden 2-3 satır metin her kutuyu
+   şişiriyordu (mobilde iyice). Tam liste ipucunda. */
+.tier li .dispre{font-size:10px;color:var(--ink-3);border:1px solid var(--border);
+  padding:0 5px;align-self:flex-start;border-radius:var(--r);cursor:pointer;
+  user-select:none}
+.tier li .dispre:hover{color:var(--ink-2);border-color:var(--border-strong)}
+.tier li .dispre[aria-expanded="true"]{color:var(--seal);border-color:var(--seal);
+  background:var(--seal-soft)}
+/* Rozet açılınca kodlar burada — mobilde de erişilir olsun diye SADECE ipucu
+   değil (title tooltip dokunmatikte yok). */
+.tier li .disout{font-size:10px;color:var(--ink-2);line-height:1.4;
+  border-top:1px dashed var(--border);padding-top:3px}
+.tier li .disout .mono{color:var(--ink)}
+.tier li[data-s="DONE"]{opacity:.5;border-left-color:var(--anadal)}
 .tier li[data-s="DONE"] .top{text-decoration:line-through}
+/* Alınabilir = önşartların tamamı sağlanmış, BU DÖNEM alınabilir. */
 .tier li[data-s="READY"]{background:var(--cap-soft);color:var(--cap-ink);font-weight:600;
-  border-color:var(--cap)}
+  border-color:var(--cap);border-left-color:var(--cap)}
 .tierstage.focus .tier li{opacity:.22}
 .tierstage.focus .tier li.on{opacity:1}
-.tier li.root{outline:2px solid var(--cap);outline-offset:1px}
+.tier li.root{outline:2px solid var(--cap);outline-offset:2px}
+/* Kademe efsanesi — renklerin ne anlama geldiği. */
+.tierlegend{display:flex;flex-wrap:wrap;gap:14px;margin:2px 0 16px;
+  font-size:11.5px;color:var(--ink-2)}
+.tierlegend span{display:inline-flex;align-items:center;gap:6px}
+.tierlegend i{width:22px;height:12px;border:1px solid var(--border);
+  border-left:3px solid var(--border-strong);display:inline-block}
+.tierlegend i.rdy{background:var(--cap-soft);border-color:var(--cap);border-left-color:var(--cap)}
+.tierlegend i.done{border-left-color:var(--anadal);opacity:.6}
+.tierlegend i.line{width:22px;height:0;border:0;border-top:2px solid var(--seal);opacity:.7}
 .tierfoot{margin-top:10px;font-size:11.5px;color:var(--ink-3);line-height:1.6}
 .tiergroup + .tiergroup{margin-top:26px;padding-top:22px;
   border-top:1px dashed var(--border-strong)}
@@ -1707,6 +1834,7 @@ body.kurulum #savedSection,
 body.kurulum #schedSection,
 body.kurulum #creditSection,
 body.kurulum #suggestSection,
+body.kurulum #denklikSection,
 body.kurulum #changeSection,
 body.kurulum #candSection,
 body.kurulum #blockSection,
@@ -1963,6 +2091,18 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
   <div id="suggestBody" style="margin-top:12px"></div>
 </section>
 
+<!-- ★ Almam gereken bir dersin denkliği bu dönem açıksa (kullanıcı isteği
+     27.08.2026). Aday listesinden ayrı: burada gösterilen ders planımda
+     olmayabilir ama denklikle bir gereksinimi karşılıyor. -->
+<section class="card pad" id="denklikSection" hidden>
+  <div class="sechead"><div class="eyebrow">Denklik</div><div class="rule"></div></div>
+  <h2>Denkliği bu dönem açık</h2>
+  <div class="summary">Almam gereken bir dersin <b>denkliği</b> bu dönem
+    açıksa burada. O açık dersi alırsan gereken ders sayılır — çoğu zaman
+    bir anadal dersi aynı anda ÇAP gereksinimini karşılar.</div>
+  <div id="denklikBody" style="margin-top:12px"></div>
+</section>
+
 <section class="card pad" id="changeSection" hidden>
   <div class="sechead"><div class="eyebrow">Son tazelemeden beri</div><div class="rule"></div></div>
   <div style="display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;
@@ -2031,8 +2171,15 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
   <div class="sechead"><div class="eyebrow">Önşart zinciri</div><div class="rule"></div></div>
   <h2 id="tierTitle">Kademeler</h2>
   <div class="summary">Her kademe en az bir dönem. Kademe sayısı, ikinci programı
-    bitirebileceğin en kısa süredir. <b>Çizgiler önşart bağıdır</b> — bir derse
-    tıklarsan yalnız o dersin zinciri kalır, ikinci tıkta hepsi geri gelir.</div>
+    bitirebileceğin en kısa süredir. <b>Çizgiler önşart bağıdır</b> — bir dersin
+    üstüne gelince yalnız o dersin zinciri belirir, tıklarsan kilitlenir
+    (ikinci tıkta çözülür).</div>
+  <div class="tierlegend" aria-hidden="true">
+    <span><i class="rdy"></i> bu dönem alınabilir</span>
+    <span><i class="done"></i> almışsın</span>
+    <span><i></i> önşartı bekliyor</span>
+    <span><i class="line"></i> önşart bağı</span>
+  </div>
   <!-- Her ikinci programın KENDİ zinciri; aralarında önşart ilişkisi yok. -->
   <div id="tierGroups" style="margin-top:14px"></div>
 </section>
@@ -3286,6 +3433,67 @@ function condText(g){
 }
 
 /* ---------- değişim raporu ---------- */
+/* ---------- denkliği açık gereken dersler (kullanıcı isteği 27.08.2026) ----------
+   ★ "Almam gereken bir dersin denkliği bu dönem açıksa onları listeleyip
+   bilgilerini göster." Aday listesinden AYRI: buradaki açık ders (kaynak)
+   planımda olmayabilir ama denklikle bir gereksinimi (hedef) karşılıyor. */
+function renderAcikDenklik(){
+  const liste = DATA.openEquivalents || [];
+  const sec = $("#denklikSection");
+  if(!sec) return;
+  sec.hidden = !liste.length;
+  if(!liste.length){ $("#denklikBody").innerHTML = ""; return; }
+  const saat = (secs) => (secs[0] && secs[0].meetings.length)
+    ? secs[0].meetings.map(m => `${DAYS[m.day-1]} ${hhmm(m.start)}–${hhmm(m.end)}`).join(", ")
+    : "saat ilan edilmemiş";
+  $("#denklikBody").innerHTML = liste.map(e => {
+    /* Açık ve henüz alınmamış kaynaklar — asıl gösterilecek olanlar. */
+    const acik = e.sources.filter(k => k.open && !k.passed);
+    const kaynakHTML = acik.map(k => {
+      const s = k.sections[0] || {};
+      /* Aday havuzunda mı — tıklayıp eklenebilir mi? Değilse bilgi kartı
+         (yine de CRN/saat/kontenjan görünüyor). Sessiz tıklanamazlık yerine
+         görünüm ve ipucu farklı. */
+      const eklenebilir = !!CAND[k.code];
+      return `<div class="denkkaynak${eklenebilir ? "" : " bilgi"}"
+          data-course="${esc(k.code)}"${eklenebilir
+            ? ` role="button" tabindex="0" title="Programa eklemek için tıkla"`
+            : ` title="Aday havuzunda değil — bilgi amaçlı"`}>
+        <div><b class="mono">${esc(k.code)}</b>
+          ${k.name ? `<span class="denkad">${esc(k.name)}</span>` : ""}
+          ${k.sections.some(x => x.online) ? `<span class="chip online"
+            style="margin-left:6px">çevrimiçi</span>` : ""}</div>
+        <div class="denkmeta mono">
+          ${k.sections.length === 1 ? `CRN ${esc(s.crn)} · ` : ""}${esc(saat(k.sections))}
+          ${s.instructor ? ` · ${esc(s.instructor)}` : ""}</div>
+        <div style="margin-top:4px">${doluluk(k.sections)}</div>
+      </div>`;
+    }).join("");
+    /* Çok kaynaklı denklikte kapalı olan varsa dürüstçe söyle: tek başına
+       açık kaynak hedefi TAMAMLAMAYABİLİR. */
+    const kapali = e.sources.filter(k => !k.open && !k.passed);
+    const alinmis = e.sources.filter(k => k.passed);
+    return `<div class="denkrow">
+      <div class="denkhedef">
+        <span class="tag ${e.needed ? "CAP" : "unknown"}">${e.needed
+          ? "gereken" : "beyanın"}</span>
+        <b class="mono">${esc(e.target)}</b>
+        ${e.targetName ? `<span class="denkad">${esc(e.targetName)}</span>` : ""}
+        <span class="denkok">— denkliği açık:</span></div>
+      ${kaynakHTML}
+      ${e.sources.length > 1 ? `<div class="denknot">${
+        alinmis.length ? `<b>${alinmis.map(k => esc(k.code)).join(", ")}</b> zaten alınmış. ` : ""
+        }${kapali.length ? `⚠ <b>${kapali.map(k => esc(k.code)).join(", ")}</b> bu dönem
+          kapalı — denkliğin tamamlanması için ${e.allReady ? "" : "o da"} gerekiyor.`
+        : (alinmis.length ? "Bu açık dersi de alınca denklik tamamlanıyor." : "")}</div>` : ""}
+      ${e.declared ? "" : `<div class="denknot">OBS'nin ilan ettiği resmî denklik.</div>`}
+    </div>`;
+  }).join("");
+  /* Kaynağa tıklama = programa ekle penceresi — YALNIZ aday havuzundaysa. */
+  $("#denklikBody").querySelectorAll(".denkkaynak:not(.bilgi)[data-course]")
+    .forEach(el => bind(el, () => addDialog(el.dataset.course)));
+}
+
 function renderChanges(){
   const c = DATA.changes;
   const btn = $("#refreshBtn");
@@ -5455,6 +5663,7 @@ const SECTIONS = [
   ["savedSection", "Kaydettiğim"], ["panels", "İlerlemem"],
   ["schedSection", "Haftalık programım"],
   ["creditSection", "Kredi sınırım"], ["suggestSection", "Sayılan derslerim"],
+  ["denklikSection", "Denkliği açık"],
   ["changeSection", "Son değişiklikler"], ["candSection", "Alabileceğim dersler"],
   ["blockSection", "Neden alamıyorum"], ["basvuruSection", "Başvuru"],
   ["tierSection", "Kademeler"],
@@ -5699,7 +5908,8 @@ $("#blockSection").hidden = !DATA.blockers.length;
    Plan İÇİ önşart ile plan DIŞI önşart bilinçli olarak AYRI gösteriliyor:
    dışarıdakiler kademeyi belirlemiyor (anadalda alınmış olabilirler) ve aynı
    çizgiyle göstermek "bu ÇAP dersi şu ÇAP dersine bağlı" izlenimi verirdi. */
-let tierFocus = null;
+let tierFocus = null;   /* tıkla-kilit */
+let tierHover = null;   /* üstüne-gel önizleme; kilit yoksa geçerli */
 
 function tierGraph(tiers){
   const needs = {}, opens = {};
@@ -5756,18 +5966,48 @@ function renderTierGroup(grup, i){
         <span class="top"><span class="mono">${esc(c.course)}</span>
         <span class="mono" style="color:var(--ink-3)">${c.credits}</span></span>
         ${(c.needs && c.needs.length)
-            ? `<span class="dep">⟵ ${c.needs.map(esc).join(", ")}</span>` : ""}
+            ? `<span class="dep">önce <b>${c.needs.map(esc).join("</b> · <b>")}</b></span>` : ""}
         ${(c.outside && c.outside.length)
-            ? `<span class="dep out">dışarıdan: ${c.outside.map(esc).join(", ")}</span>` : ""}
+            ? `<span class="dispre" role="button" tabindex="0" aria-expanded="false"
+                 title="Plan dışından önşart — anadalda almış olabilirsin">+${c.outside.length} dış önşart</span>
+               <span class="disout" hidden>plan dışı: <span class="mono">${c.outside.map(esc).join(" · ")}</span></span>` : ""}
       </li>`).join("")}</ul>
     </div>`).join("");
   stage.innerHTML = `<svg class="tierlinks" id="tierLinks${i}" aria-hidden="true"></svg>` + cols;
 
-  stage.querySelectorAll(".tier li").forEach(li => li.addEventListener("click", () => {
-    const code = li.dataset.c;
-    tierFocus = (tierFocus === code) ? null : code;
-    paintTierFocus();
-  }));
+  stage.querySelectorAll(".tier li").forEach(li => {
+    li.addEventListener("click", () => {
+      const code = li.dataset.c;
+      tierFocus = (tierFocus === code) ? null : code;
+      tierHover = null;
+      paintTierFocus();
+    });
+    /* Üstüne gelince önizleme; tıklayınca kilit. Kilit varken hover karışmaz
+       ki dokunmatikte de (hover yok) tıkla-kilit tek davranış olsun. */
+    li.addEventListener("mouseenter", () => {
+      if (tierFocus) return;
+      tierHover = li.dataset.c; paintTierFocus();
+    });
+    li.addEventListener("mouseleave", () => {
+      if (tierFocus) return;
+      tierHover = null; paintTierFocus();
+    });
+  });
+
+  /* Dış-önşart rozeti: tıkla/enter ile kodları aç-kapa. stopPropagation ki
+     rozete basmak dersi odaklamasın. */
+  stage.querySelectorAll(".dispre").forEach(ch => {
+    const list = ch.nextElementSibling;
+    const ac = () => {
+      const acik = ch.getAttribute("aria-expanded") === "true";
+      ch.setAttribute("aria-expanded", acik ? "false" : "true");
+      if (list) list.hidden = acik;
+    };
+    ch.addEventListener("click", e => { e.stopPropagation(); ac(); });
+    ch.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); ac(); }
+    });
+  });
 
   const bagli = grup.tiers.reduce((a,t) =>
     a + t.courses.filter(c => (c.needs||[]).length).length, 0);
@@ -5796,7 +6036,11 @@ function drawTierGroupLinks(grup, i){
   });
   svg.setAttribute("width", stage.scrollWidth);
   svg.setAttribute("height", stage.scrollHeight);
-  const paths = [];
+  /* ★ Her bağ İKİ yol: önce zemin renginde KILIF (casing), sonra çizgi.
+     Bütün kılıflar bütün çizgilerin ALTINDA olsun diye ayrı biriktirip
+     kılıf+çizgi sırayla değil, önce hepsi-kılıf sonra hepsi-çizgi basılıyor;
+     yoksa sonraki kılıf önceki çizgiyi örterdi. */
+  const kilif = [], cizgi = [];
   (grup.tiers || []).forEach(t => t.courses.forEach(c => (c.needs||[]).forEach(dep => {
     const a = at[dep], b = at[c.course];
     if (!a || !b) return;                       /* ders çizilmemişse çizgi de yok */
@@ -5804,27 +6048,30 @@ function drawTierGroupLinks(grup, i){
        ÜSTÜNE giriyor. Yatay bezier bıraksaydık çizgiler kutuların üstünden
        geçer, bağı göstermek yerine karartırdı. */
     const d = Math.max(14, (b.t - a.b) / 2);
-    paths.push(`<path d="M ${a.x} ${a.b} C ${a.x} ${a.b+d}, ${b.x} ${b.t-d}, ${b.x} ${b.t}"
-                      data-a="${esc(dep)}" data-b="${esc(c.course)}"></path>`);
+    const dd = `M ${a.x} ${a.b} C ${a.x} ${a.b+d}, ${b.x} ${b.t-d}, ${b.x} ${b.t}`;
+    kilif.push(`<path class="casing" d="${dd}"></path>`);
+    cizgi.push(`<path class="line" d="${dd}" data-a="${esc(dep)}" data-b="${esc(c.course)}"></path>`);
   })));
-  svg.innerHTML = paths.join("");
+  svg.innerHTML = kilif.join("") + cizgi.join("");
 }
 
 function paintTierFocus(){
+  const secili = tierHover || tierFocus;   /* hover kilidi geçici olarak eziyor */
   (DATA.tierGroups || []).forEach((g, i) => {
     const stage = $("#tierStage" + i);
     if (!stage) return;
     /* Zincir GRUBUN KENDİ grafından: iki program arasında önşart bağı yok,
        birinde seçilen ders öbürünü söndürmemeli ama aydınlatmamalı da. */
     const kendinde = (g.tiers || []).some(t =>
-      t.courses.some(c => c.course === tierFocus));
-    const chain = (tierFocus && kendinde) ? tierChain(g.tiers, tierFocus) : null;
+      t.courses.some(c => c.course === secili));
+    const chain = (secili && kendinde) ? tierChain(g.tiers, secili) : null;
     stage.classList.toggle("focus", !!chain);
     stage.querySelectorAll(".tier li").forEach(li => {
       li.classList.toggle("on", !!chain && chain.has(li.dataset.c));
-      li.classList.toggle("root", li.dataset.c === tierFocus);
+      li.classList.toggle("root", li.dataset.c === secili);
     });
-    stage.querySelectorAll(".tierlinks path").forEach(p => p.classList.toggle(
+    /* Yalnız çizgiler; kılıf her zaman zeminde kalsın diye .line hedefleniyor. */
+    stage.querySelectorAll(".tierlinks path.line").forEach(p => p.classList.toggle(
       "on", !!chain && chain.has(p.dataset.a) && chain.has(p.dataset.b)));
   });
 }
@@ -5841,6 +6088,7 @@ function boot(){
   renderFloor();
   renderCredits();
   renderSuggestions();
+  renderAcikDenklik();
   renderChanges();
   wireRefresh();
   wirePicks();
