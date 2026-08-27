@@ -393,3 +393,69 @@ süzüyor.
 **Yayın hattı çalıştırılmalı.** Sitedeki hatanın düzeltmesi depoda duruyor;
 `gh release create katalog-YYYYMMDD` + Actions → `pages` çalışmadan
 kullanıcıya ulaşmıyor.
+
+---
+
+# Ek 2 — 27.08.2026: "ittim ama sitede yok"
+
+Kullanıcı düzeltmeleri push etti ve aynı hatayı bildirdi: *"hâlâ aynı anda
+seçmeye çalışınca ikinci program türü geçersiz diyor ve yandal dersleri
+gözükmüyor, BHB 201E'nin açık olması lazım ama gözükmüyor."*
+
+İki ayrı sebep çıktı ve **ikisi de kodda değildi**.
+
+## 1. `git push` siteyi yayınlamıyordu
+
+`.github/workflows/pages.yml` yalnız `workflow_dispatch` ve
+`release: published` ile tetikleniyordu. Push hiçbir şey yapmıyor; site Faz
+24'ten kalma kodla çalışmaya devam ediyordu.
+
+Bu bir kullanım hatası değil — **tetikleyici insanın zihnindeki modele
+uymuyordu.** "Kodu ittim, site güncellenir" beklentisi makul; akış onu
+karşılamıyordu ve hiçbir yerde de yazmıyordu. `push` tetikleyicisi eklendi.
+
+⚠️ Güvenli, çünkü akış katalogu **her zaman** en son `katalog-*` sürümünden
+indiriyor, depodan değil. Push yalnız KODU tazeliyor.
+
+Yol süzgeci var: `src/`, `web/`, `tools/site_kur.py`, mevzuat dosyaları ve
+akışın kendisi. Belge değişikliği yayın tetiklemiyor.
+
+## 2. Yerel ayarda yandal hiç yoktu
+
+`config/settings.toml`:
+
+```toml
+second_kind = "cap"
+# yandal_program  = "BLG"      ← yorum satırı
+```
+
+Yani yerelde de yandal seçili değildi — arayüzden "İkisi" kaydetmeye
+çalışıyordu, site eski kodla reddediyordu, dosya hiç değişmiyordu. Döngü.
+
+## 3. Motor doğruydu — KULLANICININ KENDİ KATALOĞUYLA ölçüldü
+
+Tahmin etmemek için kullanıcının 23 MB'lık `reference.sqlite3`'ü alınıp
+motor onun verisiyle koşturuldu:
+
+```
+allowed_programs : ['BHB_YD', 'BLG', 'BLGE', 'HTAE']
+türetilen kodlar : ['HTAE', 'BLG', 'BHB_YD']
+ikinci planlar   : [('cap', 'BLG', 2229), ('yandal', 'BHB_YD', 2522)]
+paneller         : [('ANADAL','HTAE'), ('CAP','BLG'), ('YANDAL','BHB_YD')]
+BHB adayları     : [('BHB 201E', 'YANDAL', 'Fundamental Software of Inform…')]
+```
+
+Veri de yerindeydi: `BHB 201E` — CRN 12084, 40 kontenjan, 0 dolu, çevrimiçi,
+`BHB_YD`'ye açık. Yandal planı 2522'nin altı slotu da `ELECTIVE_POOL` ve
+her birinin seçenek listesinde `BHB 201E` var.
+
+## Ders
+
+Bu turda yazılan kod tek satır: bir tetikleyici. Geri kalanı **ölçmekti** —
+ve ölçüm, üç turdur "kodda hata var" sanılan şeyin iki tur önce zaten
+düzelmiş olduğunu, sorunun teslimat hattında durduğunu gösterdi.
+
+Bir sonraki adım için not: aracın kendisi *"bu ders neden listede yok"*
+sorusunu cevaplayabiliyor (`emptyReason`, darboğaz raporu) ama *"bu program
+neden hiç seçili değil"* sorusunu cevaplamıyor. Kurulum çubuğu artık plansız
+programı gösteriyor; **hiç seçilmemiş** programı gösterecek bir şey yok.

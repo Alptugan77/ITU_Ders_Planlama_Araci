@@ -13,6 +13,25 @@ name: pages
 # güncel katalogla kurulabiliyor.
 
 on:
+  # ★★ `push` EKLENDİ (27.08.2026). Kullanıcı iki kez aynı tuzağa düştü:
+  # düzeltmeleri push etti, siteye baktı, aynı hatayı gördü. Haklıydı —
+  # akış YALNIZCA elle çalıştırmayla ve sürüm yayınlamayla tetikleniyordu,
+  # push hiçbir şey yapmıyordu. "İttim ama sitede yok" bir kullanım hatası
+  # değil, tetikleyicinin insanın zihnindeki modele uymamasıydı.
+  #
+  # ⚠️ Bu güvenli: akış katalogu HER ZAMAN en son `katalog-*` sürümünden
+  # indiriyor, depodan değil. Yani push yalnız KODU tazeliyor; veri
+  # nereden geliyorsa oradan gelmeye devam ediyor.
+  push:
+    branches: [main]
+    # Yalnız siteyi etkileyen yollar — belge değişikliği yayın tetiklemesin.
+    paths:
+      - "src/**"
+      - "web/**"
+      - "tools/site_kur.py"
+      - "config/kurallar.toml"
+      - "config/katalog-duzeltmeleri.toml"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
   release:
     types: [published]
