@@ -417,7 +417,21 @@ def _toml_value(value) -> str:
         return str(value)
     if isinstance(value, (list, tuple)):
         return "[" + ", ".join(_toml_value(v) for v in value) + "]"
-    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+    # ★★ Kontrol karakterleri de kaçılıyor (güvenlik denetimi 27.08.2026).
+    # Eski hâli yalnız `\` ve `"` kaçıyordu; bir SATIR SONU geçseydi
+    # `"a\nkey = evil"` gibi GEÇERLİ ama BAŞKA anahtar taşıyan bir TOML
+    # satırı üretirdi — dosyaya anahtar enjeksiyonu.
+    #
+    # Bugün buraya serbest metin round-trip doğrulamasından geçmeden
+    # ulaşamıyor (meşgul etiketi `parse_busy` ile kolunuyor); ama yazıcının
+    # KENDİ BAŞINA güvenli olması gerekir — "çağıran zaten temizliyor"
+    # sessiz bir varsayım ve yeni bir alan eklendiğinde çöker. Bu projedeki
+    # "yazıcı okuyamayacağı şeyi üretmesin" ilkesinin ta kendisi.
+    metin = (str(value).replace("\\", "\\\\").replace('"', '\\"')
+             .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t"))
+    # Kalan kontrol karakterleri (U+0000–U+001F) → \uXXXX.
+    metin = "".join(c if ord(c) >= 0x20 else f"\\u{ord(c):04x}" for c in metin)
+    return '"' + metin + '"'
 
 
 def update_settings(values: dict, path: Path | None = None) -> Path:

@@ -21,9 +21,11 @@ yapamıyorsun** (kredi eşiği + darboğaz).
 """
 from __future__ import annotations
 
+import html as _html
 import json
 import sqlite3
 from pathlib import Path
+from urllib.parse import quote
 
 from . import config
 from . import policy as POL
@@ -683,7 +685,9 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         # ★ Dönemlik + alttan kipi: ayrı aday havuzu, ayrı programlar.
         # Sıra ÖNEMLİ — ilk kip açılışta gösterilen kip.
         "modes": _modes(
-            {"key": "all", "label": "Tüm adaylar",
+            # ★ "Tüm adaylar" → "DEPAR" (kullanıcı isteği 27.08.2026): aracın
+            # adıyla aynı, plandaki tüm açık dersleri değerlendiren tam kip.
+            {"key": "all", "label": AD_KISA,
              "note": f"{len(cands)} aday · plandaki tüm açık dersler",
              "candidates": candidates_json(cands), "schedules": schedule_json},
             {"key": "term", "label": f"{donem}. dönem + alttan",
@@ -701,6 +705,161 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         "lessonCount": con.execute("SELECT COUNT(*) FROM lesson").fetchone()[0],
         "uncertain": S.uncertain_grades(ucon, student_id),
     }
+
+
+# ============================================================ ARACIN ADI
+# ★ Kullanıcı kararı 27.08.2026. Kısaltma UYDURMA DEĞİL, açılımın kendisi:
+#
+#       DErs Planlama ARacı  →  DEPAR
+#
+# "Depar" gerçek bir Türkçe kelime (ani hızlanma) ve kayıt haftasının işi
+# tam olarak o: plan önceden kurulur, kayıt anı depar olur.
+#
+# ⚠️ Ad TEK YERDE. Sekme başlığı, sayfa başlığı ve README ayrı ayrı yazılsaydı
+# biri değişip öbürü kalırdı — bu projede aynı soruya iki kaynağın farklı
+# cevap vermesi tekrar eden hata sınıfı.
+AD_KISA = "DEPAR"
+AD_KURUM = "İTÜ"
+AD_TAM = f"{AD_KURUM} {AD_KISA}"
+AD_ACILIM = "Ders Planlama Aracı"
+
+
+# ============================================================ SEKME İKONU
+# Aracın tek cümlesi: bir hafta, iki program. Üstte --seal cetveli (yapı),
+# altında --anadal ve --cap blokları (veri) — çakışmadan, yan yana.
+#
+# ★ Gece Şeması'nın kurallarıyla çizildi; ikona ayrı bir dil icat edilmedi:
+#   sıfır köşe, düz renk, degrade yok, gölge yok, kenarlık yok. Renkler
+#   sayfadaki ROLLERİYLE duruyor; ikonda süs rengi yok.
+#
+# ★ DEPAR'ın "D"si de denendi ve BIRAKILDI: bu tasarımda hiçbir yerde
+#   yuvarlaklık olmadığı için köşesiz bir "D" 16 pikselde "O"ya benziyor.
+#   Harf, ancak yuvarlaklığa izin veren bir dilde okunurdu.
+#
+# ★ 32'lik ızgara, bütün kenarlar çift sayıda: 16 pikselde her kenar tam
+#   piksele oturuyor. `shape-rendering=crispEdges` bunu ayrıca kilitliyor —
+#   yoksa tarayıcı kenarları yumuşatıp lekeye çeviriyor.
+#
+# ⚠️ İkonun KENDİ koyu zemini var. Şeffaf denendi: beyaz sekme şeridinde
+#   yeşil ve kehribar soluyor, ikon "iki soluk leke"ye dönüyordu. Zeminle
+#   birlikte üç sekme renginde de (koyu, beyaz, gri) aynı okunuyor.
+#
+# ⚠️ Öznitelikler TEK tırnakla: bu metin bir HTML özniteliğinin İÇİNE
+#   gömülüyor, çift tırnak orada özniteliği kapatırdı.
+_FAVICON_SVG = (
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'"
+    " width='32' height='32' shape-rendering='crispEdges'>"
+    "<rect width='32' height='32' fill='#10141B'/>"                 # --ground
+    "<rect width='32' height='4' fill='#8FA3E8'/>"                  # --seal
+    "<rect x='4' y='8' width='11' height='15' fill='#5FC0A6'/>"     # --anadal
+    "<rect x='17' y='13' width='11' height='15' fill='#D9A05B'/>"   # --cap
+    "</svg>"
+)
+
+# Aynı çizimin 32 ve 180 piksellik PNG'leri:
+#   * 32'lik  — SVG ikonu okumayan tarayıcılar için yedek,
+#   * 180'lik — iOS "Ana Ekrana Ekle". Bu olmadan Safari sayfanın ekran
+#     görüntüsünü kırpıp simge yapıyor; ortaya boş bir ızgara çıkıyor.
+# İkisi düz renk olduğu için toplamı 600 baytın altında.
+_ICON_PNG_32 = (
+    "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAUUlEQVR42mPsX/yCgZaAiYHGYO"
+    "hbwCggIj0aRANrAQsyx39NN37VG0NKR+NgiEcykeBkjwN+BeYlB0bjYNSCUQsGLCeTURqPxsFo"
+    "u2g0DogAAM7MClY1FxA3AAAAAElFTkSuQmCC"
+)
+_ICON_PNG_180 = (
+    "iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAABjElEQVR42u3doQ2EMBSAYUoYoA"
+    "LHIFg2wDDKMQUkDIHFdAMsm9wYp85dEAeCJt83ACkvf15lw7K+C/ilNALEgTgQB+JAHIgDcSAO"
+    "xIE4QByIA3EgDsSBOBAH4kAciAO+QqwbU8DmQByIA3EgDsSBOBAH4kAcIA7EgTgQB+JAHIgDcS"
+    "AOxAHiQBz8qbr+iX6bMv35NIwKsDkQB+JAHIgDcSAOxIE4EAeIA3EgDsSBOBAH4kAciANxgDgQ"
+    "B+JAHIgDcSAO8lUZwblj7jI9efvabQ5cK4gDcSAOxIE4EAeIA3EgDsSBOBAH4kAciANxIA4QB+"
+    "JAHIgDcSAOxIE4EAfiAHEgDsSBOBAH4kAciANxIA4QB+JAHIgDcSAOxIE4EAfiQBwgDsSBOBAH"
+    "4uCJbnhXNg2jOdociAPEgTgQB+JAHIgDcSAOxIE4EAeIA3EgDsSBOBAH4kAciANxgDgQB+JAHI"
+    "iDBwmxbkwBmwNxIA7EgTgQB+JAHIgDcYA4EAfiQByIA3EgDsSBOBAHiINzH6Y7C37B7RVVAAAA"
+    "AElFTkSuQmCC"
+)
+
+
+def _svg_data_uri(svg: str) -> str:
+    """SVG'yi data URI'ye çevirir — base64 DEĞİL.
+
+    ★ Base64 daha kısa olurdu ama ikon kaynakta okunmaz hale gelirdi.
+    Bu dosyadaki her renk gibi ikonun renkleri de gözle görülebilir kalmalı;
+    palet değişip ikon geride kalırsa fark edilebilsin.
+
+    ⚠️ `#` URL'de parça (fragment) ayracıdır. Kaçırılmazsa `#10141B` bir
+    fragment sanılıyor ve ikon renksiz çıkıyor — o yüzden `safe` listesinde
+    YOK. `<` ve `>` de kaçırılıyor: öznitelik içinde serbest bırakmak HTML'e
+    göre geçerli ama metni etiket sanan her araç ikonun ortasında kalıyor.
+    """
+    return "data:image/svg+xml," + quote(svg, safe="/:=' ")
+
+
+# ⚠️ `theme-color` İKİ kez, media ile. Sayfa koyu doğuyor ama işletim sistemi
+# açık kipteyse CSS de açığa dönüyor; tek bir koyu değer yazsaydık telefonda
+# adres çubuğu sayfayla uyuşmazdı.
+_HEAD_ICONS = "\n".join([
+    f'<link rel="icon" type="image/svg+xml" href="{_svg_data_uri(_FAVICON_SVG)}">',
+    f'<link rel="alternate icon" type="image/png" sizes="32x32"'
+    f' href="data:image/png;base64,{_ICON_PNG_32}">',
+    f'<link rel="apple-touch-icon" href="data:image/png;base64,{_ICON_PNG_180}">',
+    '<meta name="theme-color" content="#10141B" media="(prefers-color-scheme:dark)">',
+    '<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme:light)">',
+])
+
+# ⚠️ Takvim dosyası (ICS) PRODID alanı ASCII olmak zorunda; "İTÜ" oraya
+# olduğu gibi yazılamaz. Katlama TEK YERDE, yoksa ad değişince biri kalırdı.
+_ASCII = str.maketrans({"İ": "I", "ı": "i", "Ü": "U", "ü": "u", "Ö": "O",
+                        "ö": "o", "Ş": "S", "ş": "s", "Ğ": "G", "ğ": "g",
+                        "Ç": "C", "ç": "c"})
+
+
+def ad_ascii() -> str:
+    """`İTÜ DEPAR — Ders Planlama Aracı` → ASCII karşılığı."""
+    return f"{AD_TAM} {AD_ACILIM}".translate(_ASCII)
+
+
+def _tr_upper(s: str) -> str:
+    """Türkçe'ye saygılı büyük harf: i→İ, ı→I."""
+    return s.replace("i", "İ").replace("ı", "I").upper()
+
+
+def acilim_html(acilim: str | None = None, kisaltma: str | None = None) -> str:
+    """Açılımı, kısaltmayı OLUŞTURDUĞU harfler vurgulu olarak döndürür.
+
+    `Ders Planlama Aracı` + `DEPAR` → `<b>DE</b>rs <b>P</b>lanlama <b>AR</b>acı`
+
+    ★ Elle boyamak yerine TÜRETİYORUZ: ikisi ayrışamaz. Ad değişirse ya
+    doğru vurgu çıkar ya da hiç çıkmaz — yanlış vurgu çıkamaz.
+
+    ⚠️ Kısaltma açılımdan çıkmıyorsa `ValueError`. Sessizce vurgusuz metin
+    döndürmek, "kısaltma açılımdan geliyor" iddiasını ekranda yalanlamadan
+    ölü bırakırdı; ad değiştiren kişi bunu fark etmeli.
+    """
+    # ⚠️ Sabitler VARSAYILAN DEĞER OLARAK yazılmıyor: Python varsayılanları
+    # işlev tanımlanırken bir kez hesaplar, yani `AD_ACILIM`'in o anki
+    # KOPYASI donar. Sabit sonradan değişse imza eski değeri kullanmaya
+    # devam ederdi — aynı soruya iki kaynak, bu projedeki klasik hata.
+    # (Testte yakalandı: adı değiştirip sayfayı çizince eski açılım çıktı.)
+    acilim = AD_ACILIM if acilim is None else acilim
+    kisaltma = AD_KISA if kisaltma is None else kisaltma
+    kalan = list(_tr_upper(kisaltma))
+    parcalar: list[str] = []
+    for i, kelime in enumerate(acilim.split(" ")):
+        if i:
+            parcalar.append(" ")
+        # Bu kelimenin başından kaç harf kısaltmaya gidiyor?
+        n = 0
+        while n < len(kelime) and kalan and _tr_upper(kelime[n]) == kalan[0]:
+            kalan.pop(0)
+            n += 1
+        kacir = _html.escape
+        parcalar.append(f"<b>{kacir(kelime[:n])}</b>" + kacir(kelime[n:]) if n
+                        else kacir(kelime))
+    if kalan:
+        raise ValueError(
+            f"kısaltma açılımdan çıkmıyor: {kisaltma!r} ⊄ {acilim!r} "
+            f"(artan harfler: {''.join(kalan)})")
+    return "".join(parcalar)
 
 
 # ★ Örnek ayar dosyasındaki yer tutucular. Bunlar SEÇİM değil; kurulumu
@@ -970,6 +1129,36 @@ def _term_note(cands: list[REC.Candidate], donem: int, second_label: str) -> str
     return " · ".join(parts)
 
 
+def _gomulu_json(data: dict) -> str:
+    """JSON'u `<script>` içine GÜVENLE gömer (penetrasyon testi 27.08.2026).
+
+    ★★ AÇIK — DOĞRULANMIŞ, TARAYICIDA ÇALIŞAN XSS. `json.dumps` `</script>`
+    dizisini kaçırmıyor: `/` olduğu gibi kalıyor. Sayfa DATA'yı doğrudan
+    `<script>const DATA = …;</script>` içine gömdüğü için, kullanıcının
+    yazdığı serbest metin (meşgul saat etiketi, denklik notu) `</script>`
+    taşırsa tarayıcı script'i ERKEN KAPATIYOR ve kalanı HTML olarak
+    işliyor. Kanıt: `mesgul` etiketine `</script><script>…</script>` konup
+    sayfa açıldığında enjekte script gerçekten çalıştı ve `document.domain`
+    okudu.
+
+    Tehdit yüzeyi bugün dar (yerelde çoğunlukla kişi kendine; paylaşım
+    bağlantısı yalnız rakam kabul ediyor) ama:
+      · `settings.toml` paylaşılabilir/içe aktarılabilir bir dosya,
+      · yarın serbest metin taşıyan bir içe aktarma eklense anında sömürülür,
+      · ve gömülü JSON'dan script kaçışı, tek başına kapatılması gereken bir
+        kusur — "şu an ulaşılmıyor" bir savunma değil.
+
+    Kaçış: `<`, `>`, `&`, U+2028, U+2029 → `\\uXXXX`. Bu karakterler JSON'da
+    YALNIZ string değerlerinin İÇİNDE geçebilir (yapısal sözdiziminde asla),
+    o yüzden `\\u` kaçışı çözümlenen değeri DEĞİŞTİRMİYOR — `JSON.parse`
+    aynı nesneyi veriyor. Standart ve kayıpsız.
+    """
+    ham = json.dumps(data, ensure_ascii=False)
+    return (ham.replace("<", "\\u003c").replace(">", "\\u003e")
+            .replace("&", "\\u0026")
+            .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
+
+
 def render(data: dict, *, deferred: bool = False) -> str:
     """Tek dosyalık arayüz.
 
@@ -980,7 +1169,16 @@ def render(data: dict, *, deferred: bool = False) -> str:
     ★ Şablon kopyalanmıyor — aynı CSS ve aynı JS. İki sürüm çıkarsaydı
     tasarım düzeltmesi birinde yapılır, öbüründe unutulurdu.
     """
-    html = _TEMPLATE.replace("__DATA__", json.dumps(data, ensure_ascii=False))
+    html = _TEMPLATE.replace("__DATA__", _gomulu_json(data))
+    html = html.replace("__ICONS__", _HEAD_ICONS)
+    # ★ Ad TEK KAYNAKTAN. Şablona üç ayrı yere elle yazılsaydı biri değişip
+    # öbürü kalırdı; `acilim_html` de vurguyu kısaltmadan türetiyor.
+    for anahtar, deger in (("__AD_TAM__", AD_TAM), ("__AD_KURUM__", AD_KURUM),
+                           ("__AD_KISA__", AD_KISA),
+                           ("__AD_ACILIM_DUZ__", AD_ACILIM),
+                           ("__AD_ASCII__", ad_ascii()),
+                           ("__AD_ACILIM__", acilim_html())):
+        html = html.replace(anahtar, deger)
     if deferred:
         html = html.replace("\nboot();\n", "\nwindow.__ITUCAP_APPLY__ = applyState;\n")
     return html
@@ -998,7 +1196,8 @@ _TEMPLATE = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ders Planlama Aracı</title>
+<title>__AD_TAM__ — __AD_ACILIM_DUZ__</title>
+__ICONS__
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -1087,6 +1286,18 @@ h1,h2,h3{margin:0;text-wrap:balance;
   font-family:"Chivo",Helvetica,Arial,sans-serif;font-weight:800;
   text-transform:uppercase}
 h1{font-size:29px;letter-spacing:-.02em;line-height:1.1;font-weight:900}
+/* ---------- aracın adı: DErs Planlama ARacı → DEPAR ----------
+   ★ Kısaltmanın nereden geldiği GÖSTERİLİYOR, açıklanmıyor. Vurgulu
+   harfler `ui.acilim_html()` ile açılımdan türetiliyor.
+
+   ⚠️ Büyük harf CSS'te, metinde DEĞİL: ekranda "DErs Planlama ARacı"
+   okunuyor ama kopyalanınca ve ekran okuyucuda "Ders Planlama Aracı"
+   kalıyor — vurgu bir sunum tercihi, metnin kendisi değil. */
+h1 .kurum{color:var(--ink-3);font-weight:700}
+.acilim{margin-top:5px;font-family:"Chivo",Helvetica,Arial,sans-serif;
+  font-size:11.5px;letter-spacing:.13em;color:var(--ink-3);font-weight:500;
+  text-transform:uppercase}
+.acilim b{color:var(--seal);font-weight:900;letter-spacing:.1em}
 h2{font-size:15px;letter-spacing:.02em;font-weight:800}
 .eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
   color:var(--seal);font-family:"Chivo",Helvetica,Arial,sans-serif}
@@ -1715,7 +1926,11 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
   <div class="masthead">
     <div>
       <div class="eyebrow" id="eyebrow"></div>
-      <h1 id="doctitle">Ders Planlama Aracı</h1>
+      <!-- ★ Kısaltma UYDURMA değil, açılımın kendisi: DErs Planlama ARacı.
+           Vurgulu harfler `ui.acilim_html()` ile TÜRETİLİYOR — elle
+           boyansaydı ad değişince ikisi ayrışırdı. -->
+      <h1 id="doctitle"><span class="kurum">__AD_KURUM__</span> __AD_KISA__</h1>
+      <div class="acilim">__AD_ACILIM__</div>
     </div>
     <button class="ghost" id="theme">Tema</button>
   </div>
@@ -1951,8 +2166,9 @@ function renderHeader(){
   if(DATA.termLabel) $("#eyebrow").title = "OBS dönem kodu: " + DATA.term;
   /* ★ Başlıkta program adı YOK (kullanıcı isteği 23.08.2026): araç ÇAP'a
      özel değil, yandalda ve ÇAP'sız kullanımda da aynı araç. Hangi programa
-     baktığın zaten üstteki eyebrow'da yazıyor. */
-  $("#doctitle").textContent = "Ders Planlama Aracı";
+     baktığın zaten üstteki eyebrow'da yazıyor.
+     ⚠️ Başlık artık BURADAN YAZILMIYOR — şablonda duruyor ve tek kaynağı
+     `ui.AD_*` sabitleri. JS'ten ezmek ikinci bir kaynak demekti. */
   /* ★ C6 — başlık artık anadalı da kapsıyor. */
   $("#blockTitle").textContent = "Bu dersleri neden alamıyorsun";
   $("#tierTitle").textContent = ikili ? "Kademeler" : `${LBL} kademeleri`;
@@ -2094,7 +2310,7 @@ function applyState(next){
   SETUP = DATA.setup || null;
   MODES.length = 0;
   MODES.push(...((DATA.modes && DATA.modes.length) ? DATA.modes
-    : [{key:"all", label:"Tüm adaylar", note:"",
+    : [{key:"all", label:"__AD_KISA__", note:"",
         candidates: DATA.candidates, schedules: DATA.schedules}]));
   boot();
 }
@@ -3639,7 +3855,8 @@ function icsTarih(gun, dakika, ofsetGun){
 
 function icsMetni(){
   const sat = ["BEGIN:VCALENDAR", "VERSION:2.0",
-               "PRODID:-//itucap//ders planlama araci//TR", "CALSCALE:GREGORIAN"];
+               "PRODID:-//itucap//__AD_ASCII__//TR",
+               "CALSCALE:GREGORIAN"];
   let saatsiz = 0;
   picks().forEach(p => {
     if(!p.sec.meetings.length){ saatsiz++; return; }
@@ -4030,7 +4247,7 @@ function renderPanels(){
    ve kendi programları var — kip değişince aday listesi de değişiyor, yoksa
    ızgarada olmayan bir dersi tabloda görürdün. */
 const MODES = (DATA.modes && DATA.modes.length) ? DATA.modes
-  : [{key:"all", label:"Tüm adaylar", note:"",
+  : [{key:"all", label:"__AD_KISA__", note:"",
       candidates: DATA.candidates, schedules: DATA.schedules}];
 let mode = 0;
 let CAND = {};
@@ -4039,6 +4256,20 @@ let active = 0;
 let sel = [];                                   // [{course, crn}]
 
 const M = () => MODES[mode];
+
+/* ★ TÜM aday havuzu — hangi kipte olursak olalım DEĞİŞMEYEN tam liste.
+   `DATA.candidates` sunucuda her zaman tam `cands`'tan üretiliyor ('all'
+   kipiyle aynı). "x.dönem + alttan" kipi bunun bir ALT KÜMESİ.
+
+   Neden ayrı: boş saate tıklayınca o saatte alınabilecek HER dersi
+   göstermek istiyoruz (kullanıcı isteği 27.08.2026) — kip süzgeci yalnız
+   ÖNERİYİ daraltıyor, elle ekleme hakkını değil. */
+const TUM_CAND = () => Object.fromEntries((DATA.candidates || []).map(c => [c.course, c]));
+/* Aktif kipte yoksa tam havuza düş: elle eklenen üst-dönem dersi de
+   `choose`/`picks`'te çözülebilsin, yoksa tıklama SESSİZCE hiçbir şey
+   yapmazdı. */
+const candOf = (course) => CAND[course] || TUM_CAND()[course];
+
 function useMode(i){
   mode = i;
   /* ⚠️ Kip değişince geri yığını TEMİZLENİYOR: her kipin KENDİ aday havuzu
@@ -4060,13 +4291,13 @@ function renderModes(){
   $("#modeNote").textContent = M().note || "";
 }
 
-const sectionOf = (course, crn) => (CAND[course]?.sections || []).find(s => s.crn === crn);
+const sectionOf = (course, crn) => (candOf(course)?.sections || []).find(s => s.crn === crn);
 const loadOf = (c) => DATA.unit === "kredi" ? c.credits : c.ects;
 const overlap = (a,b) => a.day === b.day && a.start < b.end && b.start < a.end;
 const clash = (x,y) => x.meetings.some(m => y.meetings.some(n => overlap(m,n)));
 
 function picks(){
-  return sel.map(x => ({cand: CAND[x.course], sec: sectionOf(x.course, x.crn)}))
+  return sel.map(x => ({cand: candOf(x.course), sec: sectionOf(x.course, x.crn)}))
             .filter(p => p.cand && p.sec);
 }
 /* ---------- açılmamış ders uyarısı (Faz 25/C3) ----------
@@ -4547,7 +4778,7 @@ function renderGeri(){
 }
 
 function choose(course, crn){
-  const cand = CAND[course], sec = sectionOf(course, crn);
+  const cand = candOf(course), sec = sectionOf(course, crn);
   if(!cand || !sec) return;
   const vardi = sel.some(x => x.course === course);
   geriKaydet(vardi ? `${course} şube değişikliği` : `${course} eklendi`);
@@ -4741,9 +4972,16 @@ function proximity(section, day, min){
 function slotDialog(day, min){
   // Hücreyi TAM kapsayan ders olmayabilir (dersler :30'da başlıyor, hücre :00).
   // O yüzden "bu saat civarı" penceresi kullanıyoruz; boşsa o günün tamamı.
+  /* ★★ TAM HAVUZDAN (kullanıcı isteği 27.08.2026): "x.dönem + alttan"
+     kipinde bile boş saate tıklayınca o saatte alınabilecek HER ders
+     görünsün. Kip yalnız öneriyi daraltıyor; elle ekleme hakkını değil.
+     Aktif kipte olmayan ders "üst dönem" diye işaretleniyor — gizlemiyoruz,
+     sebebini yazıyoruz. */
+  const aktif = new Set(M().candidates.map(c => c.course));
+  const disinda = (kod) => !aktif.has(kod);
   const collect = (near) => {
     const rows = [];
-    for(const cand of M().candidates){
+    for(const cand of (DATA.candidates || [])){
       if(sel.some(x => x.course === cand.course)) continue;
       // ★ Havuz engelini GİZLEME. Seçilince zaten takas ediliyor; saklamak
       //   Çarşamba'da 19 adaydan 18'ini görünmez yapıyordu (20.08.2026).
@@ -4760,8 +4998,15 @@ function slotDialog(day, min){
       if(!pick) continue;
       const drop = conflictsWith(pick, null).map(p => p.cand.course);
       if(pool) drop.push(pool.cand.course + " (aynı havuz)");
-      rows.push([-(drop.length * 10000) - dist % 10000 + cand.score / 1000,
-        optionRow(cand, pick, drop.length ? "çıkarılır: " + drop.join(", ") : ""),
+      /* ⚠️ Aktif kipin dışındaki ders "üst dönem" diye SÖYLENİYOR: gizlemek
+         "bu saatte ders yok" sanılmasına, susup eklemek de kipin sözünü
+         bozmasına yol açardı. Kullanıcı bilerek ekliyor. */
+      const notlar = [];
+      if(drop.length) notlar.push("çıkarılır: " + drop.join(", "));
+      if(disinda(cand.course)) notlar.push("üst dönem — bu kipte önerilmez");
+      rows.push([-(drop.length * 10000) - dist % 10000 + cand.score / 1000
+                 - (disinda(cand.course) ? 5 : 0),   // kip içi önce sıralanır
+        optionRow(cand, pick, notlar.join(" · ")),
         cand.course]);
     }
     rows.sort((a,b) => b[0]-a[0]);

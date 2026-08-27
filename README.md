@@ -1,7 +1,13 @@
-# itucap
+# İTÜ DEPAR
+
+**DE**rs **P**lanlama **AR**acı — kısaltma uydurma değil, açılımın kendisi.
 
 İTÜ'de **çift anadal (ÇAP)** veya **yandal** yapan öğrenciler için ders
 planlama aracı. Kendi bilgisayarında çalışır, verin senin makinenden çıkmaz.
+
+> Python paketi ve import yolu `itucap` olarak kalıyor — `pip install -e .`,
+> `python -m itucap.pipeline` gibi her şey aynı. Değişen aracın **görünen
+> adı**; depo adı ve site adresi de aynı.
 
 > ⚠️ Bu araç **bilgilendirme amaçlıdır**. Ders kayıt kararların için
 > danışmanına ve OBS'ye danış. Araç senin adına **kayıt yapmaz**, OBS
@@ -191,7 +197,7 @@ uygulanıyor; kaynak dosya değişmediği için hiçbir beyan kaybolmuyor.
 ## Test
 
 ```bash
-make test        # 889 test + gizlilik denetimi
+make test        # 917 test + gizlilik denetimi
 ```
 
 Gizlilik denetimi (`tools/gizlilik_denetimi.py`) dosya adına **değil

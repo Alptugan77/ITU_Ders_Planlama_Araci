@@ -1,7 +1,7 @@
 [project]
 name = "itucap"
 version = "0.1.0"
-description = "İTÜ ders öneri uygulaması — ÇAP destekli veri temeli (Faz 1)"
+description = "İTÜ DEPAR — Ders Planlama Aracı (ÇAP ve yandal destekli)"
 requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.27",

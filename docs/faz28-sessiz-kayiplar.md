@@ -459,3 +459,65 @@ Bir sonraki adım için not: aracın kendisi *"bu ders neden listede yok"*
 sorusunu cevaplayabiliyor (`emptyReason`, darboğaz raporu) ama *"bu program
 neden hiç seçili değil"* sorusunu cevaplamıyor. Kurulum çubuğu artık plansız
 programı gösteriyor; **hiç seçilmemiş** programı gösterecek bir şey yok.
+
+---
+
+# Ek 3 — 27.08.2026: aracın adı, İTÜ DEPAR
+
+Kullanıcı bir kısaltma önerdi ve kısaltma **uydurma değildi** — açılımın
+kendisiydi:
+
+```
+DErs Planlama ARacı  →  DEPAR
+```
+
+"Depar" gerçek bir Türkçe kelime (ani hızlanma). Kayıt haftasının işi de tam
+olarak o: plan önceden kurulur, kayıt anı depar olur.
+
+## Vurgu türetiliyor, elle boyanmıyor
+
+İstek şuydu: *"açılımından geldiği belli olacak şekilde açılımının fontlarını
+ayarlar mısın"*. En kolay yol `<b>DE</b>rs <b>P</b>lanlama…` yazmaktı. Bunu
+**yapmadık**: elle boyanan vurgu, ad değiştiğinde sessizce yanlış kalır ve
+ekranda **doğru görünür**.
+
+```python
+acilim_html("Ders Planlama Aracı", "DEPAR")
+# → "<b>De</b>rs <b>P</b>lanlama <b>Ar</b>acı"
+```
+
+İşlev açılımı gezip her kelimenin başından kısaltmaya giden harfleri
+tüketiyor. Kısaltma açılımdan çıkmıyorsa `ValueError` — sessizce vurgusuz
+metin döndürmek, "kısaltma açılımdan geliyor" iddiasını ekranda
+yalanlamadan ölü bırakırdı.
+
+⚠️ Büyük harf **CSS'te**, metinde değil. Ekranda `DERS PLANLAMA ARACI`
+okunuyor; kopyalanınca ve ekran okuyucuda `Ders Planlama Aracı` kalıyor.
+Vurgu bir sunum tercihi, metnin kendisi değil.
+
+## Ad tek kaynakta — ve bu iki hata yakaladı
+
+Sekme başlığı, sayfa başlığı, açılım, takvim dosyasının `PRODID`'i ve README
+ayrı ayrı yazılabilirdi. Şablon artık yer tutucu taşıyor (`__AD_TAM__`,
+`__AD_ACILIM__`…) ve `render()` hepsini `AD_*` sabitlerinden dolduruyor.
+
+Bunu **kanıtlayan** test, sabitleri değiştirip sayfanın peşinden gelmesini
+kolluyor. İki gerçek hata çıkardı:
+
+1. **Varsayılan argüman donmuştu.** `def acilim_html(acilim=AD_ACILIM …)` —
+   Python varsayılanı işlev tanımlanırken bir kez hesaplıyor, yani sabitin o
+   anki KOPYASI donuyor. Sabit değişse imza eskisini kullanmaya devam
+   ederdi: aynı soruya iki kaynak, bu projenin klasik hatası. Sabitler artık
+   gövdede okunuyor.
+2. **Takvim `PRODID`'i elle yazılmıştı.** Test yakaladı. ICS ASCII zorunlu
+   olduğu için `ad_ascii()` eklendi — katlama da tek yerde.
+
+## Değişmeyenler
+
+| | |
+|---|---|
+| Depo adı ve site adresi | `ITU_Ders_Secim_Araci` — paylaşılan linkler bozulmuyor |
+| Python paketi / import yolu | `itucap` — `python -m itucap.pipeline` aynı |
+| Tarayıcı veritabanı adı | `itucap` — ad değişince kimsenin verisi kaybolmasın |
+
+904 test.

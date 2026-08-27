@@ -110,10 +110,15 @@ def test_sunucu_ikinci_program_listesi_suzuyor(tmp_path, monkeypatch):
 
 # ------------------------------------------------------------- 1. başlık
 def test_baslikta_program_adi_yok(dbs):
+    """★ 27.08.2026: araç artık "İTÜ DEPAR" — ama başlıkta hâlâ PROGRAM adı
+    yok. Araç ÇAP'a özel değil; hangi programa baktığın eyebrow'da yazıyor."""
     html = UI.render(_collect(dbs))
-    assert "<title>Ders Planlama Aracı</title>" in html
+    assert "<title>İTÜ DEPAR — Ders Planlama Aracı</title>" in html
     assert "ÇAP Panosu" not in html
     assert "ÇAP Ders Planlama Raporu" not in html
+    # Başlıkta bölüm kodu geçmiyor.
+    bas = html.split("<title>")[1].split("</title>")[0]
+    assert "HTAE" not in bas and "BLG" not in bas
 
 
 # ------------------------------------------- 2. tanımsız CSS jetonu kalmasın
