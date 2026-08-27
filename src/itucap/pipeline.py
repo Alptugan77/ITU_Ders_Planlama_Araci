@@ -10,6 +10,7 @@ veya normal bir internet bağlantısından çalışır. Sadece itu-helper verisi
 from __future__ import annotations
 
 import argparse
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -57,7 +58,7 @@ def step_obs_plans(con, settings) -> None:
 
         with db.run_step(con, "obs.plans.cap") as box:
             metas = obs_plan.list_plans(
-                client, config.SECOND_KINDS[settings.second_kind][2] or "cap",
+                client, config.plan_type_of(settings.second_kind),
                 f"{settings.second_program}_LS")
             n = 0
             for meta in metas:
@@ -277,7 +278,11 @@ def cmd_refresh(args) -> int:
                 print(f"⚠️  Denklik adımı başarısız: {exc}", file=sys.stderr)
 
     with db.run_step(con, "declared.equivalences") as box:
-        box["rows"] = declared.apply(con)
+        # ★★ Faz 28 — beyanlar KULLANICI DB'sine yazılıyor (kişisel veri).
+        # `temizle_referans` göç: eski sürümde katalogda kalmış satırları
+        # siliyor; o dosya yayınlanan sitenin içine giriyor.
+        declared.temizle_referans(con)
+        box["rows"] = declared.apply(db.user_db())
     if box["rows"]:
         print(f"🔁 {box['rows']} beyan edilmiş denklik uygulandı "
               f"(config/denklikler.toml)")
@@ -491,7 +496,7 @@ def cmd_programs(args) -> int:
     """İkinci program adaylarını listeler: hangi plan id'sini yazacağını gösterir."""
     settings = config.Settings.load()
     con = db.reference_db()
-    plan_type = args.tur or config.SECOND_KINDS[settings.second_kind][2] or "cap"
+    plan_type = args.tur or config.plan_type_of(settings.second_kind)
     rows = con.execute(
         """SELECT id, program_code, host_program_code, title, source
            FROM plan WHERE plan_type=? ORDER BY program_code, id DESC""",
@@ -694,22 +699,35 @@ def cmd_recommend(args) -> int:
 
 
 def cmd_equivalence(args) -> int:
-    """Elle denklik beyanı ekler (config/denklikler.toml)."""
+    """Elle denklik beyanı ekler (config/denklikler.toml).
+
+    ★★ Faz 28: BEYANLAR ARTIK KULLANICI DB'SİNDE. Liste iki dosyayı da
+    okuyor — resmî denklikler katalogda, beyanlar `user.sqlite3`'te —
+    yoksa kendi eklediğin beyan listede görünmezdi.
+    """
     from . import declared
 
     con = db.reference_db()
+    ucon = db.user_db()
     if args.action == "list":
-        rows = con.execute(
-            """SELECT e.id, e.target_course, e.confidence, e.note_raw
-               FROM equivalence e ORDER BY e.confidence, e.target_course""").fetchall()
-        for row in rows:
-            srcs = [r[0] for r in con.execute(
+        rows = []
+        for kaynak, baglanti in (("katalog", con), ("beyan", ucon)):
+            try:
+                rows += [(kaynak, baglanti, r) for r in baglanti.execute(
+                    """SELECT e.id, e.target_course, e.confidence, e.note_raw
+                       FROM equivalence e
+                       ORDER BY e.confidence, e.target_course""").fetchall()]
+            except sqlite3.Error:
+                continue
+        for kaynak, baglanti, row in rows:
+            srcs = [r[0] for r in baglanti.execute(
                 "SELECT course_code FROM equivalence_source WHERE equivalence_id=?", (row[0],))]
             print(f"  [{row['confidence']:<17}] {' + '.join(srcs)} -> {row['target_course']}")
         print(f"\n{len(rows)} denklik")
         return 0
     path = declared.append(args.target, args.sources, args.min_grade, args.note)
-    n = declared.apply(con)
+    declared.temizle_referans(con)
+    n = declared.apply(ucon)
     print(f"✅ {path} güncellendi, {n} beyan uygulandı")
     print("   ⚠️  Bu SENİN beyanın. Ders saydırma için Fakülte Yönetim Kurulu "
           "kararı gerekebilir — danışmanına doğrulat.")

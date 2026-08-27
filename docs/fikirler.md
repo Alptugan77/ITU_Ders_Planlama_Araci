@@ -1,9 +1,16 @@
 # Kalan eksikler ve geliştirilmesi gerekenler
 
-24.08.2026, **Faz 27 sonrası**. A–D bölümleri bitti
+24.08.2026, **Faz 28 sonrası**. A–D bölümleri bitti
 (`docs/faz25-ders-secim-araci.md`), ilk 30 saniye elden geçti
 (`docs/faz26-ilk-30-saniye.md`), **arayüz listesinin (§3) tamamı ve tercih
-ağırlıkları (§2.2) bitti** (`docs/faz27-arayuz.md`).
+ağırlıkları (§2.2) bitti** (`docs/faz27-arayuz.md`), **ilk kullanıcı
+incelemesinin tamamı (A1–A5, B1–B5, C1–C8, D1–D3, E) kapandı**
+(`docs/faz28-sessiz-kayiplar.md`).
+
+Faz 28'de incelemeyi kapatırken **yedi hata** çıktı; en ağırı şuydu: OBS'deki
+205 program kodunun 78'i alt çizgi taşıyor ve hepsi yandal — kayıt kodu
+temizleyicisi alt çizgiyi siliyordu, yani **kutudan seçilen her yandal
+sessizce yok oluyordu**. Ayrıntısı faz belgesinde.
 
 Bu liste **bundan sonrası**. Hepsi ölçülmüş: "şu veri var / şu kadar eksik"
 dediğim yerde kataloğa bakıp saydım.
@@ -136,3 +143,49 @@ göstermemek.**
 | **Yeni:** nöbet aralığını 1 dk'nın altına indirmek | İTÜ sunucularını yormak; kayıt kipi zaten 1 dk ve 2 saatle sınırlı |
 | **Yeni:** `.ics` dosyasına kesin tarih yazmak | Akademik takvim elimizde yok; tahmini tarihi kesinmiş gibi sunmak olurdu |
 | **Yeni:** plan dışı dersi ilerleme yüzdesine katmak | Alınmamış bir şartı alınmış saymak — projenin en pahalı hatası |
+
+---
+
+## Faz 28'de eklenen kalemler
+
+Bunlar incelemeyi kapatırken **ölçerken** çıktı; kapsam dışında bırakıldı.
+
+### F.1 `ECN`, `SEC`, `VBA`, `YZV` — ÇAP planı var, program satırı yok · **S**
+`plan` tablosunda bu dört kodun ÇAP planı var ama `program` tablosunda satırı
+yok, `obs_program_ref` ve `plan_host_program` da tanımıyor. Arayüz şimdilik
+dürüst davranıyor (`ECN — (adı katalogda yok)`), ama **doğru cevap muhtemelen
+veride olmalı**.
+
+**Ne:** `make all-plans` yeniden koşturulup bu dört kodun gerçekten mi yok
+yoksa taramanın mı atladığı ölçülmeli.
+⚠️ Adı **tahmin etme** — plan başlıkları (`TUMMUH_ECN ÇAP Programı`) ana
+programı söylüyor, ikinci programın adını değil.
+
+### F.2 Yerin ilan edilmediği %42 · **S (ölçüm)**
+3630 buluşmanın 1542'sinde bina `undeclared`. Arayüz artık "yer yok" diyor
+ama bu oranın **dönem başında** mı böyle olduğu, yoksa kalıcı mı olduğu
+bilinmiyor. Kayıt haftasına yakın tekrar ölçülmeli — kalıcıysa ızgaranın
+yarısı yersiz kalacak ve "kampüs değişimi" tercihi de o kadar veriyle
+çalışıyor demektir.
+
+### F.3 Kayıt 6,9 saniye sürüyor · **M**
+ÇAP + yandal birlikte kaydedilince sunucu **her şeyi** baştan hesaplıyor.
+Faz 28 bunu dürüstçe söylüyor (geçen süreyi yazıyor) ama süre değişmedi.
+
+**Ne:** kısmi hesaplama — program değişince yalnız etkilenen paneli kur.
+`READ_ONLY_PATHS` ile aynı fikir, bir adım ötesi.
+
+### F.4 Kod göçü tablosu hâlâ yok · **M**
+§1.1'in kardeşi. Faz 28'de plan slotlarını sayarken çıktı: **67 plan slotu**
+katalogda karşılığı olmayan bir derse bakıyor (`ELH 212`, `BLG 211`, `ELE
+321`…). Bunların bir kısmı kapanmış ders, bir kısmı kod göçü. Arayüz artık
+"katalogda yok" diyor; hangisinin hangisi olduğunu söyleyemiyor.
+
+### F.5 ★★ Yayın hattı çalıştırılmalı — düzeltmeler kullanıcıya ulaşmıyor · **S**
+27.08.2026'da kullanıcı yayınlanan siteden *"ikinci program türü geçersiz"*
+ekran görüntüsü gönderdi. O hatanın düzeltmesi **depoda duruyor**; site Faz
+24'ten beri yayınlanmadı. Bu, listedeki en pahalı kalem: yapılan işin hiçbiri
+kullanıcıya ulaşmıyor.
+
+⚠️ Yayından önce `make all-plans` gerekiyor — depodaki katalogda **hiçbir
+yandal programı yok** (76 `_YD` kodunun `program` satırı eksik).

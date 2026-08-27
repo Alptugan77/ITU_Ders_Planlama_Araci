@@ -136,9 +136,18 @@ def test_program_secimi_BOS_baslar(dbs):
 
 def test_program_kutusunda_ADLAR_da_var(dbs):
     """"AIN" tek başına bir tanım değil; kimse kendi OBS kodunu ezbere
-    bilmiyor. Ad da yazınca `select` yazarak-arama'sı ikisine de çalışıyor."""
+    bilmiyor. Ad da yazınca `select` yazarak-arama'sı ikisine de çalışıyor.
+
+    ★ 24.08.2026 (inceleme C3): adı BİLİNMEYEN program artık "ECN — ECN"
+    değil "ECN — (adı katalogda yok)" yazıyor. Sunucu bilinmeyen ada kodu
+    koyuyordu; kod bir ad değil ve okuyan kişi adın gerçekten "ECN"
+    olduğunu sanıyordu. Ölçüldü: 4 kodun (ECN, SEC, VBA, YZV) `program`
+    tablosunda satırı yok."""
     html = UI.render(_collect(dbs))
-    assert "adi[c] ? `${c} — ${adi[c]}` : c" in html
+    assert "adi[c] ? `${c} — ${adi[c]}`" in html
+    assert "(adı katalogda yok)" in html
+    # Kodu ad diye kabul etmiyor.
+    assert "p.name.toUpperCase() !== p.code.toUpperCase()" in html
 
 
 def test_anadal_listesi_YALNIZ_lisans_plani_olanlar(dbs):

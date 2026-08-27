@@ -179,10 +179,19 @@ sürüm zamanla ayrışırdı.
 `user.sqlite3` (senin notların). Ayrım kasıtlı — kişisel veri tek bir dosyada
 toplanıyor, yedeklemesi ve silmesi kolay.
 
+**Denklik beyanların da `user.sqlite3`'te** (Faz 28). Daha önce referans
+veritabanına yazılıyorlardı; `declared.py` "bunlar müfredat bilgisi, kişisel
+değil" diyordu ama `tools/gizlilik_denetimi.py` yayınlanan katalogda beyan
+görünce hata veriyordu — aynı soruya iki farklı cevap. Denetim haklıydı:
+*"şu dersim şunun yerine saysın"* beyanı hem hangi dersi aldığını hem neye
+başvurduğunu ele verir. Eski veritabanlarında kalmış beyanlar açılışta
+siliniyor ve `config/denklikler.toml`'dan kullanıcı veritabanına yeniden
+uygulanıyor; kaynak dosya değişmediği için hiçbir beyan kaybolmuyor.
+
 ## Test
 
 ```bash
-make test        # 439 test + gizlilik denetimi
+make test        # 889 test + gizlilik denetimi
 ```
 
 Gizlilik denetimi (`tools/gizlilik_denetimi.py`) dosya adına **değil

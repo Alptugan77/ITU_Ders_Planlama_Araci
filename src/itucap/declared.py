@@ -5,9 +5,14 @@ bildiği denklikler burada, VERSİYONLANABİLİR bir dosyada tutulur ve her
 `make refresh` sırasında yeniden uygulanır — böylece `make clean` sonrası da
 kaybolmaz.
 
-Bunlar kişisel veri DEĞİL (müfredat bilgisi), o yüzden referans veritabanına
-yazılır; ama `confidence='user_declared'` ile işaretlenir ve arayüzde
-"resmi" denkliklerden ayrılır.
+★★ FAZ 28 — BUNLAR KİŞİSEL VERİ. Bu dosya eskiden "kişisel veri DEĞİL
+(müfredat bilgisi)" diyor ve referans veritabanına yazıyordu; oysa
+`tools/gizlilik_denetimi.py` yayınlanan katalogda `confidence='user_declared'`
+görürse HATA veriyordu. Aynı soruya iki kaynak farklı cevap veriyordu — bu
+projenin tekrar eden hata sınıfı — ve denetim haklıydı: "şu dersim şunun
+yerine saysın" beyanı, hangi dersleri aldığını ve neye başvurduğunu ele
+verir. Artık `user.sqlite3`'e yazılıyor, `confidence='user_declared'` ile
+işaretleniyor ve arayüzde "resmi" denkliklerden ayrılıyor.
 """
 from __future__ import annotations
 
@@ -104,7 +109,13 @@ def load_prereq_overrides(path: Path | None = None) -> dict[str, dict]:
 
 
 def apply(con: sqlite3.Connection, path: Path | None = None) -> int:
-    """Beyan edilen denklikleri veritabanına yazar. Idempotent."""
+    """Beyan edilen denklikleri KULLANICI veritabanına yazar. Idempotent.
+
+    ★★ Faz 28 — hedef DB değişti: `reference.sqlite3` yerine
+    `user.sqlite3`. Çağıranların hepsi artık `ucon` geçiyor; parametre adı
+    `con` olarak kaldı çünkü işlev hangi bağlantıyı verirsen ona yazıyor.
+    Gerekçe `schema_user.sql`'de ve `rules.load_equivalences`'ta.
+    """
     con.execute(
         """DELETE FROM equivalence_source WHERE equivalence_id IN
              (SELECT id FROM equivalence WHERE confidence='user_declared')""")
@@ -187,3 +198,31 @@ def append(target: str, sources: list[str], min_grade: str = "DD",
     with path.open("a", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")
     return path
+
+
+def temizle_referans(con: sqlite3.Connection) -> int:
+    """Referans DB'de kalmış ESKİ beyan satırlarını siler (Faz 28 göçü).
+
+    ★ Faz 28'den önce beyanlar `reference.sqlite3`'e yazılıyordu. O satırlar
+    artık okunmuyor (`rules.load_equivalences` referans DB'deki
+    `user_declared` kayıtlarını her durumda atlıyor) ama DURUYORLAR — ve
+    o dosya yayınlanan sitenin içine giriyor. Kalıntıyı bırakmak, "okumuyoruz
+    ki" diyerek kişisel veriyi yayınlamak olurdu.
+
+    ⚠️ Kayıp yok: beyanların asıl kaynağı `config/denklikler.toml`;
+    `apply()` onu kullanıcı DB'sine yeniden yazıyor.
+    """
+    try:
+        n = con.execute(
+            "SELECT COUNT(*) FROM equivalence WHERE confidence='user_declared'"
+        ).fetchone()[0]
+    except sqlite3.Error:
+        return 0
+    if not n:
+        return 0
+    con.execute(
+        """DELETE FROM equivalence_source WHERE equivalence_id IN
+             (SELECT id FROM equivalence WHERE confidence='user_declared')""")
+    con.execute("DELETE FROM equivalence WHERE confidence='user_declared'")
+    con.commit()
+    return n

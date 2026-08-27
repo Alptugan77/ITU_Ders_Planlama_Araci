@@ -390,12 +390,23 @@ def test_invalid_program_payloads(live):
 
 
 def test_program_codes_are_sanitised(live):
-    """★ Kod alanı doğrudan yapılandırmaya yazılıyor — temizlenmeli."""
+    """★ Kod alanı doğrudan yapılandırmaya yazılıyor — temizlenmeli.
+
+    ★ 24.08.2026: temizlemek ARTIK YETMİYOR. `x"; drop` eskiden `XDROP`
+    olup dosyaya YAZILIYORDU — zararsız ama anlamsız bir kod, ve o kodla
+    hiçbir şube eşleşmediği için aday listesi sessizce boşalıyordu.
+    Şimdi kayıt reddediliyor ve hangi kodun tanınmadığı yazıyor."""
     _state, _base, _get, post = live
+    kod, cevap = post("/api/programs", {
+        "anadalProgram": "htae", "secondKind": "cap", "secondProgram": "blg",
+        "programCodes": ["htae", "b l g", "x\"; drop", ""]})
+    assert kod == 400
+    assert "XDROP" in str(cevap), cevap
+    # Geçerli kodlar temizlenip kaydedilebiliyor (büyük harfe çevirme dâhil).
     post("/api/programs", {"anadalProgram": "htae", "secondKind": "cap",
                            "secondProgram": "blg",
-                           "programCodes": ["htae", "b l g", "x\"; drop", ""]})
-    assert config.Settings.load().allowed_programs == {"HTAE", "BLG", "XDROP"}
+                           "programCodes": ["htae", "b l g"]})
+    assert config.Settings.load().allowed_programs == {"HTAE", "BLG"}
 
 
 # ================================================== Faz 9: tazeleme ve GNO

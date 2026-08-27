@@ -102,6 +102,16 @@ class Candidate:
     term_no: int | None = None   # planın kaçıncı dönemi; dönemsiz planda None
     pool_label: str = ""      # ELECTIVE_POOL ise havuzun adı
     prereq_unknown: bool = False
+    # ★★ Katalogda ÖNŞART METNİ YOK (ilk kullanıcı incelemesi D1).
+    #
+    # Ölçüm (24.08.2026): 10789 dersin yalnız 4628'inde (%42.9) önşart metni
+    # var; açık şubesi olan 2019 dersin 858'inde (%42.5). Kalan %57 için
+    # motor "önşartı yok, alabilirsin" diyordu — oysa doğrusu "BİLMİYORUZ".
+    #
+    # ⚠️ `prereq_unknown` bundan FARKLI: o, metin VAR ama ayrıştıramadık
+    # demek. İkisini karıştırmak, iki ayrı veri sorununu tek etikete
+    # sıkıştırıp hangisini düzelteceğimizi gizlerdi.
+    prereq_missing: bool = False
     score: float = 0.0
     reasons: list[str] = field(default_factory=list)
     # ★ Puanın kırılımı (Faz 27): [{"key","points","label"}]. Gerekçe METNİ
@@ -189,7 +199,7 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
 
     grades = S.grades(ucon, student_id)
     taking = S.in_progress(ucon, student_id)   # ★ bu dönem aldıkların
-    equivalences = R.load_equivalences(con)
+    equivalences = R.load_equivalences(con, ucon=ucon)
     expanded, _via = R.expand_with_equivalences(grades, equivalences)
     prereq_grades = R.prereq_view(expanded)   # muafiyetler yalnız önşartta
     trees = P.parsed_trees(con)
@@ -257,13 +267,18 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
                 unknown = code in unparsed
                 if verdict.status is R.Status.BLOCKED and not unknown:
                     continue
-                if not POL.check(code, have_credits, rules):
+                info = con.execute(
+                    "SELECT name, ects, credits, prereq_raw FROM course WHERE code=?",
+                    (code,)).fetchone()
+                # ⚠️ Ders ADI kredi eşiğine GİRİYOR (inceleme D1): kural
+                # kod kalıbıyla bitirme derslerinin 97'sinden yalnız 9'unu
+                # tanıyordu. Bu yüzden `info` sorgusu kontrolden ÖNCE.
+                if not POL.check(code, have_credits, rules,
+                                 (info["name"] if info else "") or ""):
                     continue                      # kredi eşiği — bitirme çalışması
                 sections = load_sections(con, code, allowed)
                 if not sections:
                     continue
-                info = con.execute(
-                    "SELECT name, ects, credits FROM course WHERE code=?", (code,)).fetchone()
                 out.append(Candidate(
                     course=code,
                     name=(info["name"] if info else "") or "",
@@ -276,6 +291,7 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
                     required=slot["slot_kind"] == "REQUIRED",
                     sections=sections,
                     prereq_unknown=unknown,
+                    prereq_missing=not (info and str(info["prereq_raw"] or "").strip()),
                     slot_id=slot["id"],
                     plan_id=plan_id,
                     term_no=slot["term_no"],
@@ -503,6 +519,10 @@ def score_all(cands: list[Candidate]) -> list[Candidate]:
                 f"{label} dersi — arzı kısıtlı")
         if c.prereq_unknown:
             c.reasons.append("⚠ önşartı okunamadı — danışmanına sor")
+        elif c.prereq_missing:
+            # ⚠️ "Önşartı yok" DEMİYORUZ: katalogda metin yok, bu iki farklı
+            # şey. Aracın kendi ilkesi bunu gerektiriyor.
+            c.reasons.append("önşart bilgisi katalogda yok — OBS'den doğrula")
         c.score = round(score, 1)
         # ⚠️ Kırılım toplamı puanla TUTMALI. Ayrışırlarsa arayüz yalan söyler;
         # test bunu kilitliyor (test_faz27).
@@ -743,9 +763,15 @@ def alternatives(schedule: Schedule, cands: list[Candidate]) -> dict[str, list[s
 
 
 # -------------------------------------------------------------------- çıktı
-# 'undeclared' = "İlgili Bölümce Açıklanacak" — kullanıcıya İngilizce sızmasın
+# 'undeclared' = "İlgili Bölümce Açıklanacak" — kullanıcıya İngilizce sızmasın.
+# ★ "belirsiz" DEĞİL "yer yok" (Faz 28): arayüzle aynı sözü kullanıyoruz ve
+# "belirsiz" bir bina adı gibi okunuyordu. Ölçüldü: 3630 buluşmanın 1542'si
+# (%42) ilan edilmemiş — yani en sık görülen "bina adı" uydurma bir kelimeydi.
+_YER_YOK = {"", "-", "--", "undeclared", "tba", "tbd"}
+
+
 def _building_label(code: str | None) -> str:
-    return "belirsiz" if (code or "").lower() == "undeclared" else (code or "")
+    return "yer yok" if (code or "").strip().lower() in _YER_YOK else (code or "").strip()
 
 
 def format_candidates(cands: list[Candidate], top: int = 12) -> str:
@@ -814,17 +840,23 @@ class Blocker:
 
 def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                  cap_plan_id: int, cap_program: str,
-                 allowed_programs: Iterable[str] = ()) -> list[Blocker]:
-    """Kalan her ÇAP dersi için 'neden bu dönem alamıyorum' cevabı.
+                 allowed_programs: Iterable[str] = (),
+                 max_term: int | None = None) -> list[Blocker]:
+    """Kalan her ders için 'neden bu dönem alamıyorum' cevabı.
 
     Ölçüm (18.08.2026): engelin çoğu önşart DEĞİL, **arz**. ÇAP dersleri ya bu
     dönem açılmıyor ya da şubeleri başka programlara ayrılmış oluyor.
+
+    ★ `max_term` ANADAL için gerekli (inceleme C6): dönemli bir lisans
+    planında ileriki dönemlerin dersleri "alamıyorsun" değil, "sırası
+    gelmedi". Hepsini engel diye listelemek, 8. dönem derslerini 1. dönem
+    öğrencisinin karşısına sorun gibi çıkarırdı.
     """
     from . import student as S
 
     grades = S.grades(ucon, student_id)
     taking = S.in_progress(ucon, student_id)
-    equivalences = R.load_equivalences(con)
+    equivalences = R.load_equivalences(con, ucon=ucon)
     expanded, _ = R.expand_with_equivalences(grades, equivalences)
     prereq_grades = R.prereq_view(expanded)
     trees = P.parsed_trees(con)
@@ -834,11 +866,17 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
 
     out: list[Blocker] = []
     for row in con.execute(
-        """SELECT id, course_code FROM plan_slot
+        """SELECT id, course_code, term_no FROM plan_slot
            WHERE plan_id=? AND slot_kind='REQUIRED' AND course_code IS NOT NULL
            ORDER BY position""", (cap_plan_id,)
     ):
         code = row["course_code"]
+        # ⚠️ Sırası GELMEMİŞ ders bir engel değil. Dönemsiz plandaki slotta
+        # `term_no` yok — orada eleme yapmıyoruz, çünkü elenecek bir dönem
+        # bilgisi yok (ÇAP/yandal planları böyle).
+        if (max_term is not None and row["term_no"] is not None
+                and row["term_no"] > max_term):
+            continue
         if R.slot_satisfied(con, row["id"], grades, equivalences).satisfied:
             continue
         if code in taking:
@@ -868,7 +906,8 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
             out.append(Blocker(code, "ONSART", f"eksik: {missing}"))
             continue
         # ★ Önşartı sağlansa bile mevzuat engelleyebilir (bitirme kredi eşiği).
-        cv = POL.check(code, credits_have, rules)
+        _ad = con.execute("SELECT name FROM course WHERE code=?", (code,)).fetchone()
+        cv = POL.check(code, credits_have, rules, (_ad[0] if _ad else "") or "")
         if not cv:
             out.append(Blocker(code, "KREDI_ESIGI",
                                f"{cv.rule.name}: {credits_have:g}/{cv.rule.min_credits:g} kredi"

@@ -22,7 +22,7 @@ def rebuild_fulfillment(con: sqlite3.Connection, ucon: sqlite3.Connection,
                         student_id: int, plan_ids: list[int],
                         grades: Mapping[str, str]) -> int:
     """slot_fulfillment'ı sıfırdan üretir. Idempotent."""
-    equivalences = R.load_equivalences(con)
+    equivalences = R.load_equivalences(con, ucon=ucon)
     ucon.execute("DELETE FROM slot_fulfillment WHERE student_id=?", (student_id,))
     written = 0
     for plan_id in plan_ids:
@@ -65,11 +65,13 @@ def _bar(percent: float, width: int = 24) -> str:
 
 
 def panel(con: sqlite3.Connection, plan_id: int, role: str,
-          grades: Mapping[str, str]) -> list[str]:
+          grades: Mapping[str, str],
+          ucon: sqlite3.Connection | None = None) -> list[str]:
     plan = con.execute("SELECT * FROM plan WHERE id=?", (plan_id,)).fetchone()
     if plan is None:
         return [f"{role}: plan {plan_id} bulunamadı"]
-    stats = R.plan_progress(con, plan_id, grades, R.load_equivalences(con))
+    stats = R.plan_progress(con, plan_id, grades,
+                            R.load_equivalences(con, ucon=ucon))
     out = [
         f"{role} — {plan['program_code']}",
         f"  {plan['title'][:62]}",
@@ -114,7 +116,7 @@ def report(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
 
     for row in rows:
         w("")
-        out.extend(panel(con, row["plan_id"], row["role"], grades))
+        out.extend(panel(con, row["plan_id"], row["role"], grades, ucon=ucon))
 
     uncertain = S.uncertain_grades(ucon, student_id)
     if uncertain:

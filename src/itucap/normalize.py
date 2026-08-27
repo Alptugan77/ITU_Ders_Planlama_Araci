@@ -192,8 +192,15 @@ def base_program_code(code: str) -> str:
 def merge_language_variants(codes) -> list[str]:
     """Dil varyantlarını tekleştirir: {'BLG','BLGE','HTAE'} -> ['BLG','HTAE'].
 
-    ⚠️ Yalnız İKİSİ DE varsa birleştiriyoruz. 'HTAE'nin 'HTA' diye bir eşi
-    yok; körlemesine son harfi atmak var olmayan bir programa yönlendirirdi.
+    ⚠️ Yalnız İKİSİ DE VERİLEN KÜMEDE varsa birleştiriyoruz; körlemesine
+    son harfi atmak var olmayan bir programa yönlendirirdi.
+
+    ⚠️ Buradaki eski yorum örnek olarak *"'HTAE'nin 'HTA' diye bir eşi yok"*
+    diyordu — **yanlışmış**. 27.08.2026'da katalogda ölçtük: `HTA` (Harita
+    Mühendisliği) ve `HTAE` (Harita Mühendisliği İngilizce) ikisi de program
+    olarak var ve sırasıyla 774 / 655 şubeye açık. Kuralın kendisi doğru,
+    gerekçesi yanlıştı. Eş kodun VAR OLDUĞU her yerde katalogdan
+    doğrulanmalı (bkz. `server.State._dil_esleri`), yorumdan değil.
     """
     codes = {str(c).strip().upper() for c in codes if c}
     return sorted(c for c in codes

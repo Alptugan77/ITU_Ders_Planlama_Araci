@@ -52,6 +52,15 @@ DAY_INDEX = {
 }
 
 
+# ⚠️ TEKİL türlerin tablosu. "ikisi" burada YOK ve olmamalı: "ikisi"nin tek
+# bir rolü, tek bir etiketi, tek bir OBS plan tipi yok. Seçilebilir değerler
+# `SECOND_CHOICES`'ta; doğrulama ORAYA bakmalı.
+#
+# ★★ Hata bildirimi 24.08.2026: "yandal ve çap planını aynı anda yapmaya
+# çalışınca program türü geçersiz diyor". Sebebi tam olarak buydu —
+# `server.save_programs` doğrulamayı bu sözlükle yapıyordu. Aynı karışıklık
+# `pipeline` ve `verify` içinde `SECOND_KINDS[second_kind]` biçiminde
+# KeyError olarak da duruyordu; `plan_type_of()` onları da kapatıyor.
 SECOND_KINDS = {
     #  kind      rol         etiket      OBS plan tipi
     "cap":    ("CAP",    "ÇAP",    "cap"),
@@ -74,6 +83,49 @@ SECOND_CHOICES: dict[str, tuple[str, ...]] = {
     "ikisi":  ("cap", "yandal"),
     "yok":    (),
 }
+
+
+def plan_type_of(second_kind: str, fallback: str = "cap") -> str:
+    """`second_kind` için OBS plan tipi — "ikisi" dahil, KeyError YOK.
+
+    ★ `SECOND_KINDS[second_kind][2]` üç yerde doğrudan çağrılıyordu
+    (`pipeline` iki kez, `verify` bir kez) ve `second_kind == "ikisi"`
+    olduğunda hepsi KeyError veriyordu: ÇAP+yandal seçen kullanıcıda
+    `make refresh`, `make verify` ve `make programs` çöküyordu.
+
+    ⚠️ "ikisi"nde TEK bir plan tipi yok; ilkini döndürüyoruz ve çağıranların
+    hepsi zaten tek tip isteyen yerler (tarama komutu, doğrulama raporu).
+    Doğru cevabı isteyen yer `settings.seconds` üzerinden dönmeli.
+    """
+    turler = SECOND_CHOICES.get(second_kind, ())
+    if not turler:
+        return fallback
+    return SECOND_KINDS[turler[0]][2] or fallback
+
+
+# OBS dönem kodunun son iki hanesi. Doğrulandı: `202610` kodlu şubeler
+# 23.08.2026'da çekildi — yani 2026-2027 Güz.
+_YARIYIL = {"10": "Güz", "20": "Bahar", "30": "Yaz"}
+
+
+def donem_adi(kod: str) -> str:
+    """`202610` → `2026-2027 Güz`. Çözemezse BOŞ döner.
+
+    ★ İlk kullanıcı incelemesi B3: başlıkta ham `202610` yazıyordu. Bu kod
+    OBS'nin iç gösterimi; öğrencinin gördüğü hiçbir yerde böyle yazmıyor.
+
+    ⚠️ Tanımadığı kalıba İSİM UYDURMUYOR. Boş dönüyor ve çağıran taraf ham
+    kodu yazmaya devam ediyor — yanlış bir dönem adı yazmak, ham koddan
+    çok daha kötü olurdu (öğrenci "bahar" sanıp yanlış döneme bakar).
+    """
+    k = str(kod or "").strip()
+    if len(k) != 6 or not k.isdigit():
+        return ""
+    yil, yariyil = k[:4], k[4:]
+    ad = _YARIYIL.get(yariyil)
+    if not ad:
+        return ""
+    return f"{yil}-{int(yil) + 1} {ad}"
 
 
 @dataclass
@@ -135,9 +187,19 @@ class Settings:
     # Yine de güvenlik için http.ascii_header() ile temizleniyor.
     user_agent: str = "itucap/0.1 (kisisel ders planlama araci; github.com/itucap)"
     scrape_plan_types: list[str] = field(default_factory=lambda: ["lisans", "cap"])
-    # ★ Şubelerin `Dersi Alabilen Programlar` listesinde arayacağımız kodlar.
-    # Öğrenci bu kodların HERHANGİ BİRİYLE kayıt yapabiliyorsa ders alınabilir.
-    # (Kullanıcı teyidi 20.08.2026: HTAE, BLG, BLGE.)
+    # ★★ EKSTRA program kodları — anadal/ÇAP/yandal kodları BURAYA YAZILMAZ.
+    # (Kullanıcı isteği 27.08.2026: *"alabileceğim ders kodlarını anadal çap
+    # ve yandala göre otomatik ekler misin, orada sadece ekstra program
+    # türleri girilebilsin"*.)
+    #
+    # Şubelerin `Dersi Alabilen Programlar` listesinde arayacağımız kodlar
+    # `allowed_programs`; o da SEÇİLENLERDEN TÜRETİLENLER ∪ BURASI.
+    # Eskiden bu alan listenin TAMAMIydı ve seçim değiştiğinde elle
+    # güncellenmesi gerekiyordu — güncellenmeyince ders havuzu sessizce
+    # yanlış kalıyordu (bkz. `_bos_havuz_sebebi`, yer tutucu `XXX` vakası).
+    #
+    # ⚠️ Geriye dönük uyumlu: eski dosyalarda burada türetilenler de yazıyor;
+    # birleşim aynı kümeyi verdiği için davranış değişmiyor.
     program_codes: list[str] = field(default_factory=lambda: [])
 
     # ★ Yük birimi. İTÜ'nün kendi kredi sistemi varsayılan; AKTS ikincil olarak
@@ -190,9 +252,11 @@ class Settings:
                                else (varlar[0] if varlar else "yok"))
         if obj.second_kind not in SECOND_CHOICES:
             obj.second_kind = "cap"
-        if not obj.program_codes:       # beyan yoksa kendi kodlarına düş
-            obj.program_codes = [c for c in (obj.anadal_program,
-                                             *(s[3] for s in obj.seconds)) if c]
+        # ⚠️ Buradaki "beyan yoksa kendi kodlarına düş" satırı KALDIRILDI:
+        # türetme artık `allowed_programs`'ta, her seferinde. Alanı doldurmak,
+        # türetilmiş kodları kullanıcının ELLE YAZDIĞI kodlardan ayırt
+        # edilemez hale getiriyordu — arayüz de onları kutuda gösteriyor ve
+        # bölüm değişince eski kod orada kalıyordu.
         # ★ İkinci program yandal ise OBS'den yandal planı çekilmeli; kullanıcı
         # scrape_plan_types'ı ayrıca güncellemek zorunda kalmasın.
         for kind in obj.second_kinds:
@@ -217,7 +281,17 @@ class Settings:
                 .get(kind, "") or "")
 
     def plan_id_of(self, kind: str) -> int | None:
-        return {"cap": self.cap_plan_id, "yandal": self.yandal_plan_id}.get(kind)
+        """★★ `0` = "seçilmedi" ve `None`'a çevriliyor (hata: A1 incelemesi A2).
+
+        Örnek ayar dosyası `cap_plan_id = 0` yazıyordu; kod "seçilmedi"yi
+        `None` ile anlıyordu. `0 != None` olduğu için `resolve_seconds`
+        `planId: 0` — var olmayan bir plan — döndürüyor ve **ÇAP bütün
+        ekrandan sessizce düşüyordu**: panel yok, ders yok, kritik yol yok,
+        hata mesajı da yok. `plans.py`'deki "planı bulunamayan tür listede
+        KALIYOR" yolu hiç çalışmıyordu.
+        """
+        ham = {"cap": self.cap_plan_id, "yandal": self.yandal_plan_id}.get(kind)
+        return ham or None
 
     @property
     def seconds(self) -> list[tuple[str, str, str, str, int | None]]:
@@ -255,8 +329,25 @@ class Settings:
         return self.plan_id_of(self.second_kinds[0]) if self.second_kinds else None
 
     @property
+    def derived_programs(self) -> list[str]:
+        """Seçimlerden TÜRETİLEN kodlar: anadal + ÇAP + yandal.
+
+        ★ Kullanıcı isteği 27.08.2026. Bunlar zaten kayıtlı olduğu
+        programlar — elle yazdırmanın anlamı yok ve bölüm değişince eski
+        kodun kutuda kalması sessiz bir hataydı.
+        """
+        gorulen: list[str] = []
+        for c in (self.anadal_program, *(s[3] for s in self.seconds)):
+            k = str(c or "").strip().upper()
+            if k and k not in gorulen:
+                gorulen.append(k)
+        return gorulen
+
+    @property
     def allowed_programs(self) -> set[str]:
-        return {c.upper() for c in self.program_codes}
+        """Türetilenler ∪ ekstralar — şube süzgecinin baktığı küme."""
+        return {*self.derived_programs,
+                *(c.strip().upper() for c in self.program_codes if str(c).strip())}
 
     @property
     def unit_label(self) -> str:

@@ -200,9 +200,20 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     çağıran taraf artık listeyi açıkça verebiliyor.
     """
     grades = S.grades(ucon, student_id)
-    equivalences = R.load_equivalences(con)
+    equivalences = R.load_equivalences(con, ucon=ucon)
     if seconds is None:
         seconds = second_programs(settings, cap_id, yandal_id)
+    # ★★ PLANSIZ İKİNCİ PROGRAM SESSİZCE SİLİNİYORDU.
+    # `resolve_seconds` planı bulunamayan türü BİLEREK listede bırakıyor
+    # ("yandalım var ama araç göstermiyor" ile "yandal planı çekilmemiş"
+    # ayrı şeyler). Burası bir satır sonra o ayrımı çöpe atıyordu: ekranda
+    # yandal HİÇ görünmüyor, kullanıcı seçimi kaydolmamış sanıyordu.
+    # Aynı soruya iki kaynağın farklı cevap vermesi — bu projedeki ikinci
+    # klasik hata sınıfı.
+    #
+    # Plan gerektiren her yer (paneller, ilerleme, taban) filtrelenmiş
+    # listeyi kullanmaya devam ediyor; `plansiz` yalnızca GÖSTERİLİYOR.
+    plansiz = [s for s in seconds if not s.get("planId")]
     seconds = [s for s in seconds if s.get("planId")]
     # Tekil değerler eski davranış için: İLK ikinci program.
     second_role = (seconds[0]["role"] if seconds else "") or "CAP"
@@ -445,6 +456,7 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             "credits": c.credits, "slotId": c.slot_id, "planId": c.plan_id,
             "termNo": c.term_no, "pool": c.pool_label,
             "score": c.score, "unlocks": c.unlocks, "critical": c.critical,
+            "prereqUnknown": c.prereq_unknown, "prereqMissing": c.prereq_missing,
             # ★ Puanın kırılımı — "neden bu ders önde" sorusunun cevabı.
             "parts": c.parts,
             # `unlocks` katalogdaki toplam, `opens` SENİN planındaki liste.
@@ -460,7 +472,20 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     # olduğu satırda yazıyor — iki programın engellerini tek listede
     # ayrımsız göstermek "hangi program yüzünden takıldım" sorusunu
     # cevapsız bırakırdı.
+    # ★★ İnceleme C6 — "bu dersi neden alamıyorum" sorusu ANADAL için de
+    # cevaplanıyor artık. Darboğaz yalnız ikinci program için hesaplanıyordu
+    # ("İkinci programda neden alamıyorsun"); tek programlı öğrenci — yani
+    # aracın kullanıcılarının çoğu — bu cevabı HİÇ görmüyordu.
     blockers = []
+    if anadal_id:
+        blockers += [{"course": b.course, "reason": b.reason, "detail": b.detail,
+                      "name": names.get(b.course, ""),
+                      "role": "ANADAL", "label": "anadal",
+                      "program": settings.anadal_program}
+                     for b in REC.cap_blockers(con, ucon, student_id, anadal_id,
+                                               settings.anadal_program,
+                                               settings.allowed_programs,
+                                               max_term=donem or None)]
     for s in seconds:
         blockers += [{"course": b.course, "reason": b.reason, "detail": b.detail,
                       "name": names.get(b.course, ""),
@@ -613,10 +638,21 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         # ayrışabilir: bugün açılan sayfa üç gün önceki kontenjanı gösterir.
         # Tek tarih yazmak, eski sayıyı bugünkü gibi gösteriyordu.
         "dataAge": _veri_yasi(con),
+        # ★ C3 — bina kodu ("TMB") tek başına bir yer değil. Tam ad ipucunda.
+        "buildings": _bina_adlari(con),
+        # ★ Aday ders sıfırsa GERÇEK sebep (inceleme A5). Boş dize = ölçülen
+        # bir sebep yok; arayüz o zaman genel mesajı yazıyor.
+        "emptyReason": (_bos_havuz_sebebi(con, anadal_id, settings.allowed_programs)
+                        if not cands else ""),
+        # Beyan edilen anadal planı bulunamadıysa (inceleme A4).
+        "planWarning": _plan_uyarisi(con, settings),
         # ★ Faz 25/D1 — bozuk ayar dosyası. Sessizce varsayılana düşmek,
         # kullanıcıya başka bir bölümün raporunu doğru sandırırdı.
         "settingsError": settings.load_error,
         "term": settings.term,
+        # ★ B3 — başlıkta ham `202610` yazıyordu. Çözülemezse BOŞ; arayüz
+        # o zaman ham kodu yazmaya devam ediyor, isim UYDURMUYOR.
+        "termLabel": config.donem_adi(settings.term),
         "unit": settings.unit, "unitLabel": settings.unit_label,
         "maxLoad": limit,
         "anadal": settings.anadal_program,
@@ -627,6 +663,10 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         # Tekil `cap`/`secondRole` alanları ilkini gösteriyor ve eski
         # çağrı yerleri için duruyor.
         "seconds": seconds,
+        # ★ Seçili ama PLANI BULUNAMAYAN ikinci programlar. Bunlar için
+        # ilerleme/taban hesaplanamıyor ama SEÇİM DURUYOR — arayüz
+        # "yandalın yok" değil "yandalın var, planı katalogda yok" diyor.
+        "secondsMissing": plansiz,
         "donem": donem,
         "donemSource": term_source,
         "credits": credit_info,
@@ -663,6 +703,16 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     }
 
 
+# ★ Örnek ayar dosyasındaki yer tutucular. Bunlar SEÇİM değil; kurulumu
+# tamamlanmış saymak, hiç seçim yapmamış kullanıcıya "tamam" demek olurdu.
+YER_TUTUCU_KOD = {"XXX", "YYY", "ZZZ", "KOD", "-"}
+
+
+def _gercek_program(kod: str | None) -> bool:
+    temiz = (kod or "").strip().upper()
+    return bool(temiz) and temiz not in YER_TUTUCU_KOD
+
+
 def _onboarding(con, ucon, student_id, settings, anadal_id, seconds) -> dict | None:
     """Kurulum durumu — eksikse arayüz rapor yerine "buradan başla" gösterir.
 
@@ -687,7 +737,10 @@ def _onboarding(con, ucon, student_id, settings, anadal_id, seconds) -> dict | N
                    "\u201cYok\u201d bırak.",
          "why": "Araç bundan sonra çalışmaya başlıyor.",
          "sure": "10 saniye", "required": True,
-         "done": bool(settings.anadal_program), "action": "program"},
+         # ⚠️ YER TUTUCU "yapıldı" sayılmıyor (inceleme B2): örnek ayar
+         # dosyası `anadal_program = "XXX"` yazıyor ve kart bunu ✓ TAMAM diye
+         # gösteriyordu — kurulum bitmiş sanılıyordu.
+         "done": _gercek_program(settings.anadal_program), "action": "program"},
         {"key": "transkript", "label": "Geçtiğin dersleri gir",
          "cta": "Dersleri gir",
          "detail": "En kolayı: transkriptini olduğu gibi yapıştır. İstersen "
@@ -702,6 +755,12 @@ def _onboarding(con, ucon, student_id, settings, anadal_id, seconds) -> dict | N
          "why": "\u201cN. dönem + alttan\u201d önerisi buna göre kuruluyor.",
          "sure": "5 saniye", "required": False,
          "done": bool(settings.donem), "action": "donem"},
+        # ⚠️ TERCİHLER BURAYA EKLENMEDİ — ve bu bilinçli. Denendi: dördüncü
+        # bir "kurulum adımı" yapılınca karşılama kartı HİÇ kaybolmuyor,
+        # çünkü tercih çoğu kullanıcıda hep boş kalıyor. Faz 26'nın tam da
+        # kaldırdığı "ekranın arkasında duvar var" hissi geri geliyordu
+        # (üç test bunu yakaladı). Tercihler kurulum değil, İNCE AYAR:
+        # kurulum bitince çıkan "şimdi ne yapabilirsin" şeridinde duruyor.
     ]
     eksik = [a for a in adimlar if not a["done"]]
     if not eksik:
@@ -710,7 +769,7 @@ def _onboarding(con, ucon, student_id, settings, anadal_id, seconds) -> dict | N
         # ★ Program yoksa rapor GÖSTERİLMİYOR; sonraki adımlar eksikse rapor
         # duruyor ama üstte ne yapılacağı yazıyor. İkisi farklı: birinde
         # gösterilecek doğru bir şey yok, öbüründe var ama eksik.
-        "blocking": not settings.anadal_program,
+        "blocking": not _gercek_program(settings.anadal_program),
         "steps": adimlar,
         # ⚠️ BÖLÜM sayısı, plan sayısı değil. `plan` tablosunda her bölümün
         # birden çok sürümü var (445 satır / 127 bölüm); satırı saymak
@@ -720,6 +779,52 @@ def _onboarding(con, ucon, student_id, settings, anadal_id, seconds) -> dict | N
             "WHERE plan_type='lisans'").fetchone()[0],
         "lessonCount": con.execute("SELECT COUNT(*) FROM lesson").fetchone()[0],
     }
+
+
+def _plan_uyarisi(con, settings) -> str:
+    """Beyan edilen anadal planı katalogda yoksa (inceleme A4)."""
+    try:
+        from .plans import plan_uyarisi
+        return plan_uyarisi(con, settings)
+    except Exception:                                          # noqa: BLE001
+        return ""
+
+
+def _bos_havuz_sebebi(con, anadal_id, allowed) -> str:
+    """Aday ders SIFIRSA gerçek sebebi bul (ilk kullanıcı incelemesi A5).
+
+    ★★ Eskiden tek bir cümle vardı: *"ders programı henüz yayınlanmamış
+    olabilir (make refresh)"*. Ölçülen gerçek sebep bambaşkaydı:
+    `program_codes` örnek dosyadaki yer tutucuda (`XXX`, `YYY`) kalmıştı ve
+    hiçbir şube o kodlara açık olmadığı için HER ŞEY eleniyordu. Kullanıcı
+    `make refresh` çalıştırıp saatini harcıyor, sonuç değişmiyordu.
+
+    ⚠️ Sebep UYDURULMUYOR: hangi durumu ölçtüysek onu söylüyoruz, ölçemediysek
+    "sebep bulunamadı" diyoruz.
+    """
+    try:
+        toplam_sube = con.execute("SELECT COUNT(*) FROM lesson").fetchone()[0]
+    except sqlite3.Error:
+        return ""
+    if not toplam_sube:
+        return ("Katalogda hiç açık şube yok — ders programı henüz "
+                "yayınlanmamış olabilir (make refresh).")
+    if not anadal_id:
+        return "Anadal planın bulunamadı — bölümünü seçtiğinden emin ol."
+    kodlar = {str(c).upper() for c in (allowed or []) if str(c).strip()}
+    if not kodlar:
+        return ""
+    # Bu program kodlarına açık KAÇ şube var?
+    isaret = ",".join("?" * len(kodlar))
+    acik = con.execute(
+        f"""SELECT COUNT(DISTINCT crn) FROM lesson_allowed_program
+             WHERE upper(program_code) IN ({isaret})""", sorted(kodlar)).fetchone()[0]
+    if acik:
+        return ""
+    return (f"{toplam_sube} şubenin HİÇBİRİ şu program kodlarına açık değil: "
+            + ", ".join(sorted(kodlar))
+            + ". Program penceresindeki “Gelişmiş → Kayıt yapabildiğin program "
+              "kodları” alanını BOŞALT — o zaman seçtiğin bölümlerden türetilir.")
 
 
 def _program_sekli(sched) -> dict:
@@ -806,8 +911,33 @@ def _hoca(ad: str | None) -> str:
     return "" if temiz.lower() in _HOCA_YOK else temiz
 
 
+# OBS'nin "yer bildirilmedi" için kullandığı değerler.
+_BINA_YOK = {"", "-", "--", "undeclared", "tba", "tbd"}
+
+
 def _building(code: str | None) -> str:
-    return "belirsiz" if (code or "").lower() == "undeclared" else (code or "")
+    """İlan edilmemiş yer BOŞ döner — "belirsiz" DEĞİL (inceleme C3).
+
+    ★ Eski hâli `undeclared`'ı "belirsiz" diye yazıyordu ve ızgarada bina
+    kodunun durduğu yerde duruyordu: okuyan kişi bunu bir BİNA ADI sanıyordu.
+    Ölçüldü: 3630 buluşmanın 1542'si (%42) böyle — yani ızgaranın neredeyse
+    yarısı uydurma bir yer adı taşıyordu.
+
+    ⚠️ `_hoca` ile aynı ilke: bilinmeyen bilinmeyen kalıyor. Arayüz boş
+    gelen yerde "yer bildirilmemiş" yazıyor, bina kodu yazmıyor.
+    """
+    temiz = (code or "").strip()
+    return "" if temiz.lower() in _BINA_YOK else temiz
+
+
+def _bina_adlari(con: sqlite3.Connection) -> dict:
+    """`{'TMB': 'Temel Bilimler Binası', …}` — kod tek başına bir yer değil."""
+    try:
+        return {r[0]: r[1] for r in con.execute(
+            "SELECT code, name FROM building WHERE name IS NOT NULL AND name<>''")
+            if r[0] and r[1] and r[1].strip().upper() != r[0].strip().upper()}
+    except sqlite3.Error:
+        return {}
 
 
 def _modes(hepsi: dict, donemlik: dict) -> list[dict]:
@@ -1043,6 +1173,25 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .setupbar .who{font-size:13px;color:var(--ink-2);margin-right:auto}
 .setupbar .who b{color:var(--ink);font-weight:600}
 .setupbar .ro{font-size:12px;color:var(--ink-3)}
+/* Kısa bildirim — kip pencere DEĞİL: sayfayı kilitlemiyor. */
+.bildirim{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(12px);
+  background:var(--seal);color:var(--ground);padding:9px 16px;border-radius:var(--r);
+  font-size:13.5px;box-shadow:0 6px 24px rgba(0,0,0,.22);z-index:60;
+  opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;max-width:min(92vw,520px)}
+.bildirim.acik{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (prefers-reduced-motion:reduce){.bildirim{transition:none}}
+/* Satır içi küçük düğme — veri yaşının yanındaki "tazele". */
+.ghost.mini{font-size:11.5px;padding:1px 8px;vertical-align:baseline}
+/* Türetilen program kodları — okunur rozet; önerilenler tıklanabilir. */
+.kodlar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 4px}
+.kod{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12px;padding:2px 9px;border-radius:var(--r);
+  border:1px solid var(--border-strong);color:var(--ink-2);background:var(--surface)}
+.kod.ekle{cursor:pointer;border-style:dashed;color:var(--seal)}
+.kod.ekle:hover{border-style:solid;background:var(--surface-2)}
+/* Seçili ama planı bulunamayan ikinci program — seçim duruyor, hesap yok. */
+.setupbar .uyari{font-size:11px;padding:1px 6px;border:1px solid var(--warn);
+  color:var(--warn);border-radius:var(--r);white-space:nowrap}
 .ghost[disabled]{opacity:.45;cursor:not-allowed}
 .ghost.primary{background:var(--seal);color:var(--ground);border-color:var(--seal);
   font-weight:600}
@@ -1210,6 +1359,25 @@ table.grid td.free:hover{background:var(--surface-2);
 .blk[data-role="YANDAL"]{--accent:var(--yandal);--soft:var(--yandal-soft);--accent-ink:var(--yandal-ink)}
 .blk[data-role="PLAN_DISI"],.daylist .row[data-role="PLAN_DISI"]{
   --accent:var(--ink-3);--soft:var(--surface-2);--accent-ink:var(--ink-2)}
+/* ★ ÇEVRİMİÇİ DERS DAHA AÇIK (kullanıcı isteği 24.08.2026).
+   Kampüse gitmiyorsun: ızgarada "orada olman gereken" saatlerden görsel
+   olarak ayrılması, haftanın nasıl geçeceğini bir bakışta okutuyor.
+
+   ⚠️ Rengi tamamen SOLDURMUYORUZ: ders programın parçası, kredisi sayılıyor,
+   çakışması var. Soluk bir blok "önemsiz" diye okunurdu. Dolgu açılıyor ama
+   sol şerit ve yazı rengi rolün rengini koruyor — hangi programdan olduğu
+   yine görünüyor. Ayrıca renk TEK işaret değil: köşede ⌂ simgesi var,
+   çünkü renk körlüğünde ton farkı okunmayabilir. */
+.blk.online{background:transparent;
+  border-left-style:dashed;
+  box-shadow:inset 0 0 0 1px var(--border)}
+.blk.online::after{content:"⌂";position:absolute;right:5px;top:3px;
+  font-size:10px;opacity:.75}
+.blk{position:relative}
+/* Ders adı — dar hücrede kesiliyor; tam adı `title` taşıyor. */
+.blkad{display:block;font-size:10.5px;line-height:1.25;opacity:.85;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.daylist .row.online{border-left-style:dashed}
 /* Ders konulamayacak saat — okul dışı iş. Taralı, çünkü bir DERS değil:
    veri renklerini (yeşil/kehribar) kullansaydı programın parçası sanılırdı. */
 .blk.mesgul{--accent:var(--ink-3);border-left-color:var(--border-strong);
@@ -1283,6 +1451,15 @@ table.list tr:hover td{background:var(--surface-2)}
 /* Bozuk ayar dosyası — sayfa açılıyor ama sessiz kalmıyor. */
 .note.ayarhata{border-left:3px solid var(--danger);padding-left:10px;
   margin:14px 0}
+/* Yapıştırma önizlemesi — üç sayı ayrı okunsun. */
+.ozetler{display:flex;flex-wrap:wrap;gap:8px}
+.ozet{font-size:12px;padding:3px 9px;border:1px solid var(--border);
+  color:var(--ink-2)}
+.ozet.ok{border-color:var(--anadal);color:var(--anadal)}
+.ozet.uyari{border-color:var(--warn);color:var(--warn)}
+/* Satır içi uyarı yazısı (katalogda olmayan ders, planı olmayan program). */
+.meta .uyari,td .uyari,.ckname .uyari{color:var(--warn)}
+.ozet.kotu{border-color:var(--danger);color:var(--danger)}
 /* Puan kırılımı — "neden bu puan". Eksi katkı da aynı görsel dilde. */
 .puan{margin-top:10px;border-top:1px solid var(--border);padding-top:8px}
 .puan>summary{cursor:pointer;font-size:12.5px;color:var(--seal)}
@@ -1737,23 +1914,47 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c =>
   ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const hhmm = (m) => String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
 
+/* ★ B3 — dönem: ekranda okunur ad, ham kod ise ipucunda. Çözülemediyse
+   ham kod yazıyor; uydurma bir dönem adı ham koddan çok daha kötü. */
+const donemYazi = () => DATA.termLabel || DATA.term || "";
+
+/* ★ C3 — YER. Sunucu ilan edilmemiş binayı artık BOŞ gönderiyor
+   (eskiden "belirsiz" yazıyordu ve bir bina adı sanılıyordu; ölçüldü:
+   3630 buluşmanın 1542'si böyle). Kod tek başına da bir yer değil —
+   tam ad ipucunda. */
+const yerYazi = (kod) => kod ? kod : "yer yok";
+const yerBaslik = (kod) => {
+  if(!kod) return "OBS'de yer bildirilmemiş";
+  const ad = (DATA.buildings || {})[kod];
+  return ad ? `${kod} — ${ad}` : kod;
+};
+
 let LBL = DATA.secondLabel || "ÇAP";
 /* ★ ÇAP ve yandal aynı anda olabiliyor: başlıklar TEK programa göre
    yazıldığında öbürü yokmuş gibi görünüyordu. */
 const SECONDS = () => DATA.seconds || [];
+/* ★ Seçili ama planı bulunamayan ikinci programlar. Bunları hiç yazmamak,
+   "kaydım gitmiş" sanılmasına yol açıyordu (yandal kodu bozulunca tam da
+   bu oldu). Planı yok diye SEÇİM yok sayılmıyor. */
+const SECONDS_YOK = () => DATA.secondsMissing || [];
+const ikinciYazi = () =>
+  [...SECONDS().map(x => ` · <b>${esc(x.program)}</b> ${esc(x.label)}`),
+   ...SECONDS_YOK().map(x => ` · <b>${esc(x.program)}</b> ${esc(x.label)}` +
+       ` <span class="uyari" title="Bu programın planı katalogda bulunamadı;` +
+       ` ilerleme ve taban hesaplanamıyor.">planı yok</span>`)].join("");
 function renderHeader(){
   LBL = DATA.secondLabel || "ÇAP";
   const ikili = SECONDS().length > 1;
   $("#eyebrow").textContent = [DATA.anadal,
       ...SECONDS().map(s => `${s.program} ${s.label}`)].filter(Boolean).join(" + ")
-    + (DATA.term ? ` · ${DATA.term}` : "");
+    + (donemYazi() ? ` · ${donemYazi()}` : "");
+  if(DATA.termLabel) $("#eyebrow").title = "OBS dönem kodu: " + DATA.term;
   /* ★ Başlıkta program adı YOK (kullanıcı isteği 23.08.2026): araç ÇAP'a
      özel değil, yandalda ve ÇAP'sız kullanımda da aynı araç. Hangi programa
      baktığın zaten üstteki eyebrow'da yazıyor. */
   $("#doctitle").textContent = "Ders Planlama Aracı";
-  $("#blockTitle").textContent = ikili
-    ? "İkinci programlarında neden alamıyorsun"
-    : `${LBL}'ta neden alamıyorsun`;
+  /* ★ C6 — başlık artık anadalı da kapsıyor. */
+  $("#blockTitle").textContent = "Bu dersleri neden alamıyorsun";
   $("#tierTitle").textContent = ikili ? "Kademeler" : `${LBL} kademeleri`;
   $("#gen").textContent = DATA.generatedAt;
   $("#gizlilik").textContent = (DATA.load && DATA.load.noTranscript)
@@ -1793,11 +1994,42 @@ function veriYasiMetni(){
   return `şube/kontenjan verisi ${g} tazelendi (${A.raw})`;
 }
 
+/* ---------- kısa bildirim ----------
+   ★ Bölüm gizliyken sonucun yazılacağı bir yer gerekiyordu. `alert` iki
+   sebeple olmaz: kip bir pencere açıp sayfayı kilitler, ve tarayıcı
+   otomasyonunda tüm olayları durdurur. `aria-live` ile okuyucuya da gidiyor. */
+let _bildirimZaman = null;
+function say2(text){
+  let el = $("#bildirim");
+  if(!el){
+    el = document.createElement("div");
+    el.id = "bildirim"; el.className = "bildirim";
+    el.setAttribute("role", "status"); el.setAttribute("aria-live", "polite");
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.classList.add("acik");
+  clearTimeout(_bildirimZaman);
+  _bildirimZaman = setTimeout(() => el.classList.remove("acik"), 6000);
+}
+
 function renderVeriYasi(){
   const el = $("#veriYasi");
   if(!el) return;
-  el.textContent = veriYasiMetni();
+  /* ★ D3'ün ikinci yarısı: "Veriyi tazele" düğmesi YALNIZCA "Ne değişti"
+     bölümünün içindeydi. O bölüm artık karşılaştırılacak bir şey yoksa
+     gizleniyor — düğme de onunla birlikte kaybolurdu. Tazeleme, verinin
+     yaşını yazan satırın yanına taşındı: soruyu soran cümlenin yanında
+     cevabı veren düğme. */
+  el.innerHTML = esc(veriYasiMetni())
+    + (LIVE ? ` <button class="ghost mini" id="veriTazele">tazele</button>` : "");
   el.classList.toggle("stale", !!(DATA.dataAge && DATA.dataAge.stale));
+  const b = $("#veriTazele");
+  if(b) b.addEventListener("click", () => {
+    const asil = $("#refreshBtn");
+    if(asil) asil.click();
+    else say2("tazeleme bu ortamda yapılamıyor");
+  });
 }
 
 /* ---------- bozuk ayar dosyası (Faz 25/D1) ----------
@@ -1871,13 +2103,11 @@ function setupBar(){
   const s = SETUP;
   const who = s
     ? `<b>${esc(s.anadalProgram)}</b> anadal`
-      + (SECONDS().length
-         ? SECONDS().map(x => ` · <b>${esc(x.program)}</b> ${esc(x.label)}`).join("")
-         : " · ikinci program yok")
+      + ((SECONDS().length || SECONDS_YOK().length)
+         ? ikinciYazi() : " · ikinci program yok")
       + ` · <b>${DATA.donem || "?"}. dönem</b> (${esc(DATA.donemSource)})`
       + ` · <b>${s.transcript.length}</b> ders girilmiş`
-    : `<b>${esc(DATA.anadal)}</b>`
-      + SECONDS().map(x => ` · <b>${esc(x.program)}</b> ${esc(x.label)}`).join("")
+    : `<b>${esc(DATA.anadal)}</b>` + ikinciYazi()
       + ` · <b>${DATA.donem || "?"}. dönem</b>`;
   /* ★ "Ders ara" YANLIŞ addı (24.08.2026): düğme GEÇİLEN dersleri düzenleme
      penceresini açıyor. İlk giren kişi "alacağım dersi arayacağım" diye
@@ -1935,6 +2165,17 @@ async function save(fn){
   const btn = $("#setupSave");
   if(btn){ btn.disabled = true; }
   say("kaydediliyor…");
+  /* ★ ÖLÇÜLDÜ: ÇAP + yandal birlikte kaydedilince sunucu her şeyi baştan
+     hesaplıyor ve bu 7 saniye sürüyor. Ekranda tek satır "kaydediliyor…"
+     yazıp durunca kullanıcı takıldı sanıp pencereyi kapatıyor ya da
+     tekrar tıklıyordu. Üç saniyeyi geçen bekleme ARTIK KENDİNİ SÖYLÜYOR;
+     sayacı uydurmuyoruz, geçen gerçek süreyi yazıyoruz. */
+  const t0 = Date.now();
+  const sayac = setInterval(() => {
+    const sn = Math.round((Date.now() - t0) / 1000);
+    if(sn >= 3) say(`kaydediliyor… ${sn} sn — plan yeniden hesaplanıyor, `
+                    + `pencereyi kapatma`);
+  }, 1000);
   try{
     applyState(await fn());
     say("kaydedildi ✓");
@@ -1942,6 +2183,7 @@ async function save(fn){
   }catch(err){
     say(err.message, true);
   }finally{
+    clearInterval(sayac);
     if(btn) btn.disabled = false;
   }
 }
@@ -1959,12 +2201,20 @@ function programDialog(){
      "plan yok" demek, seçim sunmamaktan kötü. Anadalda dead-end daha da
      pahalı — rapor komple boş çıkıyor ve araç bozuk görünüyor. */
   const adi = {};
-  s.programs.forEach(p => { if(p.name && !adi[p.code]) adi[p.code] = p.name; });
+  /* ⚠️ Adı koduyla AYNI olan kayıt "ad" sayılmıyor: sunucu eskiden
+     bilinmeyen ada kodu koyuyordu ve liste "ECN — ECN" yazıyordu. */
+  s.programs.forEach(p => {
+    if(p.name && p.name.toUpperCase() !== p.code.toUpperCase() && !adi[p.code])
+      adi[p.code] = p.name;
+  });
   const codes = [...new Set(s.programs.filter(p => p.plan_type === "lisans")
                                       .map(p => p.code))].sort();
   /* ★ Kod tek başına bir tanım değil: "AIN" ne demek olduğunu kimse bilmiyor.
      Ad da yazınca yerleşik `select` yazarak-arama'sı hem koda hem ada çalışıyor. */
-  const label = (c) => adi[c] ? `${c} — ${adi[c]}` : c;
+  /* Adı bilinmiyorsa SÖYLÜYORUZ. Kodu tek başına bırakmak, kullanıcıya
+     "bu kod ne demek" sorusunu cevapsız bırakırdı; kodu ad diye yazmak
+     ise yanlış bilgi olurdu. */
+  const label = (c) => adi[c] ? `${c} — ${adi[c]}` : `${c} — (adı katalogda yok)`;
   const opts = (sel) =>
     /* ★ Boş seçim GERÇEK bir seçenek: yoksa liste alfabetik ilk bölümde
        (AIN) açılıyor ve dokunmadan Kaydet'e basan herkes o bölüme yazılıyor. */
@@ -1972,19 +2222,26 @@ function programDialog(){
     codes.map(c => `<option value="${esc(c)}"${c === sel ? " selected" : ""}
       >${esc(label(c))}</option>`).join("");
   const kindsOf = (k) => k === "ikisi" ? ["cap", "yandal"] : (k === "yok" ? [] : [k]);
-  /* ⚠️ "Gelişmiş" kutusunun açık gelme ölçütü "kod var mı" DEĞİL:
-     Settings.load beyan yoksa kodları seçilen programlardan TÜRETİYOR,
-     dolayısıyla liste hiç boş gelmiyor ve kutu bölüm seçilir seçilmez
-     açık kalıyordu. Ölçüt: kullanıcı türetilenden farklı bir şey yazmış mı. */
-  const turetilmis = new Set([s.anadalProgram,
-    ...["cap", "yandal"].map(k => ((s.secondChoice || {})[k] || {}).program)]
-    .filter(Boolean).map(x => x.toUpperCase()));
-  const ozelKod = s.programCodes.some(c => !turetilmis.has(c.toUpperCase()))
-    || s.programCodes.length !== turetilmis.size;
-  const secondOpts = (k, sel) => ((s.secondPrograms || {})[k] || [])
-    .map(p => `<option value="${esc(p.code)}"${p.code === sel ? " selected" : ""}
-      >${esc(p.code)} — ${esc(p.name)}</option>`).join("")
-    || `<option value="">bu tipte plan yok — make all-plans</option>`;
+  /* ★★ TÜRETİLEN KODLAR ARTIK KUTUDA DEĞİL (kullanıcı isteği 27.08.2026):
+     *"alabileceğim ders kodlarını anadal çap ve yandala göre otomatik ekler
+     misin, orada sadece ekstra program türleri girilebilsin"*.
+
+     Sunucu `programCodes` alanında yalnız EKSTRALARI gönderiyor;
+     `derivedPrograms` seçimlerden türetilenler. Kutu artık bölüm
+     değiştikçe eskiyen bir kopya taşımıyor — eskisi tam da bu yüzden
+     tehlikeliydi: anadalını değiştiren kişinin ders havuzu eski koda göre
+     süzülmeye devam ediyordu ve ekranda hiçbir yerde yazmıyordu. */
+  const ozelKod = (s.programCodes || []).length > 0;
+  /* ★ C8 — boş seçenek ÖNDE. Kutu ilk bölümde (ARC — Mimarlık KKTC) açılıp
+     "Kaydet"e basan kişiye tamamen yanlış ama GEÇERLİ GÖRÜNEN bir kurulum
+     üretiyordu. */
+  const secondOpts = (k, sel) => {
+    const liste = (s.secondPrograms || {})[k] || [];
+    if(!liste.length) return `<option value="">bu tipte plan yok — make all-plans</option>`;
+    return (sel ? "" : `<option value="" selected>— ${KIND_LABEL[k]} bölümü seç —</option>`)
+      + liste.map(p => `<option value="${esc(p.code)}"${p.code === sel ? " selected" : ""}
+        >${esc(p.code)} — ${esc(p.name || p.code)}</option>`).join("");
+  };
   openSetup(`
     <div class="eyebrow">Kurulum</div>
     <h2 style="margin-bottom:4px">Program seçimi</h2>
@@ -1993,8 +2250,15 @@ function programDialog(){
       ders seçim aracı olarak çalışır.</p>
     <div class="grid2">
       <label class="field"><span>Anadal <b style="color:var(--anadal)">*</b></span>
-        <select id="fAnadal">${opts(s.anadalProgram)}</select>
-        <span class="hint">Listede <b class="mono">${codes.length}</b> bölüm var.
+        <!-- ★ C7 — 127 satırlık kutuda arama yoktu ve liste KODA göre
+             sıralıydı: öğrenci "Bilgisayar" diye arıyor, liste
+             "AIN, ARC, BES…" diye gidiyordu. -->
+        <input type="search" id="fAnadalQ" autocomplete="off"
+          placeholder="bölüm ara — “bilgisayar”, “BLG”, “makina”…"
+          style="margin-bottom:6px">
+        <select id="fAnadal" size="1">${opts(s.anadalProgram)}</select>
+        <span class="hint" id="fAnadalSayi">Listede
+          <b class="mono">${codes.length}</b> bölüm var.
           Seninkini göremiyorsan o bölümün ders planı henüz çekilmemiştir.</span></label>
       <label class="field"><span>İkinci program</span>
         <div class="radios" id="fKind">
@@ -2014,11 +2278,26 @@ function programDialog(){
       </div>`).join("")}
     <details class="adv"${ozelKod ? " open" : ""}>
       <summary>Gelişmiş</summary>
-      <label class="field"><span>Kayıt yapabildiğin program kodları</span>
-        <input type="text" id="fCodes" value="${esc(s.programCodes.join(", "))}">
-        <span class="hint">Bir şubenin "Dersi Alabilen Programlar" listesinde bunlardan
-          biri varsa dersi alabilirsin. <b>Boş bırak</b> — o zaman yukarıda
-          seçtiklerin kullanılır. Virgülle ayır.</span></label>
+      <div class="field"><span>Kayıt yapabildiğin program kodları</span>
+        <div class="kodlar" id="fTuretilen"></div>
+        <span class="hint">Bir şubenin "Dersi Alabilen Programlar" listesinde
+          bunlardan biri varsa dersi alabilirsin. Yukarıdaki seçimlerden
+          <b>otomatik</b> geliyor — değişince kendiliğinden güncelleniyor.</span>
+      </div>
+      <div class="field" id="fOneriKutu" hidden><span>Bunlar da eklenebilir</span>
+        <div class="kodlar" id="fOneri"></div>
+        <!-- ⚠️ Otomatik EKLENMİYOR: "bu kodla da kayıt yapabilirsin" bir
+             iddia ve yanlışsa alamayacağın dersi alabilir gösterir. -->
+        <span class="hint">Aynı bölümün öbür dil sürümü. Kayıt yapabiliyorsan
+          ekle — <b>emin değilsen ekleme</b>, aracın alamayacağın dersi
+          alabilir göstermesine yol açar.</span>
+      </div>
+      <label class="field"><span>Ekstra program kodları</span>
+        <input type="text" id="fCodes" value="${esc((s.programCodes || []).join(", "))}"
+          placeholder="genelde boş kalır">
+        <span class="hint">Yukarıdakilere <b>ek olarak</b> kayıt yapabildiğin
+          kodlar. Anadal/ÇAP/yandal kodlarını buraya yazmana gerek yok.
+          Virgülle ayır.</span></label>
     </details>`, () => {
     let kind = s.secondKind;
     const fillPlans = (k) => {
@@ -2031,13 +2310,66 @@ function programDialog(){
       if(!list.length) $("#fPlan-" + k).innerHTML +=
         `<option disabled>bu bölümde ${KIND_LABEL[k]} planı yok</option>`;
     };
+    /* ★★ Türetilen kodlar CANLI: kullanıcı bölümü değiştirince rozetler
+       anında değişiyor. Kaydedilmiş değeri göstermek, "otomatik" sözünü
+       kaydetmeden önce tutmamak olurdu — ve tam da eski hatanın kaynağıydı:
+       kutudaki kod, ekrandaki seçimle uyuşmuyordu. */
+    const turetilenKodlar = () => {
+      const acik = kindsOf(kind);
+      return [...new Set([$("#fAnadal").value,
+        ...acik.map(k => $("#fProg-" + k) && $("#fProg-" + k).value)]
+        .filter(Boolean).map(x => x.toUpperCase()))];
+    };
+    const cizKodlar = () => {
+      const t = turetilenKodlar();
+      $("#fTuretilen").innerHTML = t.length
+        ? t.map(c => `<span class="kod" title="seçimlerinden geliyor">${esc(c)}</span>`).join("")
+        : `<span class="hint">bölüm seçince burada görünecek</span>`;
+      /* Öneri, ARTIK SEÇİLİ OLANA göre süzülüyor: kullanıcı ekstra kutusuna
+         elle yazdıysa ya da bölümü değiştirdiyse öneri de değişmeli. */
+      const yazili = new Set(($("#fCodes").value || "").split(/[,\s]+/)
+        .filter(Boolean).map(x => x.toUpperCase()));
+      const esler = s.languageSiblings || {};
+      const oneri = t.map(k => esler[k] && {...esler[k], from: k})
+        .filter(o => o && !t.includes(o.code) && !yazili.has(o.code))
+        .filter((o, i, a) => a.findIndex(x => x.code === o.code) === i);
+      $("#fOneriKutu").hidden = !oneri.length;
+      $("#fOneri").innerHTML = oneri.map(o =>
+        `<button type="button" class="kod ekle" data-kod="${esc(o.code)}"
+           title="${esc(o.code)} koduna açık ${o.sections} şube var">
+           + ${esc(o.code)}</button>`).join("");
+      $("#fOneri").querySelectorAll("[data-kod]").forEach(b =>
+        b.addEventListener("click", () => {
+          const v = ($("#fCodes").value || "").split(/[,\s]+/).filter(Boolean);
+          v.push(b.dataset.kod);
+          $("#fCodes").value = [...new Set(v)].join(", ");
+          cizKodlar();
+        }));
+    };
     const sync = () => {
       const acik = kindsOf(kind);
       ["cap","yandal"].forEach(k => {
         $("#fWrap-" + k).hidden = !acik.includes(k);
         if(acik.includes(k)) fillPlans(k);
       });
+      cizKodlar();
     };
+    /* Yazarak süzme — seçili olan her zaman listede kalıyor, yoksa
+       süzgeç yazarken kullanıcının seçimi sessizce düşerdi. */
+    const anadalQ = $("#fAnadalQ");
+    if(anadalQ) anadalQ.addEventListener("input", () => {
+      const q = anadalQ.value.trim().toLocaleLowerCase("tr");
+      const secili = $("#fAnadal").value;
+      const uyan = codes.filter(c => !q
+        || label(c).toLocaleLowerCase("tr").includes(q) || c === secili);
+      $("#fAnadal").innerHTML =
+        (secili ? "" : `<option value="">— bölümünü seç —</option>`)
+        + uyan.map(c => `<option value="${esc(c)}"${c === secili ? " selected" : ""}
+            >${esc(label(c))}</option>`).join("");
+      $("#fAnadalSayi").innerHTML = q
+        ? `<b class="mono">${uyan.length}</b> bölüm eşleşti`
+        : `Listede <b class="mono">${codes.length}</b> bölüm var.`;
+    });
     $("#fKind").querySelectorAll("button").forEach(b =>
       b.addEventListener("click", () => {
         kind = b.dataset.k;
@@ -2046,7 +2378,10 @@ function programDialog(){
         sync();
       }));
     ["cap","yandal"].forEach(k =>
-      $("#fProg-" + k).addEventListener("change", () => fillPlans(k)));
+      $("#fProg-" + k).addEventListener("change", () => { fillPlans(k); cizKodlar(); }));
+    /* Anadal değişince de rozetler değişmeli — türetmenin ilk kaynağı o. */
+    $("#fAnadal").addEventListener("change", cizKodlar);
+    $("#fCodes").addEventListener("input", cizKodlar);
     sync();
     $("#setupSave").addEventListener("click", () => {
       const anadal = $("#fAnadal").value;
@@ -2067,9 +2402,10 @@ function programDialog(){
         say(eksik.map(k => KIND_LABEL[k]).join(" ve ") + " bölümü seçilmedi", true);
         return;
       }
-      /* ⚠️ Boş bırakılan kod alanı DOLDURULMUYOR: motor boşken zaten
-         seçilen programlardan türetiyor (recommend.candidates). Buraya
-         sabitlemek, program değiştiğinde eski kodları geride bırakırdı. */
+      /* ⚠️ Kutuya YALNIZ EKSTRALAR gidiyor. Anadal/ÇAP/yandal kodları
+         `allowed_programs` içinde her okumada yeniden türetiliyor; dosyaya
+         yazmak, program değiştiğinde eski kodları geride bırakırdı — ve
+         bırakıyordu da. */
       save(() => api("/api/programs", {
         anadalProgram: anadal,
         secondKind: kind,
@@ -2279,8 +2615,10 @@ function checklistDialog(){
         <input type="checkbox" data-course="${esc(o.course)}"${
           state[o.course].taken ? " checked" : ""}>
         <span class="mono ckcode">${esc(o.course)}</span>
-        <span class="ckname">${esc((o.name || "").slice(0, 40))}</span>
-        <span class="mono ckcr">${o.credits ?? "–"}</span>
+        <span class="ckname">${o.name ? esc(o.name.slice(0, 40))
+          : `<span class="uyari">katalogda yok</span>`}</span>
+        <span class="mono ckcr"${o.credits === null || o.credits === undefined
+          ? ` title="Kredisi katalogda yok."` : ""}>${o.credits ?? "–"}</span>
         ${gradeOptions(o.course)}
       </label>`).join("");
   };
@@ -2368,12 +2706,23 @@ function courseDialogSetup(){
   };
 
   const draw = () => {
+    /* ★ E — "BLG 105E · (adsız) · –". Katalogda BULUNMAYAN ders böyle
+       görünüyordu: boş ad ve sıfıra benzeyen bir tire. Kullanıcı kendi
+       yazdığı kodun yanlış mı yoksa dersin eski mi olduğunu anlayamıyordu.
+       Ölçüldü: transkript kodları katalogla eşleşmeyebiliyor (eski/kapanmış
+       ders), ve plan slotlarının 67'si de katalogda olmayan derse bakıyor.
+       Artık SEBEBİ yazıyor — kredi hanesindeki tire de açıklanıyor. */
+    const yok = (r) => !r.name && r.credits === null && r.credits !== 0;
     $("#trBody").innerHTML = rows.length ? rows.map((r, i) => `<tr>
         <td><b class="mono">${esc(r.course)}</b>
-          <div class="meta" style="color:var(--ink-3);font-size:11.5px"
-            >${esc((r.name || "").slice(0, 44))}</div></td>
+          <div class="meta" style="color:var(--ink-3);font-size:11.5px">${
+            yok(r) ? `<span class="uyari">bu ders katalogda yok</span>`
+                   : esc((r.name || "").slice(0, 44))}</div></td>
         <td>${gradeSelect(r, i)}</td>
-        <td class="mono" style="color:var(--ink-3)">${r.credits ?? "–"}</td>
+        <td class="mono" style="color:var(--ink-3)"${
+          r.credits === null || r.credits === undefined
+            ? ` title="Kredisi katalogda yok; kredi toplamına katılmıyor."` : ""
+          }>${r.credits ?? "–"}</td>
         <td style="text-align:right"><button class="rm" data-rm="${i}">çıkar</button></td>
       </tr>`).join("")
       : `<tr><td colspan="4"><div class="empty">Henüz ders girilmemiş.</div></td></tr>`;
@@ -2396,7 +2745,22 @@ function courseDialogSetup(){
       <b>DD</b> sayılır — en kötü durum. Böylece &#8220;MIN CC&#8221; isteyen bir
       önşartta yanlışlıkla &#8220;alabilirsin&#8221; denmez.</p>
 
-    <label class="field"><span>Ders ekle</span>
+    <!-- ★ KOLAY YOL ÖNDE (ilk kullanıcı incelemesi D2). Kart "transkriptini
+         olduğu gibi yapıştır" diyordu ama pencerede öne çıkan şey tek tek
+         ders yazmaktı; yapıştırma katlanmış bir <details> içindeydi. -->
+    <label class="field"><span>1 · Transkriptini yapıştır (en kolayı)</span>
+      <textarea id="trPaste" style="margin-top:4px"
+        placeholder="OBS not dökümünü olduğu gibi yapıştır — sütunlu hâli de olur:&#10;MAT 103E    Mathematics I    4.0   6.0   BB&#10;FIZ 101E    Physics I        3.0   4.5   CB"
+        ></textarea>
+      <span class="hint">Sütunlu döküm de, <span class="mono">KOD NOT</span>
+        biçimi de olur. <b>Uygulamadan önce ne bulduğunu göstereceğim.</b>
+        Yapıştırma mevcut listeye <b>eklenir</b>, silmez.</span>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="ghost primary" id="trOnizle">Ne bulduğuna bak</button>
+      </div>
+      <div id="trOnizleme" style="margin-top:10px"></div></label>
+
+    <label class="field"><span>2 · ya da tek tek ekle</span>
       <input type="search" id="trSearch" placeholder="kod ya da ad — örn. MAT 103E"
         autocomplete="off">
       <div class="hits" id="trHits" hidden></div></label>
@@ -2425,15 +2789,7 @@ function courseDialogSetup(){
         </div>`).join("")}</div>
     </details>` : ""}
 
-    <details class="field"><summary style="cursor:pointer;font-size:13px;color:var(--seal)"
-        >Toplu yapıştır (transkriptini olduğu gibi)</summary>
-      <textarea id="trPaste" placeholder="MAT 103E AA&#10;FIZ 101E BB&#10;GEO 220E CC"
-        style="margin-top:8px"></textarea>
-      <span class="hint">Her satır bir ders: <span class="mono">KOD NOT</span>.
-        Not yazmazsan DD sayılır, <span class="mono">--</span> yazarsan "devam ediyor".
-        Yapıştırma <b>mevcut listeye eklenir</b>, silmez.</span>
-      <button class="ghost" id="trPasteBtn" style="margin-top:8px">Yapıştırılanı ekle</button>
-    </details>`, () => {
+`, () => {
     draw();
 
     let timer = null;
@@ -2468,12 +2824,23 @@ function courseDialogSetup(){
       b.addEventListener("click", () => save(() =>
         api("/api/transcript/restore", {file: b.dataset.restore}))));
 
-    $("#trPasteBtn").addEventListener("click", () => save(async () => {
-      const body = await api("/api/transcript/paste",
-        {text: $("#trPaste").value, replace: false});
-      if(body.bad && body.bad.length) say("çözülemeyen satır: " + body.bad.join(" | "), true);
-      return body;
-    }));
+    /* ★★ ÖNİZLEME (ilk kullanıcı incelemesi A1). Eskiden yapıştır → kaydet
+       tek adımdı ve sessizce yanlış sonuç üretebiliyordu: pencere kapanıyor,
+       işlem başarılıymış gibi görünüyordu. Artık uygulamadan ÖNCE ne
+       bulunduğu gösteriliyor. */
+    $("#trOnizle").addEventListener("click", async () => {
+      const kutu = $("#trOnizleme");
+      const metin = $("#trPaste").value;
+      if(!metin.trim()){ kutu.innerHTML =
+        `<div class="empty">önce transkriptini yapıştır</div>`; return; }
+      kutu.innerHTML = `<div class="empty">okunuyor…</div>`;
+      try{
+        const r = await api("/api/transcript/preview", {text: metin});
+        trOnizlemeCiz(r.preview || {});
+      }catch(err){
+        kutu.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
+      }
+    });
 
     // ★ replace:true — ekrandaki liste TAM liste. 'çıkar' düğmesinin
     //   çalışması için gerekli; yoksa silinen ders DB'de kalırdı.
@@ -2483,6 +2850,51 @@ function courseDialogSetup(){
       replace: true,
     })));
   });
+}
+
+/* ---------- yapıştırma önizlemesi (ilk kullanıcı incelemesi A1) ----------
+   ⚠️ Üç sayı AYRI: bulundu · atlandı · notu okunamadı. Tek bir "10 ders
+   eklendi" satırı, atlanan 8 satırı ve okunamayan 2 notu gizliyordu. */
+function trOnizlemeCiz(p){
+  const kutu = $("#trOnizleme");
+  if(!p.count && !(p.bad || []).length){
+    kutu.innerHTML = `<div class="empty">bu metinde ders satırı bulunamadı</div>`;
+    return;
+  }
+  const rozet = (n, ad, sinif) => n
+    ? `<span class="ozet ${sinif || ""}"><b class="mono">${n}</b> ${ad}</span>` : "";
+  kutu.innerHTML = `
+    <div class="ozetler">
+      ${rozet(p.count, "ders bulundu", "ok")}
+      ${rozet(p.passed, "geçilmiş")}
+      ${rozet(p.inProgress, "devam ediyor")}
+      ${rozet(p.failed, "kalınmış")}
+      ${rozet(p.badTotal, "satır atlandı", "kotu")}
+      ${rozet(p.warningTotal, "notu okunamadı", "uyari")}
+    </div>
+    ${p.count ? `<div class="scroll" style="max-height:190px;margin-top:8px">
+      <table class="trtable"><tbody>${(p.items || []).map(i => `<tr>
+        <td><b class="mono">${esc(i.course)}</b></td>
+        <td class="mono">${i.grade || (i.status === "IN_PROGRESS" ? "devam" : "—")}</td>
+      </tr>`).join("")}</tbody></table>
+      ${p.count > p.shown ? `<div class="hint">…ve ${p.count - p.shown} ders daha
+        (hepsi eklenecek)</div>` : ""}
+    </div>` : ""}
+    ${(p.warnings || []).length ? `<div class="note" style="margin-top:8px">
+      <b>Notu okunamayan satırlar</b> — “geçtim (DD)” sayıldı:
+      <div class="hint">${p.warnings.map(esc).join("<br>")}</div></div>` : ""}
+    ${(p.bad || []).length ? `<div class="note" style="margin-top:8px">
+      <b>Atlanan satırlar</b> (ders kodu bulunamadı):
+      <div class="hint mono">${p.bad.map(esc).join("<br>")}${
+        p.badTotal > p.bad.length ? `<br>…+${p.badTotal - p.bad.length}` : ""}</div></div>` : ""}
+    <button class="ghost primary" id="trUygula" style="margin-top:10px"
+      ${p.count ? "" : "disabled"}>Bu ${p.count} dersi ekle</button>`;
+  const btn = $("#trUygula");
+  if(btn) btn.addEventListener("click", () => save(async () => {
+    const body = await api("/api/transcript/paste",
+      {text: $("#trPaste").value, replace: false});
+    return body;
+  }));
 }
 
 /* ---------- dönem kredi yükü (yönetmelik) ---------- */
@@ -2589,12 +3001,26 @@ function renderLoad(){
           <b class="mono" style="font-size:15px">${L.min ? L.min + "–" : "en çok "}${L.max}</b>
           kredi ${L.verified ? "" : "<b>⚠</b>"}</div>
         <div class="gaugelabel" style="color:var(--ink-3)">
-          ${{"yönetmelik": "motor bunu kullanıyor — GNO'ndan hesaplandı",
-             "ayar": "elle ayarlı (settings.toml)",
-             "çağrı": "bu çalıştırmaya özel"}[L.limitSource] || "şu an ayarlı"}:
+          ${L.noTranscript
+            /* ★★ İnceleme B4 — Faz 26 kararının uygulanmamış yarısı.
+               Transkript yokken GNO 0.00 bir ÖLÇÜM değil, veri yokluğu.
+               "GNO'ndan hesaplandı" demek onu ölçülmüş gibi sunuyordu; üstelik
+               sayı süs değil, motor gerçekten bu tavanla program kuruyor.
+               ⚠️ Tavanı gizlemiyoruz — motor bir sayı kullanmak ZORUNDA.
+               Söylediğimiz şey değişiyor: "hesaplandı" değil, "VARSAYILDI". */
+            ? `transkript yok — <b>en düşük band varsayıldı</b>:`
+            : (({"yönetmelik": "motor bunu kullanıyor — GNO'ndan hesaplandı",
+                 "ayar": "elle ayarlı (settings.toml)",
+                 "çağrı": "bu çalıştırmaya özel"}[L.limitSource] || "şu an ayarlı") + ":")}
           <b class="mono">${L.declared || "—"}</b></div>
       </div>
       <div style="flex:2;min-width:250px;font-size:12.5px;color:var(--ink-2)">
+        ${L.noTranscript ? `<div class="note" style="margin-bottom:8px">
+          <b>GNO bilinmiyor.</b> Aşağıdaki gerekçelerde geçen “GNO 0.00”
+          hesaplanmış bir değer <b>değil</b> — geçtiğin dersleri girmedin.
+          Girdiğinde tavan da değişebilir.
+          ${LIVE ? `<button class="ghost" data-setup="plan"
+            style="margin-left:6px">Dersleri gir</button>` : ""}</div>` : ""}
         ${L.reasons.map(r => `<div>· ${esc(r)}</div>`).join("")}
         ${L.source ? `<div style="color:var(--ink-3);margin-top:4px">${esc(L.source)}</div>` : ""}
       </div>
@@ -2605,6 +3031,10 @@ function renderLoad(){
       ${L.next.minGpa.toFixed(2)} gerekiyor; şu an ${DATA.gpa.value.toFixed(2)}.` : ""}
       Motor <b>${L.declared}</b> krediye kadar program kuruyor — kayıtta
       reddedilebilir. ${fix}</div>` : ""}`;
+  $("#loadBody").querySelectorAll("[data-setup]").forEach(b =>
+    b.addEventListener("click", () => ({program: programDialog, donem: termDialog,
+                                        plan: checklistDialog, tercih: tercihDialog,
+                                        dersler: courseDialogSetup})[b.dataset.setup]()));
   const btn = $("#loadFix");
   if(btn) btn.addEventListener("click", async () => {
     btn.disabled = true; btn.textContent = "…";
@@ -2707,9 +3137,20 @@ function condText(g){
 function renderChanges(){
   const c = DATA.changes;
   const btn = $("#refreshBtn");
-  $("#changeSection").hidden = !(LIVE || (c && c.count));
+  /* ★★ D3 — İLK GİREN KİŞİYE BOŞ BÖLÜM GÖSTERİLİYORDU. Ölçüt `LIVE`
+     olduğu için, hiç tazeleme yapmamış birine "Ne değişti" başlığı ve
+     altında "en az iki tazeleme gerekiyor" cümlesi çıkıyordu: henüz
+     kullanmadığı bir özelliğin boş kabuğu, üstelik bölüm çubuğunda da
+     bir sıra kaplıyordu.
+
+     Yeni ölçüt KARŞILAŞTIRILACAK BİR ŞEY OLMASI. Tazeleme düğmesi
+     kaybolmuyor — araç çubuğuna değil, ilk tazelemeden sonra bu bölüme
+     dönüyor; `LIVE` iken zaten üstteki veri-yaşı satırından da
+     tazelenebiliyor. */
+  const karsilastirilabilir = !!(c && c.since && c.until && c.since !== c.until);
+  $("#changeSection").hidden = !(karsilastirilabilir || (c && c.count));
   if(btn){ btn.hidden = !LIVE; }
-  if(!c || !c.since || !c.until || c.since === c.until){
+  if(!karsilastirilabilir){
     $("#changeWhen").textContent = LIVE
       ? "Karşılaştırma için en az iki tazeleme gerekiyor."
       : "Karşılaştırma verisi yok.";
@@ -2864,7 +3305,7 @@ function renderSaved(){
 
   const when = (DATA.savedPicks.savedAt || "").replace("T", " ").slice(0, 16);
   $("#savedWhen").textContent = (when ? when + " tarihinde kaydedildi" : "kaydedildi")
-    + (DATA.term ? " · " + DATA.term : "");
+    + (donemYazi() ? " · " + donemYazi() : "");
 
   let kredi = 0, akts = 0, eksik = 0;
   const kart = saved.map(p => {
@@ -3426,23 +3867,37 @@ function wireRefresh(){
     return;
   }
   if(!LIVE) return;
-  btn.onclick = async () => {
-    btn.disabled = true;
-    const was = btn.textContent;
-    btn.textContent = "tazeleniyor… (1–2 dk)";
-    try{
-      const next = await api("/api/refresh", {});
-      applyState(next);
-      const n = (next.changes && next.changes.count) || 0;
-      $("#changeWhen").textContent += next.obsError
-        ? `  ·  ⚠ OBS'ye ulaşılamadı, eski plan verisi korundu (${next.obsError})`
-        : (n ? `  ·  ${n} değişiklik bulundu` : "  ·  değişiklik yok");
-    }catch(err){
-      $("#changeBody").innerHTML =
-        `<div class="note">Tazeleme başarısız: ${esc(err.message)}</div>`;
-      btn.disabled = false; btn.textContent = was;
-    }
-  };
+  btn.onclick = () => tazele(btn);
+}
+
+/* ★ Tazeleme İKİ yerden başlatılabiliyor: "Ne değişti" bölümündeki düğme ve
+   veri-yaşı satırındaki küçük düğme. İlerlemeyi TIKLANAN düğme gösteriyor —
+   eskiden metin hep gizli bölümdeki düğmeye yazılıyordu ve oradan
+   başlatılmayan tazeleme 1–2 dakika boyunca hiçbir iz bırakmıyordu. */
+async function tazele(btn){
+  if(!btn || btn.disabled) return;
+  btn.disabled = true;
+  const was = btn.textContent;
+  btn.textContent = "tazeleniyor… (1–2 dk)";
+  try{
+    const next = await api("/api/refresh", {});
+    applyState(next);
+    const n = (next.changes && next.changes.count) || 0;
+    /* Sonuç, "Ne değişti" bölümü artık görünür olduğu için oraya yazılıyor;
+       görünmüyorsa (karşılaştırma çıkmadıysa) düğmenin yanında duruyor. */
+    const not = $("#changeWhen");
+    const ek = next.obsError
+      ? `⚠ OBS'ye ulaşılamadı, eski plan verisi korundu (${next.obsError})`
+      : (n ? `${n} değişiklik bulundu` : "değişiklik yok");
+    if(not && !$("#changeSection").hidden) not.textContent += "  ·  " + ek;
+    else say2(ek);
+  }catch(err){
+    const g = $("#changeBody");
+    if(g && !$("#changeSection").hidden)
+      g.innerHTML = `<div class="note">Tazeleme başarısız: ${esc(err.message)}</div>`;
+    else say2("Tazeleme başarısız: " + err.message);
+    btn.disabled = false; btn.textContent = was;
+  }
 }
 
 /* ---------- kredi eşiği ---------- */
@@ -3741,7 +4196,7 @@ function renderTabs(){
     return `<button class="tab" role="tab" aria-selected="${i===active}" data-i="${i}"
        ${eksik.length ? `title="taban eksiği: ${eksik.map(g =>
          `${g.role} ${g.missing} kredi`).join(", ")}"` : ""}>
-       Öneri ${i+1} · ${s.credits} kredi${eksik.length
+       Öneri ${i+1} · ${s.credits} kredi${oneriFarki(s, i)}${eksik.length
          ? ` <span style="color:var(--danger)">· taban ✗</span>` : ""}</button>`;
   }).join("") || `<span class="empty">öneri üretilemedi</span>`;
   /* ★ Faz 27 — yan yana karşılaştırma. Sekmeler arasında geçiş vardı ama
@@ -3754,13 +4209,72 @@ function renderTabs(){
   if(k) k.addEventListener("click", karsilastirDialog);
 }
 
+const GUNAD = ["Pzt", "Sal", "Çar", "Per", "Cum"];
+
+/* ---------- sekme etiketinde AYIRT EDİCİ olan (inceleme C4) ----------
+   ★ Üç sekme de "ÖNERİ n · 20 KREDİ" yazıyordu; farkı görmek için
+   "Karşılaştır"a girmek gerekiyordu — oysa fark zaten hesaplanmış.
+   Etiket, o öneriyi ÖBÜRLERİNDEN ayıran tek şeyi taşıyor.
+
+   ⚠️ Ayırt edici bir şey YOKSA hiçbir şey yazmıyoruz: uydurma bir etiket
+   ("dengeli", "yoğun") kullanıcıya olmayan bir fark anlatırdı. */
+function oneriFarki(s, i){
+  const hepsi = M().schedules || [];
+  if(hepsi.length < 2 || !s.shape) return "";
+  /* ⚠️ KENDİ `shape`'ini kolluyorduk ama ÖBÜRLERİNİNKİNİ okurken
+     kollamıyorduk: `shape`siz tek bir öneri (eski önbellek, kısmi durum)
+     burada istisna atıyor ve SEKME ÇUBUĞU KOMPLE ÇİZİLMİYORDU. Testte
+     ölçüldü. Erişimin tamamı tek yerden ve korumalı. */
+  const SEKIL = (x) => (x && x.shape) || {};
+  const erken = (x) => SEKIL(x).earliest;
+  /* 1) Yalnız BU önerinin boş bıraktığı gün var mı? */
+  const benimBos = new Set(s.shape.freeDays || []);
+  for(const g of benimBos){
+    if(hepsi.every((o, j) => j === i || !(SEKIL(o).freeDays || []).includes(g)))
+      return ` · <b>${GUNAD[g-1]} boş</b>`;
+  }
+  /* 2) En geç başlayan bu mu? */
+  const enGec = Math.max(...hepsi.map(x => erken(x) ?? -1));
+  if(erken(s) === enGec && hepsi.some(x => (erken(x) ?? -1) < enGec))
+    return ` · <b>${hhmm(erken(s))} başlıyor</b>`;
+  /* 3) En az kampüs değişimi bu mu? */
+  const kampus = (x) => x.campusChanges ?? 0;
+  const enAz = Math.min(...hepsi.map(kampus));
+  if(kampus(s) === enAz && hepsi.some(x => kampus(x) > enAz))
+    return ` · <b>tek kampüs</b>`;
+  /* 4) En çok çevrimiçi bu mu? */
+  const cevrim = (x) => SEKIL(x).online || 0;
+  const enCok = Math.max(...hepsi.map(cevrim));
+  if(enCok && cevrim(s) === enCok && hepsi.some(x => cevrim(x) < enCok))
+    return ` · <b>${enCok} çevrimiçi</b>`;
+  /* 5) En az BEKLEME bu mu? (ölçüldü: üç öneri 218 / 668 / 339 dakika
+     boşlukla çıkabiliyor — öğrenci için en somut fark bu, ve `gaps`
+     zaten hesaplanıyordu ama hiçbir yerde ayırt edici sayılmıyordu.)
+     Eşik 30 dk: birkaç dakikalık farkı "az bekleme" diye satmak,
+     olmayan bir üstünlük iddia etmek olurdu. */
+  const bosluk = (x) => SEKIL(x).gaps ?? null;
+  const benim = bosluk(s);
+  if(benim !== null){
+    const enAzB = Math.min(...hepsi.map(x => bosluk(x) ?? Infinity));
+    if(benim === enAzB && hepsi.some(x => (bosluk(x) ?? Infinity) >= benim + 30))
+      return ` · <b>en az bekleme</b>`;
+  }
+  /* 6) En erken BİTEN bu mu? Aynı eşikle. */
+  const gec = (x) => SEKIL(x).latest ?? null;
+  if(gec(s) !== null){
+    const enErkenBitis = Math.min(...hepsi.map(x => gec(x) ?? Infinity));
+    if(gec(s) === enErkenBitis
+        && hepsi.some(x => (gec(x) ?? Infinity) >= enErkenBitis + 30))
+      return ` · <b>${hhmm(gec(s))}'de bitiyor</b>`;
+  }
+  return "";
+}
+
 /* ---------- önerileri yan yana (Faz 27, yapılacaklar §3.4) ----------
    ★ Karşılaştırmanın ihtiyacı olan şey ders listesi değil, ŞEKİL: hangi
    günler dolu, ne zaman başlıyor, kaç boş gün, arada ne kadar bekleme.
    Ders kodlarını üç kolonda dökmek, farkı bulmayı yine kullanıcıya
    bırakırdı — o zaten sekmelerde yapabiliyordu. */
-const GUNAD = ["Pzt", "Sal", "Çar", "Per", "Cum"];
-
 function karsilastirDialog(){
   const list = M().schedules;
   if(list.length < 2){ openDialog(`<div class="empty">Tek öneri var.</div>`); return; }
@@ -3851,11 +4365,16 @@ function renderDayList(){
     }
     out += `<section><h3>${DAYS[d-1]}</h3>`;
     out += items.length ? items.map((it,i) =>
-      `<button class="row${clash.has(i) ? " clash" : ""}" data-role="${it.p.cand.role}"
+      `<button class="row${clash.has(i) ? " clash" : ""}${
+         it.p.sec.online ? " online" : ""}" data-role="${it.p.cand.role}"
          data-course="${esc(it.p.cand.course)}">
          <span><b class="mono">${esc(it.p.cand.course)}</b>
+           ${it.p.cand.name ? `<span class="blkad">${esc(it.p.cand.name)}</span>` : ""}
            <small class="mono">${hhmm(it.m.start)}–${hhmm(it.m.end)}
-             ${esc(it.m.building)}</small></span>
+             ${it.p.sec.online ? "çevrimiçi ⌂"
+               : `<span title="${esc(yerBaslik(it.m.building))}">${
+                    esc(yerYazi(it.m.building))}</span>`}
+             · ${esc(it.p.sec.crn)}</small></span>
          ${clash.has(i) ? '<span class="warn">çakışıyor</span>' : ""}
        </button>`).join("")
       : `<div class="none">boş</div>`;
@@ -3944,13 +4463,23 @@ function render(){
       /* ⚠️ Hoca adı hücreye YAZILMIYOR, `title` olarak veriliyor: ızgara
          hücresi zaten dar ve ders kodu okunmaz hale gelirdi. Şube seçme
          penceresinde tam adıyla duruyor. */
-      html += `<td rowspan="${c.span}"><div class="blk" data-role="${c.p.cand.role}"
+      /* ★ Izgara hücresinde artık DERS ADI ve CRN de var (ilk kullanıcı
+         incelemesi C1/C2): birinci sınıf öğrencisi "EHB 222E"nin hangi ders
+         olduğunu bilmiyor, ve kayıt gününün asıl sayısı CRN.
+         ⚠️ Ad hücreye SIĞMAYABİLİR; kesiliyor ama `title` tam adı taşıyor —
+         bilgi kaybolmuyor, yalnız yer darsa görünmüyor. */
+      html += `<td rowspan="${c.span}"><div class="blk ${
+          c.p.sec.online ? "online" : ""}" data-role="${c.p.cand.role}"
           data-course="${esc(c.p.cand.course)}" tabindex="0" role="button"
-          title="${esc([c.p.cand.name, c.p.sec.instructor,
-                        "CRN " + c.p.sec.crn].filter(Boolean).join(" · "))}">
+          title="${esc([c.p.cand.course, c.p.cand.name, c.p.sec.instructor,
+                        "CRN " + c.p.sec.crn,
+                        c.p.sec.online ? "çevrimiçi" : yerBaslik(c.m.building)]
+                       .filter(Boolean).join(" · "))}">
           <b class="mono">${esc(c.p.cand.course)}</b>
+          ${c.p.cand.name ? `<span class="blkad">${esc(c.p.cand.name)}</span>` : ""}
           <small class="mono">${hhmm(c.m.start)}–${hhmm(c.m.end)}
-            ${esc(c.m.building)}</small></div></td>`;
+            ${c.p.sec.online ? "çevrimiçi" : esc(yerYazi(c.m.building))}
+            · ${esc(c.p.sec.crn)}</small></div></td>`;
     }
     html += `</tr>`;
   }
@@ -4054,7 +4583,8 @@ function openDialog(html){
 function optionRow(cand, section, note){
   const times = section.meetings.length
     ? section.meetings.map(m =>
-        `${DAYS[m.day-1]} ${hhmm(m.start)}–${hhmm(m.end)} ${esc(m.building)}`).join("<br>")
+        `${DAYS[m.day-1]} ${hhmm(m.start)}–${hhmm(m.end)} <span title="${
+           esc(yerBaslik(m.building))}">${esc(yerYazi(m.building))}</span>`).join("<br>")
     : "saat ilan edilmemiş";
   return `<button class="opt" data-course="${esc(cand.course)}" data-crn="${esc(section.crn)}">
       <span><b class="mono">${esc(cand.course)}</b>
@@ -4440,6 +4970,10 @@ function renderCandidates(){
       <td><b class="mono">${esc(c.course)}</b>
         ${inPlan ? `<span class="chip" style="margin-left:6px;color:var(--anadal)">programda</span>` : ""}
         ${c.critical ? `<span class="chip supply" style="margin-left:6px">kritik yol</span>` : ""}
+        ${c.prereqUnknown ? `<span class="chip unknown"
+          style="margin-left:6px" title="Önşart metni var ama okunamadı">önşart okunamadı</span>`
+          : (c.prereqMissing ? `<span class="chip unknown" style="margin-left:6px"
+              title="Katalogda önşart metni yok — 'önşartı yok' demek DEĞİL">önşart bilgisi yok</span>` : "")}
         ${c.sections.every(s => s.online)
           ? `<span class="chip online" style="margin-left:6px">çevrimiçi</span>`
           : (c.sections.some(s => s.online)
@@ -4459,7 +4993,8 @@ function renderCandidates(){
       ? `süzgece uyan ders yok — <a href="#" id="candClear">süzgeci temizle</a>`
       : (M().candidates.length
           ? "aday ders yok"
-          : "aday ders yok — bölümünü ve geçtiğin dersleri girdiğinden emin ol")
+          : (DATA.emptyReason
+             || "aday ders yok — bölümünü ve geçtiğin dersleri girdiğinden emin ol"))
   }</td></tr>`;
   $("#cands tbody").querySelectorAll("tr[data-course]").forEach(tr =>
     tr.addEventListener("click", () => addDialog(tr.dataset.course)));
@@ -4584,7 +5119,7 @@ function renderHero(){
     return;
   }
   const ACT = {program: () => programDialog(), plan: () => checklistDialog(),
-               donem: () => termDialog()};
+               donem: () => termDialog(), tercih: () => tercihDialog()};
 
   const zorunlu = O.steps.filter(s => s.required);
   const istege  = O.steps.filter(s => !s.required);
@@ -4593,6 +5128,9 @@ function renderHero(){
      hangisine basılacağını kullanıcıya seçtirmek, "nasıl yapacağımı
      anlayamıyorum" hissinin ana kaynağıydı. */
   const sonraki = O.steps.find(s => !s.done);
+  /* Motor gerçekten çıktı üretiyor mu — ayar dolu olması yetmiyor. */
+  const calisiyorMu = () => (M().schedules || []).length > 0
+    || (M().candidates || []).length > 0;
 
   /* ⚠️ Sıradaki adımın düğmesi satırda TEKRARLANMIYOR: yukarıdaki büyük
      düğme zaten o. Aynı eylemi iki kez sunmak, "hangisine basacağım"
@@ -4617,11 +5155,18 @@ function renderHero(){
 
   box.innerHTML = `
     <div class="sechead"><div class="eyebrow">Başlangıç</div><div class="rule"></div></div>
-    <h2>${acik ? "Araç çalışıyor — istersen daha da iyileştir"
-                : "Hoş geldin — tek adımda başla"}</h2>
+    <h2>${!acik ? "Hoş geldin — tek adımda başla"
+      : (calisiyorMu() ? "Araç çalışıyor — istersen daha da iyileştir"
+                       : "Bir şey ters gitti")}</h2>
     <p class="lead">${acik
-      ? `Aşağıdaki haftalık program <b>şu an çalışıyor</b>. Aşağıdaki iki şey
-         <b>isteğe bağlı</b>; girersen öneriler senin durumuna göre kurulur.`
+      ? (calisiyorMu()
+        ? `Aşağıdaki haftalık program <b>şu an çalışıyor</b>. Aşağıdaki iki şey
+           <b>isteğe bağlı</b>; girersen öneriler senin durumuna göre kurulur.`
+        /* ★★ İnceleme B1: bu cümle ızgara BOŞ ve "öneri üretilemedi" yazarken
+           de duruyordu. Başlık motorun ÇIKTISINA bakmalı, ayarın varlığına
+           değil. */
+        : `<b>Öneri üretilemedi.</b> ${esc(DATA.emptyReason
+            || "Aday ders bulunamadı — geçtiğin dersleri ve dönemini girmeyi dene.")}`)
       : `İTÜ'nün açık derslerinden sana <b>çakışmasız bir haftalık program</b>
          kuruyor: önşartın tutuyor mu, kontenjan var mı, hangi ders hangi
          kapıyı açıyor. <b>Tek zorunlu şey bölümünü seçmen</b> — çift anadal
@@ -4677,16 +5222,29 @@ function renderSonraki(){
     el.hidden = true; return;
   }
   el.hidden = false;
+  /* ★ E — TERCİHLER KEŞFEDİLMİYORDU. Motor Faz 27'den beri "erken
+     başlamak istemem", "Cuma boş olsun", "kampüs değiştirmeyeyim" gibi
+     yumuşak tercihleri sıralamaya katıyor; ama ilk giren kişi böyle bir
+     kutu olduğunu bilmiyordu — yalnız kurulum çubuğunda küçük bir düğme
+     olarak duruyordu. Yeri BURASI: kurulum değil, ince ayar.
+
+     ⚠️ Zaten tercih girmiş kişiye "tercihlerini söyle" demiyoruz. */
+  const tercihGoster = !tercihSayisi();
   el.innerHTML = `
     <b>Programın hazır. Şimdi:</b>
     <div class="sonrakiliste">
       <button class="ghost" data-go="schedSection">Haftalık programa bak</button>
       <button class="ghost" data-go="candSection">Ders ekle / değiştir</button>
+      ${tercihGoster ? `<button class="ghost" data-go="tercih"
+        title="Erken başlamak istemiyorsan, bir gün boş kalsın istiyorsan…
+Hiçbir dersi elemez; yalnız sıralamayı değiştirir."
+        >Nasıl bir program istediğini söyle</button>` : ""}
       <button class="ghost" data-go="crn">Kayıt günü listesini al</button>
       <button class="ghost kapat" data-kapat="1">Kapat</button>
     </div>`;
   el.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", () => {
     if(b.dataset.go === "crn"){ crnDialog(); return; }
+    if(b.dataset.go === "tercih"){ tercihDialog(); return; }
     const hedef = document.getElementById(b.dataset.go);
     if(hedef) hedef.scrollIntoView({behavior: "smooth", block: "start"});
   }));
@@ -4709,11 +5267,15 @@ function localStorage_set(k, v){
 /* ---------- bölüm çubuğu ----------
    Gizli bölüm çubukta da yok: veri gelince (transkript yüklenince, denklik
    önerisi çıkınca) bölüm açılıyor ve bağlantısı kendiliğinden beliriyor. */
+/* ★ C5 — sekme adları öğrencinin sözlüğünde olmalı. "EŞİKLER · DENKLİK ·
+   DEĞİŞİM · ADAYLAR" araç geliştiricisinin dili; öğrenci ne olduklarını
+   bilmiyor. */
 const SECTIONS = [
-  ["savedSection", "Kayıtlı"], ["panels", "İlerleme"], ["schedSection", "Program"],
-  ["creditSection", "Eşikler"], ["suggestSection", "Denklik"],
-  ["changeSection", "Değişim"], ["candSection", "Adaylar"],
-  ["blockSection", "Darboğaz"], ["basvuruSection", "Başvuru"],
+  ["savedSection", "Kaydettiğim"], ["panels", "İlerlemem"],
+  ["schedSection", "Haftalık programım"],
+  ["creditSection", "Kredi sınırım"], ["suggestSection", "Sayılan derslerim"],
+  ["changeSection", "Son değişiklikler"], ["candSection", "Alabileceğim dersler"],
+  ["blockSection", "Neden alamıyorum"], ["basvuruSection", "Başvuru"],
   ["tierSection", "Kademeler"],
 ];
 

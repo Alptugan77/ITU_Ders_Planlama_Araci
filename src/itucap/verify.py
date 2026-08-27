@@ -69,7 +69,7 @@ def report(con: sqlite3.Connection, settings: config.Settings) -> tuple[str, boo
                           (settings.second_plan_id,)).fetchone()
     if cap is None:
         cap = _plan_row(con, settings.second_program,
-                        config.SECOND_KINDS[settings.second_kind][2] or "cap")
+                        config.plan_type_of(settings.second_kind))
 
     # --------------------------------------------------------------- anadal
     w("=" * 72)

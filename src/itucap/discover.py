@@ -101,7 +101,7 @@ def suggest(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     grades = S.grades(ucon, student_id)
     if not grades:
         return []
-    equivalences = R.load_equivalences(con)
+    equivalences = R.load_equivalences(con, ucon=ucon)
     expanded, _ = R.expand_with_equivalences(grades, equivalences)
     already = {(s, e.target) for e in equivalences for s, _g in e.sources}
     courses = _course_rows(con)

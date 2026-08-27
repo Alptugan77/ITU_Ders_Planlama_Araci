@@ -64,12 +64,31 @@ class Equivalence:
     note: str | None = None
 
 
-def load_equivalences(con: sqlite3.Connection, include_cap: bool = True) -> list[Equivalence]:
+# ★ Kullanıcı DB'sinden gelen denkliklerin id'leri bu kadar ötelenir.
+# İki ayrı dosyada ikisi de 1'den başlıyor; ötelemezsek `via_equivalence`
+# yanlış denkliğe işaret ederdi — "bu ders şu denklikle sayıldı" derken
+# BAŞKA bir denkliği göstermek, sessizce yanlış cevap vermenin ta kendisi.
+BEYAN_ID_OFSET = 1_000_000_000
+
+
+def _denklik_oku(con: sqlite3.Connection, include_cap: bool,
+                 ofset: int = 0, yalniz_beyan: bool = False,
+                 beyan_haric: bool = False) -> list[Equivalence]:
     out: list[Equivalence] = []
-    for row in con.execute(
-        """SELECT id, target_course, confidence, applies_to_cap, note_raw FROM equivalence"""
-    ):
+    try:
+        rows = list(con.execute(
+            "SELECT id, target_course, confidence, applies_to_cap, note_raw "
+            "FROM equivalence"))
+    except sqlite3.Error:
+        # Tablo yoksa (eski kullanıcı DB'si) denklik yok demektir — çökmüyoruz.
+        return out
+    for row in rows:
         if include_cap and not row[3]:
+            continue
+        beyan = row[2] == "user_declared"
+        if yalniz_beyan and not beyan:
+            continue
+        if beyan_haric and beyan:
             continue
         sources = tuple(
             (r[0], r[1] or "DD") for r in con.execute(
@@ -77,7 +96,35 @@ def load_equivalences(con: sqlite3.Connection, include_cap: bool = True) -> list
                 (row[0],))
         )
         if sources:
-            out.append(Equivalence(row[0], row[1], sources, row[2], bool(row[3]), row[4]))
+            out.append(Equivalence(row[0] + ofset, row[1], sources,
+                                   row[2], bool(row[3]), row[4]))
+    return out
+
+
+def load_equivalences(con: sqlite3.Connection, include_cap: bool = True,
+                      ucon: sqlite3.Connection | None = None) -> list[Equivalence]:
+    """Resmî denklikler katalogdan, BEYAN denklikleri kullanıcı DB'sinden.
+
+    ★★ Faz 28 (inceleme B5). Beyanlar `reference.sqlite3`'e yazılıyordu ve
+    `declared.py` "bunlar kişisel veri değil" diyordu; oysa
+    `tools/gizlilik_denetimi.py` yayınlanan katalogda `user_declared`
+    görürse HATA veriyordu. Aynı soruya iki kaynak farklı cevap veriyordu —
+    ve denetim haklıydı: "şu dersim şunun yerine saysın" beyanı, hangi
+    dersleri aldığını ve neye başvurduğunu ele veriyor.
+
+    ⚠️ Referans DB'deki `user_declared` satırları HER DURUMDA yok sayılıyor
+    — göç etmemiş eski dosyalarda kalıntı olabilirler ve oradan okumak,
+    yayınlanan siteye kişisel beyan sızdırmanın yolu olurdu. Kayıp yok:
+    beyanların asıl kaynağı `config/denklikler.toml` ve `declared.apply`
+    açılışta onu kullanıcı DB'sine yeniden uyguluyor.
+
+    ⚠️ `ucon` verilmezse beyanlar OKUNMAZ. Yayınlanan site için DOĞRU
+    davranış (orada kişisel dosya zaten yok).
+    """
+    out = _denklik_oku(con, include_cap, beyan_haric=True)
+    if ucon is not None:
+        out += _denklik_oku(ucon, include_cap, ofset=BEYAN_ID_OFSET,
+                            yalniz_beyan=True)
     return out
 
 

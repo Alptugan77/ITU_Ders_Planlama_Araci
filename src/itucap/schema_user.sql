@@ -56,3 +56,31 @@ CREATE TABLE IF NOT EXISTS saved_pick (
     saved_at    TEXT,
     PRIMARY KEY (student_id, term, course_code)
 );
+
+-- ★★ FAZ 28: BEYAN EDİLEN DENKLİKLER ARTIK BURADA (kişisel veri).
+--   Eskiden `reference.sqlite3`'e yazılıyordu ve `declared.py` "bunlar kişisel
+--   veri DEĞİL, müfredat bilgisi" diyordu. Oysa `tools/gizlilik_denetimi.py`
+--   yayınlanan katalogda `confidence='user_declared'` görürse HATA veriyordu:
+--   aynı soruya iki kaynak farklı cevap veriyordu. Denetim haklıydı — bir
+--   öğrencinin "şu dersim şunun yerine saysın" beyanı, hangi dersleri aldığını
+--   ve neye başvurduğunu ele veriyor. Kişisel veri tek dosyada toplanıyor.
+--
+--   Şema referans DB'dekiyle AYNI: `rules.load_equivalences` ikisini de aynı
+--   sorguyla okuyabilsin diye.
+CREATE TABLE IF NOT EXISTS equivalence (
+    id             INTEGER PRIMARY KEY,
+    target_course  TEXT,
+    target_plan_id INTEGER,
+    applies_to_cap INTEGER DEFAULT 1,
+    confidence     TEXT CHECK (confidence IN ('official','requires_approval','user_declared')),
+    note_raw       TEXT,
+    source_url     TEXT,
+    scraped_at     TEXT
+);
+
+CREATE TABLE IF NOT EXISTS equivalence_source (
+    equivalence_id INTEGER REFERENCES equivalence(id) ON DELETE CASCADE,
+    course_code    TEXT,
+    min_grade      TEXT DEFAULT 'DD',
+    PRIMARY KEY (equivalence_id, course_code)
+);

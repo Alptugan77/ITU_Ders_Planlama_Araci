@@ -116,14 +116,18 @@ def test_passed_course_not_recommended(dbs):
 
 
 def test_equivalence_unlocks_candidate(dbs):
-    """Beyan edilen denklik önşartı açmalı."""
+    """Beyan edilen denklik önşartı açmalı.
+
+    ★★ Faz 28 (inceleme B5): beyan KULLANICI DB'sinde. Referans DB'ye
+    yazılan `user_declared` satırları artık okunmuyor — o dosya yayınlanan
+    sitenin içine giriyor ve beyan kişisel veri."""
     con, ucon, sid = dbs
-    cur = con.execute(
+    cur = ucon.execute(
         """INSERT INTO equivalence(target_course,applies_to_cap,confidence,note_raw)
            VALUES ('BLG 212E',1,'user_declared','beyan')""")
-    con.execute("""INSERT INTO equivalence_source(equivalence_id,course_code,min_grade)
-                   VALUES (?,'GEO 303E','DD')""", (cur.lastrowid,))
-    con.commit()
+    ucon.execute("""INSERT INTO equivalence_source(equivalence_id,course_code,min_grade)
+                    VALUES (?,'GEO 303E','DD')""", (cur.lastrowid,))
+    ucon.commit()
     S.add_entries(ucon, sid, S.parse_text("GEO 303E BB")[0])
     codes = {c.course for c in REC.candidates(con, ucon, sid, 10, 20, "HTAE", "BLG", {"HTAE","BLG","BLGE"}, "akts")}
     assert "BLG 351E" in codes              # BLG 212E denklikle sağlandı

@@ -36,6 +36,9 @@ DEFAULT_RULES = [
         "ad": "Bitirme çalışması",
         "min_kredi": 95.0,
         "kalip": ["* 4901", "* 4901E", "* 4902", "* 4902E"],
+        # ★ Ölçüm: katalogda adında bitirme/graduation geçen 97 ders var,
+        # kod kalıbı bunların yalnız 9'unu kapsıyordu (baskın kod 492/492E).
+        "ad_kalip": ["bitirme", "graduation"],
         "aciklama": "Bitirme çalışmasına başlamak için en az 95 kredi gerekir.",
     }
 ]
@@ -47,13 +50,34 @@ class CreditRule:
     min_credits: float
     courses: tuple[str, ...] = ()      # açık ders kodları
     patterns: tuple[str, ...] = ()     # 'GEO 49*' gibi kalıplar
+    # ★★ AD KALIBI (ilk kullanıcı incelemesi D1, 24.08.2026).
+    #
+    # Ölçüm: katalogda adında "bitirme"/"graduation" geçen **97** ders var.
+    # Kural yalnız `4901/4902` kodlarını tanıyordu ve bunların **9**'unu
+    # kapsıyordu. Baskın kodlar `492` (43) ve `492E` (38).
+    #
+    # Somut sonucu: 3. dönemdeki, hiç ders geçmemiş bir BLGE öğrencisine
+    # ÖNERİ 1'de `BLG 492E — Graduation Project` çıkıyordu (puan 47.5) —
+    # aynı sayfadaki mevzuat paneli "0 / 95 kredi · 95 kredi eksik" derken.
+    #
+    # ⚠️ Kalıbı `* 492` diye genişletmedim: o kodda adı "Tasarım Projesi"
+    # olan **20** ders daha var ve beyan edilen kural "bitirme projesi"
+    # diyor. Beyan edilmiş bir kuralı, kapsadığını doğrulamadığım derslere
+    # genişletmek bu projede yapmamaya çalıştığımız şeyin ta kendisi.
+    # Ad üzerinden eşleşmek hem kesin hem beyana sadık.
+    name_patterns: tuple[str, ...] = ()
     note: str = ""
 
-    def matches(self, course_code: str) -> bool:
+    def matches(self, course_code: str, course_name: str = "") -> bool:
         code = course_code.upper().strip()
         if code in {c.upper().strip() for c in self.courses}:
             return True
-        return any(fnmatch.fnmatch(code, p.upper().strip()) for p in self.patterns)
+        if any(fnmatch.fnmatch(code, p.upper().strip()) for p in self.patterns):
+            return True
+        if course_name and self.name_patterns:
+            ad = course_name.casefold()
+            return any(p.casefold() in ad for p in self.name_patterns if p)
+        return False
 
 
 @dataclass
@@ -88,6 +112,7 @@ def load_rules(path: Path | None = None) -> list[CreditRule]:
             min_credits=float(b.get("min_kredi") or 0),
             courses=tuple(b.get("dersler") or ()),
             patterns=tuple(b.get("kalip") or ()),
+            name_patterns=tuple(b.get("ad_kalip") or ()),
             note=str(b.get("aciklama") or ""),
         ))
     return [r for r in out if r.min_credits > 0]
@@ -419,13 +444,19 @@ def load_limit(gpa_value: float, second_kind: str = "cap",
 
 # ------------------------------------------------------------------ kontrol
 def check(course_code: str, credits_have: float,
-          rules: list[CreditRule] | None = None) -> CreditVerdict:
+          rules: list[CreditRule] | None = None,
+          course_name: str = "") -> CreditVerdict:
     """Bu ders, kazanılmış krediyle alınabilir mi?
 
     Birden fazla kural eşleşirse **en katısı** uygulanır.
+
+    ⚠️ `course_name` isteğe bağlı ve VARSAYILAN BOŞ: ad verilmezse eski
+    davranış aynen sürüyor. Ad kalıbı olan kurallar yalnız ad geldiğinde
+    devreye giriyor — çağıranı zorunlu tutmak, adı olmayan yerlerde sessizce
+    "kural yok" demeye çevirirdi.
     """
     hits = [r for r in (rules if rules is not None else load_rules())
-            if r.matches(course_code)]
+            if r.matches(course_code, course_name)]
     if not hits:
         return CreditVerdict(True)
     strictest = max(hits, key=lambda r: r.min_credits)

@@ -69,34 +69,113 @@ def make_entry(code: str, grade: str | None, note: str = "") -> Entry | None:
     return Entry(code, raw, status, True, note)
 
 
+# ★★ NOT SATIRIN SONUNDA (hata: ilk kullanıcı incelemesi A1, 24.08.2026).
+#
+# Gerçek bir OBS not dökümü sütunlu:
+#
+#     MAT 103E    Mathematics I         4.0   6.0   BB
+#
+# Eski ayrıştırıcı notu KODDAN SONRAKİ ilk sözcükten okuyordu; o sözcük not
+# değil, İngilizce ders adının ilk iki harfi ("Ma"). Sonuç: BB/CB/DC gibi
+# gerçek notlar "bilinmeyen not" olup **devam ediyor**a düşüyordu. GNO
+# hesaplanamıyor, kredi tavanı en altta kilitleniyor, geçilmiş dersler
+# yeniden öneriliyordu — ve hiçbir uyarı çıkmıyordu.
+#
+# ⚠️ Sondan en çok 4 parçaya bakıyoruz: OBS satırında not son sütun, ondan
+# önce kredi/AKTS sayıları var. Daha geriye gitmek ders adının içindeki
+# harfleri (ör. "E") not sanma riskini açardı.
+_NOT_ARAMA_DERINLIK = 4
+
+
+def _sondaki_not(text: str) -> str | None:
+    """Satırın SONUNDAN geçerli bir not ara; yoksa None."""
+    parcalar = [p.strip(" .,;|") for p in text.replace("\t", " ").split()]
+    for token in reversed(parcalar[-_NOT_ARAMA_DERINLIK:]):
+        buyuk = token.upper()
+        if buyuk in GRADE_POINTS or buyuk in IN_PROGRESS_MARKS:
+            return buyuk
+    return None
+
+
 def parse_line(line: str) -> Entry | None:
     """Tek satırı çözer. Yorum (#) ve boş satır -> None."""
+    return _cozumle(line)[0]
+
+
+def _cozumle(line: str) -> tuple[Entry | None, str]:
+    """(kayıt, uyarı). Uyarı boşsa şüpheli bir şey yok.
+
+    ⚠️ "Not okunamadı" SESSİZ olmamalı — projenin kendi kuralı bu:
+    bilinmeyen, bilinen gibi gösterilmez. Burada tersi oluyordu, BİLİNEN
+    (BB) bilinmeyene çevriliyordu.
+    """
     text = line.split("#", 1)[0].strip()
     if not text:
-        return None
+        return None, ""
     m = _LINE_RE.match(text)
     if not m:
         # Şablondaki havuz satırını kullanıcı '... -> GEO 413E AA' diye
         # doldurabiliyor. Baştan eşleşmezse metin içinde ilk ders kodunu ara.
         m = _LINE_SEARCH_RE.search(text)
     if not m:
-        return None
-    return make_entry(m.group("code"), m.group("grade"), (m.group("rest") or "").strip())
+        return None, ""
+    kod = m.group("code")
+    yakin = (m.group("grade") or "").strip()
+    kalan = (m.group("rest") or "").strip()
+
+    # 1) Kodun hemen ardındaki parça GERÇEKTEN bir notsa onu al — kısa
+    #    biçim ("MAT 103E AA") böyle yazılıyor ve en güvenilir olanı bu.
+    if yakin and (yakin.upper() in GRADE_POINTS
+                  or yakin.upper() in IN_PROGRESS_MARKS):
+        return make_entry(kod, yakin, kalan), ""
+
+    # 2) Değilse satırın SONUNA bak — sütunlu döküm böyle.
+    sondan = _sondaki_not(text)
+    if sondan:
+        return make_entry(kod, sondan, ""), ""
+
+    # 3) Hiçbir yerde not yok. Satır yalnız koddan ibaretse bu normal
+    #    (şablon / tik listesi). Ama satırda BAŞKA metin varsa, orada bir
+    #    not vardı da okuyamadık olabilir — söylüyoruz.
+    kalan_metin = (yakin + " " + kalan).strip()
+    entry = make_entry(kod, None, "")
+    if kalan_metin:
+        return entry, (f"{normalize_course_code(kod)}: not okunamadı, "
+                       f"“geçtim (DD)” sayıldı — satır: {text[:70]}")
+    return entry, ""
 
 
 def parse_text(text: str) -> tuple[list[Entry], list[str]]:
-    """Çok satırlı girdi -> (kayıtlar, çözülemeyen satırlar)."""
+    """Çok satırlı girdi -> (kayıtlar, çözülemeyen satırlar).
+
+    ⚠️ Eski imza korunuyor (iki değer): çağıranların hepsini aynı anda
+    değiştirmek yerine uyarılar `parse_report` ile alınıyor.
+    """
+    entries, bad, _ = parse_report(text)
+    return entries, bad
+
+
+def parse_report(text: str) -> tuple[list[Entry], list[str], list[str]]:
+    """(kayıtlar, çözülemeyen satırlar, uyarılar).
+
+    ★ Arayüz UYGULAMADAN ÖNCE özet göstermek için bunu kullanıyor: "10 ders
+    bulundu · 8 satır atlandı · 2 dersin notu okunamadı". Eskiden `parse_text`
+    zaten `bad` döndürüyordu ama arayüz onu hiç kullanmıyordu.
+    """
     entries: list[Entry] = []
     bad: list[str] = []
+    uyarilar: list[str] = []
     for line in text.splitlines():
         if not line.split("#", 1)[0].strip():
             continue
-        entry = parse_line(line)
+        entry, uyari = _cozumle(line)
         if entry is None:
             bad.append(line.strip())
         else:
             entries.append(entry)
-    return entries, bad
+            if uyari:
+                uyarilar.append(uyari)
+    return entries, bad, uyarilar
 
 
 # ------------------------------------------------------------------ kayıtlar

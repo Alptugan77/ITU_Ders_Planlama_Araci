@@ -23,6 +23,17 @@
 ad        = "Bitirme çalışması"
 min_kredi = 95
 kalip     = ["* 4901", "* 4901E", "* 4902", "* 4902E"]
+# ★★ ÖLÇÜM (24.08.2026): katalogda adında "bitirme"/"graduation" geçen 97
+# ders var; yukarıdaki kod kalıbı bunların yalnız 9'unu kapsıyor. Baskın
+# kodlar 492 (43 ders) ve 492E (38). Sonuç: 3. dönemdeki, hiç ders geçmemiş
+# öğrenciye "BLG 492E — Graduation Project" öneriliyordu.
+#
+# ⚠️ Kalıbı "* 492" diye genişletmedim: o kodda adı "Tasarım Projesi" olan
+# 20 ders daha var ve beyan edilen kural "bitirme projesi" diyor. Beyan
+# edilmiş bir kuralı kapsadığını DOĞRULAMADIĞIM derslere genişletmek, bu
+# projede kaçındığımız hatanın ta kendisi olurdu. Ad üzerinden eşleşmek
+# hem kesin hem beyana sadık.
+ad_kalip  = ["bitirme", "graduation"]
 aciklama  = "Bitirme çalışmasına başlamak için en az 95 kredi tamamlanmış olmalı."
 
 # Örnek — başka bir eşik eklemek istersen:

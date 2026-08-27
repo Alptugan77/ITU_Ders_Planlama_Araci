@@ -33,7 +33,11 @@ donem = 0
 
 # ★ Kayıt yapabildiğin program kodları. Bir şubenin "Dersi Alabilen Programlar"
 #   listesinde bunlardan HERHANGİ BİRİ varsa dersi alabilirsin.
-program_codes = ["XXX", "YYY"]   # şube kısıtı bu kodlara açık olanları sayar
+# ★★ BOŞ BIRAK. Boşken araç seçtiğin programlardan türetiyor ve DOĞRU
+#   çalışıyor. Buraya yer tutucu ("XXX") yazmak, hiçbir şubenin bu koda açık
+#   olmaması demek: aday ders SIFIR çıkıyor, "öneri üretilemedi" yazıyor ve
+#   sebebi hiçbir yerde görünmüyordu (ilk kullanıcı incelemesi A5).
+program_codes = []
 
 # ★ Kontenjan nöbetinin (make watch) izleyeceği dersler.
 #   Boş bırakırsan planlarının açık slotlarındaki HER ders izlenir — çok

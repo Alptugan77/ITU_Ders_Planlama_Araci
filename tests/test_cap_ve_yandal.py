@@ -119,7 +119,11 @@ def test_program_kodlari_iki_programi_da_kapsiyor(tmp_path):
     yol.write_text('[student]\nanadal_program="HTAE"\ncap_program="BLG"\n'
                    'yandal_program="ECN_YD"\nsecond_kind="ikisi"\n', encoding="utf-8")
     s = config.Settings.load(yol)
-    assert set(s.program_codes) == {"HTAE", "BLG", "ECN_YD"}
+    # ★ 27.08.2026: kodlar artık `program_codes`'a YAZILMIYOR, her okumada
+    # türetiliyor. `program_codes` yalnız EKSTRALARI tutuyor.
+    assert s.allowed_programs == {"HTAE", "BLG", "ECN_YD"}
+    assert s.derived_programs == ["HTAE", "BLG", "ECN_YD"]
+    assert s.program_codes == []
     assert {"cap", "yandal"} <= set(s.scrape_plan_types)
 
 
@@ -271,3 +275,217 @@ def test_tek_yandal_eski_cagriyla_da_dogru(dbs):
                         second_kind="yandal", program_codes=["HTAE"])
     data = UI.collect(con, ucon, sid, s, 10, 30)
     assert [p["role"] for p in data["panels"]] == ["ANADAL", "YANDAL"]
+
+
+# ============================== ★★ "ikisi" — hata bildirimi 24.08.2026
+# "yandal ve çap planını aynı anda yapmaya çalışınca program türü geçersiz"
+def test_IKISI_secimi_REDDEDILMIYOR(tmp_path, monkeypatch):
+    """★★ Doğrulama `SECOND_KINDS`'a bakıyordu; "ikisi" orada YOK.
+
+    İki sözlük iki farklı sorunun cevabı:
+      SECOND_KINDS   — TEKİL türün rolü/etiketi/OBS plan tipi,
+      SECOND_CHOICES — kullanıcının SEÇEBİLECEĞİ değerler.
+
+    `Settings.load` ikincisine bakıyordu, `save_programs` birincisine.
+    Aynı soruya iki farklı cevap — bu projenin tekrar eden hata sınıfı."""
+    from itucap import config, server as SRV
+    monkeypatch.setattr(config, "ROOT", tmp_path)
+    (tmp_path / "config").mkdir()
+    st = _sahte_state(SRV, ["HTAE", "BLG", "MAT"])
+    SRV.State.save_programs(st, {
+        "anadalProgram": "HTAE", "secondKind": "ikisi",
+        "secondPrograms": {"cap": {"program": "BLG"},
+                           "yandal": {"program": "MAT"}}})
+    s = config.Settings.load(tmp_path / "config" / "settings.toml")
+    assert s.second_kind == "ikisi"
+    assert s.program_of("cap") == "BLG" and s.program_of("yandal") == "MAT"
+
+
+def _sahte_state(SRV, kodlar):
+    """Yalnız `save_programs` için: katalogda hangi kodlar var."""
+    import sqlite3
+    st = SRV.State.__new__(SRV.State)
+    st._reenroll = lambda: None
+    st.con = sqlite3.connect(":memory:")
+    st.con.execute("CREATE TABLE program(code TEXT PRIMARY KEY, name TEXT)")
+    st.con.executemany("INSERT INTO program(code,name) VALUES (?,?)",
+                       [(k, k) for k in kodlar])
+    return st
+
+
+# ============================== ★★ ALT ÇİZGİ — her yandal kodu bozuluyordu
+def test_YANDAL_KODUNDAKI_ALT_CIZGI_KORUNUYOR(tmp_path, monkeypatch):
+    """★★ `_clean_code` `[^A-Za-z0-9]` siliyordu; katalogdaki 205 program
+    kodunun 78'i alt çizgili ve HEPSİ yandal (`ALG_YD`, `MAT_YD_EC`…).
+
+    Kullanıcı kutudan `ALG_YD` seçiyor, dosyaya `ALGYD` yazılıyor, o kod
+    hiçbir planla eşleşmiyor ve yandal SESSİZCE yok oluyordu. Ölçüldü:
+    kodun tamamı bozuluyordu, bir kısmı değil."""
+    from itucap import config, server as SRV
+    monkeypatch.setattr(config, "ROOT", tmp_path)
+    (tmp_path / "config").mkdir()
+    st = _sahte_state(SRV, ["HTAE", "ALG_YD", "MAT_YD_EC"])
+    SRV.State.save_programs(st, {
+        "anadalProgram": "HTAE", "secondKind": "yandal",
+        "secondProgram": "ALG_YD"})
+    s = config.Settings.load(tmp_path / "config" / "settings.toml")
+    assert s.program_of("yandal") == "ALG_YD", "alt çizgi silinmiş"
+
+
+def test_8_KARAKTERDEN_UZUN_KOD_KESILMIYOR(tmp_path, monkeypatch):
+    """Katalogdaki en uzun kod 9 karakter (`MAT_YD_EC`); eski tavan 8'di."""
+    from itucap import config, server as SRV
+    monkeypatch.setattr(config, "ROOT", tmp_path)
+    (tmp_path / "config").mkdir()
+    st = _sahte_state(SRV, ["HTAE", "MAT_YD_EC"])
+    SRV.State.save_programs(st, {
+        "anadalProgram": "HTAE", "secondKind": "yandal",
+        "secondProgram": "MAT_YD_EC"})
+    s = config.Settings.load(tmp_path / "config" / "settings.toml")
+    assert s.program_of("yandal") == "MAT_YD_EC"
+
+
+def test_KATALOGDA_OLMAYAN_KOD_SESSIZCE_KAYDEDILMIYOR(tmp_path, monkeypatch):
+    """★ Temizleyip doğrulamamak sessiz sıfırın ta kendisiydi: bozuk kod
+    yazılıyor, planlar boş dönüyor, ekran "ders yok" diyordu."""
+    from itucap import config, server as SRV
+    monkeypatch.setattr(config, "ROOT", tmp_path)
+    (tmp_path / "config").mkdir()
+    st = _sahte_state(SRV, ["HTAE", "ALG_YD"])
+    with pytest.raises(ValueError) as e:
+        SRV.State.save_programs(st, {
+            "anadalProgram": "HTAE", "secondKind": "yandal",
+            "secondProgram": "ALGYD"})            # alt çizgisi düşmüş hâli
+    assert "ALGYD" in str(e.value)
+    assert "ALG_YD" in str(e.value), "yakın kodu önermiyor"
+
+
+def test_KATALOG_BOSSA_KOD_REDDEDILMIYOR(tmp_path, monkeypatch):
+    """⚠️ Üç değerli: katalog hiç çekilmemişse "bu kod yanlış" demek yanlış."""
+    from itucap import config, server as SRV
+    monkeypatch.setattr(config, "ROOT", tmp_path)
+    (tmp_path / "config").mkdir()
+    st = _sahte_state(SRV, [])                     # boş katalog
+    SRV.State.save_programs(st, {
+        "anadalProgram": "HTAE", "secondKind": "yok"})
+    assert config.Settings.load(
+        tmp_path / "config" / "settings.toml").anadal_program == "HTAE"
+
+
+def test_gecersiz_tur_HANGILERI_oldugunu_soyluyor(tmp_path, monkeypatch):
+    """Hata mesajı "geçersiz" demekle kalmayıp seçenekleri saymalı."""
+    from itucap import config, server as SRV
+    monkeypatch.setattr(config, "ROOT", tmp_path)
+    (tmp_path / "config").mkdir()
+    st = SRV.State.__new__(SRV.State)
+    with pytest.raises(ValueError, match="ikisi"):
+        SRV.State.save_programs(st, {"anadalProgram": "HTAE",
+                                     "secondKind": "üçü"})
+
+
+def test_IKI_SOZLUK_birbiriyle_TUTUYOR():
+    """⚠️ `SECOND_CHOICES`'ın her değeri `SECOND_KINDS`'ta TEKİL bir tür
+    olmalı. Ayrışırlarsa yine KeyError ya da "geçersiz" hatası doğar."""
+    from itucap import config
+    for secim, turler in config.SECOND_CHOICES.items():
+        for t in turler:
+            assert t in config.SECOND_KINDS, (secim, t)
+
+
+@pytest.mark.parametrize("kind,beklenen", [
+    ("cap", "cap"), ("yandal", "yandal"), ("ikisi", "cap"), ("yok", "cap"),
+    ("saçma", "cap"),
+])
+def test_plan_type_of_IKISIDE_patlamiyor(kind, beklenen):
+    """★ `SECOND_KINDS[second_kind][2]` üç yerde doğrudan çağrılıyordu
+    (`pipeline` ×2, `verify` ×1) ve "ikisi"de KeyError veriyordu: ÇAP+yandal
+    seçen kullanıcıda `make refresh`, `make verify`, `make programs`
+    çöküyordu."""
+    from itucap import config
+    assert config.plan_type_of(kind) == beklenen
+
+
+def test_taramada_IKISI_artik_KeyError_vermiyor():
+    """Çağrı yerlerinin gerçekten değiştiğini kilitle."""
+    import inspect
+
+    from itucap import pipeline, verify
+    for mod in (pipeline, verify):
+        assert "SECOND_KINDS[settings.second_kind]" not in inspect.getsource(mod)
+
+
+# ============================== ★★ Planı bulunamayan ikinci program
+def test_PLANSIZ_IKINCI_PROGRAM_EKRANDAN_SILINMIYOR(dbs):
+    """★★ `resolve_seconds` planı bulunamayan türü BİLEREK listede
+    bırakıyor ("yandalım var" ile "yandal planı çekilmemiş" ayrı şeyler),
+    `collect` ise bir satır sonra onu süzüp atıyordu.
+
+    Sonuç: kullanıcı yandalını seçiyor, kurulum çubuğunda yandal HİÇ
+    görünmüyor, seçim kaydolmamış sanıyordu. Aynı soruya iki kaynağın
+    farklı cevap vermesi — bu projenin ikinci klasik hata sınıfı."""
+    data = _collect(dbs, yandal_program="YOK_YD")
+    assert [s["kind"] for s in data["seconds"]] == ["cap"]
+    eksik = data["secondsMissing"]
+    assert [s["program"] for s in eksik] == ["YOK_YD"]
+    assert eksik[0]["planId"] is None
+    # Paneller yalnız planı OLANLAR için; hesap uydurulmuyor.
+    assert [p["role"] for p in data["panels"]] == ["ANADAL", "CAP"]
+
+
+def test_plani_olan_ikinci_program_eksik_listesinde_degil(dbs):
+    data = _collect(dbs)
+    assert data["secondsMissing"] == []
+    assert {s["kind"] for s in data["seconds"]} == {"cap", "yandal"}
+
+
+def test_KUTUNUN_SUNDUGU_HER_KOD_GECERLI_SAYILIR(tmp_path, monkeypatch):
+    """★★ Doğrulama `program` tablosuna, açılır kutu `plan` tablosuna bakıyordu.
+
+    ÖLÇÜLDÜ (yayınlanan katalog): 127 program kodunun planı var ama
+    `program` tablosunda **hiçbir yandal yok** (76 `_YD` kodu eksik).
+    Yani kutu `BHB_YD — Bilişim Uygulamaları…` sunuyor, kullanıcı seçiyor,
+    doğrulama "katalogda yok" diye reddediyordu.
+
+    Kural: kullanıcıya SUNDUĞUMUZ her seçenek geçerli sayılır."""
+    import sqlite3
+
+    from itucap import config, server as SRV
+    monkeypatch.setattr(config, "ROOT", tmp_path)
+    (tmp_path / "config").mkdir()
+    st = SRV.State.__new__(SRV.State)
+    st._reenroll = lambda: None
+    st.con = sqlite3.connect(":memory:")
+    st.con.execute("CREATE TABLE program(code TEXT PRIMARY KEY, name TEXT)")
+    st.con.execute("CREATE TABLE plan(id INTEGER, program_code TEXT, plan_type TEXT)")
+    st.con.execute("INSERT INTO program VALUES ('HTAE','Hava Uzay')")
+    st.con.execute("INSERT INTO program VALUES ('BLG','Bilgisayar')")
+    # Yandalın YALNIZ planı var — yayınlanan katalogdaki gerçek durum.
+    st.con.execute("INSERT INTO plan VALUES (2522,'BHB_YD','yandal')")
+    SRV.State.save_programs(st, {
+        "anadalProgram": "HTAE", "secondKind": "ikisi",
+        "secondPrograms": {"cap": {"program": "BLG"},
+                           "yandal": {"program": "BHB_YD"}}})
+    s = config.Settings.load(tmp_path / "config" / "settings.toml")
+    assert s.program_of("yandal") == "BHB_YD"
+
+
+def test_sunulmayan_kod_hala_reddediliyor(tmp_path, monkeypatch):
+    """⚠️ Gevşetme "her şeyi kabul et" değil: iki kaynakta da olmayan kod
+    (elle yazılmış) hâlâ reddediliyor, yoksa alt çizgi hatası geri gelirdi."""
+    import sqlite3
+
+    from itucap import config, server as SRV
+    monkeypatch.setattr(config, "ROOT", tmp_path)
+    (tmp_path / "config").mkdir()
+    st = SRV.State.__new__(SRV.State)
+    st._reenroll = lambda: None
+    st.con = sqlite3.connect(":memory:")
+    st.con.execute("CREATE TABLE program(code TEXT PRIMARY KEY, name TEXT)")
+    st.con.execute("CREATE TABLE plan(id INTEGER, program_code TEXT, plan_type TEXT)")
+    st.con.execute("INSERT INTO program VALUES ('HTAE','Hava Uzay')")
+    st.con.execute("INSERT INTO plan VALUES (2522,'BHB_YD','yandal')")
+    with pytest.raises(ValueError) as e:
+        SRV.State.save_programs(st, {
+            "anadalProgram": "HTAE", "secondKind": "yandal",
+            "secondProgram": "BHBYD"})          # alt çizgisi düşmüş hâli
+    assert "BHBYD" in str(e.value) and "BHB_YD" in str(e.value)

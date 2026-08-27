@@ -80,7 +80,8 @@ def can_refresh() -> bool:
 # ⚠️ Bu listeye bir uç eklemek "bu uç durumu DEĞİŞTİRMİYOR" demektir.
 # Yazan bir ucu buraya koymak, kullanıcının değişikliği yaptığını ama
 # ekranda göremediği bir hata üretir — sessiz ve bulması zor.
-READ_ONLY_PATHS = frozenset({"/api/katalog", "/api/ders", "/api/crn"})
+READ_ONLY_PATHS = frozenset({"/api/katalog", "/api/ders", "/api/crn",
+                             "/api/transcript/preview"})
 
 
 class State:
@@ -102,6 +103,22 @@ class State:
         self.ucon.row_factory = sqlite3.Row
         self.student_id = S.ensure_student(self.ucon, label)
         self.busy = False
+        # ★★ Faz 28 GÖÇÜ — beyan denklikleri kullanıcı DB'sine taşındı.
+        # İki iş: (1) katalogda kalmış eski satırları sil — o dosya
+        # yayınlanan sitenin içine giriyor; (2) `denklikler.toml`'u kullanıcı
+        # DB'sine uygula, çünkü `load_equivalences` artık katalogdaki
+        # beyanları okumuyor ve göç etmeyen kullanıcı beyanlarını SESSİZCE
+        # kaybederdi.
+        #
+        # ⚠️ Dosya YOKSA dokunmuyoruz: "dosya yok" ile "beyan yok" ayrı
+        # şeyler, ve ikincisini varsayıp kullanıcı DB'sini boşaltmak veri
+        # silmek olurdu.
+        try:
+            declared.temizle_referans(self.con)
+            if declared.DEFAULT_PATH.exists():
+                declared.apply(self.ucon)
+        except Exception:                                   # noqa: BLE001
+            pass          # göç başarısızsa sunucu yine açılmalı
 
     # ------------------------------------------------------------- okuma
     def settings(self) -> config.Settings:
@@ -191,6 +208,8 @@ class State:
             return {}
         if path == "/api/crn":
             return {"crn": self.resolve_crns(b.get("crns") or [])}
+        if path == "/api/transcript/preview":
+            return {"preview": self.preview_text(b.get("text") or "")}
         if path == "/api/tercih":
             self.save_prefs(b)
             return {}
@@ -245,7 +264,22 @@ class State:
             "secondChoice": {k: {"program": settings.program_of(k),
                                  "planId": settings.plan_id_of(k)}
                              for k in ("cap", "yandal")},
-            "programCodes": sorted(settings.allowed_programs),
+            # ★★ Kutuda YALNIZ ekstralar; türetilenler ayrı alanda ve arayüzde
+            # okunur rozet olarak duruyor (kullanıcı isteği 27.08.2026).
+            "programCodes": sorted(
+                {c.strip().upper() for c in settings.program_codes if str(c).strip()}
+                - set(settings.derived_programs)),
+            "derivedPrograms": settings.derived_programs,
+            # ★ Dil eşi ÖNERİSİ (BLG → BLGE). Otomatik EKLENMİYOR: "bu kodla
+            # da kayıt yapabilirsin" bir iddia ve yanlışsa alınamayacak dersi
+            # alınabilir gösterir. Yalnız katalogda GERÇEKTEN var olan ve
+            # şubesi bulunan eşler öneriliyor; eklemek kullanıcının tıkı.
+            #
+            # ⚠️ KAYITLI ayara göre değil, TÜM eşler gönderiliyor (ölçüldü:
+            # 78 çift). Kullanıcı kutuda bölümü değiştirdiğinde öneri de
+            # anında değişmeli; kayıtlı ayara bağlasaydık öneri ancak
+            # KAYDETTİKTEN SONRA görünürdü — yani tam gerektiği anda değil.
+            "languageSiblings": self._dil_esleri(),
             "donem": settings.donem,
             # ÇAP'a başlanan yarıyıl — ikinci anadal kredi tabanını
             # belirliyor. 0 = beyan edilmedi (motor taban iddia etmez).
@@ -259,9 +293,16 @@ class State:
             # Planı olmayan bölümü listelemek, kullanıcıya seçtirip sonra
             # "plan yok" demek olurdu; BLG/BLGE ayrımı ise ÇAP'ta hiç yok.
             "secondPrograms": self.second_programs(),
+            # ⚠️ `COALESCE(pr.name, p.program_code)` KALDIRILDI (inceleme C3).
+            # Adı bilinmeyen programa kodun kendisini ad diye vermek, arayüzde
+            # "ECN — ECN" üretiyordu: kod bir ad DEĞİL, ve okuyan kişi adın
+            # gerçekten "ECN" olduğunu sanıyordu. Ölçüldü: 4 program kodunun
+            # (ECN, SEC, VBA, YZV) `program` tablosunda satırı yok — adları
+            # veride hiç yok, uydurulamaz. Artık `name` NULL geliyor ve
+            # arayüz "adı katalogda yok" yazıyor.
             "programs": [dict(r) for r in self.con.execute(
                 """SELECT DISTINCT p.program_code AS code,
-                          COALESCE(pr.name, p.program_code) AS name, p.plan_type
+                          pr.name AS name, p.plan_type
                    FROM plan p LEFT JOIN program pr ON pr.code = p.program_code
                    WHERE p.program_code IS NOT NULL
                    ORDER BY p.program_code""")],
@@ -398,9 +439,30 @@ class State:
             S.backup(self.ucon, self.student_id)
             S.prune_backups()
 
+    def preview_text(self, text: str) -> dict:
+        """Yapıştırılan metni ÇÖZ ama YAZMA — önizleme.
+
+        ★ İlk kullanıcı incelemesi A1: pencere kapanıyor, işlem başarılıymış
+        gibi görünüyor, oysa notlar kaybolmuş olabiliyordu. Uygulamadan önce
+        ne olacağını göstermek, sessiz veri kaybını imkânsız kılıyor.
+        """
+        entries, bad, uyarilar = S.parse_report(text or "")
+        return {
+            "count": len(entries),
+            "passed": sum(1 for e in entries if e.status == "PASSED"),
+            "inProgress": sum(1 for e in entries if e.status == "IN_PROGRESS"),
+            "failed": sum(1 for e in entries if e.status == "FAILED"),
+            # ⚠️ Kesme SESSİZ değil: kaç satır gösterilmediği ayrıca yazıyor.
+            "items": [{"course": e.course_code, "grade": e.grade,
+                       "status": e.status} for e in entries[:60]],
+            "shown": min(len(entries), 60),
+            "bad": bad[:20], "badTotal": len(bad),
+            "warnings": uyarilar[:20], "warningTotal": len(uyarilar),
+        }
+
     def save_text(self, text: str, replace: bool) -> tuple[int, list[str]]:
         """Toplu yapıştırma — transkripti olduğu gibi yapıştırabilmek için."""
-        entries, bad = S.parse_text(text or "")
+        entries, bad, _uyari = S.parse_report(text or "")
         self._backup(replace)
         S.add_entries(self.ucon, self.student_id, entries, replace=replace)
         return len(entries), bad[:20]
@@ -417,12 +479,27 @@ class State:
         """Anadal / ikinci program seçimini `settings.toml`'a yazar."""
         values: dict = {}
         kind = str(body.get("secondKind") or "").lower()
-        if kind not in config.SECOND_KINDS:
-            raise ValueError("ikinci program türü geçersiz")
+        # ★★ DOĞRULAMA `SECOND_CHOICES`'A BAKAR, `SECOND_KINDS`'A DEĞİL
+        # (hata bildirimi 24.08.2026: "yandal ve çap planını aynı anda
+        # yapmaya çalışınca program türü geçersiz diyor").
+        #
+        # İkisi farklı soruların cevabı:
+        #   SECOND_KINDS   — TEKİL bir türün rolü/etiketi/OBS plan tipi.
+        #                    "ikisi" tekil bir tür DEĞİL, orada yok.
+        #   SECOND_CHOICES — kullanıcının SEÇEBİLECEĞİ değerler; "ikisi" var.
+        #
+        # `Settings.load` zaten `SECOND_CHOICES`'a bakıyordu; burası
+        # `SECOND_KINDS`'a bakıyordu. İki kaynağın aynı soruya farklı cevap
+        # vermesi — bu projede tekrar tekrar canımızı yakan hata sınıfı.
+        if kind not in config.SECOND_CHOICES:
+            raise ValueError(
+                "ikinci program türü geçersiz: "
+                + ", ".join(sorted(config.SECOND_CHOICES)) + " olabilir")
         values["second_kind"] = kind
         anadal = _clean_code(body.get("anadalProgram"))
         if not anadal:
             raise ValueError("anadal programı boş olamaz")
+        self._dogrula_program(anadal, "anadal")
         values["anadal_program"] = anadal
         if body.get("anadalPlanId"):
             values["anadal_plan_id"] = int(body["anadalPlanId"])
@@ -436,6 +513,8 @@ class State:
                               if gelen else body.get("secondProgram"))
             if not kod:
                 raise ValueError(f"{k} programının kodu boş olamaz")
+            self._dogrula_program(kod, config.SECOND_KINDS[k][1] if k in
+                                  config.SECOND_KINDS else k)
             values[f"{k}_program"] = kod
             plan_id = ((gelen.get(k) or {}).get("planId") if gelen
                        else body.get("secondPlanId"))
@@ -443,11 +522,126 @@ class State:
                 values[f"{k}_plan_id"] = int(plan_id)
         codes = [_clean_code(c) for c in (body.get("programCodes") or [])]
         codes = [c for c in codes if c]
-        if codes:
-            values["program_codes"] = codes
+        # ⚠️ Bu kutu SERBEST METİN — kullanıcı elle yazabiliyor. Tanınmayanı
+        # sessizce atmak, yazdığı kodun işe yaradığını sanmasına yol açardı.
+        bilinmeyen = [c for c in codes if self._program_var(c) is False]
+        if bilinmeyen:
+            raise ValueError(
+                "katalogda olmayan program kodu: " + ", ".join(bilinmeyen)
+                + " — kutudan seçersen kod kendiliğinden doğru gelir")
+        # ★★ Kutuda YALNIZ EKSTRALAR durur (kullanıcı isteği 27.08.2026).
+        # Anadal/ÇAP/yandal kodları `allowed_programs` içinde her seferinde
+        # yeniden türetiliyor; dosyaya da yazmak onları elle yazılmış
+        # kodlardan ayırt edilemez kılardı ve bölüm değişince eskisi kutuda
+        # kalırdı. Eski dosyalar da bu kayıtla temizleniyor.
+        turetilmis = {values["anadal_program"].upper(),
+                      *(values[f"{k}_program"].upper() for k in istenen)}
+        ekstra = [c for c in dict.fromkeys(codes) if c not in turetilmis]
+        # ⚠️ Boş liste de YAZILIYOR: kullanıcı son ekstrayı sildiyse dosyada
+        # kalması, sildiğini sanmasına yol açardı.
+        values["program_codes"] = ekstra
         config.update_settings(values)
         self._reenroll()
         return values
+
+    # ---- dil eşi önerisi ---------------------------------------------
+    def _dil_esleri(self) -> dict:
+        """`{'BLG': {'code':'BLGE','sections':712}, …}` — DOĞRULANMIŞ eşler.
+
+        ★ `BLG` seçen öğrencinin `BLGE` şubelerine de kayıt yapabildiği çok
+        yaygın (kullanıcının kendi ayarı: HTAE, BLG, BLGE). Ama bu bir
+        İDDİA: yanlışsa, alamayacağı bir dersi alabilir gösterir. O yüzden
+        otomatik EKLENMİYOR — öneriliyor, ekleme kullanıcının tıkı.
+
+        ⚠️ Öneri de uydurulmuyor. Eşin katalogda GERÇEKTEN bir programı ya
+        da planı olmalı VE o koda açık en az bir şube bulunmalı; şubesi
+        olmayan kodu önermek, işe yaramayacak bir seçenek sunmak olurdu.
+        Ölçüldü: 205 koddan 78'inin doğrulanmış bir eşi var.
+
+        ⚠️ `HTAE → HTA` GERÇEK bir çift (Harita Mühendisliği / İngilizce).
+        `normalize.merge_language_variants` yorumu bunun aksini söylüyordu;
+        katalogda ölçünce ikisinin de programı ve yüzlerce şubesi çıktı.
+        Yorumdan değil VERİDEN karar veriyoruz.
+        """
+        # ★ Katalog değişmedikçe sabit; ölçüldü ~50 ms ve `snapshot()` her
+        # yazma ucundan sonra çağrılıyor. `refresh` önbelleği düşürüyor.
+        onbellek = getattr(self, "_esler_onbellek", None)
+        if onbellek is not None:
+            return onbellek
+        try:
+            kodlar = {r[0] for r in self.con.execute(
+                "SELECT code FROM program WHERE code IS NOT NULL")}
+            kodlar |= {r[0] for r in self.con.execute(
+                "SELECT DISTINCT program_code FROM plan WHERE program_code IS NOT NULL")}
+            sube = {r[0]: r[1] for r in self.con.execute(
+                """SELECT upper(program_code), COUNT(DISTINCT crn)
+                   FROM lesson_allowed_program GROUP BY 1""")}
+        except sqlite3.Error:
+            return {}
+        out: dict[str, dict] = {}
+        for kod in kodlar:
+            es = kod[:-1] if kod.endswith("E") else kod + "E"
+            if es and es != kod and es in kodlar and sube.get(es):
+                out[kod] = {"code": es, "sections": sube[es]}
+        self._esler_onbellek = out
+        return out
+
+    # ---- program kodu gerçekten var mı --------------------------------
+    def _program_var(self, code: str) -> bool | None:
+        """True/False — ve bakılacak veri yoksa `None`: "buradan bakılamaz".
+
+        ★★ KAYNAK, AÇILIR KUTUYU DOLDURAN KAYNAĞIN AYNISI OLMALI.
+        İlk hâli yalnız `program` tablosuna bakıyordu; oysa arayüzdeki
+        bölüm kutuları `plan` tablosundan doluyor. İkisi AYNI DEĞİL:
+        yayınlanan katalogda 127 program kodunun planı var ama `program`
+        tablosunda 129 satır var ve **hiçbir yandal yok** — yani kutunun
+        sunduğu `BHB_YD` seçilince doğrulama onu reddederdi.
+
+        Aynı soruya iki kaynağın farklı cevap vermesi — bu projenin tekrar
+        eden hata sınıfı. Kural: **kullanıcıya sunulan her seçenek geçerli
+        sayılır.** Sunmadığımız bir kod (elle yazılan) hâlâ reddediliyor.
+
+        ⚠️ Üç değerli: iki tabloda da hiç satır yoksa (katalog çekilmemiş)
+        `None` — "bu kod yanlış" demek yanlış olurdu.
+        """
+        def _say(sql: str, *p) -> int | None:
+            try:
+                return self.con.execute(sql, p).fetchone()[0]
+            except sqlite3.Error:
+                return None
+
+        toplam = (_say("SELECT COUNT(*) FROM plan WHERE program_code IS NOT NULL") or 0) \
+            + (_say("SELECT COUNT(*) FROM program") or 0)
+        if not toplam:
+            return None
+        return bool(_say("SELECT COUNT(*) FROM plan WHERE program_code=?", code)
+                    or _say("SELECT COUNT(*) FROM program WHERE code=?", code))
+
+    def _dogrula_program(self, code: str, rol: str) -> None:
+        """Kod katalogda yoksa AÇIKÇA hata ver.
+
+        ★ Temizleyip doğrulamamak, bu projedeki "sessiz sıfır" hatasının
+        ta kendisiydi: bozuk kod dosyaya yazılıyor, plan aramaları boş
+        dönüyor, ekran "ders yok" diyordu — sanki program gerçekten boşmuş
+        gibi. Artık kaydın kendisi reddediliyor ve sebebi yazıyor.
+        """
+        if self._program_var(code) is not False:      # True veya "bakılamaz"
+            return
+        # Öneri de aynı iki kaynaktan: `ALGYD` yazana `ALG_YD`yi gösterebilmek
+        # için plan tarafına da bakmak şart (yandalların çoğu orada).
+        # ⚠️ Tablo yoksa öneri de yok — hata mesajı yine çıkıyor. Öneri
+        # üretememek, hatayı hiç verememeye dönüşmemeli.
+        yakin: set[str] = set()
+        for sql in ("SELECT program_code FROM plan WHERE program_code LIKE ?",
+                    "SELECT code FROM program WHERE code LIKE ?"):
+            try:
+                yakin |= {r[0] for r in self.con.execute(sql, (code[:3] + "%",))
+                          if r[0]}
+            except sqlite3.Error:
+                continue
+        yakin = sorted(yakin)[:4]
+        ek = (" — bunu mu demek istedin: " + ", ".join(yakin)) if yakin else ""
+        raise ValueError(f"{rol} programı katalogda yok: {code}{ek}")
 
     def refresh(self, skip_obs: bool = False) -> dict:
         """Veriyi tazeler ve ne değiştiğini döndürür.
@@ -480,7 +674,10 @@ class State:
                     # OBS erişilemiyorsa ESKİ VERİ KORUNUR; sessizce başarılı
                     # görünmek yanlış olurdu.
                     obs_error = str(exc)
-            declared_n = _apply_declared(self.con)
+            # ⚠️ Katalog değişti: dil eşi önbelleği düşüyor, yoksa
+            # tazelemeden sonra eski eşler gösterilirdi.
+            self._esler_onbellek = None
+            declared_n = _apply_declared(self.ucon)
             pipeline.step_prereq(self.con)
             CH.take(self.con)
             diff = CH.compare(self.con, watch=self.watch_codes())
@@ -517,16 +714,17 @@ class State:
         if not target or not clean:
             raise ValueError("denklik için hedef ve en az bir kaynak gerekir")
         declared.append(target, clean, note=note or "arayüzden onaylandı")
-        return declared.apply(self.con)
+        return declared.apply(self.ucon)
 
     def applied_equivalences(self) -> list[dict]:
         """Uygulanmış BEYAN denklikleri — kaldırılabilsin diye listeleniyor."""
         out = []
-        for row in self.con.execute(
+        # ★★ Faz 28 — beyanlar KULLANICI DB'sinde (kişisel veri).
+        for row in self.ucon.execute(
             """SELECT id, target_course, note_raw FROM equivalence
                WHERE confidence='user_declared' ORDER BY target_course"""
         ):
-            sources = [r[0] for r in self.con.execute(
+            sources = [r[0] for r in self.ucon.execute(
                 "SELECT course_code FROM equivalence_source WHERE equivalence_id=?",
                 (row["id"],))]
             out.append({"target": row["target_course"], "sources": sources,
@@ -536,7 +734,7 @@ class State:
     def remove_equivalence(self, target: str) -> int:
         from .normalize import normalize_course_code
         declared.remove(normalize_course_code(target))
-        return declared.apply(self.con)
+        return declared.apply(self.ucon)
 
     def second_programs(self) -> dict:
         """{'cap': [{code,name}], 'yandal': [...]} — planı OLAN bölümler."""
@@ -877,8 +1075,24 @@ def _diff_json(diff: "CH.Diff") -> dict:
 
 
 def _clean_code(value) -> str:
-    """Program kodu: yalnız harf/rakam, en fazla 8 karakter."""
-    return re.sub(r"[^A-Za-z0-9]", "", str(value or "")).upper()[:8]
+    """Program kodu: harf/rakam/alt çizgi, en fazla 16 karakter.
+
+    ★★ ALT ÇİZGİ SİLİNİYORDU — HER YANDAL KODU BOZULUYORDU.
+    Eski hâli `[^A-Za-z0-9]` siliyordu; oysa katalogdaki 205 program
+    kodunun 78'i alt çizgi taşıyor ve BUNLARIN HEPSİ YANDAL:
+    `ALG_YD`, `ARC_YD`, `MAT_YD_EC`… Kullanıcı kutudan "ALG_YD" seçiyor,
+    dosyaya "ALGYD" yazılıyor, o kod hiçbir şeyle eşleşmiyordu —
+    yandal planı SESSİZCE boş dönüyordu. Bu projede tekrar tekrar
+    canımızı yakan "sessiz sıfır" hatasının tam örneği.
+
+    8 karakterlik kesme de aynı şeyi yapıyordu: `MAT_YD_EC` 9 karakter.
+    Katalogdaki en uzun kod 9; 16 rahat bir tavan.
+
+    ⚠️ Bu işlev artık yalnız TEMİZLİYOR. Kodun gerçekten var olduğunu
+    `_dogrula_program` denetliyor — temizleyip doğrulamamak, uydurma bir
+    kodu geçerliymiş gibi kaydetmek demekti.
+    """
+    return re.sub(r"[^A-Za-z0-9_]", "", str(value or "")).upper()[:16]
 
 
 # --------------------------------------------------------------------- HTTP

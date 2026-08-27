@@ -125,7 +125,7 @@ def test_already_declared_is_not_suggested_again(dbs, tmp_path, monkeypatch):
     path = tmp_path / "denklikler.toml"
     monkeypatch.setattr(declared, "DEFAULT_PATH", path)
     declared.append("BLG 112E", ["BBF 103E"], path=path)
-    declared.apply(con, path)
+    declared.apply(ucon, path)          # ★ Faz 28: beyanlar kullanıcı DB'sinde
     assert _suggest(dbs) == []
 
 
@@ -169,31 +169,75 @@ def test_remove_unknown_target_is_noop(tmp_path):
 
 def test_apply_is_authoritative(dbs, tmp_path):
     """Dosyadan silinen beyan veritabanından da gitmeli."""
-    con, _ucon, _sid = dbs
+    _con, ucon, _sid = dbs
     path = tmp_path / "denklikler.toml"
     declared.append("BLG 112E", ["BBF 103E"], path=path)
-    declared.apply(con, path)
-    assert con.execute("SELECT COUNT(*) FROM equivalence").fetchone()[0] == 1
+    declared.apply(ucon, path)
+    assert ucon.execute("SELECT COUNT(*) FROM equivalence").fetchone()[0] == 1
     declared.remove("BLG 112E", path)
-    declared.apply(con, path)
-    assert con.execute("SELECT COUNT(*) FROM equivalence").fetchone()[0] == 0
+    declared.apply(ucon, path)
+    assert ucon.execute("SELECT COUNT(*) FROM equivalence").fetchone()[0] == 0
 
 
 def test_equivalence_makes_the_course_count_as_passed(dbs, tmp_path):
-    """★ Kullanıcının asıl isteği: denklik varsa GEÇİLMİŞ sayılsın."""
+    """★ Kullanıcının asıl isteği: denklik varsa GEÇİLMİŞ sayılsın.
+
+    ★★ Faz 28: beyan artık KULLANICI DB'sinde (kişisel veri) — `apply`
+    ucon'a yazıyor ve `load_equivalences` ucon'la çağrılıyor."""
     from itucap import rules as R
     con, ucon, sid = dbs
     S.add_entries(ucon, sid, [S.make_entry("BBF 103E", "BB")])
     path = tmp_path / "denklikler.toml"
     declared.append("BLG 112E", ["BBF 103E"], path=path)
-    declared.apply(con, path)
+    declared.apply(ucon, path)
     expanded, via = R.expand_with_equivalences(S.grades(ucon, sid),
-                                               R.load_equivalences(con))
+                                               R.load_equivalences(con, ucon=ucon))
     assert expanded.get("BLG 112E") == "BB" and "BLG 112E" in via
     slot = con.execute(
         "SELECT id FROM plan_slot WHERE course_code='BLG 112E'").fetchone()[0]
     assert R.slot_satisfied(con, slot, S.grades(ucon, sid),
-                            R.load_equivalences(con)).satisfied is True
+                            R.load_equivalences(con, ucon=ucon)).satisfied is True
+
+
+def test_BEYAN_REFERANS_DBSINDEN_OKUNMUYOR(dbs, tmp_path):
+    """★★ B5 — beyan kişisel veri; katalogda kalmış kalıntı OKUNMAMALI.
+
+    `declared.py` "bunlar kişisel veri değil" diyip referans DB'ye yazıyordu;
+    `tools/gizlilik_denetimi.py` ise yayınlanan katalogda `user_declared`
+    görünce HATA veriyordu. Aynı soruya iki farklı cevap — denetim haklıydı."""
+    from itucap import rules as R
+    con, ucon, _sid = dbs
+    cur = con.execute(
+        """INSERT INTO equivalence(target_course,applies_to_cap,confidence,note_raw)
+           VALUES ('BLG 112E',1,'user_declared','eski sürümden kalma')""")
+    con.execute("""INSERT INTO equivalence_source(equivalence_id,course_code,min_grade)
+                   VALUES (?,'BBF 103E','DD')""", (cur.lastrowid,))
+    con.commit()
+    assert R.load_equivalences(con, ucon=ucon) == []
+    assert R.load_equivalences(con) == []          # ucon'suz da okumuyor
+    # Göç kalıntıyı SİLİYOR: o dosya yayınlanan sitenin içine giriyor.
+    assert declared.temizle_referans(con) == 1
+    assert con.execute("SELECT COUNT(*) FROM equivalence").fetchone()[0] == 0
+    assert con.execute("SELECT COUNT(*) FROM equivalence_source").fetchone()[0] == 0
+
+
+def test_beyan_idleri_katalog_idleriyle_CAKISMIYOR(dbs, tmp_path):
+    """⚠️ İki dosyada da id 1'den başlıyor. `via_equivalence` yanlış
+    denkliği göstermesin diye beyan id'leri ötelenmiş olmalı."""
+    from itucap import rules as R
+    con, ucon, _sid = dbs
+    con.execute(
+        """INSERT INTO equivalence(id,target_course,applies_to_cap,confidence,note_raw)
+           VALUES (1,'BLG 112E',1,'official','resmi')""")
+    con.execute("""INSERT INTO equivalence_source(equivalence_id,course_code,min_grade)
+                   VALUES (1,'BBF 103E','DD')""")
+    con.commit()
+    path = tmp_path / "denklikler.toml"
+    declared.append("GEO 303E", ["BBF 103E"], path=path)
+    declared.apply(ucon, path)
+    idler = [e.id for e in R.load_equivalences(con, ucon=ucon)]
+    assert len(idler) == 2 and len(set(idler)) == 2, idler
+    assert max(idler) >= R.BEYAN_ID_OFSET
 
 
 # --------------------------------------------------- kaydedilmiş program
