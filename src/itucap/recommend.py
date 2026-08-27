@@ -517,12 +517,15 @@ def score_all(cands: list[Candidate]) -> list[Candidate]:
             label = "Yandal" if c.role == "YANDAL" else "ÇAP"
             kat("cap_role", WEIGHTS["cap_role"], f"{label} dersi — arzı kısıtlı",
                 f"{label} dersi — arzı kısıtlı")
-        if c.prereq_unknown:
-            c.reasons.append("⚠ önşartı okunamadı — danışmanına sor")
-        elif c.prereq_missing:
-            # ⚠️ "Önşartı yok" DEMİYORUZ: katalogda metin yok, bu iki farklı
-            # şey. Aracın kendi ilkesi bunu gerektiriyor.
-            c.reasons.append("önşart bilgisi katalogda yok — OBS'den doğrula")
+        # ⚠️ ÖNŞART DURUMU ARTIK YALNIZ ROZETTE (UX düzeltmesi 27.08.2026):
+        # aynı bilgi hem rozet hem `reasons` metni olarak iki kez görünüyordu
+        # ve GEO derslerinin ~%85'inde katalogda önşart metni olmadığı için
+        # her satırda tekrar eden bir gürültüye dönüşmüştü (ölçüldü: 18
+        # adayın 15'i). Rozet kompakt sinyali, ipucu da "OBS'den doğrula"
+        # tavsiyesini taşıyor; metinde ayrıca yazmak yer kaplıyordu.
+        #
+        # "Önşartı yok" DEMİYORUZ — katalogda metin yok, bu iki farklı şey.
+        # O ayrımı rozetin kendisi ve ipucu koruyor.
         c.score = round(score, 1)
         # ⚠️ Kırılım toplamı puanla TUTMALI. Ayrışırlarsa arayüz yalan söyler;
         # test bunu kilitliyor (test_faz27).

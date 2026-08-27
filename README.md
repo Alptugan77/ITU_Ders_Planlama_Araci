@@ -197,7 +197,7 @@ uygulanıyor; kaynak dosya değişmediği için hiçbir beyan kaybolmuyor.
 ## Test
 
 ```bash
-make test        # 917 test + gizlilik denetimi
+make test        # 923 test + gizlilik denetimi
 ```
 
 Gizlilik denetimi (`tools/gizlilik_denetimi.py`) dosya adına **değil

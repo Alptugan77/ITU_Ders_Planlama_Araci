@@ -25,7 +25,6 @@ import html as _html
 import json
 import sqlite3
 from pathlib import Path
-from urllib.parse import quote
 
 from . import config
 from . import policy as POL
@@ -723,89 +722,6 @@ AD_KURUM = "İTÜ"
 AD_TAM = f"{AD_KURUM} {AD_KISA}"
 AD_ACILIM = "Ders Planlama Aracı"
 
-
-# ============================================================ SEKME İKONU
-# Aracın tek cümlesi: bir hafta, iki program. Üstte --seal cetveli (yapı),
-# altında --anadal ve --cap blokları (veri) — çakışmadan, yan yana.
-#
-# ★ Gece Şeması'nın kurallarıyla çizildi; ikona ayrı bir dil icat edilmedi:
-#   sıfır köşe, düz renk, degrade yok, gölge yok, kenarlık yok. Renkler
-#   sayfadaki ROLLERİYLE duruyor; ikonda süs rengi yok.
-#
-# ★ DEPAR'ın "D"si de denendi ve BIRAKILDI: bu tasarımda hiçbir yerde
-#   yuvarlaklık olmadığı için köşesiz bir "D" 16 pikselde "O"ya benziyor.
-#   Harf, ancak yuvarlaklığa izin veren bir dilde okunurdu.
-#
-# ★ 32'lik ızgara, bütün kenarlar çift sayıda: 16 pikselde her kenar tam
-#   piksele oturuyor. `shape-rendering=crispEdges` bunu ayrıca kilitliyor —
-#   yoksa tarayıcı kenarları yumuşatıp lekeye çeviriyor.
-#
-# ⚠️ İkonun KENDİ koyu zemini var. Şeffaf denendi: beyaz sekme şeridinde
-#   yeşil ve kehribar soluyor, ikon "iki soluk leke"ye dönüyordu. Zeminle
-#   birlikte üç sekme renginde de (koyu, beyaz, gri) aynı okunuyor.
-#
-# ⚠️ Öznitelikler TEK tırnakla: bu metin bir HTML özniteliğinin İÇİNE
-#   gömülüyor, çift tırnak orada özniteliği kapatırdı.
-_FAVICON_SVG = (
-    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'"
-    " width='32' height='32' shape-rendering='crispEdges'>"
-    "<rect width='32' height='32' fill='#10141B'/>"                 # --ground
-    "<rect width='32' height='4' fill='#8FA3E8'/>"                  # --seal
-    "<rect x='4' y='8' width='11' height='15' fill='#5FC0A6'/>"     # --anadal
-    "<rect x='17' y='13' width='11' height='15' fill='#D9A05B'/>"   # --cap
-    "</svg>"
-)
-
-# Aynı çizimin 32 ve 180 piksellik PNG'leri:
-#   * 32'lik  — SVG ikonu okumayan tarayıcılar için yedek,
-#   * 180'lik — iOS "Ana Ekrana Ekle". Bu olmadan Safari sayfanın ekran
-#     görüntüsünü kırpıp simge yapıyor; ortaya boş bir ızgara çıkıyor.
-# İkisi düz renk olduğu için toplamı 600 baytın altında.
-_ICON_PNG_32 = (
-    "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAUUlEQVR42mPsX/yCgZaAiYHGYO"
-    "hbwCggIj0aRANrAQsyx39NN37VG0NKR+NgiEcykeBkjwN+BeYlB0bjYNSCUQsGLCeTURqPxsFo"
-    "u2g0DogAAM7MClY1FxA3AAAAAElFTkSuQmCC"
-)
-_ICON_PNG_180 = (
-    "iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAABjElEQVR42u3doQ2EMBSAYUoYoA"
-    "LHIFg2wDDKMQUkDIHFdAMsm9wYp85dEAeCJt83ACkvf15lw7K+C/ilNALEgTgQB+JAHIgDcSAO"
-    "xIE4QByIA3EgDsSBOBAH4kAciAO+QqwbU8DmQByIA3EgDsSBOBAH4kAcIA7EgTgQB+JAHIgDcS"
-    "AOxAHiQBz8qbr+iX6bMv35NIwKsDkQB+JAHIgDcSAOxIE4EAeIA3EgDsSBOBAH4kAciANxgDgQ"
-    "B+JAHIgDcSAO8lUZwblj7jI9efvabQ5cK4gDcSAOxIE4EAeIA3EgDsSBOBAH4kAciANxIA4QB+"
-    "JAHIgDcSAOxIE4EAfiAHEgDsSBOBAH4kAciANxIA4QB+JAHIgDcSAOxIE4EAfiQBwgDsSBOBAH"
-    "4uCJbnhXNg2jOdociAPEgTgQB+JAHIgDcSAOxIE4EAeIA3EgDsSBOBAH4kAciANxgDgQB+JAHI"
-    "iDBwmxbkwBmwNxIA7EgTgQB+JAHIgDcYA4EAfiQByIA3EgDsSBOBAHiINzH6Y7C37B7RVVAAAA"
-    "AElFTkSuQmCC"
-)
-
-
-def _svg_data_uri(svg: str) -> str:
-    """SVG'yi data URI'ye çevirir — base64 DEĞİL.
-
-    ★ Base64 daha kısa olurdu ama ikon kaynakta okunmaz hale gelirdi.
-    Bu dosyadaki her renk gibi ikonun renkleri de gözle görülebilir kalmalı;
-    palet değişip ikon geride kalırsa fark edilebilsin.
-
-    ⚠️ `#` URL'de parça (fragment) ayracıdır. Kaçırılmazsa `#10141B` bir
-    fragment sanılıyor ve ikon renksiz çıkıyor — o yüzden `safe` listesinde
-    YOK. `<` ve `>` de kaçırılıyor: öznitelik içinde serbest bırakmak HTML'e
-    göre geçerli ama metni etiket sanan her araç ikonun ortasında kalıyor.
-    """
-    return "data:image/svg+xml," + quote(svg, safe="/:=' ")
-
-
-# ⚠️ `theme-color` İKİ kez, media ile. Sayfa koyu doğuyor ama işletim sistemi
-# açık kipteyse CSS de açığa dönüyor; tek bir koyu değer yazsaydık telefonda
-# adres çubuğu sayfayla uyuşmazdı.
-_HEAD_ICONS = "\n".join([
-    f'<link rel="icon" type="image/svg+xml" href="{_svg_data_uri(_FAVICON_SVG)}">',
-    f'<link rel="alternate icon" type="image/png" sizes="32x32"'
-    f' href="data:image/png;base64,{_ICON_PNG_32}">',
-    f'<link rel="apple-touch-icon" href="data:image/png;base64,{_ICON_PNG_180}">',
-    '<meta name="theme-color" content="#10141B" media="(prefers-color-scheme:dark)">',
-    '<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme:light)">',
-])
-
 # ⚠️ Takvim dosyası (ICS) PRODID alanı ASCII olmak zorunda; "İTÜ" oraya
 # olduğu gibi yazılamaz. Katlama TEK YERDE, yoksa ad değişince biri kalırdı.
 _ASCII = str.maketrans({"İ": "I", "ı": "i", "Ü": "U", "ü": "u", "Ö": "O",
@@ -1170,7 +1086,6 @@ def render(data: dict, *, deferred: bool = False) -> str:
     tasarım düzeltmesi birinde yapılır, öbüründe unutulurdu.
     """
     html = _TEMPLATE.replace("__DATA__", _gomulu_json(data))
-    html = html.replace("__ICONS__", _HEAD_ICONS)
     # ★ Ad TEK KAYNAKTAN. Şablona üç ayrı yere elle yazılsaydı biri değişip
     # öbürü kalırdı; `acilim_html` de vurguyu kısaltmadan türetiyor.
     for anahtar, deger in (("__AD_TAM__", AD_TAM), ("__AD_KURUM__", AD_KURUM),
@@ -1197,7 +1112,6 @@ _TEMPLATE = r"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__AD_TAM__ — __AD_ACILIM_DUZ__</title>
-__ICONS__
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -1620,7 +1534,12 @@ table.list tr:hover td{background:var(--surface-2)}
 .score{font-weight:600}
 
 .chipline{display:flex;align-items:center;gap:9px;margin:16px 0 8px}
-.chip{font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:0;
+/* ★ `inline-block` + `nowrap` (UX 27.08.2026): rozet dar mobil ekranda
+   ORTASINDAN bölünüyordu ("ÖNŞART / BİLGİSİ YOK") ve kenarlık kırık bir
+   kutu çiziyordu. Rozet tek parça; sığmazsa bütün olarak alt satıra iner.
+   `margin-bottom` sarınca üst üste binmesin diye. */
+.chip{display:inline-block;white-space:nowrap;font-size:10.5px;font-weight:600;
+  padding:3px 9px;border-radius:0;margin-bottom:3px;
   letter-spacing:.05em;text-transform:uppercase;border:1px solid currentColor}
 .chip.supply{color:var(--danger)}
 .chip.prereq{color:var(--warn)}
@@ -1766,6 +1685,10 @@ table.cmp .meta.arti{color:var(--anadal)}
   box-shadow:0 6px 14px -8px rgba(0,0,0,.55);
   margin:0 0 18px;padding:8px 0;scrollbar-width:none}
 .secnav::-webkit-scrollbar{display:none}
+/* Kenar solması: bölüm çubuğu kaydırılabiliyorsa o yönde soluyor. */
+.secnav[data-more="right"]{mask-image:linear-gradient(90deg,#000 calc(100% - 34px),transparent)}
+.secnav[data-more="left"]{mask-image:linear-gradient(90deg,transparent,#000 34px)}
+.secnav[data-more="both"]{mask-image:linear-gradient(90deg,transparent,#000 34px,#000 calc(100% - 34px),transparent)}
 .secnav a{flex:0 0 auto;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
   font-family:"Chivo",Helvetica,Arial,sans-serif;font-weight:700;
   color:var(--ink-3);text-decoration:none;padding:6px 10px;border:1px solid transparent}
@@ -1874,6 +1797,12 @@ body.kurulum #secnav{display:none}
   .heroCta{flex-direction:column;align-items:stretch}
   .heroCta .ghost.big{width:100%}
   .heroSkip{margin-left:0}
+  /* ★★ Şube seçenek kartı telefonda ALT ALTA (UX 27.08.2026). İki kolon
+     (solda ders, sağda CRN/saat/hoca) yan yana sığmıyordu: CRN ve hoca adı
+     sağ kenardan KESİLİYORDU — üstelik CRN kayıt günü yazılan sayı, kesik
+     olması kabul edilemez. Alt alta gelince tam genişlik açılıyor. */
+  .opt{flex-direction:column;align-items:stretch;gap:4px}
+  .opt > span:last-child{text-align:left !important;white-space:normal}
 }
 
 dialog{border:1px solid var(--border-strong);border-top:6px solid var(--seal);
@@ -2192,7 +2121,14 @@ function renderHeader(){
         `${DATA.lessonCount} açık şube`,
         DATA.load && DATA.load.noTranscript
           ? "dönem yükü sınırı: transkript girilince"
-          : `dönem yükü sınırı ${DATA.maxLoad} ${DATA.unitLabel}`,
+          /* ★ Kaynağı da yaz (UX 27.08.2026): kullanıcı 30 ayarlayıp
+             başlıkta 40 görünce "bozuk mu" diyor. Yönetmelik GNO'ya göre
+             tavanı yükseltiyor (MADDE 17) ve bunu söylemeden göstermek,
+             ayarıyla çelişen bir sayıyı açıklamasız bırakıyordu. Dönem
+             etiketindeki "(beyan)/(tahmin)" ile aynı desen. */
+          : `dönem yükü sınırı ${DATA.maxLoad} ${DATA.unitLabel}`
+            + ({yönetmelik: " (yönetmelik)", ayar: "", çağrı: ""}[
+                 (DATA.load || {}).limitSource] || ""),
         DATA.donem ? `${DATA.donem}. dönem (${DATA.donemSource})` : "",
       ].filter(Boolean).join(" · ");
 }
@@ -5216,9 +5152,9 @@ function renderCandidates(){
         ${inPlan ? `<span class="chip" style="margin-left:6px;color:var(--anadal)">programda</span>` : ""}
         ${c.critical ? `<span class="chip supply" style="margin-left:6px">kritik yol</span>` : ""}
         ${c.prereqUnknown ? `<span class="chip unknown"
-          style="margin-left:6px" title="Önşart metni var ama okunamadı">önşart okunamadı</span>`
+          style="margin-left:6px" title="Önşart metni var ama okunamadı — danışmanına sor">önşart okunamadı</span>`
           : (c.prereqMissing ? `<span class="chip unknown" style="margin-left:6px"
-              title="Katalogda önşart metni yok — 'önşartı yok' demek DEĞİL">önşart bilgisi yok</span>` : "")}
+              title="Katalogda önşart metni yok — 'önşartı yok' demek DEĞİL. OBS'den doğrula.">önşart bilgisi yok</span>` : "")}
         ${c.sections.every(s => s.online)
           ? `<span class="chip online" style="margin-left:6px">çevrimiçi</span>`
           : (c.sections.some(s => s.online)
@@ -5538,6 +5474,19 @@ function renderSecNav(){
     document.getElementById(a.hash.slice(1))
             .scrollIntoView({behavior: "smooth", block: "start"});
   }));
+  /* ★ Kaydırılabilir olduğunu GÖSTER (UX 27.08.2026). Mobilde 9 bölüm
+     çubuğa sığmıyor, son bölüm ("Kademeler") kenardan kesiliyor ve
+     kaydırılabildiğine dair hiçbir ipucu yoktu — kullanıcı orada başka
+     bölüm olduğunu göremiyordu. Kenar solması "sağa kaydır" diyor;
+     tamamen kaydırınca kayboluyor ki yanlış ipucu vermesin. */
+  const kenarSolmasi = () => {
+    const sonda = nav.scrollLeft + nav.clientWidth >= nav.scrollWidth - 2;
+    const basta = nav.scrollLeft <= 2;
+    nav.dataset.more = nav.scrollWidth <= nav.clientWidth + 2 ? "none"
+      : basta ? "right" : sonda ? "left" : "both";
+  };
+  kenarSolmasi();
+  nav.onscroll = () => requestAnimationFrame(kenarSolmasi);
   markCurrentSection();
 }
 
