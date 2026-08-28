@@ -187,6 +187,14 @@ class Settings:
     # Yine de güvenlik için http.ascii_header() ile temizleniyor.
     user_agent: str = "itucap/0.1 (kisisel ders planlama araci; github.com/itucap)"
     scrape_plan_types: list[str] = field(default_factory=lambda: ["lisans", "cap"])
+    # ★ OBS Ders Plan Denklikleri sayfası (28.08.2026, kullanıcı isteği: *"ders
+    # denkliklerini bu siteden çekmek lazım"*). Bu sayfanın `ProgramId`i, plan
+    # id'lerinden AYRI bir sayı uzayında (dropdown'dan: GEO_LS=1247, BLG=871).
+    # Buraya kendi anadal/ÇAP programlarının ProgramId'lerini yaz; `make refresh`
+    # her tazelemede o programların resmî denkliklerini çeker. Boşsa denklik
+    # adımı ATLANIR (sessizce değil — adım "0 program" der).
+    #   eq_program_ids = [1247, 871]     # Geomatik (anadal) + Bilgisayar (ÇAP)
+    eq_program_ids: list[int] = field(default_factory=list)
     # ★★ EKSTRA program kodları — anadal/ÇAP/yandal kodları BURAYA YAZILMAZ.
     # (Kullanıcı isteği 27.08.2026: *"alabileceğim ders kodlarını anadal çap
     # ve yandala göre otomatik ekler misin, orada sadece ekstra program

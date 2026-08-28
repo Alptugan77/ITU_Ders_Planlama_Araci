@@ -25,12 +25,30 @@ from selectolax.parser import HTMLParser
 
 from .. import config, db
 from ..http import ObsClient
-from ..normalize import normalize_course_code
 
 NOT_FOUND = re.compile(r"bulunamad", re.IGNORECASE)
-COURSE_RE = re.compile(r"\b([A-ZÇĞİÖŞÜ]{2,4})\s?(\d{3,4}[A-Z]{0,2})\b")
 APPROVAL_RE = re.compile(r"(yönetim kurulu|dilekçe|onay|approval)", re.IGNORECASE)
-CAP_RE = re.compile(r"(ÇAP|çift ana ?dal|double major)", re.IGNORECASE)
+
+# ★ DersPlanDenklikleri hücreleri "KOD Ad" biçiminde ve kod isme YAPIŞIK
+#   olabiliyor ("BLG 202Numerical Methods in CE"). Eski `\b...\b` regex'i burada
+#   HİÇ eşleşmiyordu (rakam ile ismin ilk harfi arasında sınır yok) — yani her
+#   satır sessizce düşüyordu; Ağustos'ta "0 denklik" görülmesinin bir sebebi de
+#   buydu. Kodu satır BAŞINDAN alıyoruz; ismin baş BÜYÜK harfini ("...202N…") dil
+#   eki ("...202E") sanmamak için: tek harf ancak ardından KÜÇÜK harf gelmiyorsa
+#   koda dahil. OBS'nin bu sayfası kodları taban (E'siz) yazıyor — dil eşleştirme
+#   sonra `rules`/`server._dil_esleri` katmanında yapılıyor.
+_LEAD = re.compile(r"^\s*([A-ZÇĞİÖŞÜ]{2,4})\s*(\d{3,4})([A-Z]?)")
+
+
+def _lead_code(text: str) -> str | None:
+    """'BLG 202Numerical…' -> 'BLG 202'; 'MAT 210 Müh. Mat.' -> 'MAT 210'."""
+    m = _LEAD.match(text or "")
+    if not m:
+        return None
+    pre, num, suf = m.group(1), m.group(2), m.group(3)
+    if suf and text[m.end():m.end() + 1].islower():
+        suf = ""                       # 'N' aslında ismin baş harfi (Numerical)
+    return f"{pre} {num}{suf}"
 
 
 def plan_types(client: ObsClient, program_id: int) -> list[dict]:
@@ -79,42 +97,55 @@ def _fetch_one(client: ObsClient, con: sqlite3.Connection, program_id, plan_type
     html = client.get(config.EP["eq_page"], params)
     if NOT_FOUND.search(html):
         return 0
-    tree = HTMLParser(html)
-    table = tree.css_first("table")
+    url = config.EP["eq_page"] + "?" + "&".join(f"{k}={v}" for k, v in params.items())
+    return parse_table(con, html, plan_id, url)
+
+
+def parse_table(con: sqlite3.Connection, html: str, plan_id: int | None, url: str) -> int:
+    """DersPlanDenklikleri tablosunu yönlü denkliğe çevirir.
+
+    ★ İki sütun: **'Course At The Plan'** = HEDEF (plandaki ders), **'Equivalent
+    Course'** = ``<br>`` ile ayrılmış ALTERNATİFLER. Her alternatif BAĞIMSIZ:
+    birini alınca hedef sağlanır (OR). Bu yüzden her alternatif AYRI bir denklik
+    satırı olur — hepsi tek denkliğin AND kaynağı DEĞİL (öyle saklasak "hepsini
+    al" derdi). Ham satır ``note_raw``a yazılıyor ki yanlış ayrıştırma görülebilsin.
+
+    HTTP'den ayrı bir işlev: gerçek kayıtlı sayfalarla doğrudan test edilebiliyor.
+    """
+    table = HTMLParser(html).css_first("table")
     if table is None:
         return 0
-    url = config.EP["eq_page"] + "?" + "&".join(f"{k}={v}" for k, v in params.items())
+    rows = table.css("tbody tr") or table.css("tr")
     n = 0
-    for row in table.css("tbody tr"):
-        cells = [c.text(strip=True) for c in row.css("td")]
-        if not cells:
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        tds = row.css("td")
+        if len(tds) < 2:
+            continue                                  # başlık / boş satır
+        target = _lead_code(tds[0].text(strip=True))
+        if not target:
             continue
-        n += _store(con, cells, plan_id, url, plan_type_name)
+        # ★ Hücreyi `separator="\n"` ile oku: <br> satır sonuna dönüşsün. Ham
+        #   `text(strip=True)` alternatifleri BİTİŞİK verir ("…PythonBIL 101")
+        #   ve kod çıkarımı sessizce bozulur (normalize.py'deki uyarı).
+        for ln in tds[1].text(separator="\n").split("\n"):
+            src = _lead_code(ln.strip())
+            if not src or src == target or (target, src) in seen:
+                continue
+            seen.add((target, src))
+            raw = f"{tds[0].text(strip=True)} ≡ {ln.strip()}"
+            n += _store_pair(con, target, src, plan_id, url, raw)
+    con.commit()
     return n
 
 
-def _store(con: sqlite3.Connection, cells: list[str], plan_id: int, url: str,
-           plan_type_name: str) -> int:
-    """Satırı yönlü denkliğe çevirir. Hedef = plandaki ders, kaynak(lar) = yerine sayılanlar.
-
-    Sütun düzeni programdan programa değişebildiği için heuristik: ilk hücrede tek
-    ders kodu varsa o HEDEF, kalan hücrelerdeki tüm kodlar KAYNAK'tır. Ham metin
-    her zaman note_raw'a yazılır ki yanlış yorum sonradan düzeltilebilsin.
-    """
-    raw = " | ".join(cells)
-    head_codes = [normalize_course_code(f"{a} {b}") for a, b in COURSE_RE.findall(cells[0])]
-    tail_codes = [normalize_course_code(f"{a} {b}")
-                  for a, b in COURSE_RE.findall(" ".join(cells[1:]))]
-    if not head_codes or not tail_codes:
-        return 0
-    target = head_codes[0]
-    sources = [c for c in tail_codes if c != target]
-    if not sources:
-        return 0
-
+def _store_pair(con: sqlite3.Connection, target: str, source: str,
+                plan_id: int | None, url: str, raw: str) -> int:
+    """Tek (hedef ← kaynak) denkliği. Kaynağı alınca hedef sağlanır."""
     confidence = "requires_approval" if APPROVAL_RE.search(raw) else "official"
-    # ÖİDB notu: "Bölüm tarafından belirlenmiş ders denklikleri, gerektiği durumlarda
-    # ÇAP ders planı için de geçerlidir." -> varsayılan 1; metin ÇAP'ı dışlarsa 0.
+    # ÖİDB notu: "Bölüm tarafından belirlenmiş ders denklikleri, gerektiği
+    # durumlarda ÇAP ders planı için de geçerlidir." -> varsayılan 1; ÇAP'ı açıkça
+    # dışlayan metin varsa 0.
     applies_to_cap = 0 if re.search(r"ÇAP.{0,20}(geçerli değil|hariç)", raw, re.IGNORECASE) else 1
     cur = con.execute(
         """INSERT INTO equivalence(target_course,target_plan_id,applies_to_cap,confidence,
@@ -122,13 +153,10 @@ def _store(con: sqlite3.Connection, cells: list[str], plan_id: int, url: str,
            VALUES (?,?,?,?,?,?,?)""",
         (target, plan_id, applies_to_cap, confidence, raw, url, db.now()),
     )
-    eq_id = cur.lastrowid
-    grade = _min_grade(raw)
-    for code in dict.fromkeys(sources):
-        con.execute(
-            "INSERT OR IGNORE INTO equivalence_source(equivalence_id,course_code,min_grade)"
-            " VALUES (?,?,?)", (eq_id, code, grade),
-        )
+    con.execute(
+        "INSERT OR IGNORE INTO equivalence_source(equivalence_id,course_code,min_grade)"
+        " VALUES (?,?,?)", (cur.lastrowid, source, _min_grade(raw)),
+    )
     return 1
 
 

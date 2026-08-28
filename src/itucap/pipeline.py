@@ -203,13 +203,21 @@ def step_equivalence(con, settings, program_ids: list[int]) -> None:
     client = ObsClient(settings)
     try:
         with db.run_step(con, "obs.equivalence") as box:
+            # ★ Önce eski RESMÎ denklikleri sil — tazelemede tekrar taranıyor,
+            # yoksa her koşuda çoğalırlardı. Kullanıcı BEYANLARI (user_declared)
+            # bu tabloda DEĞİL (Faz 28'de ucon'a taşındı) ama garanti olsun diye
+            # yalnız official/requires_approval siliniyor.
+            con.execute("""DELETE FROM equivalence_source WHERE equivalence_id IN
+                           (SELECT id FROM equivalence WHERE confidence!='user_declared')""")
+            con.execute("DELETE FROM equivalence WHERE confidence!='user_declared'")
             tried = found = 0
             for pid in program_ids:
                 t, f = obs_equivalence.sweep_program(client, con, pid)
                 tried += t
                 found += f
             box["rows"] = found
-            box["message"] = f"{tried} kombinasyon denendi, {found} denklik bulundu"
+            box["message"] = (f"{len(program_ids)} program, {tried} kombinasyon "
+                              f"denendi, {found} denklik bulundu")
     finally:
         client.close()
 
@@ -271,9 +279,14 @@ def cmd_refresh(args) -> int:
                           f"{obs_plan.dropped_rows[0][1][:3]}", file=sys.stderr)
             except Exception as exc:                           # noqa: BLE001
                 print(f"⚠️  Tüm program taraması başarısız: {exc}", file=sys.stderr)
-        if args.equivalence_program_id:
+        # ★ Resmî ders denklikleri (OBS DersPlanDenklikleri). Program id'leri
+        # önce CLI (--equivalence-program-id), yoksa ayardaki `eq_program_ids`.
+        # Böylece kullanıcı bir kez ayara yazınca her `make refresh` denklikleri
+        # otomatik çekiyor — 28.08.2026 isteği: "bu siteden çekmek lazım".
+        eq_ids = args.equivalence_program_id or settings.eq_program_ids
+        if eq_ids:
             try:
-                step_equivalence(con, settings, args.equivalence_program_id)
+                step_equivalence(con, settings, eq_ids)
             except Exception as exc:  # noqa: BLE001
                 print(f"⚠️  Denklik adımı başarısız: {exc}", file=sys.stderr)
 

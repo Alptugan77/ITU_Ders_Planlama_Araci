@@ -35,66 +35,115 @@ from . import sequence as SEQ
 from . import student as S
 
 
+def _dil_esi(code: str) -> list[str]:
+    """Dersin dil eşi dahil kod kümesi: 'MAT 210' -> ['MAT 210','MAT 210E'].
+
+    ★ OBS denklik sayfası kodları TABAN (E'siz) yazıyor ("MAT 210"), plan ise
+    E'li ("MAT 210E"). Eşleşmezsek denklik sessizce görünmez. Körlemesine E
+    ekliyoruz AMA türetilen kodu asla OLUMLAMIYORUZ — yalnız arama anahtarı:
+    kullanılması için gerçekten gereken'de olması ya da şubesi olması gerekiyor.
+    (normalize.merge_language_variants'taki uyarı: kör son-harf atma yanlış
+    programa yönlendirir — burada CHECK'e bağladığımız için güvenli.)
+    """
+    code = (code or "").strip()
+    if not code:
+        return []
+    alt = code[:-1] if code.endswith("E") else code + "E"
+    return [code, alt] if alt != code else [code]
+
+
 def _acik_denklikler(con, equivalences, expanded, gereken, allowed,
                      names, section_json) -> list[dict]:
     """Almam gereken bir dersin DENKLİĞİ bu dönem açıksa, onu bilgileriyle
-    listeler (kullanıcı isteği 27.08.2026).
+    listeler (kullanıcı isteği 27.08.2026; resmi OBS denklikleri 28.08.2026).
 
-    Denklik yönü: `{kaynaklar} → hedef`. Kaynak dersleri alınca hedef
-    sağlanmış sayılıyor. Yani planında gereken 'hedef' dersin yerine, bu
-    dönem AÇIK olan 'kaynak' dersi alabilirsin. Örnek: MAT 210E gerekiyor,
-    onun denkliği GEO 220E bu dönem açık — GEO 220E'yi al, MAT 210E sayılır.
+    Denklik yönü: `kaynak → hedef`. Kaynağı alınca hedef sağlanmış sayılıyor.
+    Yani planında gereken 'hedef' yerine, bu dönem AÇIK olan 'kaynak' dersi
+    (çoğu zaman başka bölümden — dilekçeyle) alabilirsin. Örnek: BLG 202E
+    gerekiyor, resmi denkliği MAT 202 bu dönem açık — MAT 202'yi al, sayılır.
 
-    Bu, aday listesinden FARKLI bir bilgi: aday listesi planındaki açık
-    dersleri gösteriyor; burada gösterilen kaynak ders planında olmayabilir
-    ama denklik yoluyla bir gereksinimi karşılıyor (çoğu zaman bir anadal
-    dersi aynı anda ÇAP gereksinimini karşılıyor — ÇAP öğrencisi için asıl
-    kazanç bu).
+    İki kaynak, iki dil:
+      · **Resmi** (OBS DersPlanDenklikleri): hedefe göre GRUPLANIR, kaynaklar
+        birbirinin ALTERNATİFİ (`mode="or"`, herhangi biri yeter). Yalnız hedef
+        gerçekten gereken bir plan dersiyse gösterilir (yoksa gürültü).
+      · **Beyan** (user_declared): kullanıcının kendi bildirdiği; her zaman
+        gösterilir. Çok kaynaklıysa AND (`mode="and"`, hepsi gerekli).
 
-    ⚠️ Hangi denklikler gösterilir:
-      · Zaten SAĞLANMIŞ hedef (aldın ya da denklikle kazandın) → GÖSTERİLMEZ.
-      · Kaynağın en az biri AÇIK ve henüz ALINMAMIŞ olmalı — yoksa eyleme
-        dönük bir şey yok.
-      · Kullanıcının kendi BEYANI (user_declared) niyeti açıkça bildiriyor;
-        her zaman gösterilir. Resmi denklik ise yalnız hedef GERÇEKTEN
-        gereken bir plan dersiyse (yoksa katalog çapında gürültü olurdu).
+    Dil eşi: OBS "MAT 202" ↔ katalog "MAT 202E" (bkz. `_dil_esi`). Hedefi
+    gereken'e, kaynağı şubelere eşle; iki varyant da açıksa şubeleri birleştir.
     """
-    out: list[dict] = []
-    gorulen: set = set()
+    def passed(code):
+        return any(R.passed(expanded.get(s)) for s in _dil_esi(code))
+
+    def name_of(code):
+        for s in _dil_esi(code):
+            if names.get(s):
+                return names[s]
+        return names.get(code, "")
+
+    def kaynak_json(code, min_not):
+        secs, crn = [], set()
+        for s in _dil_esi(code):                    # iki dil varyantının şubeleri
+            for sec in REC.load_sections(con, s, allowed):
+                if sec.crn not in crn:
+                    crn.add(sec.crn); secs.append(sec)
+        return {"code": code, "name": name_of(code), "minGrade": min_not,
+                "passed": passed(code), "open": bool(secs),
+                "sections": [section_json(s) for s in secs]}
+
+    def gereken_kodu(target):
+        return next((s for s in _dil_esi(target) if s in gereken), None)
+
+    # Resmi denklikleri hedef-tabanına göre grupla (OR alternatifleri birleşsin).
+    resmi: dict[str, dict] = {}
+    beyanlar: list = []
     for e in equivalences:
-        if R.passed(expanded.get(e.target)):
+        if passed(e.target):
             continue
-        beyan = e.confidence == "user_declared"
-        if not beyan and e.target not in gereken:
+        if e.confidence == "user_declared":
+            beyanlar.append(e)
             continue
-        kaynaklar = []
+        hk = gereken_kodu(e.target)
+        if hk is None:                              # resmi ama gereken değil
+            continue
+        base = hk[:-1] if hk.endswith("E") else hk
+        g = resmi.setdefault(base, {"target": hk, "sources": {}, "conf": "official",
+                                    "note": e.note or ""})
         for code, min_not in e.sources:
-            secs = REC.load_sections(con, code, allowed)
-            kaynaklar.append({
-                "code": code, "name": names.get(code, ""), "minGrade": min_not,
-                "passed": R.passed(expanded.get(code)),
-                "open": bool(secs),
-                "sections": [section_json(s) for s in secs],
-            })
+            g["sources"].setdefault(code, min_not)
+        if e.confidence == "requires_approval":
+            g["conf"] = "requires_approval"
+
+    out: list[dict] = []
+    for g in resmi.values():                        # --- resmi: OR alternatif ---
+        kaynaklar = [kaynak_json(code, mn) for code, mn in g["sources"].items()]
         if not any(k["open"] and not k["passed"] for k in kaynaklar):
             continue
-        # Dil varyantını tekleştir: MAT 210E ve MAT 210 aynı kaynaktan aynı
-        # şeyi anlatıyor; kullanıcı tek satır görmeli.
+        kaynaklar.sort(key=lambda k: (not (k["open"] and not k["passed"]), k["code"]))
+        out.append({
+            "target": g["target"], "targetName": name_of(g["target"]),
+            "needed": True, "declared": False, "confidence": g["conf"],
+            "note": g["note"], "mode": "or", "sources": kaynaklar,
+            "allReady": True,                       # OR: bir açık kaynak yeter
+        })
+
+    gorulen: set = set()
+    for e in beyanlar:                              # --- beyan: AND (çok kaynak) ---
+        kaynaklar = [kaynak_json(code, mn) for code, mn in e.sources]
+        if not any(k["open"] and not k["passed"] for k in kaynaklar):
+            continue
         base = e.target[:-1] if e.target.endswith("E") else e.target
         anahtar = (frozenset(k["code"] for k in kaynaklar), base)
         if anahtar in gorulen:
             continue
         gorulen.add(anahtar)
         out.append({
-            "target": e.target, "targetName": names.get(e.target, ""),
-            "needed": e.target in gereken, "declared": beyan,
+            "target": e.target, "targetName": name_of(e.target),
+            "needed": gereken_kodu(e.target) is not None, "declared": True,
             "confidence": e.confidence, "note": e.note or "",
-            "sources": kaynaklar,
-            # Hepsi ya açık ya alınmış mı — yani denkliği ŞİMDİ tamamlayabilir
-            # misin (çok kaynaklı denklikte biri kapalıysa tamamlanamaz).
+            "mode": "and" if len(kaynaklar) > 1 else "one", "sources": kaynaklar,
             "allReady": all(k["open"] or k["passed"] for k in kaynaklar),
         })
-    # Gereken olanlar önce, sonra alfabetik.
     out.sort(key=lambda x: (not x["needed"], x["target"]))
     return out
 
@@ -1739,7 +1788,12 @@ table.cmp .meta.arti{color:var(--anadal)}
    akınca sıra doğal olarak okunuyor ve aralara nefes payı sığıyor.
    Bağlantı çizgileri sahnenin İÇİNDE kalmaya devam ediyor. */
 .tierstage{position:relative;display:flex;flex-direction:column;gap:38px}
-.tierlinks{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:0}
+/* ★ Çizgiler kutuların ÜSTÜNDE (z-index:2 > .tier'in 1'i). Altında kalınca
+   birden çok kademe atlayan ya da sarmış satıra giden bağlar kutuların
+   arkasında kayboluyordu — "bağlar tam bağlanmıyor" (kullanıcı 27.08.2026).
+   Kılıf (zemin renginde) kutunun üstünden geçerken de çizgiyi okunur tutuyor,
+   pointer-events:none olduğu için tıklama yine kutulara geçiyor. */
+.tierlinks{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:2}
 /* ★ Çizgi tasarımı (27.08.2026). Eski hâlde çizgiler dururken NEREDEYSE
    GÖRÜNMEZDİ (opacity .55, kenarlık rengi) ve yapı ancak tıklayınca ortaya
    çıkıyordu. İki iyileştirme:
@@ -2099,7 +2153,9 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
   <h2>Denkliği bu dönem açık</h2>
   <div class="summary">Almam gereken bir dersin <b>denkliği</b> bu dönem
     açıksa burada. O açık dersi alırsan gereken ders sayılır — çoğu zaman
-    bir anadal dersi aynı anda ÇAP gereksinimini karşılar.</div>
+    <b>başka bölümden</b> bir ders, <b>dilekçeyle</b> saydırılır. Kaynak:
+    OBS'nin ilan ettiği resmî denklikler + kendi beyanların. Saydırma için
+    danışmanına ve fakülte yönetim kuruluna danış.</div>
   <div id="denklikBody" style="margin-top:12px"></div>
 </section>
 
@@ -3469,24 +3525,44 @@ function renderAcikDenklik(){
         <div style="margin-top:4px">${doluluk(k.sections)}</div>
       </div>`;
     }).join("");
-    /* Çok kaynaklı denklikte kapalı olan varsa dürüstçe söyle: tek başına
-       açık kaynak hedefi TAMAMLAMAYABİLİR. */
     const kapali = e.sources.filter(k => !k.open && !k.passed);
     const alinmis = e.sources.filter(k => k.passed);
+    /* Başka bölümden mi (kod öneki farklı)? Dilekçe çerçevesi için. */
+    const hedefOn = e.target.split(" ")[0];
+    const capraz = acik.some(k => k.code.split(" ")[0] !== hedefOn);
+    /* mode="or": kaynaklar birbirinin ALTERNATİFİ (resmi OBS). Kapalı olan
+       "eksik" değil, sadece başka bir seçenek — AND uyarısı verme.
+       mode="and": çok kaynaklı beyan; kapalı olan tamamlanmayı engeller. */
+    let not = "";
+    if (e.mode === "and" && e.sources.length > 1) {
+      not = `<div class="denknot">${
+        alinmis.length ? `<b>${alinmis.map(k => esc(k.code)).join(", ")}</b> zaten alınmış. ` : ""
+        }${kapali.length ? `⚠ <b>${kapali.map(k => esc(k.code)).join(", ")}</b> bu dönem
+          kapalı — denkliğin tamamlanması için o da gerekiyor.`
+        : (alinmis.length ? "Bu açık dersi de alınca denklik tamamlanıyor." : "")}</div>`;
+    }
+    /* Köken çerçevesi: resmi = OBS + dilekçe; beyan = kendi bildirdiğin. */
+    if (!e.declared) {
+      const onay = e.confidence === "requires_approval"
+        ? "bölüm/yönetim kurulu onayı gerekebilir"
+        : "dilekçeyle saydırılır";
+      not += `<div class="denknot">OBS resmî ders denkliği${
+        capraz ? " — <b>başka bölümden</b>" : ""}; ${onay}. Danışmanına doğrulat.</div>`;
+    }
+    /* Başlık: OR ise "birini al", tek/AND ise "denkliği açık". */
+    const baslik = e.mode === "or"
+      ? (acik.length > 1 ? "— yerine şu açık derslerden <b>birini</b> al:"
+                         : "— yerine bu açık ders alınabilir:")
+      : "— denkliği açık:";
     return `<div class="denkrow">
       <div class="denkhedef">
         <span class="tag ${e.needed ? "CAP" : "unknown"}">${e.needed
           ? "gereken" : "beyanın"}</span>
         <b class="mono">${esc(e.target)}</b>
         ${e.targetName ? `<span class="denkad">${esc(e.targetName)}</span>` : ""}
-        <span class="denkok">— denkliği açık:</span></div>
+        <span class="denkok">${baslik}</span></div>
       ${kaynakHTML}
-      ${e.sources.length > 1 ? `<div class="denknot">${
-        alinmis.length ? `<b>${alinmis.map(k => esc(k.code)).join(", ")}</b> zaten alınmış. ` : ""
-        }${kapali.length ? `⚠ <b>${kapali.map(k => esc(k.code)).join(", ")}</b> bu dönem
-          kapalı — denkliğin tamamlanması için ${e.allReady ? "" : "o da"} gerekiyor.`
-        : (alinmis.length ? "Bu açık dersi de alınca denklik tamamlanıyor." : "")}</div>` : ""}
-      ${e.declared ? "" : `<div class="denknot">OBS'nin ilan ettiği resmî denklik.</div>`}
+      ${not}
     </div>`;
   }).join("");
   /* Kaynağa tıklama = programa ekle penceresi — YALNIZ aday havuzundaysa. */
