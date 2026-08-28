@@ -1239,6 +1239,10 @@ _TEMPLATE = r"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__AD_TAM__ — __AD_ACILIM_DUZ__</title>
+<!-- ★ Kayıtlı tema BOYAMADAN ÖNCE uygulanıyor: yoksa sayfa önce sistem
+     temasında çizilip sonra kullanıcının seçtiğine atlıyordu (yükleme
+     ekranında bile). try/catch — localStorage bazı bağlamlarda kapalı. -->
+<script>try{var t=localStorage.getItem("itucap.tema");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -1319,7 +1323,7 @@ body{margin:0;background:var(--ground);color:var(--ink);
   -webkit-font-smoothing:antialiased}
 .mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
   font-variant-numeric:tabular-nums}
-.wrap{max-width:1180px;margin:0 auto;padding:32px 22px 80px;display:flex;
+.wrap{max-width:1340px;margin:0 auto;padding:32px 30px 80px;display:flex;
   flex-direction:column;gap:30px}
 /* Chivo, ağır ve büyük harf — Şematik'in sesi. Gövde IBM Plex Sans'ta kalıyor;
    Chivo'yu uzun metinde kullanmak gece zemininde yorucu olurdu. */
@@ -2412,7 +2416,9 @@ function renderAyarHatasi(){
 $("#theme").addEventListener("click", () => {
   const cur = document.documentElement.getAttribute("data-theme");
   const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+  const yeni = dark ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", yeni);
+  localStorage_set("tema", yeni);      // ★ sonraki açılışta bu tema açılsın
 });
 
 /* ================= KURULUM: program · dönem · geçilen dersler =================
@@ -6114,6 +6120,7 @@ function drawTierGroupLinks(grup, i){
   stage.querySelectorAll(".tier li").forEach(li => {
     const r = li.getBoundingClientRect();
     at[li.dataset.c] = {x: r.left - box.left + r.width / 2,
+                        r: r.right - box.left,          /* sağ kenar (mobil oluk) */
                         t: r.top - box.top, b: r.bottom - box.top};
   });
   svg.setAttribute("width", stage.scrollWidth);
@@ -6126,11 +6133,28 @@ function drawTierGroupLinks(grup, i){
   (grup.tiers || []).forEach(t => t.courses.forEach(c => (c.needs||[]).forEach(dep => {
     const a = at[dep], b = at[c.course];
     if (!a || !b) return;                       /* ders çizilmemişse çizgi de yok */
-    /* Kademeler artık AŞAĞI doğru: çizgi önşartın ALTINDAN çıkıp dersin
-       ÜSTÜNE giriyor. Yatay bezier bıraksaydık çizgiler kutuların üstünden
-       geçer, bağı göstermek yerine karartırdı. */
-    const d = Math.max(14, (b.t - a.b) / 2);
-    const dd = `M ${a.x} ${a.b} C ${a.x} ${a.b+d}, ${b.x} ${b.t-d}, ${b.x} ${b.t}`;
+    /* Kademeler AŞAĞI doğru: çizgi önşartın ALTINDAN çıkıp dersin ÜSTÜNE
+       giriyor. */
+    const dy = b.t - a.b;
+    let dd;
+    if (Math.abs(b.x - a.x) < 24) {
+      /* ★ Dikey bağ — mobilde kutular TEK SÜTUNda alt alta olunca bütün
+         çizgiler aynı x'te üst üste biniyor ve diyagram "tek bir çizgi" gibi
+         görünüp dallanmayı gizliyordu (telefon raporu 28.08.2026). Çizgiyi
+         kutunun SAĞ KENARINDAN çıkarıp sağdaki OLUĞA kavislendiriyoruz —
+         kutu içeriğini (kredi sayısı) kesmiyor. Kavis dikey mesafeyle
+         büyüdüğü için kademe ATLAYAN bağ aradaki kutuların etrafından geniş
+         bir yayla dolaşıp komşu bağlardan ayrışıyor. (Masaüstünde kutular
+         yatay yayıldığından bu dal nadiren çalışır.) */
+      const rx = a.r;                               /* iki kutu da aynı sağ kenar */
+      const oluk = Math.max(0, box.width - rx);
+      const kav = Math.min(oluk * 0.85, 20 + dy * 0.14);
+      const cx = rx + kav;
+      dd = `M ${rx} ${a.b} C ${cx} ${a.b + dy*0.30}, ${cx} ${b.t - dy*0.30}, ${rx} ${b.t}`;
+    } else {
+      const d = Math.max(14, dy / 2);
+      dd = `M ${a.x} ${a.b} C ${a.x} ${a.b+d}, ${b.x} ${b.t-d}, ${b.x} ${b.t}`;
+    }
     kilif.push(`<path class="casing" d="${dd}"></path>`);
     cizgi.push(`<path class="line" d="${dd}" data-a="${esc(dep)}" data-b="${esc(c.course)}"></path>`);
   })));

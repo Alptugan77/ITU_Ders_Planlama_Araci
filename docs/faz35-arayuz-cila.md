@@ -1,0 +1,48 @@
+# Faz 35 — Arayüz cilası (tema, yükleme, mobil diyagram, genişlik)
+
+*28.08.2026 · kullanıcı isteği: "temayı da kaydedip bir sonraki açılışta ona
+göre açılsın ve yüklenme ekranını düzelt, telefonda çap önşart diyagramı tek
+bir çizgi ile bağlanıyormuş gibi gözüküyor alt alta olduğu için ve
+bilgisayardan girişlerde yanlarda çok boşluk var biraz azaltılabilir"*
+
+## 1. Tema kalıcı
+
+Tema düğmesi seçimi artık `localStorage`a (`itucap.tema`) yazıyor; sonraki
+açılışta o tema açılıyor. **Boyamadan önce** uygulansın diye `<head>`e küçük bir
+betik kondu — yoksa sayfa (yükleme ekranı dâhil) önce sistem temasında çizilip
+kullanıcının seçtiğine ATLIYOR, göz kırpması oluyordu. `try/catch`: localStorage
+gizli sekmede/engelliyse sessizce sistem temasına düşer.
+
+## 2. Yükleme ekranı
+
+Statik sitedeki (Pyodide açılırken görünen) ekran hâlâ **eski markayı**
+gösteriyordu: "İTÜ ÇAP · YANDAL / Ders planlama". Artık ad TEK KAYNAKTAN
+(`ui.AD_*`) türetiliyor — uygulama başlığıyla birebir: **İTÜ DEPAR** + vurgulu
+açılım (**De**rs **P**lanlama **Ar**acı). Ad değişince burası da değişecek
+(`site_kur._loader_html(UI)`), elle güncelleme gerekmiyor. Tema betiğiyle
+birlikte ekran doğru temada açılıyor.
+
+## 3. Telefonda önşart diyagramı — "tek çizgi" düzeltildi
+
+Mobilde kutular tek sütunda alt alta gelince bütün önşart çizgileri aynı x'te
+üst üste biniyor, diyagram düz bir zincir ("tek çizgi") gibi görünüp
+**dallanmayı gizliyordu**. Çözüm: dikey bağlar kutunun **sağ kenarından** çıkıp
+sağdaki **oluğa** kavisleniyor (kutu içeriğini, kredi sayısını kesmeden).
+Kavis dikey mesafeyle büyüdüğü için **kademe atlayan** bağ aradaki kutuların
+etrafından geniş bir yayla dolaşıp komşu bağlardan ayrışıyor — dallanma
+görünür oluyor. Masaüstünde kutular yatay yayıldığından bu dal çalışmıyor,
+oradaki eğri zaten ayrık (`|Δx| < 24` koşulu).
+
+## 4. Masaüstünde kenar boşluğu
+
+İçerik genişliği `1180px` → **`1340px`** (yan pay 32→30). 1680px ekranda her
+yanda boşluk ~250px'ten ~170px'e indi; okunabilirliği bozacak kadar
+genişletilmedi.
+
+## Sayılar
+
+| | |
+|---|---|
+| Test | **948** (değişmedi — CSS/JS cila, davranış aynı) |
+| Değişen | `ui.py` (tema betiği + kayıt, `.wrap`, tier kavis), `site_kur.py` (yükleme ekranı) |
+| Doğrulama | tema: tık→kayıt→reload kalıcı; mobil tier oluk yayları (dinlenme+odak); yükleme ekranı önizleme; 1680px genişlik |

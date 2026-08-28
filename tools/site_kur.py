@@ -226,7 +226,7 @@ def build(pyodide_dir: Path | None = None) -> Path:
     # ★ Kabuk: AYNI şablon, verisi sonradan yükleniyor.
     shell = UI.render({}, deferred=True)
     shell = shell.replace("</head>", f'{_LOADER_CSS}</head>', 1)
-    shell = shell.replace("<body>", f"<body>{_LOADER_HTML}", 1)
+    shell = shell.replace("<body>", f"<body>{_loader_html(UI)}", 1)
     shell = shell.replace("</body>", f'<script src="./app.js"></script></body>', 1)
     (SITE / "index.html").write_text(shell, encoding="utf-8")
     shutil.copy(ROOT / "web" / "app.js", SITE / "app.js")
@@ -264,7 +264,10 @@ _LOADER_CSS = """
 #yukleniyor{position:fixed;inset:0;z-index:99;display:flex;align-items:center;
   justify-content:center;background:var(--ground);color:var(--ink)}
 #yukleniyor .kutu{max-width:460px;padding:0 24px}
-#yukleniyor h1{font-size:22px;margin-bottom:10px}
+#yukleniyor .yukAd{font-size:30px;margin:8px 0 0;line-height:1.05;
+  font-family:"Chivo",Helvetica,Arial,sans-serif;font-weight:900}
+#yukleniyor .yukAd .kurum{color:var(--ink-3)}
+#yukleniyor .acilim{margin:6px 0 16px}
 #yukleniyor p{color:var(--ink-2);font-size:13.5px;line-height:1.65}
 #yukleniyor .adim{font-family:"IBM Plex Mono",monospace;font-size:12px;
   color:var(--ink-3);margin-top:14px;min-height:18px}
@@ -276,10 +279,16 @@ _LOADER_CSS = """
 </style>
 """
 
-_LOADER_HTML = """
+
+def _loader_html(UI) -> str:
+    """Yükleme ekranı — ad TEK KAYNAKTAN (ui.AD_*). Eskiden "İTÜ ÇAP · YANDAL /
+    Ders planlama" elle yazılıydı ve ad değişince (İTÜ DEPAR) burada eski
+    kalıyordu. Artık uygulama başlığıyla aynı: kurum + kısaltma + vurgulu açılım.
+    """
+    return f"""
 <div id="yukleniyor"><div class="kutu">
-  <div class="eyebrow">İTÜ ÇAP · YANDAL</div>
-  <h1>Ders planlama</h1>
+  <h1 class="yukAd"><span class="kurum">{UI.AD_KURUM}</span> {UI.AD_KISA}</h1>
+  <div class="acilim">{UI.acilim_html()}</div>
   <p><span class="gizli">Notların tarayıcından çıkmıyor.</span>
      Bu sitenin sunucusu yok: hesap senin cihazında yapılıyor, girdiğin
      notlar yalnız bu tarayıcıda saklanıyor. Yayınlanan tek veri herkese
