@@ -87,6 +87,31 @@ Sonra **kendi makinende** `make refresh` (bulut sandbox `obs.itu.edu.tr`'ye
 erişemiyor; scraper öğrencinin ağından çalışır). Boş bırakılırsa denklik adımı
 atlanır — sessizce değil, adım "0 program" der.
 
+## Tüm programları tara (kullanıcı isteği: "diğer programlar için de baksın")
+
+Bir gereksinimin denkliği, o dersi barındıran BAŞKA bir programın planında ilan
+edilmiş olabilir. Hepsini yakalamak için:
+
+```toml
+[student]
+eq_all_programs = true      # TÜM lisans programlarını tara
+```
+
+ya da bir kerelik: `python -m itucap.pipeline refresh --all-equivalences`.
+
+- **Kapsam:** OBS'de 339 program var; adı "Undergraduate" olan **93 lisans**
+  programı taranıyor (yüksek lisans/doktora denklikleri öğrenciyi ilgilendirmez).
+- **Hız:** yavaş — program başına onlarca istek. `max_plans=1` ile her plan
+  tipinin yalnız EN SON planı taranıyor (eski sürümler denkliği tekrar eder).
+  Kayıt haftasında sık tazeliyorsan `eq_all_programs = false` yapıp
+  `eq_program_ids`'e (2 program, hızlı) dön.
+- **Gürültü YOK:** tarama fazlasını getirir ama arayüz yalnız **gereken**
+  derslerine denk düşenleri gösterir; gerisi süzülür.
+- **Tekilleştirme:** aynı denklik iki programın sayfasında da çıkabilir;
+  programlar arası paylaşılan `seen` kümesiyle tek yazılıyor.
+- **Sağlamlık:** bir programın hatası ötekini kesmiyor (tek tek yutuluyor);
+  her tazelemede eski resmî denklikler silinip yeniden yazılıyor (çoğalma yok).
+
 ## Sayılar
 
 | | |

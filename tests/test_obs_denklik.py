@@ -138,10 +138,40 @@ def test_RESMI_yalniz_GEREKEN_hedefte(tmp_path):
     assert len(out) == 1 and out[0]["needed"] is True
 
 
+# ============================================== tüm programlar (sweep_all)
+def test_program_options_LISANS_suzuyor():
+    """Program menüsünden id/ad; 'Undergraduate' süzgeci grad'ı eler."""
+    html = ('<select id="programId">'
+            '<option value="">Please select</option>'
+            '<option value="871">Computer Engineering Undergraduate</option>'
+            '<option value="907">Computer Engineering (English) Undergraduate</option>'
+            '<option value="936">Computer Engineering MSc</option>'
+            '<option value="1247">Geomatics Engineering Undergraduate</option>'
+            '</select>')
+    ug = EQ.program_options(html, undergrad_only=True)
+    ids = {i for i, _ in ug}
+    assert 871 in ids and 1247 in ids
+    assert 936 not in ids                          # MSc elenir
+    assert all("Undergraduate" in n for _, n in ug)
+    assert len(EQ.program_options(html, undergrad_only=False)) == 4    # id'li hepsi
+
+
+def test_PROGRAMLAR_ARASI_tekillestirme(tmp_path):
+    """Aynı denklik iki programın sayfasında da çıkabilir; paylaşılan `seen`
+    ile ikinci kez YAZILMAZ (yoksa tabloda çoğalırdı)."""
+    con = db.connect(tmp_path / "r.sqlite3", "schema.sql")
+    html = FIX.read_text(encoding="utf-8")
+    seen: set = set()
+    n1 = EQ.parse_table(con, html, 2229, "a", seen=seen)
+    n2 = EQ.parse_table(con, html, 2229, "b", seen=seen)   # aynı içerik, paylaşılan seen
+    assert n1 > 0 and n2 == 0
+
+
 # ============================================== ayar + arayüz metni
 def test_ayar_ve_arayuz_kancalari():
     import itucap.config as C
     assert "eq_program_ids" in C.Settings.__dataclass_fields__
+    assert "eq_all_programs" in C.Settings.__dataclass_fields__
     src = open(UI.__file__, encoding="utf-8").read()
     assert 'mode === "or"' in src                 # OR/AND ayrımı arayüzde
     assert "dilekçeyle" in src                     # dilekçe çerçevesi

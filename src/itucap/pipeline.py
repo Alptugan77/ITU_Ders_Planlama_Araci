@@ -199,7 +199,7 @@ def step_dedupe_plans(con) -> int:
     return cur.rowcount
 
 
-def step_equivalence(con, settings, program_ids: list[int]) -> None:
+def step_equivalence(con, settings, program_ids: list[int], all_programs: bool = False) -> None:
     client = ObsClient(settings)
     try:
         with db.run_step(con, "obs.equivalence") as box:
@@ -210,14 +210,19 @@ def step_equivalence(con, settings, program_ids: list[int]) -> None:
             con.execute("""DELETE FROM equivalence_source WHERE equivalence_id IN
                            (SELECT id FROM equivalence WHERE confidence!='user_declared')""")
             con.execute("DELETE FROM equivalence WHERE confidence!='user_declared'")
-            tried = found = 0
-            for pid in program_ids:
-                t, f = obs_equivalence.sweep_program(client, con, pid)
-                tried += t
-                found += f
+            if all_programs:
+                nprog, tried, found = obs_equivalence.sweep_all(client, con, progress=print)
+            else:
+                nprog = len(program_ids)
+                tried = found = 0
+                seen: set = set()          # programlar arası tekilleştirme
+                for pid in program_ids:
+                    t, f = obs_equivalence.sweep_program(client, con, pid, seen=seen)
+                    tried += t
+                    found += f
             box["rows"] = found
-            box["message"] = (f"{len(program_ids)} program, {tried} kombinasyon "
-                              f"denendi, {found} denklik bulundu")
+            box["message"] = (f"{nprog} program{' (tümü)' if all_programs else ''}, "
+                              f"{tried} kombinasyon denendi, {found} denklik bulundu")
     finally:
         client.close()
 
@@ -281,12 +286,14 @@ def cmd_refresh(args) -> int:
                 print(f"⚠️  Tüm program taraması başarısız: {exc}", file=sys.stderr)
         # ★ Resmî ders denklikleri (OBS DersPlanDenklikleri). Program id'leri
         # önce CLI (--equivalence-program-id), yoksa ayardaki `eq_program_ids`.
-        # Böylece kullanıcı bir kez ayara yazınca her `make refresh` denklikleri
-        # otomatik çekiyor — 28.08.2026 isteği: "bu siteden çekmek lazım".
+        # `--all-equivalences` ya da ayardaki `eq_all_programs` → TÜM lisans
+        # programları (kullanıcı isteği 28.08.2026: "diğer programlar için de
+        # baksın"). Böylece bir kez ayara yazınca her `make refresh` çekiyor.
+        eq_all = getattr(args, "all_equivalences", False) or settings.eq_all_programs
         eq_ids = args.equivalence_program_id or settings.eq_program_ids
-        if eq_ids:
+        if eq_all or eq_ids:
             try:
-                step_equivalence(con, settings, eq_ids)
+                step_equivalence(con, settings, eq_ids, all_programs=eq_all)
             except Exception as exc:  # noqa: BLE001
                 print(f"⚠️  Denklik adımı başarısız: {exc}", file=sys.stderr)
 
@@ -898,6 +905,8 @@ def main(argv=None) -> int:
     r.add_argument("--offline", action="store_true", help="indirme yapma, diskteki dosyaları kullan")
     r.add_argument("--equivalence-program-id", type=int, nargs="*", default=[],
                    help="denklik taraması yapılacak OBS ProgramId'leri")
+    r.add_argument("--all-equivalences", action="store_true",
+                   help="TÜM lisans programlarının denkliklerini tara (yavaş; OBS gerekir)")
     r.add_argument("--all-programs", action="store_true",
                    help="HER programın ÇAP/yandal planını çek (yavaş; OBS gerekir)")
     r.set_defaults(func=cmd_refresh)

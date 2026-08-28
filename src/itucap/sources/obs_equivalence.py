@@ -68,10 +68,39 @@ def _objects(payload) -> list[dict]:
     return payload if isinstance(payload, list) else []
 
 
+def program_options(html: str, undergrad_only: bool = True) -> list[tuple[int, str]]:
+    """Denklik sayfasının Program açılır menüsünden (id, ad) listesi.
+
+    ★ Program LİSTESİ sayfanın kendisinde (`select#programId`); cascade uçları
+    zaten programId istiyor ama listeyi vermiyor. `undergrad_only`: adı
+    'Undergraduate' içerenler (yüksek lisans/doktora hariç) — denklikler
+    lisans planlarında. (Ölçüldü: 339 programın 93'ü lisans.)
+    """
+    sel = HTMLParser(html).css_first("select#programId, select[name=programId]")
+    if sel is None:
+        return []
+    out = []
+    for o in sel.css("option"):
+        val = (o.attributes.get("value") or "").strip()
+        name = o.text(strip=True)
+        if not val.isdigit():
+            continue
+        if undergrad_only and "Undergraduate" not in name:
+            continue
+        out.append((int(val), name))
+    return out
+
+
+def all_program_ids(client: ObsClient, undergrad_only: bool = True) -> list[tuple[int, str]]:
+    return program_options(client.get(config.EP["eq_page"], {}), undergrad_only)
+
+
 def sweep_program(client: ObsClient, con: sqlite3.Connection, program_id: int,
-                  max_plans: int | None = None) -> tuple[int, int]:
+                  max_plans: int | None = None, seen: set | None = None) -> tuple[int, int]:
     """Bir program için tüm (plan tipi, plan, branş) kombinasyonlarını tarar.
 
+    `seen`: programlar arası tekilleştirme için paylaşılan (hedef, kaynak)
+    kümesi — aynı denklik iki programın sayfasında da çıkabiliyor.
     Dönüş: (denenen kombinasyon sayısı, bulunan denklik sayısı)
     """
     tried = found = 0
@@ -84,24 +113,55 @@ def sweep_program(client: ObsClient, con: sqlite3.Connection, program_id: int,
             pl_id = pl.get("objectId")
             for br in branches(client, pl_id):
                 tried += 1
-                found += _fetch_one(client, con, program_id, pt_id, pl_id, br.get("objectId"),
-                                    plan_type_name=pt.get("planTipiAdiLanguage", ""))
+                found += _fetch_one(client, con, program_id, pt_id, pl_id,
+                                    br.get("objectId"), seen=seen)
     con.commit()
     return tried, found
 
 
+def sweep_all(client: ObsClient, con: sqlite3.Connection, max_plans: int | None = 1,
+              undergrad_only: bool = True, progress=None) -> tuple[int, int, int]:
+    """TÜM (lisans) programların denkliklerini tarar — kullanıcı isteği
+    28.08.2026: *"diğer programlar için de denklikleri kontrol edip uygun ders
+    var mı diye baksın"*.
+
+    Kapsamlı ama YAVAŞ (çok istek). `max_plans=1`: her plan tipinin yalnız EN
+    SON planı (eski sürümler denklikleri büyük ölçüde tekrar eder). Programlar
+    arası tekilleştirme paylaşılan `seen` ile. Bir programın hatası ötekini
+    kesmesin diye tek tek yutuluyor. Dönüş: (program, kombinasyon, denklik).
+    """
+    progs = all_program_ids(client, undergrad_only)
+    if progress:
+        progress(f"🌍 {len(progs)} lisans programı taranacak (yavaş olabilir)…")
+    seen: set = set()
+    tried = found = 0
+    for i, (pid, name) in enumerate(progs, 1):
+        try:
+            t, f = sweep_program(client, con, pid, max_plans=max_plans, seen=seen)
+        except Exception as exc:                       # noqa: BLE001
+            if progress:
+                progress(f"  ⚠ {name} ({pid}): {exc}")
+            continue
+        tried += t
+        found += f
+        if progress and (f or i % 25 == 0):
+            progress(f"  [{i}/{len(progs)}] {name}: +{f}")
+    return len(progs), tried, found
+
+
 def _fetch_one(client: ObsClient, con: sqlite3.Connection, program_id, plan_type_id,
-               plan_id, branch_id, plan_type_name: str = "") -> int:
+               plan_id, branch_id, plan_type_name: str = "", seen: set | None = None) -> int:
     params = {"ProgramId": program_id, "PlanTipiId": plan_type_id,
               "PlanId": plan_id, "DersBransKoduId": branch_id}
     html = client.get(config.EP["eq_page"], params)
     if NOT_FOUND.search(html):
         return 0
     url = config.EP["eq_page"] + "?" + "&".join(f"{k}={v}" for k, v in params.items())
-    return parse_table(con, html, plan_id, url)
+    return parse_table(con, html, plan_id, url, seen=seen)
 
 
-def parse_table(con: sqlite3.Connection, html: str, plan_id: int | None, url: str) -> int:
+def parse_table(con: sqlite3.Connection, html: str, plan_id: int | None, url: str,
+                seen: set | None = None) -> int:
     """DersPlanDenklikleri tablosunu yönlü denkliğe çevirir.
 
     ★ İki sütun: **'Course At The Plan'** = HEDEF (plandaki ders), **'Equivalent
@@ -117,7 +177,8 @@ def parse_table(con: sqlite3.Connection, html: str, plan_id: int | None, url: st
         return 0
     rows = table.css("tbody tr") or table.css("tr")
     n = 0
-    seen: set[tuple[str, str]] = set()
+    if seen is None:
+        seen = set()                       # tek sayfa için yerel; sweep paylaşır
     for row in rows:
         tds = row.css("td")
         if len(tds) < 2:

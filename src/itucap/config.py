@@ -195,6 +195,12 @@ class Settings:
     # adımı ATLANIR (sessizce değil — adım "0 program" der).
     #   eq_program_ids = [1247, 871]     # Geomatik (anadal) + Bilgisayar (ÇAP)
     eq_program_ids: list[int] = field(default_factory=list)
+    # ★ TÜM (lisans) programların denkliklerini tara (28.08.2026: "diğer
+    # programlar için de baksın"). Kapsamlı ama YAVAŞ — ~93 program, her
+    # tazelemede yüzlerce istek. Açıkken `eq_program_ids` yerine geçer; arayüz
+    # yine yalnız GEREKEN derslerine denk düşenleri gösterir (fazlası süzülür).
+    # Nadir değişir; kayıt haftasında kapatıp `eq_program_ids`'e dönmek hızlı.
+    eq_all_programs: bool = False
     # ★★ EKSTRA program kodları — anadal/ÇAP/yandal kodları BURAYA YAZILMAZ.
     # (Kullanıcı isteği 27.08.2026: *"alabileceğim ders kodlarını anadal çap
     # ve yandala göre otomatik ekler misin, orada sadece ekstra program

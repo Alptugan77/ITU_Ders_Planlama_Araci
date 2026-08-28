@@ -1409,10 +1409,16 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
    sabit #fff yazsaydık koyu temada mavi üstünde beyaz kalırdı. */
 .tab[aria-selected="true"]{background:var(--seal);color:var(--ground);font-weight:800}
 
-/* Kip anahtarı — 'tüm adaylar' / 'dönemlik + alttan' */
-.modes{display:flex;gap:0;flex-wrap:wrap;border:1px solid var(--border-strong);
+/* Kip anahtarı — 'tüm adaylar' (DEPAR) / 'dönemlik + alttan'.
+   ★ inline-flex: kutu İÇERİĞE göre daralıyor. Eskiden `flex` (blok, tam
+   genişlik) olduğu için kısa "DEPAR" düğmesinin sağında kutunun İÇİNDE ama
+   hiçbir düğmenin İÇİNDE OLMAYAN ölü bir alan kalıyordu — görünürde kutunun
+   parçası ama tıklanamıyor (kullanıcı raporu 28.08.2026). Artık kutu tam
+   düğmeler kadar; dar ekranda taşmasın diye max-width. */
+.modes{display:inline-flex;max-width:100%;gap:0;flex-wrap:wrap;
+  border:1px solid var(--border-strong);
   border-radius:var(--r);overflow:hidden;background:var(--surface)}
-.modebtn{padding:6px 14px;font-size:13px;color:var(--ink-2);
+.modebtn{padding:6px 14px;font-size:13px;color:var(--ink-2);cursor:pointer;
   border-left:1px solid var(--border)}
 .modebtn:first-child{border-left:0}
 .modebtn[aria-pressed="true"]{background:var(--seal-soft);color:var(--seal);font-weight:600}
