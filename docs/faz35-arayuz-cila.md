@@ -39,10 +39,22 @@ oradaki eğri zaten ayrık (`|Δx| < 24` koşulu).
 yanda boşluk ~250px'ten ~170px'e indi; okunabilirliği bozacak kadar
 genişletilmedi.
 
+## 5. "Kaydediliyor" belli olsun
+
+*"kaydete basılınca yükleniyor olduğu belli olsun"* — Kaydet düğmesi eskiden
+yalnız soluklaşıyordu (metni "Kaydet" kalıyordu) ve altta küçük bir
+"kaydediliyor…" satırı vardı; ÇAP+yandal birlikte kaydı 7 sn sürünce kullanıcı
+takıldı sanıyordu. Artık **dönen bir halka + "Kaydediliyor…"** düğmenin
+üstünde. `dugmeMesgul(btn, metin)` yardımcısı düğmeyi kilitliyor, halkayı
+koyuyor, geri döndüren işlev veriyor. **Bütün kayıtlar** `save()`ten geçtiği
+için tek yerde çözüldü (program, dönem, transkript, tercih, meşgul); ayrıca
+"Programı kaydet" ve "Veriyi tazele" (1–2 dk) de aynı halkayı kullanıyor.
+`aria-hidden` + `prefers-reduced-motion` (hareket duyarlılığında dönmüyor).
+
 ## Sayılar
 
 | | |
 |---|---|
-| Test | **948** (değişmedi — CSS/JS cila, davranış aynı) |
-| Değişen | `ui.py` (tema betiği + kayıt, `.wrap`, tier kavis), `site_kur.py` (yükleme ekranı) |
-| Doğrulama | tema: tık→kayıt→reload kalıcı; mobil tier oluk yayları (dinlenme+odak); yükleme ekranı önizleme; 1680px genişlik |
+| Test | **949** (+1: kaydet meşgul göstergesi) |
+| Değişen | `ui.py` (tema betiği + kayıt, `.wrap`, tier kavis, `.spin`/`dugmeMesgul`), `site_kur.py` (yükleme ekranı) |
+| Doğrulama | tema kalıcı; mobil tier oluk yayları; yükleme ekranı; 1680px genişlik; meşgul halka tarayıcıda (meşgul→geri) |

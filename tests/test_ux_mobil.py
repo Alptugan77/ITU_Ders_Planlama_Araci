@@ -67,3 +67,18 @@ def test_kredi_tavani_KAYNAGI_baslikta():
     src = _src()
     assert "(yönetmelik)" in src
     assert "limitSource" in src
+
+
+# ====================================== 6. kaydet/tazele MEŞGUL göstergesi
+def test_kaydet_MESGUL_gostergesi():
+    """★ "kaydete basılınca yükleniyor olduğu belli olsun" (28.08.2026).
+    Dönen halka (.spin) + dugmeMesgul yardımcısı; save() ve tazele() kullanıyor;
+    savePicks eski düz metin yerine yardımcıya geçti."""
+    src = _src()
+    assert ".spin{" in src and "@keyframes spin" in src
+    assert "function dugmeMesgul(" in src
+    # save() ve tazele() meşgul göstergesini kullanıyor
+    assert src.count("dugmeMesgul(btn") >= 3          # save + savePicks + tazele
+    # erişilebilirlik + hareket duyarlılığı
+    assert 'class="spin" aria-hidden' in src
+    assert "prefers-reduced-motion:reduce){.spin" in src

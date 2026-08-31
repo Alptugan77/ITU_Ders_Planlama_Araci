@@ -1455,6 +1455,14 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .setupbar .uyari{font-size:11px;padding:1px 6px;border:1px solid var(--warn);
   color:var(--warn);border-radius:var(--r);white-space:nowrap}
 .ghost[disabled]{opacity:.45;cursor:not-allowed}
+/* Meşgul düğme dönen halkası — "kaydediliyor" belli olsun (kullanıcı isteği
+   28.08.2026). Meşgulken opaklığı düşürmüyoruz ki metin+dönme okunur kalsın. */
+.ghost.mesgul{opacity:1;cursor:progress}
+.spin{display:inline-block;width:13px;height:13px;vertical-align:-2px;
+  margin-right:7px;border:2px solid currentColor;border-top-color:transparent;
+  border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.spin{animation:none;border-top-color:currentColor}}
 .ghost.primary{background:var(--seal);color:var(--ground);border-color:var(--seal);
   font-weight:600}
 .ghost.primary:hover{opacity:.9;background:var(--seal)}
@@ -2528,9 +2536,21 @@ function say(text, bad){
   if(el){ el.textContent = text; el.className = "msg" + (bad ? " bad" : ""); }
 }
 
+/* ★ Düğmeyi MEŞGUL göster: dönen halka + metin, ve tıklamayı kilitle. Geri
+   döndüren işlev veriyor — eski içeriği aynen geri koyuyor. "Kaydediliyor
+   olduğu belli olsun" (kullanıcı 28.08.2026); yalnız soluklaştırmak yetmiyordu. */
+function dugmeMesgul(btn, metin){
+  if(!btn) return () => {};
+  const eski = btn.innerHTML;
+  btn.disabled = true;
+  btn.classList.add("mesgul");
+  btn.innerHTML = `<span class="spin" aria-hidden="true"></span>${esc(metin)}`;
+  return () => { btn.disabled = false; btn.classList.remove("mesgul"); btn.innerHTML = eski; };
+}
+
 async function save(fn){
   const btn = $("#setupSave");
-  if(btn){ btn.disabled = true; }
+  const geri = dugmeMesgul(btn, "Kaydediliyor…");
   say("kaydediliyor…");
   /* ★ ÖLÇÜLDÜ: ÇAP + yandal birlikte kaydedilince sunucu her şeyi baştan
      hesaplıyor ve bu 7 saniye sürüyor. Ekranda tek satır "kaydediliyor…"
@@ -2551,7 +2571,7 @@ async function save(fn){
     say(err.message, true);
   }finally{
     clearInterval(sayac);
-    if(btn) btn.disabled = false;
+    geri();
   }
 }
 
@@ -3821,14 +3841,15 @@ function renderSaveState(){
 function wirePicks(){
   const btn = $("#savePicks");
   if(btn && LIVE) btn.onclick = async () => {
-    btn.disabled = true; btn.textContent = "kaydediliyor…";
+    const geri = dugmeMesgul(btn, "Kaydediliyor…");
     try{
       // ★ applyState boot() çağırıyor, o da resetTo(0) yapıyor. Seçimi
       //   sunucudan gelen KAYITLI programla yeniden kuracağız, o yüzden
-      //   önce kaydet, sonra durumu tazele.
+      //   önce kaydet, sonra durumu tazele. (Başarıda sayfa yeniden
+      //   kuruluyor, düğme zaten yenileniyor; geri() yalnız hata yolunda.)
       applyState(await api("/api/picks", {picks: sel}));
     }catch(err){
-      btn.disabled = false; btn.textContent = "hata: " + err.message;
+      geri(); btn.textContent = "hata: " + err.message;
     }
   };
   const crn = $("#crnBtn");
@@ -4325,9 +4346,7 @@ function wireRefresh(){
    başlatılmayan tazeleme 1–2 dakika boyunca hiçbir iz bırakmıyordu. */
 async function tazele(btn){
   if(!btn || btn.disabled) return;
-  btn.disabled = true;
-  const was = btn.textContent;
-  btn.textContent = "tazeleniyor… (1–2 dk)";
+  const geri = dugmeMesgul(btn, "Tazeleniyor… (1–2 dk)");    /* dönen halka */
   try{
     const next = await api("/api/refresh", {});
     applyState(next);
@@ -4345,7 +4364,7 @@ async function tazele(btn){
     if(g && !$("#changeSection").hidden)
       g.innerHTML = `<div class="note">Tazeleme başarısız: ${esc(err.message)}</div>`;
     else say2("Tazeleme başarısız: " + err.message);
-    btn.disabled = false; btn.textContent = was;
+    geri();
   }
 }
 
