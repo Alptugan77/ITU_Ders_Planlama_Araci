@@ -51,10 +51,29 @@ için tek yerde çözüldü (program, dönem, transkript, tercih, meşgul); ayr�
 "Programı kaydet" ve "Veriyi tazele" (1–2 dk) de aynı halkayı kullanıyor.
 `aria-hidden` + `prefers-reduced-motion` (hareket duyarlılığında dönmüyor).
 
+### 5b. Meşgul göstergesinin iki hatası (31.08.2026 raporu)
+
+Kullanıcı iki şey bildirdi, ikisi de düzeldi:
+
+1. **"Basınca başladığı belli olmuyor" (program/dönem).** Halka `innerHTML` ile
+   konuyordu ama hemen ardından **statik sitede Pyodide hesabı ana iş
+   parçacığını BLOKLUYOR** — tarayıcı halkayı boyayamadan 7 sn donuyor, sonra
+   bitmiş oluyordu. `bekleBoyansin()` (iki `requestAnimationFrame`) ile halka
+   önce **boyanıyor**, sonra bloklayan işe giriliyor. `save()`, "Programı
+   kaydet" ve "Veriyi tazele" bunu kullanıyor. (Yerel `fetch` sürümünde bir
+   karelik gecikme fark etmez.)
+
+2. **Kaydettikten sonra başka programa/kipe geçince düğme "Kaydediliyor…"
+   kilitli takılıyordu ve yeni programı KAYDETTİRMİYORDU.** `#savePicks` KALICI
+   bir eleman; `dugmeMesgul` onu meşgul (kilitli) bırakıyor, `renderSaveState()`
+   ise yalnız `hidden`'ı değiştiriyordu — meşgul hâli hiç sıfırlanmıyordu.
+   Artık her çizimde düğme temizleniyor (kilit açık, metin "Programı kaydet"),
+   böylece kaydedip geçince yeni ders programı da kaydedilebiliyor.
+
 ## Sayılar
 
 | | |
 |---|---|
-| Test | **949** (+1: kaydet meşgul göstergesi) |
+| Test | **950** (+2: kaydet meşgul göstergesi + boyanma/sıfırlama) |
 | Değişen | `ui.py` (tema betiği + kayıt, `.wrap`, tier kavis, `.spin`/`dugmeMesgul`), `site_kur.py` (yükleme ekranı) |
 | Doğrulama | tema kalıcı; mobil tier oluk yayları; yükleme ekranı; 1680px genişlik; meşgul halka tarayıcıda (meşgul→geri) |

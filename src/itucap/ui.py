@@ -2548,10 +2548,19 @@ function dugmeMesgul(btn, metin){
   return () => { btn.disabled = false; btn.classList.remove("mesgul"); btn.innerHTML = eski; };
 }
 
+/* ★ Meşgul göstergesini tarayıcı BOYASIN diye bir kare bekle. Statik sitede
+   (Pyodide) kaydetme ana iş parçacığını BLOKLUYOR — halkayı boyamadan hesaba
+   girersek dönme ancak 7 sn sonra görünür, kullanıcı "bastım mı, başladı mı?"
+   diye takılırdı (kullanıcı raporu 31.08.2026). İki rAF: biri stil değişsin,
+   biri ekrana çizilsin. Yerel (fetch) sürümde bir karelik gecikme fark etmez. */
+const bekleBoyansin = () => new Promise(r =>
+  requestAnimationFrame(() => requestAnimationFrame(r)));
+
 async function save(fn){
   const btn = $("#setupSave");
   const geri = dugmeMesgul(btn, "Kaydediliyor…");
   say("kaydediliyor…");
+  await bekleBoyansin();          // ★ halka BOYANSIN, sonra bloklayan hesap
   /* ★ ÖLÇÜLDÜ: ÇAP + yandal birlikte kaydedilince sunucu her şeyi baştan
      hesaplıyor ve bu 7 saniye sürüyor. Ekranda tek satır "kaydediliyor…"
      yazıp durunca kullanıcı takıldı sanıp pencereyi kapatıyor ya da
@@ -3831,7 +3840,18 @@ function renderSaveState(){
   const btn = $("#savePicks"), mark = $("#savedMark");
   const saved = DATA.savedPicks || {picks: [], savedAt: ""};
   const dirty = currentKey() !== savedKey();
-  if(btn) btn.hidden = !LIVE || !dirty || !sel.length;
+  if(btn){
+    /* ★ Düğme KALICI bir eleman; kaydederken dugmeMesgul onu "meşgul" (dönen
+       halka, KİLİTLİ) yapıyor. Her yeniden çizimde TEMİZ duruma döndür — yoksa
+       kaydedip başka programa/kipe geçince düğme "Kaydediliyor…" kilitli takılı
+       kalıyor ve yeni programı KAYDEDEMİYORDUN (kullanıcı raporu 31.08.2026).
+       Kaydetme sırasındaki meşgul hâli await boyunca duruyor; bu sıfırlama
+       ancak kaydetme bitip sayfa yeniden çizilince çalışıyor. */
+    btn.disabled = false;
+    btn.classList.remove("mesgul");
+    btn.textContent = "Programı kaydet";
+    btn.hidden = !LIVE || !dirty || !sel.length;
+  }
   if(mark){
     mark.hidden = !(saved.picks.length && !dirty);
     mark.textContent = "kaydedildi" + (saved.savedAt
@@ -3842,6 +3862,7 @@ function wirePicks(){
   const btn = $("#savePicks");
   if(btn && LIVE) btn.onclick = async () => {
     const geri = dugmeMesgul(btn, "Kaydediliyor…");
+    await bekleBoyansin();          // ★ halka boyansın (Pyodide blokluyor)
     try{
       // ★ applyState boot() çağırıyor, o da resetTo(0) yapıyor. Seçimi
       //   sunucudan gelen KAYITLI programla yeniden kuracağız, o yüzden
@@ -4347,6 +4368,7 @@ function wireRefresh(){
 async function tazele(btn){
   if(!btn || btn.disabled) return;
   const geri = dugmeMesgul(btn, "Tazeleniyor… (1–2 dk)");    /* dönen halka */
+  await bekleBoyansin();          // ★ halka boyansın, sonra bloklayan tarama
   try{
     const next = await api("/api/refresh", {});
     applyState(next);

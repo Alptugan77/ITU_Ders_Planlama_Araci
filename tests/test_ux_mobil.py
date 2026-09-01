@@ -82,3 +82,20 @@ def test_kaydet_MESGUL_gostergesi():
     # erişilebilirlik + hareket duyarlılığı
     assert 'class="spin" aria-hidden' in src
     assert "prefers-reduced-motion:reduce){.spin" in src
+
+
+# ====================================== 7. meşgul göstergesi boyanma + sıfırlama
+def test_mesgul_BOYANMA_ve_SIFIRLAMA():
+    """★ (31.08.2026) İki hata: (a) statik sitede Pyodide ana iş parçacığını
+    bloklayınca halka boyanmadan hesaba giriliyordu → bir kare bekle. (b) kalıcı
+    #savePicks düğmesi kaydetmeden sonra "Kaydediliyor…" kilitli takılıp yeni
+    programı kaydettirmiyordu → her çizimde temiz duruma dönüyor."""
+    src = _src()
+    # (a) boyanma: save/savePicks/tazele bloklayan işten ÖNCE bir kare bekliyor
+    assert "const bekleBoyansin" in src
+    assert src.count("await bekleBoyansin()") >= 3
+    # (b) renderSaveState düğmeyi sıfırlıyor (kilit + metin)
+    blok = src.split("function renderSaveState()")[1].split("function ")[0]
+    assert 'btn.disabled = false' in blok
+    assert 'btn.classList.remove("mesgul")' in blok
+    assert 'btn.textContent = "Programı kaydet"' in blok
