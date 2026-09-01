@@ -99,3 +99,14 @@ def test_mesgul_BOYANMA_ve_SIFIRLAMA():
     assert 'btn.disabled = false' in blok
     assert 'btn.classList.remove("mesgul")' in blok
     assert 'btn.textContent = "Programı kaydet"' in blok
+
+
+# ====================================== 8. etkileşim cilası (01.09.2026)
+def test_etkilesim_cilasi():
+    """Basınca bas-hisset, tıklanabilir öğelerde hover, büyük yüzdeye etiket."""
+    src = _src()
+    assert ".ghost:active,.tab:active" in src              # bas-hisset
+    assert '.tab:not([aria-selected="true"]):hover' in src  # seçili olmayan sekme hover
+    assert "#cands tbody tr[data-course]{cursor:pointer}" in src
+    assert "#cands tbody tr[data-course]:hover" in src      # aday satırı tıklanabilir
+    assert 'class="pctlbl"' in src and ">tamamlandı<" in src  # büyük yüzde etiketli

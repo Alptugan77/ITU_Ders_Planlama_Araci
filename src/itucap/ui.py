@@ -1357,6 +1357,15 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   font-size:12px;background:transparent;font-weight:600;letter-spacing:.05em;
   text-transform:uppercase;font-family:"Chivo",Helvetica,Arial,sans-serif}
 .ghost:hover{background:var(--seal-soft);border-color:var(--seal);color:var(--seal)}
+/* ★ Tıklama geri bildirimi (01.09.2026): hafif "bas-hisset". Kayıt/tazele
+   halkasının yanında, her düğmede basıldığı anı da belli ediyor. Hareket
+   duyarlılığında kapalı. */
+@media (prefers-reduced-motion:no-preference){
+  .ghost:active,.tab:active,.modebtn:active,.secnav a:active,.kod.ekle:active{
+    transform:translateY(1px)}
+}
+/* Seçili OLMAYAN öneri sekmesi de tıklanabilir görünsün (eskiden hover yoktu). */
+.tab:not([aria-selected="true"]):hover{background:var(--seal-soft);color:var(--seal)}
 :focus-visible{outline:2px solid var(--seal);outline-offset:2px;border-radius:0}
 /* Şematik: kutu değil cetvel. Kart, üstündeki kalın çizgiyle bölünüyor;
    kenarlık yalnız hafif bir hat olarak kalıyor. */
@@ -1372,8 +1381,13 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .panel[data-role="CAP"]{--accent:var(--cap);--soft:var(--cap-soft)}
 .panel[data-role="YANDAL"]{--accent:var(--yandal);--soft:var(--yandal-soft)}
 .panel .top{display:flex;align-items:baseline;gap:10px;justify-content:space-between}
+.panel .pctbox{text-align:right;line-height:1}
 .panel .pct{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
   font-size:27px;font-weight:600;color:var(--accent);letter-spacing:-.03em}
+/* ★ Büyük yüzde etiketsizdi — ne olduğu (tamamlanma) belirsizdi (01.09.2026). */
+.panel .pctlbl{font-family:"Chivo",Helvetica,Arial,sans-serif;font-size:9px;
+  font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);
+  margin-top:3px}
 /* ★ Transkript yokken yüzde bir ÖLÇÜM değil: "%0" yerine "—". */
 .panel .pct.unknown{color:var(--ink-3)}
 .panel .name{color:var(--ink-2);font-size:12.5px;margin:3px 0 15px}
@@ -1498,6 +1512,11 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
 /* Klavye ipucu — dar ekranda gizli (orada klavye yok). */
 .kisayol{font-size:11px;color:var(--ink-3);white-space:nowrap}
 @media (max-width:700px){.kisayol{display:none}}
+/* ★ Satıra tıklayınca ekleme penceresi açılıyor ama tıklanabilir olduğu belli
+   değildi (01.09.2026) — imleç + hafif vurgu ekledik. Klavye odağı (.odak)
+   daha güçlü (seal-soft + çerçeve) kalıyor ki ikisi ayrışsın. */
+#cands tbody tr[data-course]{cursor:pointer}
+#cands tbody tr[data-course]:hover{background:var(--surface-2)}
 /* Klavye odağı — fare seçimi gibi görünmeli ki nerede olduğun belli olsun. */
 #cands tbody tr.odak{outline:2px solid var(--seal);outline-offset:-2px;
   background:var(--seal-soft)}
@@ -4448,9 +4467,12 @@ function panelHTML(p, plan){
         <div class="eyebrow">${kind}</div>
         <h2>${esc(p.program)}</h2>
       </div>
-      <div class="pct mono${bilinmiyor ? " unknown" : ""}"
-        title="${bilinmiyor ? "Geçtiğin dersler girilmedi" : ""}"
-        >${bilinmiyor ? "—" : "%" + p.percent}</div>
+      <div class="pctbox">
+        <div class="pct mono${bilinmiyor ? " unknown" : ""}"
+          title="${bilinmiyor ? "Geçtiğin dersler girilmedi" : ""}"
+          >${bilinmiyor ? "—" : "%" + p.percent}</div>
+        ${bilinmiyor ? "" : `<div class="pctlbl">tamamlandı</div>`}
+      </div>
     </div>
     <div class="name">${esc(p.title)}</div>
     ${bilinmiyor ? `<div class="proj bilinmiyor">
