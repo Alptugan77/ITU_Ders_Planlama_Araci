@@ -62,7 +62,10 @@ ne kadar iş, neye bağlı.
 >
 > **Faz 38'de kapananlar (02.09.2026):** ★★ ders not dağılımı entegre ✅
 > (`make notdagilimi`) · ★★ dönem kodu bir yıl kayması ✅ · planlanan dönem
-> bitmişse uyarı ✅ · `ING 103CO` gibi çok harfli kodlar ✅
+> bitmişse uyarı ✅ · `ING 103CO` gibi çok harfli kodlar ✅ · ★★ ilk
+> teslimatta `ui.py` `sources/`den import edip SİTEYİ KIRDI —
+> `notlar.py` ayrıldı ve site paketi sınırı bütün `ENGINE` için
+> teste bağlandı ✅
 >
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` artık **tanımlı** (`origin`), ama **site hâlâ eski**:
@@ -238,7 +241,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 1013 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 1016 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` dönemde bir kez yeter — 128 program, ~1081 plan, dakikalar
   sürüyor. Program değiştirmeyi düşünmüyorsan gerekmez.

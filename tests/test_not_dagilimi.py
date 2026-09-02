@@ -14,10 +14,13 @@ Testlerin tuttuğu üç şey:
   3. VF (devamsızlık) FF'ten ayrı YÜZDE olarak yazılıyor ve kaynağın
      kendi toplamı ile harflerin toplamı arasındaki fark gizlenmiyor.
 """
+import pathlib
+
 import pytest
 
 from itucap import config, db
-from itucap.sources import obs_notdagilimi as ND
+from itucap import notlar as ND
+from itucap.sources import obs_notdagilimi as KAYNAK
 
 FIX = config.ROOT / "tests" / "fixtures"
 MAT = (FIX / "not_dagilimi_MAT103E_2026.html").read_text(encoding="utf-8")
@@ -201,3 +204,34 @@ def test_fixture_YilAdi_ile_donem_adi_UYUSUYOR():
     değişirse kaynağın kendi etiketiyle çelişir."""
     for t in ND.parse(MAT).terms:
         assert config.donem_adi(t.term).startswith(t.year_name)
+
+
+# ---------------------------------------- ★★ katman sınırı (site paketi)
+# ⚠️ Site paketinin kendi içinde kapalı olması `tests/test_site.py`de
+# kilitleniyor (`test_engine_list_covers_what_EVERY_engine_module_needs`
+# ve `test_site_paketi_TEK_BASINA_import_edilebiliyor`). Burada yalnız
+# BU iki modülün katman sorumluluğu tutuluyor.
+def test_notlar_AG_KUTUPHANESI_icermiyor():
+    """⚠️ Metinde değil, GERÇEK import'larda arıyoruz: bu dosyanın belgesi
+    zaten `httpx`ten söz ediyor (neden ayrıldığını anlatırken)."""
+    import ast
+
+    agac = ast.parse(pathlib.Path(ND.__file__).read_text(encoding="utf-8"))
+    modul = set()
+    for node in ast.walk(agac):
+        if isinstance(node, ast.Import):
+            modul |= {a.name.split(".")[0] for a in node.names}
+        elif isinstance(node, ast.ImportFrom) and not node.level:
+            modul.add((node.module or "").split(".")[0])
+    assert not (modul & {"httpx", "selectolax"}), modul
+
+
+def test_kaynak_modulu_YALNIZ_cekiyor():
+    """Ağa dokunan tek fonksiyon `fetch`; gerisi `notlar`dan geliyor."""
+    import ast
+
+    agac = ast.parse(pathlib.Path(KAYNAK.__file__).read_text(encoding="utf-8"))
+    tanimlar = {n.name for n in ast.walk(agac) if isinstance(n, ast.FunctionDef)}
+    assert tanimlar == {"fetch"}, tanimlar
+    # Yine de eski çağıranlar için isimler erişilebilir kalmalı.
+    assert KAYNAK.parse is ND.parse and KAYNAK.NotFound is ND.NotFound

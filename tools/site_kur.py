@@ -71,8 +71,9 @@ PYODIDE_VERSION = "314.0.5"
 # masaüstüne özgü olanlar (`watch` — macOS bildirimi) DIŞARIDA: hem gereksiz
 # hem bağımlılık taşıyorlar.
 ENGINE = ["__init__", "basvuru", "changes", "config", "db", "declared",
-          "discover", "normalize", "plans", "policy", "prereq", "progress",
-          "recommend", "rules", "sequence", "server", "student", "ui"]
+          "discover", "normalize", "notlar", "plans", "policy", "prereq",
+          "progress", "recommend", "rules", "sequence", "server",
+          "student", "ui"]
 SCHEMA = ["schema.sql", "schema_user.sql"]
 # Herkese ait yapılandırma. `settings.toml` ve `denklikler.toml` KİŞİSEL —
 # siteye girmiyor; ziyaretçininki tarayıcısında oluşuyor.

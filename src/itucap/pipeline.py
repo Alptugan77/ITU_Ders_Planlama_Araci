@@ -14,7 +14,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from . import changes, config, db, declared, explore_prereq, prereq, quality, verify
+from . import changes, config, db, declared, explore_prereq, notlar, prereq, quality, verify
 from .plans import resolve_plans as _resolve_plans
 from .plans import watch_codes as _watch_codes
 from .http import ObsClient
@@ -905,7 +905,7 @@ def cmd_notdagilimi(args) -> int:
     # dönüyor. Zaten bilinen bir takma adı olan kodu atlıyoruz.
     kalan, gorulen = [], set()
     for kod in kodlar:
-        key = obs_notdagilimi.lookup(con, kod)
+        key = notlar.lookup(con, kod)
         if key and key in gorulen:
             continue
         kalan.append(kod)
@@ -917,18 +917,18 @@ def cmd_notdagilimi(args) -> int:
     ok = yok = hata = 0
     try:
         for i, kod in enumerate(kodlar, 1):
-            if obs_notdagilimi.lookup(con, kod) in gorulen:
+            if notlar.lookup(con, kod) in gorulen:
                 continue
             try:
                 dist = obs_notdagilimi.fetch(client, kod, year)
-            except obs_notdagilimi.NotFound:
-                obs_notdagilimi.store_missing(con, kod, year)
+            except notlar.NotFound:
+                notlar.store_missing(con, kod, year)
                 yok += 1
             except Exception as exc:            # noqa: BLE001
                 hata += 1
                 print(f"   ⚠️  {kod}: {type(exc).__name__}: {exc}")
             else:
-                obs_notdagilimi.store(con, dist, year)
+                notlar.store(con, dist, year)
                 gorulen.add(dist.key)
                 ok += 1
             if args.verbose or i % 25 == 0:

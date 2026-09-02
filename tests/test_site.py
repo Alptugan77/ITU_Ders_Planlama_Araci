@@ -9,6 +9,7 @@ kilitliyor:
    İÇİNDE olur — `.gitignore` böyle bir şeyi asla yakalayamaz.
 """
 import gzip
+import pathlib
 import sqlite3
 import sys
 
@@ -51,24 +52,84 @@ def test_engine_modules_have_no_scraping_dependencies():
     assert not kirli, f"motor modülleri tarama bağımlılığı çekiyor: {kirli}"
 
 
-def test_engine_list_covers_what_server_needs():
-    """`server.py` tarayıcıda kuruluyor; MODÜL SEVİYESİNDE içeri aldığı her
-    şey site paketinde olmalı.
+def test_engine_list_covers_what_EVERY_engine_module_needs():
+    """Siteye giden HER modül, yine siteye giden modüllerden başkasını
+    modül seviyesinde import edemez.
 
-    Fonksiyon içindeki tembel importlar hariç: `refresh()` tarama yığınını
-    öyle çağırıyor ve tarayıcıda hiç çalıştırılmıyor (bkz. `can_refresh`)."""
+    ★★ FAZ 38 — BU TEST ESKİDEN YALNIZ `server.py`YE BAKIYORDU ve tam bu
+    yüzden gerçek bir hatayı kaçırdı: not dağılımı eklenirken `ui.py`ye
+    `from .sources import obs_notdagilimi` yazıldı. `sources/` siteye
+    KOPYALANMIYOR (scraper'lar `httpx`/`selectolax` istiyor), yayınlanan
+    site açılmaz oldu —
+
+        ModuleNotFoundError: No module named 'itucap.sources'
+
+    …ve 1011 testin hiçbiri bunu görmedi. Kapsamı `server.py`den bütün
+    `ENGINE`e genişletmek, aynı hatanın başka bir modülde tekrarını da
+    kapatıyor.
+
+    ⚠️ Fonksiyon içindeki tembel importlar hariç: `server.refresh()` tarama
+    yığınını öyle çağırıyor ve tarayıcıda hiç çalıştırılmıyor
+    (bkz. `can_refresh`). Onu hata saymak, gerekçesi yazılı bir deseni
+    bozmak olurdu."""
     import ast
 
     import site_kur
 
-    src = (config.ROOT / "src" / "itucap" / "server.py").read_text(encoding="utf-8")
-    agac = ast.parse(src)
-    ic = set()
-    for d in agac.body:                       # yalnız en üst seviye
-        if isinstance(d, ast.ImportFrom) and d.level == 1:
-            ic |= {a.name for a in d.names} if d.module is None else {d.module}
-    eksik = {m for m in ic if m not in site_kur.ENGINE}
-    assert not eksik, f"site paketinde eksik modül: {eksik}"
+    src_dir = config.ROOT / "src" / "itucap"
+    # Pakette gerçekten var olan kardeşler (modül ve alt paket).
+    kardesler = {f.stem for f in src_dir.glob("*.py")}
+    kardesler |= {d.name for d in src_dir.iterdir()
+                  if d.is_dir() and not d.name.startswith(("_", "."))}
+
+    eksik = []
+    for ad in site_kur.ENGINE:
+        agac = ast.parse((src_dir / f"{ad}.py").read_text(encoding="utf-8"))
+        for d in agac.body:                   # yalnız en üst seviye
+            if not (isinstance(d, ast.ImportFrom) and d.level == 1):
+                continue
+            hedef = ({a.name for a in d.names} if d.module is None
+                     else {d.module.split(".")[0]})
+            for h in hedef:
+                if h in kardesler and h not in site_kur.ENGINE:
+                    eksik.append(f"{ad}.py → .{h}")
+    assert not eksik, ("siteye giden modül, siteye GİTMEYEN bir modülü "
+                       f"import ediyor: {sorted(set(eksik))}")
+
+
+def test_site_paketi_TEK_BASINA_import_edilebiliyor(tmp_path):
+    """★★ Faz 38 — AST değil, GERÇEK import.
+
+    `ENGINE` + `SCHEMA` dosyalarını boş bir ağaca kopyalayıp `sys.path`i
+    yalnız oraya kısıtlıyoruz. Tarayıcının gördüğü dünya tam olarak bu.
+    Eksik bir dosya varsa burada `ModuleNotFoundError` alınır — sitede
+    değil.
+    """
+    import importlib
+    import shutil
+
+    import site_kur
+
+    pkg = tmp_path / "itucap"
+    pkg.mkdir()
+    for ad in site_kur.ENGINE:
+        shutil.copy(config.ROOT / "src" / "itucap" / f"{ad}.py", pkg / f"{ad}.py")
+    for ad in site_kur.SCHEMA:
+        shutil.copy(config.ROOT / "src" / "itucap" / ad, pkg / ad)
+
+    eski_path, eski_mod = list(sys.path), dict(sys.modules)
+    try:
+        for m in [m for m in sys.modules if m.split(".")[0] == "itucap"]:
+            del sys.modules[m]
+        sys.path = [str(tmp_path)] + [p for p in sys.path
+                                      if "src" not in p.split("/")[-2:]]
+        sys.path.insert(0, str(tmp_path))
+        mod = importlib.import_module("itucap.server")
+        assert pkg.as_posix() in pathlib.Path(mod.__file__).parent.as_posix()
+    finally:
+        sys.path = eski_path
+        sys.modules.clear()
+        sys.modules.update(eski_mod)
 
 
 def test_refresh_fails_clearly_when_scraping_is_unavailable(monkeypatch):

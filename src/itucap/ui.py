@@ -33,9 +33,11 @@ from . import recommend as REC
 from . import rules as R
 from . import sequence as SEQ
 from . import student as S
-# ★ Faz 38 — not dağılımı yalnız OKUNUYOR; bu modül tarama bağımlılığı
-# (httpx/selectolax) İÇERMİYOR, yoksa tarayıcı sürümü (Pyodide) patlardı.
-from .sources import obs_notdagilimi as ND
+# ★★ Faz 38 — not dağılımı yalnız OKUNUYOR. İlk yazımda bu satır
+# `from .sources import obs_notdagilimi` idi ve YAYINLANAN SİTE AÇILMADI:
+# `site_kur.py` tarayıcıya `sources/` kopyalamıyor (scraper bağımlılıkları).
+# Okuma tarafı `notlar.py`de ve `ENGINE` listesinde.
+from . import notlar as ND
 
 
 def _dil_esi(code: str) -> list[str]:

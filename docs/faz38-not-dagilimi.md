@@ -13,7 +13,7 @@ Gerekçe bir ilke değil, bir **eksiklik** beyanıydı. Kaynak gösterilince
 gerekçe düştü. Bu fazın işi o boşluğu doldurmak — ve doldururken aynı
 ilkeyi korumak: veriyi **göster**, karar **verme**.
 
-Testler **987 → 1013** (1011 geçti, 2 atlandı).
+Testler **987 → 1016** (1014 geçti, 2 atlandı).
 
 ---
 
@@ -138,7 +138,54 @@ aldı" artık veriyle cevaplanabilir. ⚠️ "Geçmiş yıl açıldı" ≠ "bu y
 
 ---
 
-## F. Ölçerken çıkan hata
+## F. ★★ İLK TESLİMAT SİTEYİ KIRDI — ve testler görmedi
+
+Kullanıcı yayınlanan/kurulan siteyi açtı:
+
+```
+File "/app/itucap/ui.py", line 38, in <module>
+    from .sources import obs_notdagilimi as ND
+ModuleNotFoundError: No module named 'itucap.sources'
+```
+
+**Sebep.** `tools/site_kur.py` tarayıcıya yalnız `ENGINE` listesindeki
+modülleri kopyalıyor ve `sources/` **bilerek** dışarıda — scraper'lar
+`httpx`/`selectolax` istiyor, Pyodide'de bunlar yok. `plans.py` de tam bu
+sebeple var ("tarama bağımlılığı YOK — web için şart"). Ben bu sınırı
+görmeden `ui.py`ye `sources/` altından import ekledim.
+
+**Neden 1011 test yakalamadı.** Hepsi yerelde koşuyor; orada `sources/`
+elbette var. Depoda bu sınıfı koruyan bir test **vardı** —
+`test_engine_list_covers_what_server_needs` — ama yalnız **`server.py`**ye
+bakıyordu. Benim hatam `ui.py`deydi ve tam o boşluktan geçti.
+
+**Düzeltme, iki katmanlı:**
+
+1. **Kod ayrıldı.** Ayrıştırma/saklama/okuma artık `src/itucap/notlar.py`
+   (ağ kütüphanesi yok, `ENGINE` listesinde). `sources/obs_notdagilimi.py`de
+   **tek fonksiyon** kaldı: `fetch()`. Sınır artık dosya düzeyinde görünür.
+2. **Koruma genişletildi.** `test_site.py`de:
+   * `test_engine_list_covers_what_EVERY_engine_module_needs` — `server.py`
+     yerine **bütün `ENGINE`**; siteye giden hiçbir modül, siteye gitmeyen
+     bir kardeşi modül seviyesinde import edemez. (Fonksiyon içindeki
+     tembel import hariç: `server.refresh()` `pipeline`ı öyle çağırıyor ve
+     tarayıcıda hiç çalışmıyor.)
+   * `test_site_paketi_TEK_BASINA_import_edilebiliyor` — AST değil **gerçek
+     import**: `ENGINE`+`SCHEMA` boş bir ağaca kopyalanıp `sys.path` yalnız
+     oraya kısıtlanıyor ve `itucap.server` import ediliyor. Tarayıcının
+     gördüğü dünya tam olarak bu.
+
+İkisi de hatayı geri koyunca **kırmızıya dönüyor** — ikincisi kullanıcının
+aldığı `ModuleNotFoundError`'ın aynısıyla. Bir koruma, koruduğu hatayla
+denenmeden yazılmış sayılmaz.
+
+⚠️ Kalan sınır: bu depoda **Pyodide'i gerçekten çalıştıran** bir test yok
+(bu ortamda CDN'e erişim de yok). İzole import testi hatanın sınıfını
+kapatıyor ama tarayıcı çalıştırması hâlâ elle yapılıyor.
+
+---
+
+## G. Ölçerken çıkan hata
 
 Ders numarasının sonunda **birden fazla harf** olabiliyor: `ING 103CO`,
 `ING 103SC`, `ING 103AC`, `ING 103DD`, `FIZ 101EL`. İlk kalıp tek harfe izin
