@@ -8,6 +8,13 @@
 > raporunda **sessizce düşüyordu**. Ayrıntı:
 > `docs/faz37-katalog-kredi-kosulu.md`.
 
+> **Faz 38'de kapananlar (02.09.2026):** ★★ ders **not dağılımı** —
+> "elimizde böyle bir veri yok" gerekçesi düştü, kaynak bulundu ve entegre
+> edildi ✅ · ★★ `config.donem_adi` **bir yıl kaymıştı** (`202610` =
+> 2025-2026 Güz, 2026-2027 değil) ✅ · planlanan dönem bitmişse uyarı ✅ ·
+> yaz dönemi verisi (§2.3 için hammadde) ✅.
+> Ayrıntı: `docs/faz38-not-dagilimi.md`.
+
 24.08.2026, **Faz 28 sonrası**. A–D bölümleri bitti
 (`docs/faz25-ders-secim-araci.md`), ilk 30 saniye elden geçti
 (`docs/faz26-ilk-30-saniye.md`), **arayüz listesinin (§3) tamamı ve tercih
@@ -102,6 +109,11 @@ cinsinden olduğu için TOPLANINCA çalıştı.
 Alttan ders taşıyan ÇAP öğrencisi için en önemli tıkanıklık çözücü. Dönem
 kavramı şu an Güz/Bahar varsayıyor.
 
+★ **Faz 38'de hammadde geldi:** not dağılımı ucu yaz dönemini de veriyor
+(`202630 | Summer Semester`). Yani "bu ders yazın açılıyor mu, kaç kişi
+aldı" sorusu artık VERİYLE cevaplanabilir — hangi dersin yaza bırakılabildiği
+tahmin olmaktan çıkar. ⚠️ "Geçmiş yıl açıldı" ≠ "bu yaz açılacak".
+
 ---
 
 ## 3. ~~Arayüzde sırada ne var~~ · ✅ **Faz 27'de tamamı kapandı**
@@ -146,8 +158,9 @@ göstermemek.**
 
 | Fikir | Neden hayır |
 |---|---|
-| "Bu dersin ortalaması AA" / geçme oranı | Elimizde böyle bir veri yok |
-| Hoca puanı / yorumu | Kaynak yok; olsa da kişiselleştirilmiş bir iddia olurdu |
+| ~~"Bu dersin ortalaması AA" / geçme oranı~~ | ✅ **Faz 38'de yapıldı** — gerekçe ("veri yok") düştü: kullanıcı 02.09.2026'da `obs.itu.edu.tr/public/DersNotDagilimi`'yi hatırlattı. Veri herkese açık, tokensiz ve yaz dönemi dahil. **Ama puanlamaya girmiyor** (aşağıdaki satıra bak) |
+| **Yeni:** not dağılımını öneri puanına katmak | Aracı "kolay ders bulucu"ya çevirirdi. Hangi dersin zorluğuna değdiği öğrencinin değer yargısı; motor onu yerine veremez. Gösteriyoruz, karar vermiyoruz |
+| Hoca puanı / yorumu | Kaynak yok; olsa da kişiselleştirilmiş bir iddia olurdu. ⚠️ Faz 38'den sonra da geçerli: not dağılımı **ders** düzeyinde yayınlanıyor, hoca kırılımı YOK. Şubenin hocasıyla dersin dağılımını yan yana koymak, veride olmayan bir nedensellik iddia etmek olurdu |
 | "GNO'n şu kadar olur" tahmini | Alacağı nottan bağımsız bir sayı üretmek olurdu |
 | Otomatik OBS kaydı | Baştan beri sınır: araç senin yerine kayıt YAPMAZ |
 | Kredi aralığını tek sayıya indirmek | Faz 23'te bilerek reddedildi |

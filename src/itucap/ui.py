@@ -33,6 +33,9 @@ from . import recommend as REC
 from . import rules as R
 from . import sequence as SEQ
 from . import student as S
+# ★ Faz 38 — not dağılımı yalnız OKUNUYOR; bu modül tarama bağımlılığı
+# (httpx/selectolax) İÇERMİYOR, yoksa tarayıcı sürümü (Pyodide) patlardı.
+from .sources import obs_notdagilimi as ND
 
 
 def _dil_esi(code: str) -> list[str]:
@@ -573,6 +576,28 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                 secili[anahtar] = k
         return sorted(secili.values())
 
+    # ★ Faz 38 — not dağılımı. Aday başına tek sorgu yerine tek seferde
+    # okuyup önbelleğe alıyoruz; `candidates_json` iki kez çağrılıyor.
+    _nd_cache: dict[str, dict | None] = {}
+
+    def _not_dagilimi(code: str):
+        if code not in _nd_cache:
+            try:
+                _nd_cache[code] = ND.distribution(con, code, settings.term)
+            except Exception:                     # noqa: BLE001
+                # Dağılım bir SÜS; okunamazsa aracın geri kalanı çalışmalı.
+                _nd_cache[code] = None
+        d = _nd_cache[code]
+        if not d:
+            return None
+        s = d["selected"]
+        return {"term": s["term"], "termName": s["termName"],
+                "yearName": s["yearName"], "codes": d["codes"],
+                "counts": s["counts"], **d["summary"],
+                # Kaç dönem elimizde — "tek dönem" ile "beş dönem" farklı
+                # güvende olmayı gerektirir.
+                "termCount": len(d["terms"])}
+
     def candidates_json(pool):
         return [{
             "course": c.course, "name": c.name, "altName": _diger_dil(c.course),
@@ -587,6 +612,11 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             # İkisi ayrı sayı; birini öbürünün yerine yazmak yanlış olurdu.
             "opens": _acilanlar(c.course),
             "required": c.required, "reasons": c.reasons,
+            # ★ Faz 38 — geçmiş dönemlerin not dağılımı (OBS yayınlıyor).
+            # ⚠️ PUANA GİRMİYOR. Dağılımı puanlamaya sokmak aracı "kolay ders
+            # bulucu"ya çevirirdi; hangi dersi almanın değdiği öğrencinin
+            # değer yargısı, motorun değil.
+            "grades": _not_dagilimi(c.course),
             "sections": [section_json(s) for s in c.sections],
         } for c in pool]
 
@@ -827,6 +857,14 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         # ★ B3 — başlıkta ham `202610` yazıyordu. Çözülemezse BOŞ; arayüz
         # o zaman ham kodu yazmaya devam ediyor, isim UYDURMUYOR.
         "termLabel": config.donem_adi(settings.term),
+        # ★★ Faz 38 — planladığın dönemin notları AÇIKLANMIŞ mı?
+        # Takvimden tahmin etmiyoruz, kaynağa soruyoruz: o dönem için
+        # kaç dersin dağılımı yayınlanmış. Sıfırdan büyükse dönem geçmişte
+        # kalmış demektir ve `settings.term` büyük ihtimalle yanlış.
+        # ⚠️ 0 "gelecekte" DEMEK DEĞİL — hiç çekilmemiş de olabilir; arayüz
+        # bu ikisini `gradeCoverage.courses` ile ayırıyor.
+        "termGraded": ND.term_already_graded(con, settings.term),
+        "gradeCoverage": ND.coverage(con),
         "unit": settings.unit, "unitLabel": settings.unit_label,
         "maxLoad": limit,
         "anadal": settings.anadal_program,
@@ -1835,6 +1873,16 @@ table.list tr:hover td{background:var(--surface-2)}
 .puansatir .deger{text-align:right;color:var(--ink-2);font-variant-numeric:tabular-nums}
 .puansatir.eksi .deger{color:var(--warn)}
 .puantoplam{margin-top:8px;font-size:11.5px;color:var(--ink-3);line-height:1.6}
+/* Faz 38 — not dağılımı sütun grafiği (kütüphane yok: 15 kutu yeter) */
+.ndgrafik{display:grid;grid-template-columns:repeat(15,1fr);gap:3px;
+  align-items:end;height:78px;margin:10px 0 6px}
+.ndsut{display:flex;flex-direction:column;justify-content:flex-end;
+  align-items:center;height:100%;gap:3px}
+.ndsut>i{display:block;width:100%;background:var(--seal);min-height:2px}
+.ndsut>i.kotu{background:var(--warn)}
+.ndsut>span{font-size:8.5px;color:var(--ink-3);line-height:1;
+  writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap}
+.ndozet{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--ink-2)}
 /* Tercihin programa etkisi. */
 .tercihnot{font-size:12px}
 .tercihnot.ok{color:var(--anadal)}
@@ -2458,6 +2506,19 @@ function say2(text){
   _bildirimZaman = setTimeout(() => el.classList.remove("acik"), 6000);
 }
 
+/* ★★ Faz 38 — planladığın dönemin notları ÇOKTAN AÇIKLANMIŞ.
+   Takvimden tahmin etmiyoruz: OBS o dönem için dağılım yayınlamışsa dönem
+   bitmiş demektir. `settings.term` büyük olasılıkla bir yıl geride.
+   ⚠️ Sessizce düzeltmiyoruz — hangi dönemi planladığı kullanıcının beyanı;
+   biz yalnız çelişkiyi gösteriyoruz. */
+function gecmisDonemUyarisi(){
+  const n = DATA.termGraded || 0;
+  if(!n) return "";
+  return ` · <b class="stale" title="Bu dönem için ${n} dersin not dağılımı
+    yayınlanmış; yani dönem tamamlanmış görünüyor.">⚠ ${
+    esc(DATA.termLabel || DATA.term)} bitmiş görünüyor</b>`;
+}
+
 function renderVeriYasi(){
   const el = $("#veriYasi");
   if(!el) return;
@@ -2467,7 +2528,8 @@ function renderVeriYasi(){
      yaşını yazan satırın yanına taşındı: soruyu soran cümlenin yanında
      cevabı veren düğme. */
   el.innerHTML = esc(veriYasiMetni())
-    + (LIVE ? ` <button class="ghost mini" id="veriTazele">tazele</button>` : "");
+    + (LIVE ? ` <button class="ghost mini" id="veriTazele">tazele</button>` : "")
+    + gecmisDonemUyarisi();
   el.classList.toggle("stale", !!(DATA.dataAge && DATA.dataAge.stale));
   const b = $("#veriTazele");
   if(b) b.addEventListener("click", () => {
@@ -5283,6 +5345,62 @@ function puanKirilimi(cand){
   </details>`;
 }
 
+/* ---------- geçmiş dönem not dağılımı (Faz 38) ----------
+   İTÜ her dönem ders bazında harf notu dağılımı yayınlıyor
+   (obs.itu.edu.tr/public/DersNotDagilimi). Bu bölüm o veriyi GÖSTERİR;
+   öneri puanına GİRMEZ.
+
+   ⚠️ Dört şeyi açıkça yazmak zorundayız, yoksa sayı olduğundan fazlasını
+   iddia eder:
+     1. Dağılım TR+EN kodun İKİSİNİ birden kapsıyor (kaynak öyle yayınlıyor).
+     2. GEÇMİŞ bir döneme ait; hocası, sınavı, kontenjanı değişmiş olabilir.
+     3. VF (devamsızlık) FF'ten AYRI — devamsızlık dersin zorluğu değil.
+     4. Ortalama yalnız harf notu alanlardan; VF ölçeğe girmiyor. */
+function notDagilimi(cand){
+  const g = cand && cand.grades;
+  if(!g || !g.n) return "";
+  const SIRA = ["AA","BA+","BA","BB+","BB","CB+","CB","CC+","CC",
+                "DC+","DC","DD+","DD","FF","VF"];
+  const enBuyuk = Math.max(...SIRA.map(k => g.counts[k] || 0), 1);
+  const bar = SIRA.map(k => {
+    const v = g.counts[k] || 0;
+    const kotu = (k === "FF" || k === "VF");
+    return `<div class="ndsut" title="${k}: ${v} kişi">
+      <i class="${kotu ? "kotu" : ""}" style="height:${
+        Math.max(2, v / enBuyuk * 100).toFixed(0)}%"></i>
+      <span>${k}</span></div>`;
+  }).join("");
+  const donem = `${esc(g.yearName)} ${esc(g.termName || "")}`.trim();
+  return `<details class="puan">
+    <summary>Not dağılımı — <b class="mono">${g.n}</b> kişi,
+      geçen <b class="mono">%${g.passRate}</b></summary>
+    <div class="ndgrafik">${bar}</div>
+    <div class="ndozet">
+      <span>ortalama <b class="mono">${g.meanPoints ?? "—"}</b></span>
+      <span>FF <b class="mono">%${g.failRate}</b></span>
+      <span title="Devamsızlıktan kalma — dersin zorluğu hakkında bir şey söylemez">
+        VF <b class="mono">%${g.absentRate}</b></span>
+      <span>${esc(donem)}</span>
+    </div>
+    <div class="puantoplam">
+      Kaynak: İTÜ ÖBS Ders Not Dağılımı · <b>${g.codes.map(esc).join(" + ")}</b>
+      birlikte (OBS Türkçe ve İngilizce kodu ayırmıyor)${
+      g.termCount > 1 ? ` · elimizde ${g.termCount} dönem var` : ""}.${
+      /* ⚠️ Kaynağın kendi toplamı harflerin toplamına her zaman eşit değil
+         (ölçüm: MAT 103 güz 2988/2987). Farkı yazmamak, sayıyı olduğundan
+         kesin gösterirdi. */
+      g.gap ? `<br>OBS toplamı <b class="mono">${g.announced}</b>;
+        harflerin toplamı <b class="mono">${g.n}</b> — ${g.gap} kişi
+        listelenen 15 harfin dışında (BL/BZ/muafiyet olabilir).` : ""}
+      <br>⚠️ <b>Geçmiş</b> bir döneme ait: hoca, sınav ve kontenjan değişmiş
+      olabilir. Öneri puanına <b>girmiyor</b> — hangi dersin değdiği senin
+      kararın. Ortalama aracın kendi GNO ölçeğiyle: <b>FF</b> de <b>VF</b> de
+      sıfır puan. <b>VF devamsızlıktır</b>, dersin zorluğu değil — yüzdesi
+      ayrıca yazıyor ki düşük ortalamanın nereden geldiği okunabilsin.
+    </div>
+  </details>`;
+}
+
 function courseDialog(course){
   const cand = CAND[course], cur = sel.find(x => x.course === course);
   if(!cand || !cur) return;
@@ -5300,6 +5418,7 @@ function courseDialog(course){
       ${cand.credits} kredi · ${cand.ects} AKTS
       ${cand.reasons.length ? "<br>" + cand.reasons.map(esc).join("; ") : ""}</div>
     ${puanKirilimi(cand)}
+    ${notDagilimi(cand)}
     ${fits.length ? `<div class="chipline"><span class="chip">başka şube</span>
       <span style="color:var(--ink-3);font-size:12px">${fits.length} seçenek</span></div>
       <div class="optlist">${fits.map(s => optionRow(cand, s, "")).join("")}</div>` : ""}

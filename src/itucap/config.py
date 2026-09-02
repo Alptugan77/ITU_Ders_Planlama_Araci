@@ -103,16 +103,43 @@ def plan_type_of(second_kind: str, fallback: str = "cap") -> str:
     return SECOND_KINDS[turler[0]][2] or fallback
 
 
-# OBS dönem kodunun son iki hanesi. Doğrulandı: `202610` kodlu şubeler
-# 23.08.2026'da çekildi — yani 2026-2027 Güz.
+# OBS dönem kodunun son iki hanesi.
 _YARIYIL = {"10": "Güz", "20": "Bahar", "30": "Yaz"}
 
 
+def term_year(kod: str) -> int | None:
+    """`'202610'` → `2026`. Akademik yılın **BİTİŞ** yılı. Çözemezse None."""
+    k = str(kod or "").strip()
+    if len(k) != 6 or not k.isdigit() or k[4:] not in _YARIYIL:
+        return None
+    return int(k[:4])
+
+
 def donem_adi(kod: str) -> str:
-    """`202610` → `2026-2027 Güz`. Çözemezse BOŞ döner.
+    """`202610` → `2025-2026 Güz`. Çözemezse BOŞ döner.
 
     ★ İlk kullanıcı incelemesi B3: başlıkta ham `202610` yazıyordu. Bu kod
     OBS'nin iç gösterimi; öğrencinin gördüğü hiçbir yerde böyle yazmıyor.
+
+    ★★ FAZ 38 — BİR YIL KAYMASI DÜZELTİLDİ (02.09.2026).
+    Buradaki eski yorum *"`202610` kodlu şubeler 23.08.2026'da çekildi — yani
+    2026-2027 Güz"* diyordu ve kod `f"{yil}-{yil+1}"` üretiyordu. Yani
+    `202610` → "2026-2027 Güz".
+
+    OBS'nin **kendi** not dağılımı ucu bunu yalanlıyor:
+
+        yil=2026 → 202610 | 2025-2026 | Fall Semester   (n=2988, MAT 103E)
+                   202620 | 2025-2026 | Spring Semester
+                   202630 | 2025-2026 | Summer Semester (n=991)
+
+    Üç ardışık yılda tutarlı. Mantık da doğruluyor: `202630` yazın notları
+    Eylül 2026'da açıklanmış durumda; "2026-2027 yazı" olsaydı o yaz daha
+    yaşanmamış olurdu. Yani koddaki yıl akademik yılın **BİTİŞ** yılı.
+
+    ⚠️ Bu düzeltmenin bir sonucu var: `settings.toml`'da `term = "202610"`
+    yazan kullanıcı **geçmiş bir dönemi** (2025-2026 Güz) planlıyor demektir.
+    `settings.term_is_past()` bunu ayrıca uyarıyor — sessizce düzeltmiyoruz,
+    çünkü hangi dönemi planladığı kullanıcının beyanı.
 
     ⚠️ Tanımadığı kalıba İSİM UYDURMUYOR. Boş dönüyor ve çağıran taraf ham
     kodu yazmaya devam ediyor — yanlış bir dönem adı yazmak, ham koddan
@@ -125,7 +152,7 @@ def donem_adi(kod: str) -> str:
     ad = _YARIYIL.get(yariyil)
     if not ad:
         return ""
-    return f"{yil}-{int(yil) + 1} {ad}"
+    return f"{int(yil) - 1}-{yil} {ad}"
 
 
 @dataclass

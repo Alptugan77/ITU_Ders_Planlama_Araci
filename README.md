@@ -34,6 +34,10 @@ ders hangisine sayılıyor, hangi önşart açık, bu dönem hangi kombinasyon
   hangisinde kaç dersin zaten sayılıyor.
 * **Kontenjan nöbeti** — `make watch` ile izlediğin derste yer açılınca
   bildirim.
+* **Geçmiş dönem not dağılımı** — İTÜ'nün her dönem yayınladığı harf notu
+  dağılımı (`make notdagilimi`). ⚠️ Dağılım TÜRKÇE VE İNGİLİZCE kodu
+  birlikte kapsıyor (kaynak öyle yayınlıyor), geçmiş bir döneme ait ve
+  **öneri puanına girmiyor** — hangi dersin değdiği senin kararın.
 * **Darboğaz raporu** — bir ders neden alınamıyor: önşart mı, kontenjan mı,
   programa kapalı mı, kredi eşiği mi.
 
@@ -131,6 +135,7 @@ make basvuru                  # hangi programlara başvurabilirim
 make recommend                # komut satırında program önerisi
 make progress                 # ilerleme paneli
 make changes                  # son iki tazeleme arasında ne değişti
+make notdagilimi              # geçmiş dönemlerin harf notu dağılımı
 make watch                    # kontenjan nöbeti (kayıt haftası)
 make status                   # veritabanı özeti
 make test                     # test paketi
@@ -197,7 +202,7 @@ uygulanıyor; kaynak dosya değişmediği için hiçbir beyan kaybolmuyor.
 ## Test
 
 ```bash
-make test        # 987 test + gizlilik denetimi
+make test        # 1013 test + gizlilik denetimi
 ```
 
 Gizlilik denetimi (`tools/gizlilik_denetimi.py`) dosya adına **değil

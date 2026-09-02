@@ -60,6 +60,10 @@ ne kadar iş, neye bağlı.
 > ✅ (kaynak yayınlamıyor) · tercih çaresi ✅ (§3.5) · Türkçe büyük harf ✅ ·
 > `OTHER` → `KATEGORİSİZ` ✅ · `max_ects_per_term` işaretlendi ✅
 >
+> **Faz 38'de kapananlar (02.09.2026):** ★★ ders not dağılımı entegre ✅
+> (`make notdagilimi`) · ★★ dönem kodu bir yıl kayması ✅ · planlanan dönem
+> bitmişse uyarı ✅ · `ING 103CO` gibi çok harfli kodlar ✅
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` artık **tanımlı** (`origin`), ama **site hâlâ eski**:
 > yayın hattı çalıştırılmadan hiçbir düzeltme kullanıcıya ulaşmıyor
@@ -234,7 +238,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 987 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 1013 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` dönemde bir kez yeter — 128 program, ~1081 plan, dakikalar
   sürüyor. Program değiştirmeyi düşünmüyorsan gerekmez.

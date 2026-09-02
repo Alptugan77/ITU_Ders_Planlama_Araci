@@ -202,3 +202,55 @@ atıyor — kontrol de boşsa sorun bizdedir.
 Kademeli menü ÇAP'ta gerçekten gereksizdi; o yüzden yıllarca çağrılmadı ve
 içindeki yanlış parametre adı hiç ortaya çıkmadı. Kullanılmayan yol, test
 edilmemiş yoldur.
+
+---
+
+## 5. Ders not dağılımı (`/public/DersNotDagilimi`)
+
+> Keşif: **2 Eylül 2026**. Kullanıcı hatırlattı; `docs/fikirler.md` bu veriyi
+> "elimizde yok" diye reddetmişti. Token, cookie, `Referer` gerekmiyor.
+
+### 5.1 Uç
+
+```
+GET /public/DersNotDagilimi/NotDagilimiSearch?bransKodu=MAT&dersNo=103E&yil=2026
+```
+
+Sayfanın kendisi de aynı parametreleri kabul ediyor (`?bransKodu=…`) ve
+açılışta bu ucu AJAX ile çağırıyor. Cevap bir **HTML parçası**; veri satır içi
+betikte:
+
+```js
+const ALL_DATA = [{"DonemKodu":"202630","YilAdi":"2025-2026",
+                   "DonemTipAdi":"Summer Semester",
+                   "ToplamAciklananOgrenci":991,
+                   "Dagilim":[{"HarfNotu":"AA","Sayi":54,"Yuzde":5.45}, …]}, …];
+```
+
+★ **Tek istek o yılın bütün yarıyıllarını getiriyor** — güz (`…10`), bahar
+(`…20`) ve **yaz** (`…30`).
+
+### 5.2 Üç tuzak (üçü de ölçüldü)
+
+| Tuzak | Ölçüm |
+|---|---|
+| **TR/EN kodu BİRLEŞİK** | `dersNo=212` ile `dersNo=212E` **bayt bayt aynı** cevabı veriyor (6824 B); başlık `BLG212 - BLG212E` yazıyor. Dağılım ders ÇİFTİNE ait |
+| **"Bulunamadı" da HTTP 200** | Olmayan ders `<h4>… could not be found.</h4>` + 200. Durum koduna bakan tarayıcı bunu "hepsi sıfır" kaydederdi |
+| **`yil` BİTİŞ yılı** | `yil=2026` → `202610 \| 2025-2026 \| Fall`. Yani `202610` = 2025-2026 Güz. `config.donem_adi` bunu bir yıl ileri yazıyordu |
+
+### 5.3 Ölçülen sayılar (02.09.2026)
+
+* `yil=2027` **boş** — 2026-2027 notları henüz açıklanmamış (beklenen).
+* `yil=2019`'a kadar geriye veri var.
+* Kaynağın kendi toplamı (`ToplamAciklananOgrenci`) harflerin toplamına
+  **her zaman eşit değil**: MAT 103 güz 2988/2987, bahar 1682/1678.
+  Aradaki kişiler listelenen 15 harfin dışında (BL/BZ/muafiyet olabilir).
+* Kullanıcının planındaki 251 dersten **176**'sında dağılım var, **75**'inde
+  yok (dil dersleri, bazı seçmeliler).
+* Ders numarası sonunda **birden fazla harf** olabiliyor: `ING 103CO`,
+  `ING 103SC`, `FIZ 101EL`.
+
+### 5.4 Yok
+
+Hoca kırılımı **yok** — dağılım ders düzeyinde. Şubenin hocasıyla dersin
+dağılımını yan yana koymak, veride olmayan bir nedensellik iddia etmek olurdu.

@@ -248,3 +248,42 @@ CREATE TABLE IF NOT EXISTS lesson_snapshot (
     PRIMARY KEY (taken_at, crn)
 );
 CREATE INDEX IF NOT EXISTS ix_snapshot_course ON lesson_snapshot(course_code);
+
+-- ★★ FAZ 38 — DERS NOT DAĞILIMI (/public/DersNotDagilimi)
+--
+-- İTÜ her dönem ders bazında harf notu dağılımı yayınlıyor. `fikirler.md`
+-- bu fikri "elimizde böyle bir veri yok" diye reddetmişti; gerekçe düştü.
+--
+-- ⚠️ ANAHTAR DİLDEN BAĞIMSIZ. Kaynak TR ve EN kodunu BİRLEŞTİRİYOR:
+--    `dersNo=212` ile `dersNo=212E` aynı cevabı veriyor, başlık
+--    "BLG212 - BLG212E" yazıyor. Dağılımı `BLG 212E` diye saklamak,
+--    yalnız İngilizce şubeye aitmiş gibi göstermek olurdu. Kanonik anahtar
+--    kaynağın kendi başlığından geliyor; iki kod da alias tablosunda.
+CREATE TABLE IF NOT EXISTS grade_distribution (
+    course_key TEXT,                             -- 'MAT 103' (dil-bağımsız)
+    term       TEXT,                             -- '202610'
+    grade      TEXT,                             -- 'AA' … 'VF'
+    students   INTEGER,
+    announced  INTEGER,                          -- o dönemin toplamı
+    term_name  TEXT,                             -- 'Fall Semester'
+    year_name  TEXT,                             -- '2025-2026'
+    PRIMARY KEY (course_key, term, grade)
+);
+
+CREATE TABLE IF NOT EXISTS grade_distribution_alias (
+    course_code TEXT PRIMARY KEY,                -- 'MAT 103E'
+    course_key  TEXT                             -- 'MAT 103'
+);
+
+-- ★ 'Yayınlanmamış' da bir bilgi: kaydedilmezse her tazelemede yeniden
+--   sorulur ve "neden bu derste veri yok" sorusu cevapsız kalır.
+CREATE TABLE IF NOT EXISTS grade_distribution_run (
+    course_key TEXT,
+    year       INTEGER,
+    terms      INTEGER,                          -- kaç yarıyıl geldi
+    title      TEXT,                             -- kaynağın başlığı (ham)
+    status     TEXT,                             -- 'ok' | 'yayinlanmamis'
+    fetched_at TEXT,
+    PRIMARY KEY (course_key, year)
+);
+CREATE INDEX IF NOT EXISTS ix_gd_key ON grade_distribution(course_key);

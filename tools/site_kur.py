@@ -156,6 +156,14 @@ def prune(src: Path, dst: Path) -> dict:
         pass
     con.commit()
     con.execute("VACUUM")
+    # ★ Faz 38 — not dağılımı yayınlanan katalogu BÜYÜTÜYOR. 176 ders ~0,5 MB
+    # ekledi; bütün katalog (`--hepsi`) çekilirse büyüme onlarca kat olur.
+    # Sessiz büyüme, bir gün "site neden 30 MB" sorusuna cevapsız bırakırdı.
+    try:
+        stats["notdagilimi"] = con.execute(
+            "SELECT COUNT(DISTINCT course_key) FROM grade_distribution").fetchone()[0]
+    except sqlite3.OperationalError:
+        stats["notdagilimi"] = 0
     stats["ders"] = con.execute("SELECT COUNT(*) FROM course").fetchone()[0]
     stats["sube"] = con.execute("SELECT COUNT(*) FROM lesson").fetchone()[0]
     stats["donem"] = (con.execute(
@@ -255,6 +263,8 @@ def build(pyodide_dir: Path | None = None) -> Path:
     print(f"   katalog {raw/1e6:.1f} MB → gzip {gz/1e6:.1f} MB · "
           f"{stats['ders']} ders · {stats['sube']} şube · dönem {stats['donem']}")
     print(f"   plan {stats['plan']} (yalnız yürürlükteki iterasyon)")
+    print(f"   not dağılımı {stats.get('notdagilimi', 0)} ders "
+          f"(`make notdagilimi` ile artar; katalog boyutunu büyütür)")
     print(f"   dene: python -m http.server -d {SITE} 8000")
     return SITE
 

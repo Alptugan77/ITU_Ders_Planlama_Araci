@@ -18,7 +18,7 @@ from . import changes, config, db, declared, explore_prereq, prereq, quality, ve
 from .plans import resolve_plans as _resolve_plans
 from .plans import watch_codes as _watch_codes
 from .http import ObsClient
-from .sources import ituhelper, obs_equivalence, obs_plan
+from .sources import ituhelper, obs_equivalence, obs_notdagilimi, obs_plan
 
 
 # --------------------------------------------------------------------- adımlar
@@ -857,6 +857,93 @@ def cmd_app(args) -> int:
                         max_load=args.limit, open_browser=not args.no_browser)
 
 
+def cmd_notdagilimi(args) -> int:
+    """FAZ 38 — ders not dağılımlarını OBS'den çek.
+
+    Varsayılan kapsam: **senin planlarındaki** dersler (havuz seçenekleri
+    dahil). `--hepsi` bütün katalogu tarar.
+
+    ⚠️ Kapsam bilerek dar: katalogda 10792 ders var ve TR/EN çiftleri
+    birleşik olsa bile ~5400 istek eder. 1 sn aralıkla 1,5 saat. Kimsenin
+    bakmayacağı 5000 dersin dağılımı için İTÜ sunucusunu bu kadar yormak
+    ölçüsüz olurdu; kendi planındaki ~265 ders 4–5 dakika sürüyor.
+    """
+    con = db.reference_db()
+    settings = config.Settings.load()
+    year = args.yil or config.term_year(settings.term)
+    if not year:
+        print("❌ yıl çıkarılamadı; --yil ver (örn. --yil 2026)", file=sys.stderr)
+        return 1
+
+    if args.ders:
+        kodlar = [k.strip().upper() for k in args.ders if k.strip()]
+    elif args.hepsi:
+        kodlar = [r[0] for r in con.execute("SELECT code FROM course ORDER BY code")]
+    else:
+        # ⚠️ `resolve_plans` yalnız İLK ikinci programı verir; ÇAP + yandal
+        # birlikteyken yandalın dersleri sessizce dışarıda kalırdı.
+        from .plans import anadal_plan as _anadal_plan
+        from .plans import resolve_seconds as _resolve_seconds
+
+        plan_ids = [p for p in [_anadal_plan(con, settings),
+                                *(s["planId"] for s in _resolve_seconds(con, settings))]
+                    if p]
+        if not plan_ids:
+            print("❌ plan bulunamadı; önce `make refresh`", file=sys.stderr)
+            return 1
+        marks = ",".join("?" * len(plan_ids))
+        kodlar = sorted({r[0] for r in con.execute(
+            f"""SELECT course_code FROM plan_slot
+                WHERE plan_id IN ({marks}) AND course_code IS NOT NULL
+                UNION
+                SELECT po.course_code FROM pool_option po
+                  JOIN plan_slot ps ON ps.id = po.slot_id
+                 WHERE ps.plan_id IN ({marks})""",
+            plan_ids + plan_ids) if r[0]})
+
+    # ★ TR/EN çiftini İKİ KEZ sormuyoruz: kaynak zaten ikisini birleştirip
+    # dönüyor. Zaten bilinen bir takma adı olan kodu atlıyoruz.
+    kalan, gorulen = [], set()
+    for kod in kodlar:
+        key = obs_notdagilimi.lookup(con, kod)
+        if key and key in gorulen:
+            continue
+        kalan.append(kod)
+    kodlar = kalan
+
+    print(f"▶  {len(kodlar)} ders · yıl {year} "
+          f"(istek arası {settings.request_delay_s:g} sn)")
+    client = ObsClient(settings)
+    ok = yok = hata = 0
+    try:
+        for i, kod in enumerate(kodlar, 1):
+            if obs_notdagilimi.lookup(con, kod) in gorulen:
+                continue
+            try:
+                dist = obs_notdagilimi.fetch(client, kod, year)
+            except obs_notdagilimi.NotFound:
+                obs_notdagilimi.store_missing(con, kod, year)
+                yok += 1
+            except Exception as exc:            # noqa: BLE001
+                hata += 1
+                print(f"   ⚠️  {kod}: {type(exc).__name__}: {exc}")
+            else:
+                obs_notdagilimi.store(con, dist, year)
+                gorulen.add(dist.key)
+                ok += 1
+            if args.verbose or i % 25 == 0:
+                print(f"   {i}/{len(kodlar)} · ✔{ok} ·  yayınlanmamış {yok}"
+                      f" · hata {hata}")
+    except KeyboardInterrupt:
+        print("\n⏹  durduruldu — o ana kadar çekilenler KAYITLI.")
+    finally:
+        client.close()
+    print(f"✅ {ok} ders dağılımı · {yok} yayınlanmamış · {hata} hata")
+    if hata:
+        print("   ⚠️  Hatalı dersler tekrar denenebilir; kayıtlılar korunuyor.")
+    return 0
+
+
 def cmd_verify(args) -> int:
     """Faz 1 bitiş kriterlerini raporlar (OBS ile gözle karşılaştırmak için)."""
     con = db.reference_db()
@@ -992,6 +1079,17 @@ def main(argv=None) -> int:
     w.add_argument("--kayit", action="store_true",
                    help="kayıt günü kipi: 1 dk aralık, 2 saat sonra durur")
     w.set_defaults(func=cmd_watch)
+
+    nd = sub.add_parser("notdagilimi",
+                        help="ders not dağılımlarını OBS'den çek (Faz 38)")
+    nd.add_argument("--yil", type=int, default=None,
+                    help="akademik yılın BİTİŞ yılı (202610 → 2026)")
+    nd.add_argument("--hepsi", action="store_true",
+                    help="planındakiler değil, BÜTÜN katalog (yavaş)")
+    nd.add_argument("--ders", action="append",
+                    help="yalnız bu ders (tekrarlanabilir)")
+    nd.add_argument("--verbose", action="store_true")
+    nd.set_defaults(func=cmd_notdagilimi)
 
     pi = sub.add_parser("plan-info", help="bir planın ham durumu (neden boş?)")
     pi.add_argument("plan_id", type=int)

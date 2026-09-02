@@ -2,7 +2,7 @@ PY ?= python3
 VENV := .venv
 BIN := $(VENV)/bin
 
-.PHONY: help setup refresh offline app watch changes suggest all-plans plans kesif plan-info programs basvuru site gizlilik status verify sequence student transcript progress recommend ui test prereq-report clean
+.PHONY: help setup refresh offline app watch changes notdagilimi suggest all-plans plans kesif plan-info programs basvuru site gizlilik status verify sequence student transcript progress recommend ui test prereq-report clean
 
 help:
 	@echo "make setup     - sanal ortam + bağımlılıklar"
@@ -13,6 +13,7 @@ help:
 	@echo "make sequence  - ikinci programı önşart kademelerine ayır (Faz 2)"
 	@echo "make programs  - ÇAP/yandal planlarını listele (T=yandal ile tip seç)"
 	@echo "make changes   - son iki tazeleme arasında ne değişti (yeni ders, dolan kontenjan)"
+	@echo "make notdagilimi - geçmiş dönemlerin harf notu dağılımı (ARGS=\"--hepsi\")"
 	@echo "make suggest   - aday denklikler (aldığın ders = plandaki ders)"
 	@echo "make watch     - kontenjan nöbeti: yer açılınca bildirim (Ctrl+C ile dur)"
 	@echo "make all-plans - HER programın ÇAP/yandal planını çek (yavaş)"
@@ -101,6 +102,12 @@ watch:
 
 changes:
 	$(BIN)/python -m itucap.pipeline changes $(ARGS)
+
+# Faz 38 — geçmiş dönemlerin harf notu dağılımı (OBS public).
+# Varsayılan kapsam PLANINDAKİ dersler (~250 istek, 4-5 dk). Bütün katalog
+# için ARGS="--hepsi" — ~5400 istek, 1,5 saat; dönemde bir kez yeter.
+notdagilimi:
+	$(BIN)/python -m itucap.pipeline notdagilimi $(ARGS)
 
 suggest:
 	$(BIN)/python -m itucap.pipeline suggest

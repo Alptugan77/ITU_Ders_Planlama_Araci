@@ -1,0 +1,31 @@
+        <h3>
+            MAT103 - MAT103E, Matematik I / Mathematics I Grade Distribution
+        </h3>
+        <div class="row">
+
+            <div class="col-md-4 col-xs-12" id="table-region">
+                <table class="table table-bordered" data-role="table">
+                    <thead><tr class="table-baslik"><td>Grade</td><td>People Count</td><td>Percentage</td></tr></thead>
+                    <tbody></tbody>
+                    <tfoot><tr><th>Announced Student Count</th><th colspan="2" data-role="sum">0</th></tr></tfoot>
+                </table>
+            </div>
+
+            <div class="col-md-8 col-xs-12">
+                <select id="chartSelect" class="select2 form-control">
+                        <option value="202630">Summer Semester</option>
+                        <option value="202620">Spring Semester</option>
+                        <option value="202610">Fall Semester</option>
+                </select>
+                <canvas id="notChart"></canvas>
+            </div>
+        </div>
+
+<script>
+    $(".select2").select2({ placeholder: 'Seçiniz', allowClear: false });
+    const ALL_DATA = [{"DonemKodu":"202630","YilAdi":"2025-2026","DonemTipAdi":"Summer Semester","ToplamAciklananOgrenci":991,"Dagilim":[{"HarfNotu":"AA","Sayi":54,"Yuzde":5.45},{"HarfNotu":"BA+","Sayi":49,"Yuzde":4.94},{"HarfNotu":"BA","Sayi":41,"Yuzde":4.14},{"HarfNotu":"BB+","Sayi":55,"Yuzde":5.55},{"HarfNotu":"BB","Sayi":48,"Yuzde":4.84},{"HarfNotu":"CB+","Sayi":48,"Yuzde":4.84},{"HarfNotu":"CB","Sayi":69,"Yuzde":6.96},{"HarfNotu":"CC+","Sayi":66,"Yuzde":6.66},{"HarfNotu":"CC","Sayi":60,"Yuzde":6.05},{"HarfNotu":"DC+","Sayi":59,"Yuzde":5.95},{"HarfNotu":"DC","Sayi":89,"Yuzde":8.98},{"HarfNotu":"DD+","Sayi":91,"Yuzde":9.18},{"HarfNotu":"DD","Sayi":71,"Yuzde":7.16},{"HarfNotu":"FF","Sayi":142,"Yuzde":14.33},{"HarfNotu":"VF","Sayi":49,"Yuzde":4.94}]},{"DonemKodu":"202620","YilAdi":"2025-2026","DonemTipAdi":"Spring Semester","ToplamAciklananOgrenci":1682,"Dagilim":[{"HarfNotu":"AA","Sayi":88,"Yuzde":5.23},{"HarfNotu":"BA+","Sayi":83,"Yuzde":4.93},{"HarfNotu":"BA","Sayi":101,"Yuzde":6.0},{"HarfNotu":"BB+","Sayi":85,"Yuzde":5.05},{"HarfNotu":"BB","Sayi":106,"Yuzde":6.3},{"HarfNotu":"CB+","Sayi":88,"Yuzde":5.23},{"HarfNotu":"CB","Sayi":105,"Yuzde":6.24},{"HarfNotu":"CC+","Sayi":104,"Yuzde":6.18},{"HarfNotu":"CC","Sayi":124,"Yuzde":7.37},{"HarfNotu":"DC+","Sayi":91,"Yuzde":5.41},{"HarfNotu":"DC","Sayi":69,"Yuzde":4.1},{"HarfNotu":"DD+","Sayi":62,"Yuzde":3.69},{"HarfNotu":"DD","Sayi":58,"Yuzde":3.45},{"HarfNotu":"FF","Sayi":243,"Yuzde":14.45},{"HarfNotu":"VF","Sayi":271,"Yuzde":16.11}]},{"DonemKodu":"202610","YilAdi":"2025-2026","DonemTipAdi":"Fall Semester","ToplamAciklananOgrenci":2988,"Dagilim":[{"HarfNotu":"AA","Sayi":123,"Yuzde":4.12},{"HarfNotu":"BA+","Sayi":82,"Yuzde":2.74},{"HarfNotu":"BA","Sayi":122,"Yuzde":4.08},{"HarfNotu":"BB+","Sayi":102,"Yuzde":3.41},{"HarfNotu":"BB","Sayi":168,"Yuzde":5.62},{"HarfNotu":"CB+","Sayi":157,"Yuzde":5.25},{"HarfNotu":"CB","Sayi":158,"Yuzde":5.29},{"HarfNotu":"CC+","Sayi":214,"Yuzde":7.16},{"HarfNotu":"CC","Sayi":152,"Yuzde":5.09},{"HarfNotu":"DC+","Sayi":208,"Yuzde":6.96},{"HarfNotu":"DC","Sayi":241,"Yuzde":8.07},{"HarfNotu":"DD+","Sayi":268,"Yuzde":8.97},{"HarfNotu":"DD","Sayi":176,"Yuzde":5.89},{"HarfNotu":"FF","Sayi":428,"Yuzde":14.32},{"HarfNotu":"VF","Sayi":388,"Yuzde":12.99}]}];
+
+    let chart;
+    let currentDonemKod = ALL_DATA[0]?.DonemKodu ?? null;
+    renderChart(currentDonemKod);
+</script>

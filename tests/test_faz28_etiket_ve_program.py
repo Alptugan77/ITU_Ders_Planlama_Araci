@@ -136,10 +136,16 @@ def test_uzun_kayitta_gecen_sure_yaziyor():
 
 # ======================================== 5. B3 — dönem kodu okunur
 def test_donem_kodu_okunur_ada_cevriliyor():
+    """★★ Faz 38: BİR YIL KAYDIRILDI.
+
+    Eskiden `202610 → "2026-2027 Güz"` bekleniyordu. OBS'nin kendi not
+    dağılımı ucu `202610 | 2025-2026 | Fall Semester` diyor (üç ardışık
+    yılda tutarlı), yani koddaki yıl akademik yılın BİTİŞ yılı.
+    """
     from itucap import config
-    assert config.donem_adi("202610") == "2026-2027 Güz"
-    assert config.donem_adi("202520") == "2025-2026 Bahar"
-    assert config.donem_adi("202430") == "2024-2025 Yaz"
+    assert config.donem_adi("202610") == "2025-2026 Güz"
+    assert config.donem_adi("202520") == "2024-2025 Bahar"
+    assert config.donem_adi("202430") == "2023-2024 Yaz"
 
 
 def test_TANIMADIGI_kalibi_UYDURMUYOR():
