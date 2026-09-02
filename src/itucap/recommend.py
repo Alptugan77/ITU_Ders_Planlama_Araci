@@ -208,6 +208,9 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
 
     # ★ Kredi eşiği (bitirme çalışması). Muafiyet krediye SAYILMAZ: gerçek notlar.
     rules = POL.load_rules() if credit_rules is None else credit_rules
+    # ★ Faz 37 — katalogda ders ders ilan edilmiş taban. Bir kez okunuyor:
+    # aday başına dosya açmak, harf başına arama yapan uçta pahalıya gelirdi.
+    catalog_rule = POL.load_catalog_rule()
     have_credits = POL.earned_credits(con, grades)
 
     # ★ ÇAP ve yandal AYNI ANDA (23.08.2026). `second_plans` verilirse
@@ -268,13 +271,17 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
                 if verdict.status is R.Status.BLOCKED and not unknown:
                     continue
                 info = con.execute(
-                    "SELECT name, ects, credits, prereq_raw FROM course WHERE code=?",
-                    (code,)).fetchone()
+                    "SELECT name, ects, credits, prereq_raw, class_restriction "
+                    "FROM course WHERE code=?", (code,)).fetchone()
                 # ⚠️ Ders ADI kredi eşiğine GİRİYOR (inceleme D1): kural
                 # kod kalıbıyla bitirme derslerinin 97'sinden yalnız 9'unu
                 # tanıyordu. Bu yüzden `info` sorgusu kontrolden ÖNCE.
+                # ★ Faz 37: katalogda ilan edilmiş taban da aynı sorgudan
+                # geliyor — ayrı bir SELECT aday başına ikinci bir tur olurdu.
                 if not POL.check(code, have_credits, rules,
-                                 (info["name"] if info else "") or ""):
+                                 (info["name"] if info else "") or "",
+                                 (info["class_restriction"] if info else None),
+                                 catalog_rule):
                     continue                      # kredi eşiği — bitirme çalışması
                 sections = load_sections(con, code, allowed)
                 if not sections:
@@ -414,6 +421,32 @@ def sube_tercih_puani(sec: "Section", tercih: Preferences | None) -> float:
     return puan
 
 
+def _tercih_sayaclari(picks: Iterable["Pick"],
+                      tercih: Preferences) -> dict[str, int]:
+    """Tercih başına kaç ihlal/uyum var. Sayım TEK YERDE.
+
+    ★ Faz 37: puan ve "neyi bırakırsan olur" analizi aynı sayıları kullanmak
+    zorunda. İkisi ayrı sayarsa arayüz "Cuma boşalıyor" der ama puan
+    değişmez — kullanıcı hangisine inanacağını bilemez.
+    """
+    say = {"erken": 0, "bos_gun": 0, "online": 0,
+           "hoca_istenen": 0, "hoca_istenmeyen": 0}
+    for p in picks:
+        sec = p.section
+        if sec.online:
+            say["online"] += 1
+        if _hoca_eslesir(sec.instructor, tercih.istenen_hocalar):
+            say["hoca_istenen"] += 1
+        if _hoca_eslesir(sec.instructor, tercih.istenmeyen_hocalar):
+            say["hoca_istenmeyen"] += 1
+        for m in sec.meetings:
+            if tercih.en_erken and m.start < tercih.en_erken:
+                say["erken"] += 1
+            if m.day in tercih.bos_gunler:
+                say["bos_gun"] += 1
+    return say
+
+
 def tercih_puani(picks: Iterable["Pick"], tercih: Preferences | None,
                  kampus_degisimi: int = 0) -> tuple[float, list[str]]:
     """Bir programın tercihlere göre puan farkı ve gerekçeleri.
@@ -426,20 +459,10 @@ def tercih_puani(picks: Iterable["Pick"], tercih: Preferences | None,
         return 0.0, []
     puan = 0.0
     sebep: list[str] = []
-    erken = bos = online = istenen = istenmeyen = 0
-    for p in picks:
-        sec = p.section
-        if sec.online:
-            online += 1
-        if _hoca_eslesir(sec.instructor, tercih.istenen_hocalar):
-            istenen += 1
-        if _hoca_eslesir(sec.instructor, tercih.istenmeyen_hocalar):
-            istenmeyen += 1
-        for m in sec.meetings:
-            if tercih.en_erken and m.start < tercih.en_erken:
-                erken += 1
-            if m.day in tercih.bos_gunler:
-                bos += 1
+    _s = _tercih_sayaclari(picks, tercih)
+    erken, bos = _s["erken"], _s["bos_gun"]
+    online = _s["online"]
+    istenen, istenmeyen = _s["hoca_istenen"], _s["hoca_istenmeyen"]
     if erken:
         puan += TERCIH_AGIRLIK["erken"] * erken
         sebep.append(f"{erken} ders istediğinden erken başlıyor")
@@ -575,6 +598,52 @@ class Schedule:
 
     def pref_reasons(self) -> list[str]:
         return tercih_puani(self.picks, self.prefs, self.campus_changes())[1]
+
+    # ★★ FAZ 37 — "tercihini karşılayamadım" demek yetmiyor: NEYİ bırakırsan
+    # olur (docs/fikirler.md §3.5).
+    #
+    # Faz 27 ölçümü: "Pzt + Cuma boş" istendiğinde motor ikisini birden
+    # sağlayamıyor ve −10 farkla en yakınını sunuyor. Doğru davranış, ama
+    # kullanıcı çıkışın nerede olduğunu göremiyordu.
+    #
+    # ⚠️ Yalnız TEK adımlık öneri veriyoruz: "şu iki dersi de çıkar" demek
+    # programı baştan kurmak olurdu ve o işi zaten motor yapıyor (öbür
+    # öneriler). Tek ders çıkarmak geri alınabilir bir hamle.
+    #
+    # ⚠️ Kredi/şart etkisini SAKLAMIYORUZ: çıkarılan ders kredi ve slot
+    # kaybettirir. Öneriyle birlikte kaç kredi gittiğini de veriyoruz ki
+    # "boş gün" uğruna sessizce bir zorunlu ders düşmesin.
+    def pref_relief(self) -> list[dict]:
+        """Tek bir dersi çıkarınca TAM sağlanan tercihler."""
+        if self.prefs is None or not self.prefs.var_mi or len(self.picks) < 2:
+            return []
+        simdi = _tercih_sayaclari(self.picks, self.prefs)
+        # Yalnız İHLAL sayan tercihler için anlamlı: "istediğin hoca" sayısını
+        # sıfıra indirmek bir kazanç değil, kayıp.
+        ihlaller = {"erken": "{n} ders erken başlıyor",
+                    "bos_gun": "boş istediğin gün(ler) boşalıyor",
+                    "hoca_istenmeyen": "istemediğin hoca kalmıyor"}
+        aktif = {k for k, v in simdi.items() if v and k in ihlaller}
+        if not aktif:
+            return []
+        out: list[dict] = []
+        for p in self.picks:
+            kalan = [q for q in self.picks if q is not p]
+            sonra = _tercih_sayaclari(kalan, self.prefs)
+            kazanc = [ihlaller[k].format(n=simdi[k])
+                      for k in aktif if sonra[k] == 0]
+            if not kazanc:
+                continue
+            out.append({
+                "course": p.candidate.course,
+                "role": p.candidate.role,
+                "required": bool(p.candidate.required),
+                "credits": p.candidate.credits,
+                "gains": kazanc,
+            })
+        # Zorunlu dersi çıkarmayı önce ÖNERME: en ucuz hamle önde olsun.
+        out.sort(key=lambda d: (d["required"], d["credits"]))
+        return out
 
     def campus_changes(self) -> int:
         """Aynı gün içinde kampüs değiştiren ardışık ders çifti sayısı."""
@@ -865,6 +934,7 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
     trees = P.parsed_trees(con)
     unparsed = {r[0] for r in con.execute("SELECT course_code FROM prereq_unparsed")}
     rules = POL.load_rules()
+    catalog_rule = POL.load_catalog_rule()
     credits_have = POL.earned_credits(con, grades)
 
     out: list[Blocker] = []
@@ -909,13 +979,22 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
             out.append(Blocker(code, "ONSART", f"eksik: {missing}"))
             continue
         # ★ Önşartı sağlansa bile mevzuat engelleyebilir (bitirme kredi eşiği).
-        _ad = con.execute("SELECT name FROM course WHERE code=?", (code,)).fetchone()
-        cv = POL.check(code, credits_have, rules, (_ad[0] if _ad else "") or "")
+        _ad = con.execute("SELECT name, class_restriction FROM course WHERE code=?",
+                          (code,)).fetchone()
+        cv = POL.check(code, credits_have, rules, (_ad[0] if _ad else "") or "",
+                       (_ad[1] if _ad else None), catalog_rule)
         if not cv:
             out.append(Blocker(code, "KREDI_ESIGI",
                                f"{cv.rule.name}: {credits_have:g}/{cv.rule.min_credits:g} kredi"
                                f" — {cv.missing:g} kredi eksik"))
     return out
+
+
+def _tr_upper(text: str) -> str:
+    """Türkçe büyük harf. `'önşart eksik'.upper()` → 'ÖNŞART EKSIK' (noktasız
+    I) verir; başlıklarda gözle görülen bir yazım hatası. `i` → `İ` önce
+    değiştirilip sonra `upper()` çağrılıyor."""
+    return text.replace("i", "İ").upper()
 
 
 def format_blockers(blockers: list[Blocker], n_lessons: int | None = None) -> str:
@@ -933,11 +1012,16 @@ def format_blockers(blockers: list[Blocker], n_lessons: int | None = None) -> st
     for b in blockers:
         groups.setdefault(b.reason, []).append(b)
     out = ["", "=" * 72, "ÇAP'TA NEDEN ALAMIYORSUN", "=" * 72]
-    for reason in ("PROGRAMA_KAPALI", "ACILMAMIS", "ONSART", "BILINMIYOR"):
+    # ★★ Faz 37 — `KREDI_ESIGI` bu listede YOKTU. Engel hesaplanıyor, sözlükte
+    # etiketi duruyor, arayüz gösteriyor; `make recommend` çıktısı ise sessizce
+    # düşürüyordu. Eleyen kural kendini göstermek zorunda (bkz. tasarım ilkesi)
+    # — "GEO 4901E neden kayboldu" sorusunun komut satırındaki hâliydi.
+    for reason in ("PROGRAMA_KAPALI", "ACILMAMIS", "ONSART",
+                   "KREDI_ESIGI", "BILINMIYOR"):
         items = groups.get(reason)
         if not items:
             continue
-        out.append(f"\n  {labels[reason].upper()} ({len(items)} ders)")
+        out.append(f"\n  {_tr_upper(labels[reason])} ({len(items)} ders)")
         for b in items:
             out.append(f"    {b.course:<11} {b.detail}")
     if n_lessons is not None and n_lessons < 5000:

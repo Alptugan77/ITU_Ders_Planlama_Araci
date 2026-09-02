@@ -349,6 +349,102 @@ def _uncategorised(con):
                 f"(kategori sayaçlarına girmiyorlar): {uniq[:6]}")
 
 
+@check("katalog_kredi_kosulu_bozuk", "warn")
+def _catalog_floor_junk(con):
+    """★ Faz 37 — `course.class_restriction` alanında sayı OLMAYAN değerler.
+
+    Ölçüm (02.09.2026): 7 derste alan kaymış ve içinde ders adı ya da dil
+    duruyor (`BLG 210` → 'Mikroişlemci Sistemleri'). Kaynak tarafı bir hata;
+    biz bunları kredi tabanı SAYMIYORUZ (`parse_catalog_floor` None döner).
+    Uyarı olarak duruyor çünkü sayı sanılıp eşiğe çevrilseydi uydurma bir
+    kısıt üretirdi — ve sayı gelmediği için sessizce yok sayılıyor olması
+    kimsenin haberi olmadan sürebilirdi.
+    """
+    from .policy import parse_catalog_floor
+
+    bad = [(r[0], r[1]) for r in con.execute(
+        """SELECT code, class_restriction FROM course
+           WHERE class_restriction IS NOT NULL
+             AND trim(class_restriction) <> ''
+             AND lower(trim(class_restriction)) <> 'yok'""")
+        if parse_catalog_floor(r[1]) is None]
+    # ★ Sayı GELİYOR ama beklenmedik. Ölçümde yalnız 30/60/95 görüldü; başka
+    # bir değer ya mevzuat değişikliği ya yine sütun kayması (`ROS 201` = '1',
+    # kredisi NULL). Sessizce eşiğe çevirmek yerine sayıyı görünür tutuyoruz.
+    BEKLENEN = {30.0, 60.0, 95.0}
+    odd = [(r[0], r[1]) for r in con.execute(
+        """SELECT code, class_restriction FROM course
+           WHERE class_restriction IS NOT NULL
+             AND trim(class_restriction) <> ''
+             AND lower(trim(class_restriction)) <> 'yok'""")
+        if (parse_catalog_floor(r[1]) or 0) not in BEKLENEN
+        and parse_catalog_floor(r[1]) is not None]
+    parcalar = []
+    if bad:
+        sample = ", ".join(f"{c}={v!r}" for c, v in bad[:5])
+        parcalar.append(f"{len(bad)} dersin katalog kredi koşulu alanında sayı "
+                        f"yok (kaynakta sütun kayması): {sample}")
+    if odd:
+        sample = ", ".join(f"{c}={v!r}" for c, v in odd[:5])
+        parcalar.append(f"{len(odd)} derste beklenmedik eşik değeri "
+                        f"(ölçümde yalnız 30/60/95 görülmüştü): {sample}")
+    if parcalar:
+        return " · ".join(parcalar)
+
+
+@check("katalog_kredi_kosulu_kapsam", "info")
+def _catalog_floor_coverage(con):
+    """Katalog tabanı ile beyan edilmiş kural nerede ayrışıyor.
+
+    İkisi de doğru olabilir; amaç sayıyı görünür tutmak. Faz 37'den önce
+    katalog tarafı hiç okunmuyordu ve bu ayrışma ölçülemiyordu.
+    """
+    from .policy import load_rules, parse_catalog_floor
+
+    rules = load_rules()
+    only_catalog = 0
+    stricter_rule = 0
+    for code, name, raw in con.execute(
+            "SELECT code, COALESCE(name,''), class_restriction FROM course"):
+        floor = parse_catalog_floor(raw)
+        hits = [r for r in rules if r.matches(code, name)]
+        if floor and not hits:
+            only_catalog += 1
+        elif hits and not floor and max(r.min_credits for r in hits) > 0:
+            stricter_rule += 1
+    if only_catalog or stricter_rule:
+        return (f"kredi tabanı: {only_catalog} ders YALNIZ katalogda ilan "
+                f"edilmiş, {stricter_rule} derste beyan edilmiş kural var ama "
+                f"katalog 'Yok' diyor (en katısı uygulanır)")
+
+
+@check("kaynak_yayinlamiyor", "info")
+def _source_silent_columns(con):
+    """★ Faz 37 — kaynağın hiç doldurmadığı sütunlar.
+
+    `docs/fikirler.md §1.3` "class_restr tamamen boş, ölç" diyordu. Ölçüldü:
+    itu-helper `lessons.psv` **11 alan** yayınlıyor (CRN|Kod|Yöntem|Hoca|Bina|
+    Gün|Saat|Derslik|Kontenjan|Yazılan|Programlar) ve içinde ne sınıf kısıtı
+    ne önşart var. Yani sütunlar boş değil, **kaynak onları yayınlamıyor**.
+
+    Silmek yerine işaretliyoruz: "veri yok" ile "kaynak vermiyor" farklı
+    şeyler, ve ileride kaynak yayınlamaya başlarsa bu sayı kendiliğinden
+    değişir. ⚠️ Bu sütunlara bakıp "sınıf kısıtı yok" sonucu ÇIKARILMAMALI.
+    """
+    bos = []
+    for col in ("class_restr", "prereq_raw"):
+        n = con.execute(
+            f"SELECT COUNT(*) FROM lesson WHERE {col} IS NOT NULL "
+            f"AND trim({col}) <> ''").fetchone()[0]
+        if n == 0:
+            bos.append(col)
+    toplam = con.execute("SELECT COUNT(*) FROM lesson").fetchone()[0]
+    if bos and toplam:
+        return (f"lesson.{'/lesson.'.join(bos)} {toplam} şubenin hiçbirinde "
+                f"dolu değil — kaynak (itu-helper lessons.psv) bu alanları "
+                f"yayınlamıyor; 'kısıt yok' anlamına GELMEZ")
+
+
 def run(con: sqlite3.Connection, mine: tuple = ()) -> list[Finding]:
     """Kalite kontrolleri.
 

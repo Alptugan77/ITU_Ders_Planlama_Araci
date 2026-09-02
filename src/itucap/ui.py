@@ -487,6 +487,9 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                 "baseScore": sched.base_score,
                 "prefDelta": sched.pref_delta,
                 "prefReasons": sched.pref_reasons(),
+                # ★ Faz 37 (fikirler §3.5): tercih karşılanamıyorsa NEYİ
+                # bırakınca karşılanacağını da söyle — tek adımlık öneri.
+                "prefRelief": sched.pref_relief(),
                 "campusChanges": sched.campus_changes(),
                 # Yan yana karşılaştırma için (Faz 27): programın "şekli".
                 "shape": _program_sekli(sched),
@@ -700,6 +703,47 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             # kullanıcı böyle bir kuralın varlığından haberdar olmalı.
             floor_info = {"undeclared": True, "setting": "cap_baslangic_yariyili"}
 
+    # ★★ FAZ 37 — katalogda ders ders ilan edilmiş kredi tabanı.
+    #
+    # Beyan edilmiş kural (yukarıdaki `rules`) katalogda tabanı olan 498
+    # dersin yalnız 173'ünü tanıyordu. Kalan 325'i motorun kör noktasındaydı.
+    # Artık motor onları da eliyor — ve eleme GÖRÜNÜR olmak zorunda: burada
+    # yalnız SENİN planlarındaki, henüz geçmediğin ve tabanı tutmayan
+    # dersler listeleniyor. (Katalogda tabanı olup tabanı zaten dolduran
+    # dersi yazmak gürültü olurdu: onlar zaten alınabiliyor.)
+    #
+    # ⚠️ TRANSKRİPT YOKKEN LİSTELEMİYORUZ (Faz 24/26'nın dersi). 0 kredi bir
+    # ÖLÇÜM değil, veri yokluğu; "bu 12 dersi tutmuyorsun" demek daha
+    # girilmemiş bir transkript üzerinden iddia üretmek olurdu. Kuralın
+    # varlığı yine söyleniyor — sessiz kalmak da doğru olmazdı.
+    catalog_rule = POL.load_catalog_rule()
+    catalog_blocked = []
+    if catalog_rule.enabled and grades:
+        # ⚠️ `pools=True` şart: katalog tabanı taşıyan derslerin çoğu SEÇMELİ
+        # HAVUZDA (CEV/BIO/ELK seçmelileri). Havuzları dışarıda bırakmak,
+        # elenen dersin sebebini tam da en çok elenen yerde gizlerdi.
+        for code in sorted(R.plan_codes(con, anadal_id,
+                                        *(s["planId"] for s in seconds),
+                                        pools=True)):
+            row = con.execute(
+                "SELECT name, class_restriction FROM course WHERE code=?",
+                (code,)).fetchone()
+            if row is None or R.passed(grades.get(code)):
+                continue
+            floor = POL.parse_catalog_floor(row["class_restriction"])
+            if floor is None or have_credits + 1e-9 >= floor:
+                continue
+            # Beyan edilmiş kural zaten aynı dersi (aynı ya da daha katı
+            # eşikle) tutuyorsa iki kez yazma — kullanıcı için tek engel.
+            covered = any(r.matches(code, row["name"] or "")
+                          and r.min_credits + 1e-9 >= floor for r in rules)
+            if covered:
+                continue
+            catalog_blocked.append({
+                "course": code, "name": row["name"] or "", "min": floor,
+                "missing": round(max(0.0, floor - have_credits), 1),
+            })
+
     credit_info = {
         "earned": have_credits,
         "unknown": POL.unknown_credit_courses(con, grades),
@@ -711,6 +755,15 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                               if r.matches(c) and not R.passed(grades.get(c))
                               and not POL.check(c, have_credits, [r])),
         } for r in rules],
+        "catalog": {
+            "enabled": catalog_rule.enabled,
+            "verified": catalog_rule.verified,
+            "source": catalog_rule.source,
+            "blocked": catalog_blocked,
+            # Transkript yokken liste ÜRETİLMEDİ — "hiç engel yok" ile
+            # "henüz bakamıyoruz" farklı şeyler.
+            "noTranscript": not grades,
+        },
     }
 
     # ★ Kademeler arasındaki ÖNŞART BAĞLARI (kullanıcı isteği 22.08.2026).
@@ -4069,6 +4122,19 @@ function katalogDialog(){
   });
 }
 
+/* Katalogda ilan edilmiş kredi tabanını tutmuyorsan rozet (Faz 37).
+   Kazanılmış kredi bilinmiyorsa (transkript yok) İDDİA ETMİYORUZ. */
+function katalogKrediUyarisi(it){
+  const floor = it && it.creditFloor;
+  if(!floor) return "";
+  const c = DATA.credits;
+  if(!c || !c.rules || !c.rules.length) return "";
+  if(c.earned + 1e-9 >= floor) return "";
+  return `<span class="tag" style="margin-left:6px;background:var(--warn-bg,#fdf3e3);
+    color:var(--warn-ink,#8a5a00)" title="Katalog bu ders için asgari ${floor} kredi
+    ilan etmiş; şu an ${c.earned} kredin var.">${floor} kredi ister</span>`;
+}
+
 function katalogCiz(k){
   const items = k.items || [];
   if(!items.length){
@@ -4081,7 +4147,11 @@ function katalogCiz(k){
       <button class="opt" data-kat="${esc(it.course)}">
         <span><b class="mono">${esc(it.course)}</b>
           <span class="tag ${it.role}" style="margin-left:6px">${
-            it.role === "PLAN_DISI" ? "plan dışı" : it.role}</span>
+            it.role === "PLAN_DISI" ? "plan dışı" : it.role}</span>${
+          /* ★ Faz 37 — katalogda ilan edilmiş kredi tabanını tutmuyorsan
+             rozet çıkar. ENGEL değil (plan dışı ekleme senin kararın), ama
+             sessiz de kalmıyor: kayıt gününde öğrenilecek bir sürpriz. */
+          katalogKrediUyarisi(it)}
           <div class="meta">${esc(it.name)}${it.altName && it.altName !== it.name
             ? " · " + esc(it.altName) : ""}</div></span>
         <span class="meta mono" style="text-align:right;white-space:nowrap">
@@ -4409,6 +4479,38 @@ async function tazele(btn){
   }
 }
 
+/* ★ Katalogda ilan edilmiş kredi tabanı (Faz 37).
+   Kaynak sütuna "Sınıf Kısıtı" diyor ama değerleri kredi (95,00 / 60,00 /
+   30,00 / Yok). Yorum bizim olduğu için hem KAYNAĞI hem doğrulanma durumunu
+   yazıyoruz ve kapatılabilir olduğunu söylüyoruz — kesinmiş gibi sunmuyoruz. */
+function catalogCreditHtml(info){
+  const c = info && info.catalog;
+  if(!c || !c.enabled) return "";
+  /* ⚠️ Transkript yokken "engel yok" DEMİYORUZ — bakamadığımızı yazıyoruz. */
+  if(c.noTranscript)
+    return `<div class="modenote" style="margin-top:6px">Katalog bazı dersler
+      için ayrıca <b>kredi koşulu</b> ilan ediyor (95 / 60 / 30 kredi).
+      Hangilerini tuttuğun ancak transkriptin girilince görünür.</div>`;
+  if(!c.blocked || !c.blocked.length) return "";
+  const GOSTER = 12;
+  const rows = c.blocked.slice(0, GOSTER).map(b =>
+    `<li><span class="mono">${esc(b.course)}</span> ${esc(b.name)} —
+       en az <b class="mono">${b.min}</b> kredi,
+       <b class="mono">${b.missing}</b> kredi eksik</li>`).join("");
+  const fazla = c.blocked.length - GOSTER;
+  return `<div class="note" style="margin-top:6px">
+    Katalog bu <b>${c.blocked.length}</b> ders için ayrıca kredi koşulu ilan etmiş;
+    şu an <b>tutmuyorsun</b>, o yüzden önerilere girmiyorlar:
+    <ul style="margin:5px 0 0 18px;padding:0">${rows}${
+      fazla > 0 ? `<li>… ve ${fazla} ders daha</li>` : ""}</ul>
+    <div style="margin-top:5px;color:var(--ink-3)">
+      Kaynak: ${esc(c.source)}${c.verified ? ""
+        : " · ⚠ bu alanın adı kaynakta “Sınıf Kısıtı”; kredi tabanı olarak"
+          + " okumak bizim yorumumuz. Kapatmak için"
+          + " <span class=\"mono\">kurallar.toml → [katalog_kredi_kosulu] kullan = false</span>."}
+    </div></div>`;
+}
+
 /* ---------- kredi eşiği ---------- */
 function renderCredits(){
   const info = DATA.credits;
@@ -4439,6 +4541,10 @@ function renderCredits(){
        <b>${info.unknown.length}</b> geçilmiş ders var
        (<span class="mono">${info.unknown.slice(0,6).map(esc).join(", ")}</span>).
        Bunlar <b>0 kredi</b> sayıldı — yani eşik olduğundan zor gösteriliyor.</div>` : "")
+    /* ★ Faz 37 — katalogda ders ders ilan edilmiş taban. Beyan edilmiş
+       kuralın dışında kalan dersleri buraya yazmasak, motor onları eler ve
+       kullanıcı sebebini hiçbir yerde göremezdi. */
+    + catalogCreditHtml(info)
     + `<div class="modenote" style="margin-top:8px">Kural
        <span class="mono">config/kurallar.toml</span> içinde beyan edilir; mevzuat
        değişirse kod değil o dosya değişir.</div>`;
@@ -4503,7 +4609,12 @@ function panelHTML(p, plan){
           <b class="mono gain">${p.openRequired - plan.required}</b>` : ""}</span>
     </div>
     <div class="cats">${p.byCategory.map(c =>
-      `<span class="cat${(bilinmiyor || c.done) ? "" : " zero"}">${esc(c.key)} ${
+      `<span class="cat${(bilinmiyor || c.done) ? "" : " zero"}"${
+        c.key === "OTHER" ? ` title="Kaynakta bu havuzun kategorisi yazmıyor` +
+        ` (bkz. Faz 23) — kategori uydurmuyoruz."` : ""}>${
+        /* ★ Faz 37 — 'OTHER' motorun iç etiketi; kullanıcıya bir şey
+           anlatmıyordu. Yandal kartında tek görünen chip oydu. */
+        esc(c.key === "OTHER" ? "KATEGORİSİZ" : c.key)} ${
         bilinmiyor ? c.total : c.done + "/" + c.total}</span>`
     ).join("")}</div>
   </article>`;
@@ -4668,7 +4779,25 @@ function tercihNotu(){
     return `<span class="tercihnot ok">tercihlerine uyuyor</span>`;
   return `<span class="tercihnot ${d < 0 ? "uymaz" : "ok"}"
     title="Tercih eleme değil sıralama: uymayan program da gösterilir.">
-    tercih ${d > 0 ? "+" : ""}${d}${sebep ? " · " + esc(sebep) : ""}</span>`;
+    tercih ${d > 0 ? "+" : ""}${d}${sebep ? " · " + esc(sebep) : ""}</span>`
+    + tercihCaresi(s);
+}
+
+/* ★ Faz 37 (fikirler §3.5) — "karşılayamadım" demek yetmiyor: NE BIRAKMALI.
+   Tek adımlık, geri alınabilir öneri. Kredi kaybını da yazıyoruz: boş gün
+   uğruna sessizce bir zorunlu ders düşmesin. */
+function tercihCaresi(s){
+  const r = (s && s.prefRelief) || [];
+  if(!r.length) return "";
+  /* ⚠️ Ek almadan yazıyoruz: "BHB 201E'yi" ile "MAT 103'ü" farklı ekler
+     istiyor ve ek doğru seçilemiyor (kod okunuşuna bağlı). Edilgen biçim
+     her kodda doğru: "… çıkarılırsa". */
+  const ilk = r.slice(0, 2).map(x =>
+    `<b class="mono">${esc(x.course)}</b> çıkarılırsa ${esc(x.gains[0])}` +
+    ` <span style="color:var(--ink-3)">(−${x.credits} kredi${
+      x.required ? ", ZORUNLU ders" : ""})</span>`).join(" · ");
+  return `<span class="tercihnot" style="background:transparent;
+    color:var(--ink-2)">↳ ${ilk}</span>`;
 }
 
 function totals(){

@@ -871,6 +871,7 @@ class State:
             """SELECT c.code, COALESCE(c.name,'') AS name,
                       COALESCE(c.credits,0) AS credits, COALESCE(c.ects,0) AS ects,
                       COUNT(l.crn) AS subeler,
+                      c.class_restriction AS kredi_kosulu,
                       COALESCE(es.name,'') AS alt_name
                FROM course c
                JOIN lesson l ON l.course_code = c.code
@@ -899,12 +900,19 @@ class State:
             if plan_id:
                 for kod in self._plan_codes(plan_id):
                     rol_of.setdefault(kod, rol)
+        # ★ Faz 37 — katalogda ilan edilmiş kredi tabanı arama sonucunda da
+        # taşınıyor. Plan DIŞI ekleme kullanıcının açık kararı, o yüzden
+        # ENGELLEMİYORUZ; ama tabanı tutmadığı bir dersi hiç uyarmadan
+        # programa koymak, kayıt gününde öğrenilecek bir sürpriz olurdu.
+        _katalog_kurali = POL.load_catalog_rule()
         return {
             "items": [{
                 "course": r["code"], "name": r["name"], "altName": r["alt_name"],
                 "credits": float(r["credits"] or 0), "ects": float(r["ects"] or 0),
                 "sectionCount": r["subeler"],
                 "role": rol_of.get(r["code"], "PLAN_DISI"),
+                "creditFloor": (POL.parse_catalog_floor(r["kredi_kosulu"])
+                                if _katalog_kurali.enabled else None),
             } for r in satirlar],
             # ⚠️ Kesme SESSİZ değil: "40 sonuç" ile "40+ sonuç" farklı şeyler.
             "truncated": kesildi,

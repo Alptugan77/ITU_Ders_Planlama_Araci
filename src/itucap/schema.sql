@@ -12,6 +12,12 @@ CREATE TABLE IF NOT EXISTS course (
     credits           REAL,
     ects              REAL,
     prereq_raw        TEXT,                      -- ham metin, Faz 2'de parse edilecek
+    -- ★ Faz 37 — AD YANILTICI. Kaynak (itu-helper courses.psv, 7. alan) bu
+    -- sütuna "Sınıf Kısıtı" diyor ama değerleri KREDİ: 'Yok' / '95,00' /
+    -- '60,00' / '30,00'. İTÜ'de sınıf zaten kazanılmış krediyle belirlendiği
+    -- için alan bir kredi tabanı. `policy.parse_catalog_floor` okur;
+    -- `[katalog_kredi_kosulu]` ile kapatılabilir. Sütun adı DEĞİŞTİRİLMEDİ:
+    -- kaynağın adı bu ve yeniden adlandırmak, ham veriyle raporu ayrıştırırdı.
     class_restriction TEXT,
     source            TEXT,
     scraped_at        TEXT
@@ -164,6 +170,13 @@ CREATE TABLE IF NOT EXISTS lesson (
     capacity        INTEGER,
     enrolled        INTEGER,
     major_restr     TEXT,
+    -- ★ Faz 37 ölçümü: aşağıdaki İKİ sütun 3417 şubenin HİÇBİRİNDE dolu değil.
+    -- Sebep veri kaybı değil: itu-helper `lessons.psv` 11 alan yayınlıyor
+    -- (CRN|Kod|Yöntem|Hoca|Bina|Gün|Saat|Derslik|Kontenjan|Yazılan|Programlar)
+    -- ve içinde ne önşart ne sınıf kısıtı var. Sütunlar kaldırılmadı çünkü
+    -- kaynak yarın yayınlamaya başlayabilir; `quality.kaynak_yayinlamiyor`
+    -- kontrolü durumu her taramada rapor ediyor.
+    -- ⚠️ Bu sütunların boşluğundan "kısıt yok" SONUCU ÇIKARILMAZ.
     prereq_raw      TEXT,
     class_restr     TEXT,
     updated_at      TEXT

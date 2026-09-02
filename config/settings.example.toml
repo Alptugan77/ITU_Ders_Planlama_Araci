@@ -72,5 +72,10 @@ user_agent = "itucap/0.1 (kisisel ders planlama araci)"
 min_gno_apply = 3.00
 min_gno_continue = 2.50      # ⚠️ DOĞRULA
 max_credits_per_term = 35    # ÇAP tavanı — beyan, mevzuattan doğrula
-max_ects_per_term = 30       # ⚠️ DOĞRULA
+# ⚠️ KULLANILMIYOR (Faz 37 ölçümü). Bu anahtarı okuyan tek satır kod yok:
+#    MADDE 17 yükü KREDİ üzerinden sınırlıyor, AKTS üzerinden değil. Değeri
+#    değiştirmek hiçbir şeyi değiştirmez. Silmedik çünkü bir AKTS tavanı
+#    mevzuattan doğrulanırsa yeri burası olacak — ama doğrulanmadan bir
+#    tavan uygulamak, olmayan bir kuralla ders elemek olurdu.
+max_ects_per_term = 30       # ⚠️ DOĞRULANMADI ve UYGULANMIYOR
 source = "https://www.sis.itu.edu.tr/TR/mevzuat/yatay-cap-yandal-yonerge.php"

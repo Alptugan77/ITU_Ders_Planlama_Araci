@@ -16,6 +16,7 @@ Bitirme eşiği gerçek notlardan hesaplanır.
 from __future__ import annotations
 
 import fnmatch
+import re
 import sqlite3
 import tomllib
 from dataclasses import dataclass, field
@@ -116,6 +117,110 @@ def load_rules(path: Path | None = None) -> list[CreditRule]:
             note=str(b.get("aciklama") or ""),
         ))
     return [r for r in out if r.min_credits > 0]
+
+
+# --------------------------------------------- KATALOGDA İLAN EDİLEN TABAN
+# ★★ FAZ 37 — ölçüm (02.09.2026).
+#
+# `course.class_restriction` sütunu itu-helper'ın `courses.psv` dosyasındaki
+# 7. alandan geliyor ve kaynak onu "Sınıf Kısıtı" diye adlandırıyor. Ama
+# taşıdığı değerler sınıf değil, **kredi**:
+#
+#     'Yok'  4335 ders      '95,00'  437      '60,00'  45      '30,00'  15
+#
+# İTÜ'de sınıf zaten kazanılmış krediyle belirleniyor; alan bir KREDİ TABANI.
+# Doğrulaması elimizde: kullanıcının 21.08.2026'da beyan ettiği "bitirme
+# projesi 95 kredi altı alınamaz" kuralı, katalogda tam olarak `95,00` diye
+# duruyor — beyan ile kaynak birbirini tutuyor.
+#
+# ⚠️ Ölçülen boşluk: beyan edilmiş kural (kod + ad kalıbı) katalogda tabanı
+# olan **498** dersin yalnız **173**'ünü tanıyordu. Kalan **325** ders
+# motorun kör noktasındaydı — 268'i 95, 41'i 60, 15'i 30 kredilik. Yani
+# 40 kredilik bir öğrenciye `CEV 461E` (30) ya da `END 441E` (95)
+# önerilebiliyordu; kayıt gününde reddedilecek bir ders.
+#
+# ★ Tahmin ETMİYORUZ: sayı kaynakta yazıyor, biz yalnız okuyoruz. Yine de
+# yorumu (sınıf değil kredi) bizim olduğu için kural KAPATILABİLİR
+# (`config/kurallar.toml` → `[katalog_kredi_kosulu] kullan = false`) ve
+# elediği her ders darboğaz raporunda KREDİ EŞİĞİ olarak görünüyor.
+CATALOG_RULE_NAME = "Katalog kredi koşulu"
+
+
+@dataclass(frozen=True)
+class CatalogRule:
+    """Katalogdan okunan derse özel kredi tabanının açılıp kapanması."""
+    enabled: bool = True
+    verified: bool = False
+    source: str = ""
+    note: str = ""
+
+
+DEFAULT_CATALOG_RULE = CatalogRule(
+    enabled=True, verified=False,
+    source="itu-helper courses.psv — 'Sınıf Kısıtı' sütunu",
+    note="Katalog bu ders için asgari kredi ilan etmiş.",
+)
+
+
+def parse_catalog_floor(raw: str | None) -> float | None:
+    """`'95,00'` -> 95.0 · `'Yok'`/boş -> None · ayrıştırılamayan -> None.
+
+    ⚠️ Ayrıştırılamayan değer sessizce 0 sayılmaz, **yok** sayılır: kaynakta
+    7 derste bu alan kaymış ve içinde ders adı var (`BLG 210` →
+    'Mikroişlemci Sistemleri'). Bir ders adını krediye çevirmeye kalkmak
+    uydurma bir eşik üretirdi. Bozuk değerler `quality` raporunda ayrıca
+    sayılıyor ki sessiz kalmasınlar.
+    """
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text or text.casefold() in ("yok", "none", "-"):
+        return None
+    # '95,00' (TR ondalık) ve '95.00' (nokta) — ikisi de gelebilir.
+    if not re.fullmatch(r"\d{1,3}(?:[.,]\d{1,2})?", text):
+        return None
+    try:
+        value = float(text.replace(",", "."))
+    except ValueError:
+        return None
+    return value if value > 0 else None
+
+
+def load_catalog_rule(path: Path | None = None) -> CatalogRule:
+    """`[katalog_kredi_kosulu]` bloğu. Blok yoksa varsayılan (AÇIK)."""
+    path = DEFAULT_PATH if path is None else path
+    if not path.exists():
+        return DEFAULT_CATALOG_RULE
+    raw = tomllib.loads(path.read_text(encoding="utf-8"))
+    block = raw.get("katalog_kredi_kosulu")
+    if block is None:
+        return DEFAULT_CATALOG_RULE
+    return CatalogRule(
+        enabled=bool(block.get("kullan", True)),
+        verified=bool(block.get("dogrulandi", False)),
+        source=str(block.get("kaynak") or DEFAULT_CATALOG_RULE.source),
+        note=str(block.get("aciklama") or DEFAULT_CATALOG_RULE.note),
+    )
+
+
+def catalog_rule_for(raw: str | None,
+                     rule: CatalogRule | None = None) -> CreditRule | None:
+    """Katalog değerinden derse özel `CreditRule` — kapalıysa None.
+
+    ⚠️ Ayar önce DEĞİL sonra okunuyor: derslerin ~%95'inde alan boş, o
+    yüzden `kurallar.toml`'a yalnız gerçekten tabanı olan ders için
+    bakılıyor. Kural nesnesi verilmezse dosyadan okunur — çağıranı
+    zorunlu tutmasaydık `kullan = false` beyanı, ayarı taşımayan bir
+    çağrı yüzünden sessizce yok sayılabilirdi.
+    """
+    floor = parse_catalog_floor(raw)
+    if floor is None:
+        return None
+    rule = load_catalog_rule() if rule is None else rule
+    if not rule.enabled:
+        return None
+    return CreditRule(name=CATALOG_RULE_NAME, min_credits=floor,
+                      note=rule.note)
 
 
 # --------------------------------------------------------------- kredi sayımı
@@ -445,7 +550,9 @@ def load_limit(gpa_value: float, second_kind: str = "cap",
 # ------------------------------------------------------------------ kontrol
 def check(course_code: str, credits_have: float,
           rules: list[CreditRule] | None = None,
-          course_name: str = "") -> CreditVerdict:
+          course_name: str = "",
+          catalog_raw: str | None = None,
+          catalog_rule: CatalogRule | None = None) -> CreditVerdict:
     """Bu ders, kazanılmış krediyle alınabilir mi?
 
     Birden fazla kural eşleşirse **en katısı** uygulanır.
@@ -454,9 +561,18 @@ def check(course_code: str, credits_have: float,
     davranış aynen sürüyor. Ad kalıbı olan kurallar yalnız ad geldiğinde
     devreye giriyor — çağıranı zorunlu tutmak, adı olmayan yerlerde sessizce
     "kural yok" demeye çevirirdi.
+
+    ★ `catalog_raw` (Faz 37) dersin `course.class_restriction` değeri. Aynı
+    gerekçeyle isteğe bağlı: vermeyen çağıran eski davranışı görür. Verilirse
+    katalogda İLAN EDİLMİŞ taban da yarışa girer ve en katısı kazanır —
+    beyan edilmiş kural ile katalog çelişirse **daha katı olan** uygulanır,
+    çünkü ikisinden birini seçmek elimizde olmayan bir bilgi gerektirir.
     """
     hits = [r for r in (rules if rules is not None else load_rules())
             if r.matches(course_code, course_name)]
+    from_catalog = catalog_rule_for(catalog_raw, catalog_rule)
+    if from_catalog is not None:
+        hits = [*hits, from_catalog]
     if not hits:
         return CreditVerdict(True)
     strictest = max(hits, key=lambda r: r.min_credits)

@@ -45,6 +45,42 @@ aciklama  = "Bitirme çalışmasına başlamak için en az 95 kredi tamamlanmı�
 # aciklama  = "..."
 
 # ---------------------------------------------------------------------------
+# KATALOGDA İLAN EDİLEN KREDİ KOŞULU  (Faz 37)
+#
+# Yukarıdaki [[kredi_esigi]] blokları BEYAN. Katalogda ise ders ders ilan
+# edilmiş bir taban var: itu-helper `courses.psv`'nin 7. alanı. Kaynak ona
+# "Sınıf Kısıtı" diyor ama taşıdığı değerler sınıf değil KREDİ:
+#
+#   'Yok' 4335 ders · '95,00' 437 · '60,00' 45 · '30,00' 15
+#
+# İTÜ'de sınıf zaten kazanılmış krediyle belirlendiği için alan bir kredi
+# tabanı. Doğrulaması elimizde: 21.08.2026'da beyan edilen "bitirme projesi
+# 95 kredi altı alınamaz" kuralı katalogda tam olarak `95,00` diye duruyor.
+#
+# ★★ ÖLÇÜM (02.09.2026): yukarıdaki beyan (kod + ad kalıbı), katalogda tabanı
+# olan 498 dersin yalnız 173'ünü tanıyordu. Kalan 325 ders motorun kör
+# noktasındaydı — 268'i 95, 41'i 60, 15'i 30 kredilik. Somut sonucu: 60
+# kredilik bir ÇEV öğrencisine `CEV 461E` (30 kredi koşulu) sorunsuz
+# öneriliyor, ama 40 kredilik birine de öneriliyordu.
+#
+# ⚠️ Sayıyı biz uydurmuyoruz, katalogda yazıyor. Uydurma olan tek şey
+# YORUM ("sınıf kısıtı" = kredi tabanı), o yüzden `dogrulandi = false` ve
+# kapatılabilir. Kapatırsan motor yalnız yukarıdaki beyanlara bakar.
+#
+# ⚠️ Beyan ile katalog çelişirse EN KATI olan uygulanır. Örnek: `* 4902`
+# kalıbı 95 diyor, katalog o derslerde 'Yok' diyor (61 ders) — beyan
+# kazanıyor. Tersi de olabilir; ikisinden birini "haklı" ilan etmek
+# elimizde olmayan bir bilgi gerektirirdi.
+#
+# ⚠️ Eleme SESSİZ DEĞİL: bu koşula takılan ders darboğaz raporunda
+# "kredi eşiği dolmamış" başlığı altında, kaç kredi eksik olduğuyla çıkar.
+[katalog_kredi_kosulu]
+kullan     = true
+dogrulandi = false        # sayı kaynakta; "kredi tabanı" yorumu bizim
+kaynak     = "itu-helper courses.psv — 'Sınıf Kısıtı' sütunu"
+aciklama   = "Katalog bu ders için asgari kredi ilan etmiş."
+
+# ---------------------------------------------------------------------------
 # GNO eşikleri
 #
 # ⚠️ `dogrulandi = false` olan eşik arayüzde DOĞRULANMAMIŞ diye işaretlenir.

@@ -54,8 +54,16 @@ ne kadar iş, neye bağlı.
 > puan" kırılımı ✅ (§3.1) · yazdırma düzeni ✅ (§3.2) · klavye ✅ (§3.3) ·
 > önerileri yan yana karşılaştır ✅ (§3.4)
 >
+> **Faz 37'de kapananlar (02.09.2026):** ★★ katalogdaki kredi koşulu motorda
+> kullanılmıyordu ✅ (498 dersin 325'i kör noktadaydı) · ★ `KREDI_ESIGI`
+> engeli komut satırı raporunda sessizce düşüyordu ✅ · `class_restr` ölçümü
+> ✅ (kaynak yayınlamıyor) · tercih çaresi ✅ (§3.5) · Türkçe büyük harf ✅ ·
+> `OTHER` → `KATEGORİSİZ` ✅ · `max_ects_per_term` işaretlendi ✅
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
-> ⚠️ **Depoda `git remote` YOK** — 27 commit yerelde, site Faz 23'ten kalma.
+> ⚠️ `git remote` artık **tanımlı** (`origin`), ama **site hâlâ eski**:
+> yayın hattı çalıştırılmadan hiçbir düzeltme kullanıcıya ulaşmıyor
+> (`fikirler.md` F.5).
 
 Sıralama tahmine değil, iki ölçüte dayanıyor: (a) kayıt gününde işe yarar mı,
 (b) yanlış cevap verme riski taşıyor mu. İkisi de "hayır" olan iş listede
@@ -226,7 +234,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 932 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 987 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` dönemde bir kez yeter — 128 program, ~1081 plan, dakikalar
   sürüyor. Program değiştirmeyi düşünmüyorsan gerekmez.
