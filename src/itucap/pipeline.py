@@ -860,13 +860,19 @@ def cmd_app(args) -> int:
 def cmd_notdagilimi(args) -> int:
     """FAZ 38 — ders not dağılımlarını OBS'den çek.
 
-    Varsayılan kapsam: **senin planlarındaki** dersler (havuz seçenekleri
-    dahil). `--hepsi` bütün katalogu tarar.
+    ★★ FAZ 38b — VARSAYILAN KAPSAM GENİŞLETİLDİ (kullanıcı: "daha çok
+    dersin not dağılımı olması lazım").
 
-    ⚠️ Kapsam bilerek dar: katalogda 10792 ders var ve TR/EN çiftleri
-    birleşik olsa bile ~5400 istek eder. 1 sn aralıkla 1,5 saat. Kimsenin
-    bakmayacağı 5000 dersin dağılımı için İTÜ sunucusunu bu kadar yormak
-    ölçüsüz olurdu; kendi planındaki ~265 ders 4–5 dakika sürüyor.
+    Eski varsayılan yalnız **plandaki** derslerdi (251 ders). Ama araç
+    plan dışı ders de ekletiyor (Faz 25/B1): katalog aramasından çıkan her
+    ders programa girebiliyor ve orada dağılım YOKTU. Yeni varsayılan
+    "bu dönem gerçekten alabileceğin her ders": plan dersleri **+ açık
+    şubesi olan dersler**. Ölçüm: 1793 tekil ders, ~30 dk.
+
+    ⚠️ Yine de bütün katalog DEĞİL. 10792 dersin çoğunun bu dönem şubesi
+    yok; kimsenin bakamayacağı 3600 ders için İTÜ sunucusunu yarım saat
+    daha yormak ölçüsüz olurdu. İsteyen `--hepsi` diyebilir (~1,5 saat).
+    `--plan` eski dar kapsamı geri getirir.
     """
     con = db.reference_db()
     settings = config.Settings.load()
@@ -900,6 +906,13 @@ def cmd_notdagilimi(args) -> int:
                   JOIN plan_slot ps ON ps.id = po.slot_id
                  WHERE ps.plan_id IN ({marks})""",
             plan_ids + plan_ids) if r[0]})
+        if not args.plan:
+            # ★ Faz 38b — açık şubesi olan her ders. Plan dışı ekleme
+            # (Faz 25/B1) bunları programa sokabiliyor; dağılımsız
+            # bırakmak, aracın en çok kullanılan arama yolunu kör bırakırdı.
+            kodlar = sorted(set(kodlar) | {r[0] for r in con.execute(
+                "SELECT DISTINCT course_code FROM lesson "
+                "WHERE course_code IS NOT NULL") if r[0]})
 
     # ★ TR/EN çiftini İKİ KEZ sormuyoruz: kaynak zaten ikisini birleştirip
     # dönüyor. Zaten bilinen bir takma adı olan kodu atlıyoruz.
@@ -1085,7 +1098,9 @@ def main(argv=None) -> int:
     nd.add_argument("--yil", type=int, default=None,
                     help="akademik yılın BİTİŞ yılı (202610 → 2026)")
     nd.add_argument("--hepsi", action="store_true",
-                    help="planındakiler değil, BÜTÜN katalog (yavaş)")
+                    help="BÜTÜN katalog (~5400 istek, ~1,5 saat)")
+    nd.add_argument("--plan", action="store_true",
+                    help="yalnız planındaki dersler (dar kapsam, ~4 dk)")
     nd.add_argument("--ders", action="append",
                     help="yalnız bu ders (tekrarlanabilir)")
     nd.add_argument("--verbose", action="store_true")

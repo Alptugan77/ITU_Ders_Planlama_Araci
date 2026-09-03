@@ -235,3 +235,63 @@ def test_kaynak_modulu_YALNIZ_cekiyor():
     assert tanimlar == {"fetch"}, tanimlar
     # Yine de eski çağıranlar için isimler erişilebilir kalmalı.
     assert KAYNAK.parse is ND.parse and KAYNAK.NotFound is ND.NotFound
+
+
+# ============================== Faz 38b — okunabilirlik ve yarıyıl uyuşması
+# Kullanıcı geri bildirimi (02.09.2026): "+ lar yüzünden dağılım kötü
+# gözüküyor … başka dönemlerden de not dağılımları gözüküyor".
+
+def test_ARTILAR_temel_harfle_ayni_kovada():
+    """15 harf → 9 kova. Şekil okunur olsun diye; ⚠️ bu bir KAYIP
+    (`BA+` ≠ `BA`), o yüzden kırılım kovanın içinde duruyor."""
+    kova = {b["key"]: b for b in ND.bucketise(
+        {"AA": 5, "BA+": 3, "BA": 4, "FF": 2, "VF": 1})}
+    assert kova["BA"]["total"] == 7
+    assert [(p["grade"], p["n"]) for p in kova["BA"]["parts"]] \
+        == [("BA+", 3), ("BA", 4)]
+    assert kova["AA"]["total"] == 5 and kova["FF"]["total"] == 2
+
+
+def test_kova_HICBIR_kisiyi_kaybetmiyor():
+    guz = [t for t in ND.parse(MAT).terms if t.term == "202610"][0]
+    assert sum(b["total"] for b in ND.bucketise(guz.counts)) \
+        == sum(guz.counts.values())
+    assert [b["key"] for b in ND.bucketise(guz.counts)] == ND.BUCKET_ORDER
+
+
+def test_ORTALAMA_kovadan_DEGIL_15_harften():
+    """★ Kova yalnız çizim için. Ortalama kovadan hesaplansaydı `BA+`
+    `BA` sayılır ve sayı sessizce düşerdi."""
+    tam = ND.summarise({"BA+": 1, "BA": 1})
+    assert tam["meanPoints"] == round((3.75 + 3.5) / 2, 2)   # 3.62
+
+
+def test_YARIYIL_uyusmazligi_ISARETLENIYOR(con):
+    """★★ Bir güz dersinin bahar dağılımı çoğunlukla birkaç bütünlemeci
+    demek — sayı var ama dersi ANLATMIYOR. Ölçüm: 176 dersin 36'sında güz
+    verisi yok ve arayüz sessizce bahar/yaz gösteriyordu."""
+    ND.store(con, ND.parse(MAT), 2026)
+    # Elimizde güz var → uyuşuyor.
+    d = ND.distribution(con, "MAT 103E", term="202710")
+    assert d["seasonMismatch"] is False and d["wantedSeason"] == "Güz"
+    # Güz satırlarını silelim: geriye bahar/yaz kalıyor.
+    con.execute("DELETE FROM grade_distribution WHERE term='202610'")
+    con.commit()
+    d2 = ND.distribution(con, "MAT 103E", term="202710")
+    assert d2["seasonMismatch"] is True
+    assert d2["selected"]["season"] in ("Bahar", "Yaz")
+
+
+def test_yariyil_BILINMIYORSA_iddia_yok(con):
+    """⚠️ Üç değerli: dönem verilmemişse "uyuşmuyor" DA denmez."""
+    ND.store(con, ND.parse(MAT), 2026)
+    d = ND.distribution(con, "MAT 103E")
+    assert d["seasonMismatch"] is None and d["wantedSeason"] is None
+
+
+def test_BUTUN_donemler_tasiniyor(con):
+    """Arayüzde dönem değiştirmek yeni bir istek gerektirmesin."""
+    ND.store(con, ND.parse(MAT), 2026)
+    d = ND.distribution(con, "MAT 103E", term="202610")
+    assert [t["term"] for t in d["terms"]] == ["202630", "202620", "202610"]
+    assert all("summary" in t and "season" in t for t in d["terms"])

@@ -592,13 +592,24 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         d = _nd_cache[code]
         if not d:
             return None
-        s = d["selected"]
-        return {"term": s["term"], "termName": s["termName"],
-                "yearName": s["yearName"], "codes": d["codes"],
-                "counts": s["counts"], **d["summary"],
-                # Kaç dönem elimizde — "tek dönem" ile "beş dönem" farklı
-                # güvende olmayı gerektirir.
-                "termCount": len(d["terms"])}
+        # ★ Faz 38b — BÜTÜN dönemler taşınıyor, yalnız seçili olan değil:
+        # arayüzde dönem değiştirmek yeni bir istek gerektirmesin. Ders
+        # başına 1-3 dönem × 9 kova; sayfa boyutuna etkisi ihmal edilebilir.
+        return {
+            "codes": d["codes"],
+            "selected": d["selected"]["term"],
+            "wantedSeason": d["wantedSeason"],
+            # ⚠️ Üç değerli (True/False/None) — "istenen yarıyıl bilinmiyor"
+            # ile "uyuşmuyor" ayrı şeyler.
+            "seasonMismatch": d["seasonMismatch"],
+            "terms": [{
+                "term": t["term"], "termName": t["termName"],
+                "yearName": t["yearName"], "season": t["season"],
+                "counts": t["counts"],
+                "buckets": ND.bucketise(t["counts"]),
+                **t["summary"],
+            } for t in d["terms"]],
+        }
 
     def candidates_json(pool):
         return [{
@@ -1377,6 +1388,10 @@ _TEMPLATE = r"""<!doctype html>
      olsalardı panelde ve ızgarada hangisi olduğu anlaşılmazdı. */
   --yandal:#7FB2C9; --yandal-soft:#16252C; --yandal-ink:#A9D2E4;
   --danger:#E0836F; --warn:#D9B061;
+  /* ★ Faz 38b — uyarı kutusunun zemini/mürekkebi. Eskiden iki yerde
+     `var(--warn-bg,#fdf3e3)` diye YEDEKLİ yazılıyordu: jeton tanımsız
+     olduğu için gece şemasında da açık zemin çıkıyordu. */
+  --warn-soft:#2B2415; --warn-ink:#E8C88A;
   --shadow:0 18px 44px -20px rgba(0,0,0,.85);
   --r:0px;
 }
@@ -1391,6 +1406,7 @@ _TEMPLATE = r"""<!doctype html>
   --yandal:#1F5C77; --yandal-soft:#DCECF4; --yandal-ink:#154457;
     --yandal:#1F5C77; --yandal-soft:#DCECF4; --yandal-ink:#154457;
     --danger:#C02D18; --warn:#7A5709;
+    --warn-soft:#FCF1DB; --warn-ink:#6B4A05;
     --shadow:0 18px 44px -26px rgba(10,15,30,.5);
   }
 }
@@ -1401,7 +1417,12 @@ _TEMPLATE = r"""<!doctype html>
   --seal:#3B4E9E; --seal-soft:#E7EAF7;
   --anadal:#0A6B58; --anadal-soft:#D6EBE5; --anadal-ink:#074A3D;
   --cap:#8A5210; --cap-soft:#F6E7D2; --cap-ink:#633B08;
+  /* ⚠️ Faz 38b'de fark edildi: bu blokta `--yandal*` YOKTU, yani açık şema
+     AÇIKÇA seçilince yandal renkleri gece paletinden geliyordu (medya
+     sorgulu blokta vardı, burada unutulmuş). */
+  --yandal:#1F5C77; --yandal-soft:#DCECF4; --yandal-ink:#154457;
   --danger:#C02D18; --warn:#7A5709;
+  --warn-soft:#FCF1DB; --warn-ink:#6B4A05;
   --shadow:0 18px 44px -26px rgba(10,15,30,.5);
 }
 *{box-sizing:border-box}
@@ -1446,9 +1467,17 @@ header .masthead{display:flex;flex-wrap:wrap;align-items:flex-end;
   padding-bottom:14px;border-bottom:3px solid var(--seal);margin-bottom:4px}
 header .sub{color:var(--ink-2);font-size:13.5px;margin-top:6px}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
-.ghost{border:1px solid var(--border-strong);border-radius:var(--r);padding:6px 13px;
-  font-size:12px;background:transparent;font-weight:600;letter-spacing:.05em;
-  text-transform:uppercase;font-family:"Chivo",Helvetica,Arial,sans-serif}
+/* ★★ FAZ 39 — DÜĞMELERDE BÜYÜK HARF KALKTI.
+   Ölçüm: sayfada 162 öğe zorla BÜYÜK HARF'e çevriliyordu ve bunların en
+   uzunları düğmelerdi ("NASIL BİR PROGRAM İSTEDİĞİNİ SÖYLE", "KAYIT GÜNÜ
+   LİSTESİNİ AL"). Uzun büyük harf dizisi kelime siluetini yok eder; Türkçe'de
+   İ/I ayrımı yüzünden daha da yavaş okunur. Sesi taşıyan şey Chivo ve ağırlık
+   — onlar duruyor. ⚠️ BAŞLIKLAR, eyebrow'lar, tablo başlıkları ve rozetler
+   BÜYÜK HARF kalıyor: onlar kısa ve tasarımın kimliği. */
+.ghost{border:1px solid var(--border-strong);border-radius:var(--r);
+  padding:7px 13px;min-height:34px;
+  font-size:12.5px;background:transparent;font-weight:600;letter-spacing:.01em;
+  font-family:"Chivo",Helvetica,Arial,sans-serif}
 .ghost:hover{background:var(--seal-soft);border-color:var(--seal);color:var(--seal)}
 /* ★ Tıklama geri bildirimi (01.09.2026): hafif "bas-hisset". Kayıt/tazele
    halkasının yanında, her düğmede basıldığı anı da belli ediyor. Hareket
@@ -1704,6 +1733,10 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
   font-family:"Chivo",Helvetica,Arial,sans-serif}
 @media (max-width:700px){
   .gridwrap{display:none}
+  /* ⚠️ Izgara gizliyken saat kırpma düğmesi de gizlenmeli: telefonda
+     ızgara yok, gün gün liste var — "tüm günü göster" hiçbir şey yapmaz.
+     (Faz 39'da eklerken atlandı, mobil turda görüldü.) */
+  .gridaralik{display:none}
   .daylist{display:grid}
   .wrap{padding:20px 14px 60px;gap:22px}
   h1{font-size:23px}
@@ -1711,6 +1744,14 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
   .panels{gap:12px}
   /* Dokunma hedefleri: 44px kuralı */
   .ghost,.tab{min-height:40px;display:inline-flex;align-items:center}
+  /* ★ Ölçüm (Faz 39, 390px): telefonda 32 denetim 32px'in ALTINDAydı —
+     `kaldır` ×4 (22px), `izle` ×11 (21px), `+N dış önşart` ×17 (19px).
+     Masaüstünde sıkışık durmaları doğru (fare pikseli tutturur), parmakla
+     ıskalanıyorlardı. Yalnız telefonda büyütülüyor. */
+  .rm,.watchmini{min-height:34px;padding-left:10px;padding-right:10px;
+    display:inline-flex;align-items:center;justify-content:center}
+  .tier li .dispre{min-height:32px;padding:0 9px;
+    display:inline-flex;align-items:center}
   .tiers{gap:8px}
   /* Aday tablosu 6 sütunla telefona sığmıyordu; kutusunun içinde yana
      kayıyordu ama asıl iş burada yapılıyor — kaydırarak kullanılmamalı.
@@ -1722,6 +1763,9 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
   table.list td{padding:11px 8px 11px 0}
 }
 table.grid{border-collapse:collapse;width:100%;min-width:660px;table-layout:fixed}
+/* Izgara kırpma düğmesi (Faz 39) — ızgaranın hemen altında, sessiz. */
+.gridaralik{margin-top:6px}
+.gridaralik:empty{display:none}
 table.grid th{font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
   color:var(--seal);padding:0 0 8px;text-align:left;border-bottom:3px solid var(--seal);
   font-family:"Chivo",Helvetica,Arial,sans-serif}
@@ -1822,6 +1866,14 @@ table.list tr:hover td{background:var(--surface-2)}
 .blockitem{font-size:12.5px;color:var(--ink-2);padding:7px 10px;border-radius:0;
   background:var(--surface-2);border:1px solid var(--border)}
 .blockitem b{color:var(--ink);font-weight:600}
+/* Kontenjan nöbeti rozeti (Faz 39). Eskiden 6 bildirimlik SATIR İÇİ stil
+   olarak engelli HER dersin yanında tekrar ediyordu — 11 kez. Sınıfa
+   taşındı; durumu artık `aria-pressed` söylüyor (ekran okuyucu "izle"
+   düğmesinin basılı olduğunu duymuyordu). */
+.watchmini{margin-left:6px;font-size:10.5px;letter-spacing:.05em;
+  text-transform:uppercase;border:1px solid currentColor;padding:1px 6px;
+  color:var(--ink-3)}
+.watchmini[aria-pressed="true"]{color:var(--cap)}
 .note{font-size:12.5px;color:var(--ink-2);background:var(--surface-2);
   border-radius:0;padding:11px 14px;border-left:3px solid var(--warn)}
 
@@ -1875,16 +1927,37 @@ table.list tr:hover td{background:var(--surface-2)}
 .puansatir .deger{text-align:right;color:var(--ink-2);font-variant-numeric:tabular-nums}
 .puansatir.eksi .deger{color:var(--warn)}
 .puantoplam{margin-top:8px;font-size:11.5px;color:var(--ink-3);line-height:1.6}
-/* Faz 38 — not dağılımı sütun grafiği (kütüphane yok: 15 kutu yeter) */
-.ndgrafik{display:grid;grid-template-columns:repeat(15,1fr);gap:3px;
-  align-items:end;height:78px;margin:10px 0 6px}
+/* Faz 38 — not dağılımı sütun grafiği (kütüphane yok).
+   ★ Faz 38b: varsayılan 9 KOVA. 15 ince sütun dağılımın şeklini
+   kaybettiriyordu ("+ lar yüzünden kötü gözüküyor"). Etiketler artık
+   yatay — 9 kova sığıyor; "artıları ayır" 15'e çıkarınca dikey oluyor. */
+.ndgrafik{display:grid;grid-template-columns:repeat(9,1fr);gap:6px;
+  align-items:end;height:104px;margin:10px 0 8px}
+.ndgrafik.genis{grid-template-columns:repeat(15,1fr);gap:3px}
 .ndsut{display:flex;flex-direction:column;justify-content:flex-end;
-  align-items:center;height:100%;gap:3px}
-.ndsut>i{display:block;width:100%;background:var(--seal);min-height:2px}
+  align-items:center;height:100%;gap:3px;min-width:0}
+.ndsut>b{font-size:10px;font-weight:600;color:var(--ink-3);line-height:1;
+  font-variant-numeric:tabular-nums}
+.ndsut>i{display:block;width:100%;background:var(--seal);border-radius:2px 2px 0 0}
 .ndsut>i.kotu{background:var(--warn)}
-.ndsut>span{font-size:8.5px;color:var(--ink-3);line-height:1;
-  writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap}
-.ndozet{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--ink-2)}
+.ndsut>span{font-size:10px;color:var(--ink-2);line-height:1;white-space:nowrap}
+.ndgrafik.genis .ndsut>b{font-size:8.5px}
+.ndgrafik.genis .ndsut>span{font-size:8.5px;writing-mode:vertical-rl;
+  transform:rotate(180deg)}
+.ndozet{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--ink-2);
+  align-items:center}
+/* Dönem seçici — OBS'nin kendi sayfasında da var. */
+.ndsekme{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.ndtab{font:inherit;font-size:11.5px;padding:3px 8px;cursor:pointer;
+  background:var(--surface-2);border:1px solid var(--border);color:var(--ink-2)}
+.ndtab>span{color:var(--ink-3);font-size:10.5px}
+.ndtab.sec{background:var(--seal-soft);border-color:var(--seal);color:var(--ink)}
+.ndtab:active{transform:translateY(1px)}
+@media (prefers-reduced-motion:reduce){.ndtab:active{transform:none}}
+/* Yarıyıl uyuşmazlığı — sessiz kalınmayacak kadar önemli. */
+.ndmevsim{margin-top:8px;padding:7px 9px;font-size:12px;line-height:1.5;
+  background:var(--warn-soft);color:var(--warn-ink);
+  border-left:3px solid var(--warn)}
 /* Tercihin programa etkisi. */
 .tercihnot{font-size:12px}
 .tercihnot.ok{color:var(--anadal)}
@@ -2010,9 +2083,12 @@ table.cmp .meta.arti{color:var(--anadal)}
 .secnav[data-more="right"]{mask-image:linear-gradient(90deg,#000 calc(100% - 34px),transparent)}
 .secnav[data-more="left"]{mask-image:linear-gradient(90deg,transparent,#000 34px)}
 .secnav[data-more="both"]{mask-image:linear-gradient(90deg,transparent,#000 34px,#000 calc(100% - 34px),transparent)}
-.secnav a{flex:0 0 auto;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+.secnav a{flex:0 0 auto;font-size:12.5px;letter-spacing:.01em;
   font-family:"Chivo",Helvetica,Arial,sans-serif;font-weight:700;
-  color:var(--ink-3);text-decoration:none;padding:6px 10px;border:1px solid transparent}
+  color:var(--ink-2);text-decoration:none;padding:9px 11px;
+  border:1px solid transparent;
+  /* ★ Faz 39: dokunma hedefi 32px'ti — parmakla ıskalanacak kadar kısa. */
+  min-height:40px;display:flex;align-items:center}
 .secnav a:hover{color:var(--ink)}
 .secnav a[aria-current="true"]{color:var(--seal);border-color:var(--border-strong);
   background:var(--seal-soft)}
@@ -2090,7 +2166,12 @@ body.kurulum #secnav{display:none}
 .savedgrid{display:flex;flex-wrap:wrap;gap:8px}
 .savedcard{background:var(--surface-2);border:1px solid var(--border);
   border-left:4px solid var(--anadal);padding:8px 11px;min-width:184px;flex:1 1 184px}
-.savedcard.cap{border-left-color:var(--cap)}
+/* ★★ FAZ 39 — SINIF ÇAKIŞMASI. Bu satır eskiden `.savedcard.cap` idi ve
+   `.cap` YUKARIDA (satır ~1857) kontenjan çipinin sınıfı:
+   `display:inline-flex; white-space:nowrap`. Yani kaydedilen programdaki
+   HER ÇAP/yandal ders kartı satır içine çöküp kırpılıyordu — kod, CRN, ad
+   ve saat tek satırda, kartın dışına taşarak. Ad DEĞİŞTİ; renk aynı. */
+.savedcard.ikinci{border-left-color:var(--cap)}
 .savedcard .crn{float:right;color:var(--ink-3)}
 .savedcard .when{font-size:11.5px;color:var(--ink-3);margin-top:3px}
 .savedcard .miss{font-size:11.5px;color:var(--warn)}
@@ -2257,6 +2338,7 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
       &nbsp;·&nbsp; Boş hücreye tıkla → o saate uyan dersler</span>
   </div>
   <div class="gridwrap" style="margin-top:14px"><table class="grid" id="grid"></table></div>
+  <div id="gridAralik" class="gridaralik"></div>
   <!-- Dar ekranda ızgaranın yerini alır. Aynı veriden kuruluyor; ızgara
        yana kaydırma istediği için telefonda kullanışsızdı (yapılacaklar 4.1). -->
   <div class="daylist" id="daylist" style="margin-top:14px"></div>
@@ -3929,7 +4011,7 @@ function renderSaved(){
     kredi += hit.cand.credits || 0; akts += hit.cand.ects || 0;
     const saat = (hit.sec.meetings || []).map(m =>
       `${DAYS[m.day-1] || "?"} ${hhmm(m.start)}`).join(" · ") || "saati ilan edilmemiş";
-    return `<div class="savedcard ${hit.cand.role === "ANADAL" ? "" : "cap"}">
+    return `<div class="savedcard ${hit.cand.role === "ANADAL" ? "" : "ikinci"}">
       <b class="mono">${esc(p.course)}</b><span class="crn mono">${esc(p.crn)}</span>
       <div class="when">${esc(hit.cand.name || "")}</div>
       <div class="when mono">${esc(saat)}</div></div>`;
@@ -4194,8 +4276,8 @@ function katalogKrediUyarisi(it){
   const c = DATA.credits;
   if(!c || !c.rules || !c.rules.length) return "";
   if(c.earned + 1e-9 >= floor) return "";
-  return `<span class="tag" style="margin-left:6px;background:var(--warn-bg,#fdf3e3);
-    color:var(--warn-ink,#8a5a00)" title="Katalog bu ders için asgari ${floor} kredi
+  return `<span class="tag" style="margin-left:6px;background:var(--warn-soft);
+    color:var(--warn-ink)" title="Katalog bu ders için asgari ${floor} kredi
     ilan etmiş; şu an ${c.earned} kredin var.">${floor} kredi ister</span>`;
 }
 
@@ -4722,6 +4804,8 @@ const MODES = (DATA.modes && DATA.modes.length) ? DATA.modes
 let mode = 0;
 let CAND = {};
 const T0 = 8*60, T1 = 21*60, STEP = 30, ROWS = (T1-T0)/STEP;
+/* Izgara tüm günü mü gösteriyor (Faz 39). Oturumluk, kalıcı tercih değil. */
+let GRID_TUM = false;
 let active = 0;
 let sel = [];                                   // [{course, crn}]
 
@@ -5156,8 +5240,35 @@ function render(){
     });
   });
 
+  /* ★★ FAZ 39 — IZGARA KULLANILAN ARALIĞA KIRPILIYOR.
+     Ölçüm: 540px'lik ızgaranın **177px'i** (%33) alttaki boş saatlerdi —
+     dersler 16:29'da bitiyor, ızgara 21:00'a kadar sürüyordu. Boş satırlar
+     günü olduğundan boş gösteriyor ve mobilde ekranı yiyordu.
+     ⚠️ Boş hücre BİR ÖZELLİK ("tıkla → o saate uyan dersler"), o yüzden
+     saatler SİLİNMİYOR: dolu aralığın bir saat öncesi/sonrası duruyor ve
+     gizlenen aralık düğmede AÇIKÇA yazıyor. */
+  let ilk = ROWS, son = -1;
+  for(let r = 0; r < ROWS; r++)
+    for(let d = 1; d <= 5; d++)
+      if(cells[`${d}-${r}`] || spans[`${d}-${r}`]){
+        if(r < ilk) ilk = r;
+        if(r > son) son = r;
+      }
+  const PAY = 60 / STEP;                    // bir saatlik pay
+  let rBas = 0, rSon = ROWS;
+  if(son >= 0 && !GRID_TUM){
+    rBas = Math.max(0, Math.floor((ilk - PAY) / PAY) * PAY);
+    rSon = Math.min(ROWS, Math.ceil((son + 1 + PAY) / PAY) * PAY);
+    if(rSon - rBas < 6 * PAY) rSon = Math.min(ROWS, rBas + 6 * PAY);
+  }
+  const gizli = (rBas > 0 ? 1 : 0) + (rSon < ROWS ? 1 : 0);
+  $("#gridAralik").innerHTML = son < 0 ? "" : (GRID_TUM
+    ? `<button class="ghost mini" id="gridKisalt">saatleri kısalt</button>`
+    : (gizli ? `<button class="ghost mini" id="gridTum">tüm günü göster
+         (${hhmm(T0)}–${hhmm(T1)})</button>` : ""));
+
   let html = `<thead><tr><th></th>${DAYS.map(d=>`<th>${d}</th>`).join("")}</tr></thead><tbody>`;
-  for(let r=0; r<ROWS; r++){
+  for(let r=rBas; r<rSon; r++){
     const min = T0 + r*STEP, onHour = min % 60 === 0;
     html += `<tr class="${onHour ? "hr" : "half"}"><td class="hour mono">${
       onHour ? hhmm(min) : ""}</td>`;
@@ -5207,6 +5318,9 @@ function render(){
     bind(el, () => courseDialog(el.dataset.course)));
   $("#grid").querySelectorAll("td.free").forEach(el =>
     bind(el, () => slotDialog(+el.dataset.day, +el.dataset.min)));
+  const gt = $("#gridTum"), gk = $("#gridKisalt");
+  if(gt) gt.addEventListener("click", () => { GRID_TUM = true;  render(); });
+  if(gk) gk.addEventListener("click", () => { GRID_TUM = false; render(); });
   $("#grid").querySelectorAll(".blk.mesgul").forEach(el =>
     bind(el, () => busyDialog(null, null, el.dataset.busy)));
 
@@ -5360,47 +5474,116 @@ function puanKirilimi(cand){
      4. Ortalama yalnız harf notu alanlardan; VF ölçeğe girmiyor. */
 function notDagilimi(cand){
   const g = cand && cand.grades;
-  if(!g || !g.n) return "";
-  const SIRA = ["AA","BA+","BA","BB+","BB","CB+","CB","CC+","CC",
-                "DC+","DC","DD+","DD","FF","VF"];
-  const enBuyuk = Math.max(...SIRA.map(k => g.counts[k] || 0), 1);
-  const bar = SIRA.map(k => {
-    const v = g.counts[k] || 0;
-    const kotu = (k === "FF" || k === "VF");
-    return `<div class="ndsut" title="${k}: ${v} kişi">
+  if(!g || !g.terms || !g.terms.length) return "";
+  const secim = ND_SECIM[cand.course] || {};
+  const donem = g.terms.find(t => t.term === (secim.term || g.selected))
+             || g.terms[0];
+  if(!donem || !donem.n) return "";
+  const artili = !!secim.artili;
+
+  /* ★ Faz 38b — VARSAYILAN 9 KOVA, 15 harf DEĞİL.
+     Geri bildirim: "+ lar yüzünden dağılım kötü gözüküyor". 15 ince sütun
+     dağılımın ŞEKLİNİ kaybettiriyordu. Artı temel harfle aynı kovada;
+     ⚠️ bu bir kayıp (BA+ ≠ BA), o yüzden yazıyor ve bir tıkla geri geliyor.
+     Ortalama HER ZAMAN 15 harften — kova yalnız çizim için. */
+  const kutu = artili
+    ? ND_HARF.map(k => ({key: k, total: donem.counts[k] || 0,
+                         parts: [{grade: k, n: donem.counts[k] || 0}]}))
+    : donem.buckets;
+  const enBuyuk = Math.max(...kutu.map(b => b.total), 1);
+  const bar = kutu.map(b => {
+    const kotu = (b.key === "FF" || b.key === "VF");
+    const kirilim = b.parts.length > 1
+      ? b.parts.map(p => `${p.grade}: ${p.n}`).join(" · ")
+      : `${b.key}: ${b.total} kişi`;
+    return `<div class="ndsut" title="${esc(kirilim)}">
+      <b>${b.total}</b>
       <i class="${kotu ? "kotu" : ""}" style="height:${
-        Math.max(2, v / enBuyuk * 100).toFixed(0)}%"></i>
-      <span>${k}</span></div>`;
+        b.total ? Math.max(3, b.total / enBuyuk * 100).toFixed(0) : 0}%"></i>
+      <span>${b.key}</span></div>`;
   }).join("");
-  const donem = `${esc(g.yearName)} ${esc(g.termName || "")}`.trim();
-  return `<details class="puan">
-    <summary>Not dağılımı — <b class="mono">${g.n}</b> kişi,
-      geçen <b class="mono">%${g.passRate}</b></summary>
-    <div class="ndgrafik">${bar}</div>
+
+  /* Dönem seçici — OBS'nin kendi sayfasında da var. Elimizdeki her dönem. */
+  const sekme = g.terms.length > 1 ? `<div class="ndsekme">${
+    g.terms.map(t => `<button class="ndtab${t.term === donem.term ? " sec" : ""}"
+      data-ndterm="${esc(t.term)}" data-ndcourse="${esc(cand.course)}"
+      >${esc(t.yearName)} ${esc(t.season)} <span>n=${t.n}</span></button>`)
+      .join("")}</div>` : "";
+
+  /* ⚠️ Yarıyıl uyuşmuyorsa SESSİZ kalmıyoruz. Bir güz dersinin bahar
+     dağılımı çoğunlukla birkaç bütünlemeci demek — sayı var ama dersi
+     anlatmıyor. Ölçüm: 176 dersin 36'sında güz verisi yok. */
+  const yanlisMevsim = !!g.wantedSeason && donem.season !== g.wantedSeason;
+  const uyari = yanlisMevsim ? `<div class="ndmevsim">⚠ Bu ders için
+    <b>${esc(g.wantedSeason)}</b> dönemi dağılımı elimizde yok;
+    <b>${esc(donem.season)}</b> dönemi gösteriliyor. Farklı yarıyılda dersi
+    çoğunlukla <b>tekrar alanlar</b> alır — bu dağılım dersin normal
+    dönemini anlatmayabilir.</div>` : "";
+
+  return `<details class="puan" data-ndbox="${esc(cand.course)}">
+    <summary>Not dağılımı — <b class="mono">${donem.n}</b> kişi,
+      geçen <b class="mono">%${donem.passRate}</b></summary>
+    ${sekme}${uyari}
+    <div class="ndgrafik${artili ? " genis" : ""}">${bar}</div>
     <div class="ndozet">
-      <span>ortalama <b class="mono">${g.meanPoints ?? "—"}</b></span>
-      <span>FF <b class="mono">%${g.failRate}</b></span>
+      <span>ortalama <b class="mono">${donem.meanPoints ?? "—"}</b></span>
+      <span>FF <b class="mono">%${donem.failRate}</b></span>
       <span title="Devamsızlıktan kalma — dersin zorluğu hakkında bir şey söylemez">
-        VF <b class="mono">%${g.absentRate}</b></span>
-      <span>${esc(donem)}</span>
+        VF <b class="mono">%${donem.absentRate}</b></span>
+      <span>${esc(donem.yearName)} ${esc(donem.season)}</span>
+      <button class="ghost mini" data-ndplus="${esc(cand.course)}"
+        >${artili ? "artıları birleştir" : "artıları ayır"}</button>
     </div>
     <div class="puantoplam">
-      Kaynak: İTÜ ÖBS Ders Not Dağılımı · <b>${g.codes.map(esc).join(" + ")}</b>
+      ${artili ? "15 harf ayrı gösteriliyor."
+        : "<b>Artılar temel harfle birlikte</b> sayıldı (BA+ → BA); şeklin "
+          + "okunabilmesi için. Ayrıntı için üstteki düğme; <b>ortalama her "
+          + "zaman 15 harften</b> hesaplanıyor."}
+      <br>Kaynak: İTÜ ÖBS Ders Not Dağılımı · <b>${g.codes.map(esc).join(" + ")}</b>
       birlikte (OBS Türkçe ve İngilizce kodu ayırmıyor)${
-      g.termCount > 1 ? ` · elimizde ${g.termCount} dönem var` : ""}.${
+      g.terms.length > 1 ? ` · elimizde ${g.terms.length} dönem var` : ""}.${
       /* ⚠️ Kaynağın kendi toplamı harflerin toplamına her zaman eşit değil
          (ölçüm: MAT 103 güz 2988/2987). Farkı yazmamak, sayıyı olduğundan
          kesin gösterirdi. */
-      g.gap ? `<br>OBS toplamı <b class="mono">${g.announced}</b>;
-        harflerin toplamı <b class="mono">${g.n}</b> — ${g.gap} kişi
+      donem.gap ? `<br>OBS toplamı <b class="mono">${donem.announced}</b>;
+        harflerin toplamı <b class="mono">${donem.n}</b> — ${donem.gap} kişi
         listelenen 15 harfin dışında (BL/BZ/muafiyet olabilir).` : ""}
       <br>⚠️ <b>Geçmiş</b> bir döneme ait: hoca, sınav ve kontenjan değişmiş
       olabilir. Öneri puanına <b>girmiyor</b> — hangi dersin değdiği senin
       kararın. Ortalama aracın kendi GNO ölçeğiyle: <b>FF</b> de <b>VF</b> de
-      sıfır puan. <b>VF devamsızlıktır</b>, dersin zorluğu değil — yüzdesi
-      ayrıca yazıyor ki düşük ortalamanın nereden geldiği okunabilsin.
+      sıfır puan. <b>VF devamsızlıktır</b>, dersin zorluğu değil.
     </div>
   </details>`;
+}
+
+/* Ders penceresinde seçili dönem / artı kırılımı — pencere kapanınca
+   unutuluyor, kalıcı bir tercih DEĞİL. */
+const ND_SECIM = {};
+const ND_HARF = ["AA","BA+","BA","BB+","BB","CB+","CB","CC+","CC",
+                 "DC+","DC","DD+","DD","FF","VF"];
+
+function ndBagla(course){
+  const kutu = $(`[data-ndbox="${CSS.escape(course)}"]`);
+  if(!kutu) return;
+  const yenile = () => {
+    const acik = kutu.open;
+    kutu.outerHTML = notDagilimi(CAND[course]);
+    const yeni = $(`[data-ndbox="${CSS.escape(course)}"]`);
+    if(yeni){ yeni.open = acik; ndBagla(course); }
+  };
+  kutu.querySelectorAll("[data-ndterm]").forEach(b =>
+    b.addEventListener("click", e => {
+      e.preventDefault();
+      ND_SECIM[course] = {...(ND_SECIM[course] || {}), term: b.dataset.ndterm};
+      yenile();
+    }));
+  const p = kutu.querySelector("[data-ndplus]");
+  if(p) p.addEventListener("click", e => {
+    e.preventDefault();
+    const s = ND_SECIM[course] || {};
+    ND_SECIM[course] = {...s, artili: !s.artili};
+    yenile();
+  });
 }
 
 function courseDialog(course){
@@ -5437,6 +5620,7 @@ function courseDialog(course){
   const rm = $("#removeCourse");
   if(rm) rm.addEventListener("click", () => { $("#detail").close(); removeCourse(course); });
   wireWatch();
+  ndBagla(course);            // dönem sekmeleri + artı kırılımı (Faz 38b)
 }
 
 /* ---------- Kontenjan nöbeti listesi (yapılacaklar 4.3) ----------
@@ -6269,9 +6453,7 @@ let bhtml = "";
       return `<div class="blockitem"><b class="mono">${esc(b.course)}</b>${etiket}
         ${esc(b.detail)}
         ${watchable ? `<button class="watchmini" data-course="${esc(b.course)}"
-          style="margin-left:6px;font-size:10.5px;letter-spacing:.05em;
-          text-transform:uppercase;border:1px solid currentColor;padding:1px 6px;
-          color:${on ? "var(--cap)" : "var(--ink-3)"}"
+          aria-pressed="${on ? "true" : "false"}"
           >${on ? "izleniyor" : "izle"}</button>` : ""}</div>`;
     }).join("")}</div>`;
 });

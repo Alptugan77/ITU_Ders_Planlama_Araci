@@ -13,7 +13,7 @@ Gerekçe bir ilke değil, bir **eksiklik** beyanıydı. Kaynak gösterilince
 gerekçe düştü. Bu fazın işi o boşluğu doldurmak — ve doldururken aynı
 ilkeyi korumak: veriyi **göster**, karar **verme**.
 
-Testler **987 → 1016** (1014 geçti, 2 atlandı).
+Testler **987 → 1022** (1020 geçti, 2 atlandı).
 
 ---
 
@@ -215,3 +215,67 @@ tarayıcıda (gerçek veri, 176 ders yüklü):
 Fixture'lar gerçek cevaptan alındı:
 `tests/fixtures/not_dagilimi_MAT103E_2026.html` (3 yarıyıl) ve
 `…_bulunamadi.html` (150 baytlık "bulunamadı" cevabı).
+
+---
+
+## H. Faz 38b — ilk kullanımdan gelen üç geri bildirim
+
+*"+ lar yüzünden dağılım kötü gözüküyor · daha çok dersin not dağılımı
+olması lazım · başka dönemlerden de not dağılımları gözüküyor"*
+
+### H1. 15 sütun şekli kaybettiriyordu → 9 kova
+
+Artılar (`BA+`, `BB+` …) grafiği 15 ince sütuna bölüyor ve dağılımın
+**şekli** okunmuyordu. Varsayılan artık **9 kova**: `AA BA BB CB CC DC DD
+FF VF`. Sütunun üstünde sayı, etiketler yatay.
+
+⚠️ Bu bir **kayıp**: `BA+` `BA`dan yüksek bir not. O yüzden üçü birden:
+
+* kutunun altında **yazıyor** ("artılar temel harfle birlikte sayıldı"),
+* **"artıları ayır"** düğmesi 15 harfi geri getiriyor,
+* **ortalama her zaman 15 harften** hesaplanıyor — kova yalnız çizim için.
+  (`test_ORTALAMA_kovadan_DEGIL_15_harften` bunu kilitliyor: kovadan
+  hesaplansaydı `BA+` sessizce `BA` sayılır ve ortalama düşerdi.)
+
+Kovanın içindeki kırılım balonda duruyor: *"BA+: 17 · BA: 16"*.
+
+### H2. ★★ Başka yarıyılın dağılımı SESSİZCE gösteriliyordu
+
+Ölçüm (176 ders): **36 dersin güz dağılımı yok**. Arayüz bunların 31'inde
+**bahar**, 5'inde **yaz** dağılımını sessizce gösteriyordu. Bir güz dersinin
+bahar dağılımı çoğunlukla birkaç **bütünlemeci** demek — `BLG 212` baharda
+`n=4`. Sayı var ama dersi anlatmıyor.
+
+Artık:
+
+* `distribution()` `seasonMismatch` döndürüyor — **üç değerli**
+  (True/False/None): istenen yarıyıl bilinmiyorsa "uyuşmuyor" da denmiyor,
+* uyuşmuyorsa ders penceresinde **sarı uyarı**: *"Bu ders için Güz dönemi
+  dağılımı elimizde yok; Bahar gösteriliyor. Farklı yarıyılda dersi
+  çoğunlukla tekrar alanlar alır."*,
+* **dönem seçici** geldi (OBS'nin kendi sayfasında da var): elimizdeki her
+  dönem `n` ile birlikte sekme olarak duruyor, tıklayınca grafik değişiyor.
+  Bütün dönemler sayfaya gömülü — dönem değiştirmek istek gerektirmiyor.
+
+### H3. Kapsam dardı → "bu dönem alabileceğin her ders"
+
+Varsayılan tarama yalnız **plandaki** derslerdi (251). Ama araç plan dışı
+ders de ekletiyor (Faz 25/B1) ve katalog aramasından çıkan derslerde dağılım
+**yoktu**. Yeni varsayılan: plan dersleri **+ açık şubesi olan her ders** —
+ölçüm **1793 tekil ders**, ~30 dk.
+
+⚠️ Yine bütün katalog değil: 10792 dersin çoğunun bu dönem şubesi yok,
+kimsenin bakamayacağı ~3600 ders için İTÜ sunucusunu yarım saat daha
+yormak ölçüsüz olurdu. `--hepsi` (~1,5 saat) ve `--plan` (dar, ~4 dk)
+seçenek olarak duruyor.
+
+### H4. Ölçerken çıkan iki hata
+
+* **Tanımsız CSS jetonu.** `--warn-bg` / `--warn-ink` diye var olmayan
+  jetonları yedekli (`var(--warn-bg,#fdf3e3)`) kullanmıştım — gece
+  şemasında da **açık zemin** çıkıyordu. Depodaki
+  `test_kullanilan_her_css_jetonu_TANIMLI` yakaladı. Palete
+  `--warn-soft`/`--warn-ink` eklendi (üç blokta da).
+* **Açık şema `[data-theme="light"]`de `--yandal*` YOKTU** (medya sorgulu
+  blokta vardı, orada unutulmuş): açık şema *açıkça* seçilince yandal
+  renkleri gece paletinden geliyordu. Eklendi.

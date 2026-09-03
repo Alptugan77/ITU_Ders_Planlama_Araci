@@ -67,6 +67,24 @@ ne kadar iş, neye bağlı.
 > `notlar.py` ayrıldı ve site paketi sınırı bütün `ENGINE` için
 > teste bağlandı ✅
 >
+> **Faz 38b (aynı gün, kullanım geri bildirimi):** artılar 9 kovada
+> toplandı — grafiğin şekli okunur ✅ · başka yarıyılın dağılımı artık
+> SESSİZ değil (176 dersin 36'sında güz verisi yok) ✅ · dönem seçici ✅ ·
+> varsayılan kapsam "açık şubesi olan her ders" (251 → 1793) ✅ ·
+> tanımsız CSS jetonu + açık şemada eksik `--yandal*` ✅
+>
+> **Faz 39'da kapananlar (03.09.2026 — tasarım turu):** ★★ `.savedcard.cap`
+> sınıf çakışması: kaydedilen programdaki HER ÇAP/yandal kartı satır içine
+> çöküp kırpılıyordu ✅ (ve hata **sınıfı** teste bağlandı) · haftalık
+> ızgaranın %33'ü boş saatti, kullanılan aralığa kırpılıyor — gizlenen
+> aralık düğmede yazıyor ✅ · 162 öğedeki zorlama BÜYÜK HARF uzun
+> etiketlerden kalktı, başlıklarda kaldı ✅ · telefonda 32px'in altındaki
+> **32 denetim** (`kaldır` 22px · `izle` 21px · `+N dış önşart` 19px) ve
+> bölüm çubuğu (32px) büyütüldü — 0 kaldı, masaüstü değişmedi ✅ ·
+> izleme rozeti satır içi stilden sınıfa + `aria-pressed` ✅ ·
+> (kendi eklediğim) kırpma düğmesi mobilde gizlendi ✅
+> ➜ Ayrıntı ve ölçümler: `docs/faz39-tasarim.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` artık **tanımlı** (`origin`), ama **site hâlâ eski**:
 > yayın hattı çalıştırılmadan hiçbir düzeltme kullanıcıya ulaşmıyor
@@ -241,7 +259,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 1016 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 1030 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` dönemde bir kez yeter — 128 program, ~1081 plan, dakikalar
   sürüyor. Program değiştirmeyi düşünmüyorsan gerekmez.

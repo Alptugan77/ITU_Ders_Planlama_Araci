@@ -82,6 +82,36 @@ GRADES = ["AA", "BA+", "BA", "BB+", "BB", "CB+", "CB", "CC+", "CC",
 FAIL_GRADES = ("FF",)
 ABSENT_GRADES = ("VF",)
 
+SEASONS = {"10": "Güz", "20": "Bahar", "30": "Yaz"}
+
+# ★ Faz 38b — ARTILARIN KATLANDIĞI KOVA.
+#
+# 15 harf, 15 ince sütun demek ve dağılımın ŞEKLİ kayboluyor (kullanıcı
+# geri bildirimi: "+ lar yüzünden dağılım kötü gözüküyor"). Artıyı temel
+# harfle aynı kovaya koyunca 9 sütun kalıyor ve şekil okunur oluyor.
+#
+# ⚠️ Bu bir KAYIP: `BA+` `BA`dan yüksek bir not. O yüzden (a) varsayılan
+# görünüm bunu YAZIYOR, (b) ayrıntı bir tıkla geri geliyor, (c) ortalama
+# HER ZAMAN 15 harften hesaplanıyor — kova yalnız çizim için.
+GRADE_BUCKETS = {"AA": "AA", "BA+": "BA", "BA": "BA", "BB+": "BB", "BB": "BB",
+                 "CB+": "CB", "CB": "CB", "CC+": "CC", "CC": "CC",
+                 "DC+": "DC", "DC": "DC", "DD+": "DD", "DD": "DD",
+                 "FF": "FF", "VF": "VF"}
+BUCKET_ORDER = ["AA", "BA", "BB", "CB", "CC", "DC", "DD", "FF", "VF"]
+
+
+def bucketise(counts: dict[str, int]) -> list[dict]:
+    """15 harfi 9 kovaya indirir; her kovanın İÇİNDEKİ kırılım korunur."""
+    out = {b: {"key": b, "total": 0, "parts": []} for b in BUCKET_ORDER}
+    for harf in GRADES:
+        n = counts.get(harf, 0)
+        kova = GRADE_BUCKETS.get(harf)
+        if kova is None:
+            continue
+        out[kova]["total"] += n
+        out[kova]["parts"].append({"grade": harf, "n": n})
+    return [out[b] for b in BUCKET_ORDER]
+
 _ALL_DATA_RE = re.compile(r"const\s+ALL_DATA\s*=\s*(\[.*?\])\s*;", re.S)
 _HEAD_RE = re.compile(r"<h[1-6][^>]*>(.*?)</h[1-6]>", re.S)
 # ⚠️ Ders numarasının SONUNDA birden fazla harf olabiliyor. Ölçüm
@@ -268,16 +298,27 @@ def distribution(con: sqlite3.Connection, code: str,
             "counts": {}})
         blok["counts"][r["grade"]] = r["students"]
     donemler = [by_term[k] for k in sorted(by_term, reverse=True)]
-    secili = None
-    if term:
-        # Aynı YARIYIL (güz/bahar/yaz) — son iki hane.
-        mevsim = str(term)[-2:]
-        aday = [d for d in donemler if d["term"].endswith(mevsim)]
-        secili = aday[0] if aday else None
-    secili = secili or donemler[0]
+    for d in donemler:
+        d["season"] = SEASONS.get(d["term"][-2:], d["term"][-2:])
+        d["summary"] = summarise(d["counts"], d["announced"])
+    # ★★ Faz 38b — YARIYIL UYUŞMAZLIĞI ARTIK SESSİZ DEĞİL.
+    #
+    # `settings.term` güz ise ve elimizde yalnız BAHAR dağılımı varsa,
+    # eskiden sessizce bahar gösteriliyordu. Ölçüm (176 ders): 36 dersin
+    # güz dağılımı yok ve arayüz 31'inde bahar, 5'inde YAZ gösteriyordu.
+    # Bir güz dersinin bahar dağılımı çoğunlukla birkaç bütünlemeci demek
+    # (BLG 212: baharda n=2, ikisi de FF) — yani sayı var ama dersi
+    # ANLATMIYOR. Gösteriyoruz ama "başka yarıyıl" diye işaretliyoruz.
+    mevsim = str(term)[-2:] if term else ""
+    aday = [d for d in donemler if mevsim and d["term"].endswith(mevsim)]
+    secili = aday[0] if aday else donemler[0]
     return {"key": key, "codes": _codes_of(con, key),
             "terms": donemler, "selected": secili,
-            "summary": summarise(secili["counts"], secili["announced"])}
+            "wantedSeason": SEASONS.get(mevsim) if mevsim else None,
+            # ⚠️ Üç değerli: True/False/None (istenen yarıyıl bilinmiyor).
+            "seasonMismatch": (None if not mevsim
+                               else not secili["term"].endswith(mevsim)),
+            "summary": secili["summary"]}
 
 
 def _codes_of(con: sqlite3.Connection, key: str) -> list[str]:
