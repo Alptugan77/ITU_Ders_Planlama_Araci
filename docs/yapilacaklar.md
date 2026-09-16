@@ -85,6 +85,28 @@ ne kadar iş, neye bağlı.
 > (kendi eklediğim) kırpma düğmesi mobilde gizlendi ✅
 > ➜ Ayrıntı ve ölçümler: `docs/faz39-tasarim.md`
 >
+> **Faz 40'ta kapananlar (16.09.2026 — ders tonları):** ızgaradaki 14 bloğun
+> 12'si birebir aynı yeşildi; her ders artık rolün İÇİNDE kendi tonunu
+> alıyor ✅ (12 anadal dersi için 7 → 9 farklı ton) · merdiven ölçüyle
+> seçildi, `tools/ton_merdiveni.py` ✅ (yazı ≥4.67 AA · zemin ΔE ≥0.039) ·
+> ★ ilk merdivenin `--ground` yarısı ÖLÇÜLDÜ ve görünmüyordu (ΔE 0.006) ✅ ·
+> plan dışı ders tonsuz kaldı (gri aileden merdiven çıkmıyor) ✅ · ton JS'te
+> pişmiyor, tema düğmesi bozulmuyor ✅ · tonun ne dediği ekranda yazılı ✅ ·
+> aynı dersin bütün saatleri vurgulanıyor ✅ (şubelerin %15.5'i ≥2 güne
+> yayılıyor)
+> ➜ Ayrıntı ve ölçümler: `docs/faz40-ders-tonlari.md`
+>
+> **Faz 41'de kapananlar (16.09.2026 — yeni kullanıcı yürüyüşü):** ayarsız
+> ve transkriptsiz bir kurulum açılıp tarayıcıda adım adım yürünüldü.
+> ★★ dönem bilinmiyorken kurulan program planın 7 ayrı döneminden ders
+> karıştırıyordu (1. dönemden 4, 7. dönemden 3) ve ekran bunu SÖYLEMİYORDU —
+> artık ölçülen dağılımı yazıyor, "öneri değil" diyor ve tek tıkla dönem
+> seçtiriyor ✅ (seçilince 14 ders/7 dönem → 10 ders/3 dönem) ·
+> ★ boş kip kutusu 2×2px siyah nokta olarak çiziliyordu, yalnız yeni
+> kullanıcı görüyordu ✅ · ★ dönem diyaloğu "0. dönem (tahmin)" diyordu —
+> yapılmamış bir tahmin ✅
+> ➜ Ayrıntı ve ölçümler: `docs/faz41-yeni-kullanici.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` artık **tanımlı** (`origin`), ama **site hâlâ eski**:
 > yayın hattı çalıştırılmadan hiçbir düzeltme kullanıcıya ulaşmıyor
@@ -259,7 +281,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 1030 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 1045 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` dönemde bir kez yeter — 128 program, ~1081 plan, dakikalar
   sürüyor. Program değiştirmeyi düşünmüyorsan gerekmez.

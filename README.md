@@ -40,6 +40,10 @@ ders hangisine sayılıyor, hangi önşart açık, bu dönem hangi kombinasyon
   **öneri puanına girmiyor** — hangi dersin değdiği senin kararın.
 * **Darboğaz raporu** — bir ders neden alınamıyor: önşart mı, kontenjan mı,
   programa kapalı mı, kredi eşiği mi.
+* **Okunur haftalık program** — renk hangi programdan olduğunu (anadal /
+  ÇAP / yandal), ton hangi ders olduğunu söylüyor. ⚠️ Ton merdiveni ölçüyle
+  seçildi: yazı kontrastı iki temada da WCAG AA'nın (4.5) üstünde, 9 tondan
+  sonrası tekrar ediyor ve bunu ekranda **yazıyor**.
 
 ## Tasarım ilkesi: bilinmeyen, bilinen gibi gösterilmez
 
@@ -53,6 +57,7 @@ gerçek bir zarar. O yüzden baştan beri tek bir kural işliyor:
 | Notu girilmemiş ders | En kötü durum (DD) varsayılır — eşik yanlışlıkla açılmasın |
 | Ad benzerliğinden çıkan denklik | **Önerilir**, otomatik uygulanmaz (17 dersin adı "Fluid Mechanics") |
 | Bir dersi eleyen kural | Kendini gösterir — "GEO 4901E neden kayboldu" sorusu sorulmasın |
+| Kaçıncı dönemde olduğun bilinmiyor | Program **her dönemden** ders karıştırır ve bunu ölçüp yazar ("7 ayrı dönemden: 1.'den 4, 7.'den 3") — dönem **tahmin edilmez** |
 | Duramayacağımız sayı | Hiç gösterilmez (bkz. başvuru ekranında kalan kredi) |
 
 Hesaplanan GNO bir **tahmindir**, OBS'nin resmi ortalaması değildir; arayüz
@@ -202,7 +207,7 @@ uygulanıyor; kaynak dosya değişmediği için hiçbir beyan kaybolmuyor.
 ## Test
 
 ```bash
-make test        # 1030 test + gizlilik denetimi
+make test        # 1045 test + gizlilik denetimi
 ```
 
 Gizlilik denetimi (`tools/gizlilik_denetimi.py`) dosya adına **değil

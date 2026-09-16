@@ -1563,6 +1563,18 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .modebtn:first-child{border-left:0}
 .modebtn[aria-pressed="true"]{background:var(--seal-soft);color:var(--seal);font-weight:600}
 .modenote{font-size:12px;color:var(--ink-3);margin-top:7px}
+/* ★ FAZ 41 — BOŞ kip kutusu 2×2px SİYAH NOKTA olarak çiziliyordu.
+   `.modes` çerçeveli; içi boşalınca geriye yalnız çerçeve kalıyor ve açık
+   şemada `--border-strong` (#141821) neredeyse siyah. Kip düğmeleri ancak
+   dönem BİLİNİYORSA iki tane oluyor (`MODES.length < 2` → innerHTML "")
+   — yani bu noktayı YALNIZ yeni kullanıcı görüyordu, başlığın hemen
+   altında, sebepsiz. */
+.modes:empty{display:none}
+/* Dönem bilinmiyor uyarısı — mühür rengiyle, arz uyarısından ayrılsın diye:
+   o bir SORUN bildiriyor, bu bir EKSİK BİLGİ. İkisi birden görünebiliyor,
+   o yüzden aralarında boşluk var: dipdibe gelince tek bir blok gibi
+   okunuyorlardı. */
+.note.donemsiz{border-left-color:var(--seal);margin-top:10px}
 
 /* ---------- kurulum şeridi (Faz 8) ---------- */
 .setupbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;
@@ -1719,8 +1731,11 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
 .daylist h3{font-size:10.5px;letter-spacing:.16em;color:var(--seal);
   padding-bottom:6px;border-bottom:2px solid var(--border-strong)}
 .daylist .row{display:flex;justify-content:space-between;gap:10px;align-items:baseline;
-  width:100%;text-align:left;padding:11px 12px;background:var(--soft);
-  color:var(--accent-ink);border-left:5px solid var(--accent);font-size:13.5px}
+  width:100%;text-align:left;padding:11px 12px;font-size:13.5px;
+  color:var(--accent-ink);--tonhedef:var(--soft);--tonoran:0%;
+  border-left:5px solid color-mix(in oklab, var(--accent),
+    var(--tonhedef) calc(var(--tonoran) / 2));
+  background:color-mix(in oklab, var(--soft), var(--tonhedef) var(--tonoran))}
 .daylist .row[data-role="ANADAL"]{--accent:var(--anadal);--soft:var(--anadal-soft);--accent-ink:var(--anadal-ink)}
 .daylist .row[data-role="CAP"]{--accent:var(--cap);--soft:var(--cap-soft);--accent-ink:var(--cap-ink)}
 .daylist .row[data-role="YANDAL"]{--accent:var(--yandal);--soft:var(--yandal-soft);--accent-ink:var(--yandal-ink)}
@@ -1777,9 +1792,29 @@ table.grid td.hour{border:0!important;color:var(--ink-3);font-size:11.5px;paddin
 table.grid td.free{cursor:pointer}
 table.grid td.free:hover{background:var(--surface-2);
   box-shadow:inset 0 0 0 1px var(--border-strong)}
+/* ★★ FAZ 40 — DERS BAŞINA TON (kullanıcı isteği 16.09.2026).
+   Eskiden bir rolün bütün dersleri BİREBİR aynı renkteydi: ızgaradaki 14
+   bloğun 10'u aynı yeşil. "Salı 13:30'daki hangi dersti" sorusu ancak
+   koda okunarak cevaplanıyordu.
+
+   ⚠️ Rolün RENGİ (hue) değişmiyor — o BİLGİ taşıyor (anadal/ÇAP/yandal).
+   Değişen yalnız AÇIKLIK: ders kodundan türeyen bir basamak, `--soft`u ya
+   zemine (`--ground`) ya da rolün kendi rengine (`--accent`) doğru
+   karıştırıyor. Yani ton rolün İÇİNDE bir basamak, rolün yerine geçen bir
+   renk değil.
+
+   ⚠️ Ton bir İPUCU, kimlik değil: 8 basamak var, hafta 14 ders taşıyabilir,
+   iki ders aynı tona düşebilir. O yüzden kod HER BLOKTA yazılı ve aynı
+   dersin bütün saatleri `.esder` ile ayrıca işaretlenebiliyor — renk tek
+   işaret değil (renk körlüğü). */
 .blk{border-radius:0;padding:4px 7px;font-size:12px;line-height:1.3;height:100%;
-  cursor:pointer;border-left:5px solid var(--accent);background:var(--soft);
-  color:var(--accent-ink);overflow:hidden}
+  cursor:pointer;color:var(--accent-ink);overflow:hidden;
+  /* Varsayılan = TON YOK: hedef `--soft`, oran 0 → iki karışım da kimlik.
+     Ton verilen blokta bu iki jeton satır içinde değişiyor. */
+  --tonhedef:var(--soft); --tonoran:0%;
+  border-left:5px solid color-mix(in oklab, var(--accent),
+    var(--tonhedef) calc(var(--tonoran) / 2));
+  background:color-mix(in oklab, var(--soft), var(--tonhedef) var(--tonoran))}
 .blk[data-role="ANADAL"]{--accent:var(--anadal);--soft:var(--anadal-soft);--accent-ink:var(--anadal-ink)}
 .blk[data-role="CAP"]{--accent:var(--cap);--soft:var(--cap-soft);--accent-ink:var(--cap-ink)}
 .blk[data-role="YANDAL"]{--accent:var(--yandal);--soft:var(--yandal-soft);--accent-ink:var(--yandal-ink)}
@@ -1794,13 +1829,24 @@ table.grid td.free:hover{background:var(--surface-2);
    sol şerit ve yazı rengi rolün rengini koruyor — hangi programdan olduğu
    yine görünüyor. Ayrıca renk TEK işaret değil: köşede ⌂ simgesi var,
    çünkü renk körlüğünde ton farkı okunmayabilir. */
+/* ⚠️ Faz 40 notu: çevrimiçi bloğun dolgusu BİLEREK yok, o yüzden ders tonu
+   burada yalnız şeritte görünüyor — ve tam oranla, çünkü yarışan dolgu yok.
+   Tonun zayıf kaldığı tek yer burası; aynı ders vurgusu (`.esder`) bunu
+   kapatıyor. */
 .blk.online{background:transparent;
   border-left-style:dashed;
+  border-left-color:color-mix(in oklab, var(--accent),
+    var(--tonhedef) var(--tonoran));
   box-shadow:inset 0 0 0 1px var(--border)}
 .blk.online::after{content:"⌂";position:absolute;right:5px;top:3px;
   font-size:10px;opacity:.75}
 .blk{position:relative}
 /* Ders adı — dar hücrede kesiliyor; tam adı `title` taşıyor. */
+/* ★ FAZ 40 — aynı dersin bütün saatleri. İşaret RENK DEĞİL: çerçeve.
+   Tonla yarışmıyor, renk körlüğünde de okunuyor, ve `.clash`ın kırmızı
+   çerçevesinin üstüne binmiyor (o `border-left` + inset gölge kullanıyor). */
+.blk.esder,.daylist .row.esder{outline:2px solid var(--ink);outline-offset:-2px}
+.blk.esder{z-index:1}
 .blkad{display:block;font-size:10.5px;line-height:1.25;opacity:.85;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
 .daylist .row.online{border-left-style:dashed}
@@ -2165,13 +2211,16 @@ body.kurulum #secnav{display:none}
   align-items:flex-end;margin-bottom:12px}
 .savedgrid{display:flex;flex-wrap:wrap;gap:8px}
 .savedcard{background:var(--surface-2);border:1px solid var(--border);
-  border-left:4px solid var(--anadal);padding:8px 11px;min-width:184px;flex:1 1 184px}
+  --accent:var(--anadal);padding:8px 11px;min-width:184px;flex:1 1 184px;
+  --tonhedef:var(--accent);--tonoran:0%;
+  border-left:4px solid color-mix(in oklab, var(--accent),
+    var(--tonhedef) var(--tonoran))}
 /* ★★ FAZ 39 — SINIF ÇAKIŞMASI. Bu satır eskiden `.savedcard.cap` idi ve
    `.cap` YUKARIDA (satır ~1857) kontenjan çipinin sınıfı:
    `display:inline-flex; white-space:nowrap`. Yani kaydedilen programdaki
    HER ÇAP/yandal ders kartı satır içine çöküp kırpılıyordu — kod, CRN, ad
    ve saat tek satırda, kartın dışına taşarak. Ad DEĞİŞTİ; renk aynı. */
-.savedcard.ikinci{border-left-color:var(--cap)}
+.savedcard.ikinci{--accent:var(--cap)}
 .savedcard .crn{float:right;color:var(--ink-3)}
 .savedcard .when{font-size:11.5px;color:var(--ink-3);margin-top:3px}
 .savedcard .miss{font-size:11.5px;color:var(--warn)}
@@ -2323,6 +2372,13 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
   <div class="summary" id="schedSummary"></div>
   <!-- C3: arz uyarısı — kayıt gününden ÖNCE bilinmesi gereken şey. -->
   <div class="note arz" id="arzUyari" hidden></div>
+  <!-- ★★ FAZ 41 — DÖNEM BİLİNMİYORSA PROGRAM BUNU SÖYLEMELİ.
+       Ölçüldü: bölümünü seçip başka bir şey girmeyen bir öğrenciye kurulan
+       program 1., 3., 4., 5., 7. ve 8. dönem derslerini yan yana koyuyordu
+       (1. dönemden 4, 7. dönemden 3 ders) ve ekranda bunu söyleyen tek bir
+       satır yoktu. Motor yanlış değil — bilmediği için hepsini aday
+       sayıyor — ama ekran bunu "senin programın" gibi gösteriyordu. -->
+  <div class="note donemsiz" id="donemUyari" hidden></div>
   <div class="toolbar">
     <span id="editState" class="chip edited" hidden>değiştirildi</span>
     <button class="ghost" id="crnLoad">CRN'den yükle</button>
@@ -2336,6 +2392,13 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
     <span id="savedMark" class="chip" style="color:var(--anadal)" hidden></span>
     <span class="hint">Derse tıkla → şube değiştir, yerine başka ders koy, çıkar
       &nbsp;·&nbsp; Boş hücreye tıkla → o saate uyan dersler</span>
+    <!-- ★ FAZ 40 — TONUN NE DEDİĞİ YAZILI OLMALI. Bir görsel kodlama anlam
+         taşıyorsa, ne taşıdığını söylemek zorunda: yoksa kullanıcı koyu
+         yeşili "daha dolu" ya da "daha zor" diye okuyabilir. Sayı da
+         gizlenmiyor — 9 ton var, 9'dan fazla ders tonu tekrar eder. -->
+    <span class="hint" id="tonNot">Renk hangi programdan olduğunu söylüyor
+      &nbsp;·&nbsp; ton hangi ders olduğunu: aynı ton, aynı ders — 9 tondan
+      sonrası tekrar eder, emin olmak için dersin üstüne gel</span>
   </div>
   <div class="gridwrap" style="margin-top:14px"><table class="grid" id="grid"></table></div>
   <div id="gridAralik" class="gridaralik"></div>
@@ -2482,6 +2545,94 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c =>
   ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const hhmm = (m) => String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+
+/* ★★ FAZ 40 — ders başına TON basamağı.
+   Rolün rengi sabit; bu yalnız `--soft`u hangi yöne, ne kadar kaydıracağımızı
+   söylüyor. İki hedef de JETON: tema değişince ton kendiliğinden yeni
+   paletten hesaplanıyor — renk JS'te PİŞİRİLMİYOR. (Tema düğmesi yeniden
+   render ETMİYOR; pişmiş renk eski temada kalırdı.)
+
+   ⚠️ Merdiven TAHMİNLE değil ÖLÇÜYLE seçildi (tools/ton_merdiveni.py). Üç
+   taban birden tutuluyor, dört rolde ve İKİ temada:
+     · yazı kontrastı  ≥ 4.5  (WCAG AA)          — ölçülen en kötü 4.67
+     · zemin farkı ΔE  ≥ 0.035 (OKLab)           — ölçülen en kötü 0.039
+       (blok, boş hücreden ayrılmalı; yoksa ton uğruna blok kayboluyor)
+     · basamaklar arası ΔE en büyük olsun        — ölçülen en kötü 0.0174
+   İlk denemede merdivenin yarısı `--ground` yönündeydi ve ÖLÇÜLDÜ: o üç
+   basamak arası ΔE 0.006, yani GÖRÜNMÜYORDU — `--soft` koyu temada zaten
+   `--ground`a çok yakın. Ayrıntı: docs/faz40-ders-tonlari.md */
+const TON_BASAMAK = [
+  ["soft",    0], ["ground", 38],
+  ["accent",  5], ["accent",  9], ["accent", 15], ["accent", 19],
+  ["accent", 23], ["accent", 29], ["accent", 33],
+];
+/* ⚠️ PLAN DIŞI dersin tonu YOK. Rengi gri (`--soft`=yüzey, `--accent`=--ink-3);
+   gri bir aileden merdiven çıkarmak ölçüldü ve İKİ tabanı da düşürüyordu
+   (yazı 4.39 — AA altı; zemin ΔE 0.021 — blok boş hücreden ayrılmıyor).
+   Renksizlik burada zaten BİLGİ: bu ders hiçbir planın parçası değil. */
+const TONSUZ_ROL = new Set(["PLAN_DISI"]);
+
+/** Ders kodundan KARARLI tercih — aynı ders her açılışta aynı basamağı ister. */
+function tonTercihi(kod){
+  let h = 0;
+  const s = String(kod || "");
+  for(let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h % TON_BASAMAK.length;
+}
+
+/* Görünümdeki dersler için basamak dağıtımı. Tercih hash'ten gelir; o basamak
+   AYNI ROLDE doluysa ileri sondalanır. Yani 9 basamak dolana kadar hiçbir iki
+   ders aynı tona düşmüyor.
+   ⚠️ Bedeli: hafta değişince çakışan derslerin tonu kayabiliyor. Kabul edildi,
+   çünkü ton bir İPUCU — kimlik kodun kendisi, her blokta yazılı. */
+let TON_HARITA = {};
+function tonHaritaKur(kodRolCiftleri){
+  TON_HARITA = {};
+  const dolu = {};
+  const gorulen = new Set();
+  const liste = kodRolCiftleri
+    .filter(([kod, rol]) => kod && !TONSUZ_ROL.has(rol))
+    .filter(([kod]) => !gorulen.has(kod) && gorulen.add(kod))
+    .sort((a, b) => a[0].localeCompare(b[0], "tr"));   // kararlı sıra
+  liste.forEach(([kod, rol]) => {
+    const alinan = dolu[rol] = dolu[rol] || new Set();
+    let i = tonTercihi(kod);
+    for(let n = 0; n < TON_BASAMAK.length && alinan.has(i); n++)
+      i = (i + 1) % TON_BASAMAK.length;
+    alinan.add(i);
+    TON_HARITA[kod] = i;
+  });
+}
+
+/** Bloğa yapıştırılacak satır içi jetonlar. Renk DEĞİL: yön + oran — tema
+    değişince tarayıcı yeni paletten yeniden hesaplıyor. */
+function tonStil(kod, rol){
+  if(TONSUZ_ROL.has(rol)) return "";
+  const i = TON_HARITA[kod] !== undefined ? TON_HARITA[kod] : tonTercihi(kod);
+  const [hedef, oran] = TON_BASAMAK[i];
+  return hedef === "soft" ? ""
+    : `--tonhedef:var(--${hedef});--tonoran:${oran}%`;
+}
+
+/* ★ FAZ 40 — AYNI DERSİN BÜTÜN SAATLERİ.
+   Ton bir ipucu; bu onu KESİNLİĞE çeviriyor. Bir bloğun üzerine gelince ya
+   da klavyeyle odaklanınca o dersin haftadaki bütün buluşmaları
+   işaretleniyor — ızgarada ve gün listesinde aynı anda.
+
+   ⚠️ İşaret RENK DEĞİL (çerçeve + hafif büyütme): renk körlüğünde de
+   okunuyor ve tonun kendisiyle yarışmıyor. */
+function esDersBagla(){
+  const hepsi = () => document.querySelectorAll("#grid .blk[data-course], "
+                                              + "#daylist .row[data-course]");
+  const isaretle = (kod) => hepsi().forEach(el =>
+    el.classList.toggle("esder", !!kod && el.dataset.course === kod));
+  hepsi().forEach(el => {
+    el.addEventListener("mouseenter", () => isaretle(el.dataset.course));
+    el.addEventListener("mouseleave", () => isaretle(null));
+    el.addEventListener("focus",      () => isaretle(el.dataset.course));
+    el.addEventListener("blur",       () => isaretle(null));
+  });
+}
 
 /* ★ B3 — dönem: ekranda okunur ad, ham kod ise ipucunda. Çözülemediyse
    ham kod yazıyor; uydurma bir dönem adı ham koddan çok daha kötü. */
@@ -3134,8 +3285,17 @@ function termDialog(){
         ${[1,2,3,4,5,6,7,8].map(n =>
           `<button data-t="${n}" aria-pressed="${cur === n}">${n}</button>`).join("")}
       </div>
-      <span class="hint">Şu an kullanılan: <b class="mono">${DATA.donem}. dönem</b>
-        (${esc(DATA.donemSource)}). Otomatik seçilirse geçtiğin slotların en derin
+      <!-- ⚠️ FAZ 41: burada eskiden dönem bilinmiyorken de "0. dönem (tahmin)"
+           yazıyordu. "0. dönem" diye bir şey yok ve "(tahmin)" YAPILMAMIŞ bir
+           tahmini yapılmış gösteriyordu — transkript yokken çıkarılacak bir
+           şey yok. Bilinmiyorsa bilinmediğini yazıyor. -->
+      <span class="hint">${DATA.donem
+        ? `Şu an kullanılan: <b class="mono">${DATA.donem}. dönem</b>
+           (${esc(DATA.donemSource || "ayar")}).`
+        : `<b>Şu an dönem bilinmiyor</b> — geçtiğin dersleri de girmediğin için
+           çıkarılabilecek bir şey yok, o yüzden öneri planın her döneminden
+           ders karıştırıyor.`}
+        Otomatik seçilirse geçtiğin slotların en derin
         döneminden çıkarılır — kayıt donduran ya da yaz okulu okuyanda şaşabilir.
       </span></label>
     <label class="field" style="margin-top:14px"><span>ÇAP'a başladığın yarıyıl</span>
@@ -4011,7 +4171,8 @@ function renderSaved(){
     kredi += hit.cand.credits || 0; akts += hit.cand.ects || 0;
     const saat = (hit.sec.meetings || []).map(m =>
       `${DAYS[m.day-1] || "?"} ${hhmm(m.start)}`).join(" · ") || "saati ilan edilmemiş";
-    return `<div class="savedcard ${hit.cand.role === "ANADAL" ? "" : "ikinci"}">
+    return `<div class="savedcard ${hit.cand.role === "ANADAL" ? "" : "ikinci"}"
+      style="${tonStil(p.course, hit.cand.role)}">
       <b class="mono">${esc(p.course)}</b><span class="crn mono">${esc(p.crn)}</span>
       <div class="when">${esc(hit.cand.name || "")}</div>
       <div class="when mono">${esc(saat)}</div></div>`;
@@ -4885,6 +5046,58 @@ function renderArzUyarisi(){
       <a href="#blockSection" id="arzDetay">Darboğaz bölümünde ayrıntı</a>.</div>`;
 }
 
+/* ★★ FAZ 41 — "KAÇINCI DÖNEMDESİN" BİLİNMİYORSA, PROGRAM BUNU SÖYLER.
+
+   Ölçüm (16.09.2026, yeni kullanıcı yürüyüşü): yalnız bölümünü seçen bir
+   öğrenciye kurulan 14 derslik programda plan dönemleri şöyleydi —
+   1. dönemden 4, 2.'den 1, 3.'ten 1, 4.'ten 1, 5.'ten 2, 7.'den 3, 8.'den 2.
+   Yani birinci sınıf öğrencisi FIZ 101E ile GEO 401E'yi (Physical Geodesy)
+   yan yana görüyordu ve ekranda bunu açıklayan tek satır yoktu.
+
+   ⚠️ Motor UYDURMUYOR: dönem bilinmediği için plandaki her açık ders aday.
+   Yanlış olan hesap değil, SUNUM — "senin haftalık programın" diye
+   gösterilen şey aslında "hiçbir şey bilmezsem en çok bunları alabilirsin".
+
+   ⚠️ Dönemi TAHMİN ETMİYORUZ. Transkript varsa `infer_term` zaten tahmin
+   ediyor; hiçbir şey yokken bir sayı uydurmak, projenin kaçındığı şeyin ta
+   kendisi olurdu. Bunun yerine: ölçülen dağılımı YAZ, düzeltmeyi bir tık
+   uzağa koy. */
+function renderDonemUyarisi(){
+  const kutu = $("#donemUyari");
+  if(!kutu) return;
+  const ps = picks();
+  /* Dönem biliniyorsa (ayardan ya da transkriptten tahminle) susuyoruz. */
+  if(DATA.donem || !ps.length){ kutu.hidden = true; kutu.innerHTML = ""; return; }
+
+  const say = {};
+  let dönemsiz = 0;
+  ps.forEach(p => {
+    const t = p.cand.termNo;
+    if(t === null || t === undefined) dönemsiz++;
+    else say[t] = (say[t] || 0) + 1;
+  });
+  const dönemler = Object.keys(say).map(Number).sort((a, b) => a - b);
+  if(!dönemler.length && !dönemsiz){ kutu.hidden = true; return; }
+
+  kutu.hidden = false;
+  const dökum = dönemler.map(t => `<b>${t}.</b> dönemden ${say[t]}`).join(" · ")
+    + (dönemsiz ? ` · plan dönemi yazmayan ${dönemsiz}` : "");
+  kutu.innerHTML = `
+    <b>Kaçıncı dönemde olduğunu bilmiyorum.</b>
+    <div style="margin-top:4px">Bu yüzden aşağıdaki program planın
+      <b>${dönemler.length}</b> ayrı döneminden ders karıştırıyor:
+      ${dökum}. Alabileceklerinin tamamı bu — <b>bu dönem almanı önerdiğim
+      liste değil</b>.</div>
+    <div class="dlgactions" style="border:0;padding:0;margin-top:8px;
+      justify-content:flex-start">
+      <button class="ghost primary" id="donemUyariAc">Dönemi seç</button>
+      <span class="meta">5 saniye — sonra “N. dönem + alttan” kipi açılıyor
+        ve öneri oraya odaklanıyor.</span>
+    </div>`;
+  const d = $("#donemUyariAc");
+  if(d) d.addEventListener("click", () => termDialog());
+}
+
 /* ---------- yazdırma için CRN listesi (Faz 27) ----------
    Ekranda gizli, kâğıtta ızgaranın altında. Kayıt masasında bakılan şey bu:
    hangi CRN, hangi ders, hangi saat. */
@@ -5170,7 +5383,8 @@ function renderDayList(){
     out += items.length ? items.map((it,i) =>
       `<button class="row${clash.has(i) ? " clash" : ""}${
          it.p.sec.online ? " online" : ""}" data-role="${it.p.cand.role}"
-         data-course="${esc(it.p.cand.course)}">
+         data-course="${esc(it.p.cand.course)}"
+         style="${tonStil(it.p.cand.course, it.p.cand.role)}">
          <span><b class="mono">${esc(it.p.cand.course)}</b>
            ${it.p.cand.name ? `<span class="blkad">${esc(it.p.cand.name)}</span>` : ""}
            <small class="mono">${hhmm(it.m.start)}–${hhmm(it.m.end)}
@@ -5189,6 +5403,16 @@ function renderDayList(){
 }
 
 function render(){
+  /* ★ FAZ 40 — ton dağıtımı HER ŞEYDEN ÖNCE. Haftalık program ve kaydedilen
+     program aynı haritayı kullanmalı, yoksa aynı ders iki yerde iki tonda
+     görünürdü. */
+  tonHaritaKur([
+    ...picks().map(p => [p.cand.course, p.cand.role]),
+    ...((DATA.savedPicks && DATA.savedPicks.picks) || []).map(p => {
+      const hit = findSection(p.course, p.crn);
+      return [p.course, hit ? hit.cand.role : "ANADAL"];
+    }),
+  ]);
   renderTabs();
   renderPanels();
   const t = totals();
@@ -5216,6 +5440,7 @@ function render(){
   renderSaveState();
   renderFloor();
   renderArzUyarisi();
+  renderDonemUyarisi();
   renderGeri();
   renderPrintCrn();
 
@@ -5301,6 +5526,7 @@ function render(){
       html += `<td rowspan="${c.span}"><div class="blk ${
           c.p.sec.online ? "online" : ""}" data-role="${c.p.cand.role}"
           data-course="${esc(c.p.cand.course)}" tabindex="0" role="button"
+          style="${tonStil(c.p.cand.course, c.p.cand.role)}"
           title="${esc([c.p.cand.course, c.p.cand.name, c.p.sec.instructor,
                         "CRN " + c.p.sec.crn,
                         c.p.sec.online ? "çevrimiçi" : yerBaslik(c.m.building)]
@@ -5325,6 +5551,7 @@ function render(){
     bind(el, () => busyDialog(null, null, el.dataset.busy)));
 
   renderDayList();
+  esDersBagla();
 
   $("#notime").innerHTML = timeless.length ? `
     <div class="eyebrow" style="margin-bottom:6px">Saati ilan edilmemiş</div>
