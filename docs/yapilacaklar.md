@@ -121,29 +121,27 @@ ne kadar iş, neye bağlı.
 > bu katalogda boş (0 satır), yani kaynaksız eşleme uydurmak olurdu.
 > ➜ Ayrıntı ve ölçümler: `docs/faz42-hayalet-onsart.md`
 >
-> **Faz 43'te kapananlar (17.09.2026 — tasarım sistemi):** ★★ paletin 90
-> çiftinin 15'i taban altındaydı: `--ink-3` (88 yerde küçük yazı) gece
-> 3.32–4.03, gündüz 3.47–4.22 · gece şemasında düğme/alan kenarı 1.80–2.13 —
-> yalnız açıklık değişti, 92 çiftin 0'ı taban altında ✅ · ★★ tonlu blokta
-> ders adı (%85 opaklık, 3.80–4.37) ve saat · yer · CRN satırı (`--ink-2`,
-> 3.09–3.91) Faz 40 merdiveninin ölçmediği renklerdeydi ✅ · ★ bağlantının
-> kuralı yoktu, gece şemasında tarayıcı mavisi 1.66:1 ✅ · ★★ beş bölüm
-> açıklaması `display:flex` satırın içindeydi, kelimeler 14px aralıkla
-> dağılıyordu (`.cap` hata sınıfı) ✅ · aynı hata panelin "İlerleme bilinmiyor" notunda — yalnız yeni kullanıcı görüyordu ✅ · yazı boyutu 18 → 9 basamak, alt
-> sınır 10.5 · harf aralığı 13 → 6 · aralık 2px ızgarası ✅ · durumlar tek
-> dilde: hover beş grupta, devre dışı tek opaklık, tamamlandı = efsane,
-> kilitli adımın metni okunur (açıklama 1.77:1'di) ✅ · gölge yalnız yüzen
-> katmanda, paletin dışında sabit renk yok, açık palet iki blokta birebir ✅ ·
-> telefonda öneri sekmeleri alt alta ✅ · "beyanın" etiketinin kuralı yoktu ✅
-> ⚠️ Açık kalem: yazı tipleri hâlâ `fonts.googleapis.com`'dan — sayfa
-> açılışta üçüncü tarafa istek atıyor; README'nin gizlilik ilkesiyle
-> çelişiyor. Fontlar siteyle birlikte yayınlanmalı (`site_kur.py`).
+> **Faz 43'te kapananlar (17.09.2026 — tasarım sistemi uygulandı):**
+> kullanıcının hazırladığı tasarım sistemi (jetonlar, tipografi, 30 bileşen,
+> `.woff2` dosyaları) uygulamaya geçirildi ve üç yerde **uygulamanın hatası**
+> çıktı. ★★ sayfa her açılışta `fonts.googleapis.com`a istek atıyordu, oysa
+> README "üçüncü bir tarafa haber verilmiyor" diyor — yazı tipleri CSS'e
+> gömüldü, dış istek 1 → 0 ✅ (ve bunu meşrulaştıran eski test düzeltildi) ·
+> ★★ `--ink-3` iki temada da AA altındaydı (4.03 / 4.22, taban 4.5),
+> `--border-strong` gece 2.13 (taban 3.0) — ölçülen değerlere geçildi,
+> `tools/kontrast_olcumu.py` ile 52 çift ölçülüyor ✅ · ★ üç yazı ağırlığı
+> yüklü değilken isteniyordu (36 ders kodu dahil), tarayıcı taklit
+> ediyordu ✅ · `--seal-hover` ve `--scrim` eklendi (üç palet bloğuna da) ✅
+> ⚠️ Yayın tarafı denetlendi: `pages.yml` `src/**` ile tetikleniyor, fontlar
+> oraya girdi; `pyproject` paket verisi güncellendi.
 > ➜ Ayrıntı ve ölçümler: `docs/faz43-tasarim-sistemi.md`
 >
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` artık **tanımlı** (`origin`), ama **site hâlâ eski**:
 > yayın hattı çalıştırılmadan hiçbir düzeltme kullanıcıya ulaşmıyor
-> (`fikirler.md` F.5).
+> (`fikirler.md` F.5). ✅ F.5'in "önce `make all-plans` gerekiyor" uyarısı
+> 17.09.2026'da ölçülüp **geçersiz** bulundu (71 `_YD` kodunun 71'i de
+> yerinde) — yayının önünde o engel yok.
 
 Sıralama tahmine değil, iki ölçüte dayanıyor: (a) kayıt gününde işe yarar mı,
 (b) yanlış cevap verme riski taşıyor mu. İkisi de "hayır" olan iş listede
@@ -314,7 +312,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 1055 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 1065 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` dönemde bir kez yeter — 128 program, ~1081 plan, dakikalar
   sürüyor. Program değiştirmeyi düşünmüyorsan gerekmez.

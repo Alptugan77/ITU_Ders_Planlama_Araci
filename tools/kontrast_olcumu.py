@@ -1,88 +1,133 @@
 #!/usr/bin/env python3
-"""Paletin yazı ve kenar kontrastını ÖLÇ (Faz 43).
+"""Palet kontrast ölçümü (Faz 43).
 
-Faz 40'ın ton merdiveni blok yazısını ölçmüştü; bu araç paletin geri kalanını
-ölçüyor. Paleti **`ui.py`'den okuyor** (`ton_merdiveni.palet()` ile aynı
-okuma — elle kopyalanmış bir liste değil), her yazı rengini **düştüğü her
-zeminde** iki temada da hesaplıyor:
+Tasarım sistemi bir taban koyuyor: *"Yazı her temada, düştüğü her zeminde
+≥4.5:1; denetim kenarı ve odak halkası ≥3:1."* Bu araç o tabanı ÖLÇÜYOR.
 
-  1. yazı           — taban 4.5 (WCAG AA, küçük metin)
-  2. denetim kenarı — taban 3.0 (WCAG 1.4.11: düğme ve alan sınırı, odak halkası)
+Paleti **`ui.py`'den okuyor** — elle kopyalanmış bir liste değil; bir jeton
+değişince ölçüm de değişir. Çiftler aşağıda BEYAN edilmiş: hangi yazının
+hangi zemine düştüğü koddan çıkarılamaz, o yüzden burada yazılı ve her satır
+nerede kullanıldığını söylüyor.
 
-  python tools/kontrast_olcumu.py          # tablo + başarısızlar
+    python tools/kontrast_olcumu.py          # tabanı tutmayan varsa çıkış 1
+    python tools/kontrast_olcumu.py --hepsi  # geçenleri de dök
 
-⚠️ Çiftler "bu renk nerede kullanılıyor" sorusunun cevabı; yeni bir yerde
-yeni bir zemine yazı konursa buraya da eklenmeli — yoksa ölçülmez.
-`tests/test_faz43_tasarim_sistemi.py` bu listeyi kullanıyor.
+⚠️ Bu araç "tasarım güzel mi" demiyor; yalnız okunabilirlik tabanını tutuyor.
 """
 from __future__ import annotations
 
+import argparse
 import pathlib
+import re
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+KOK = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(KOK / "tools"))
 
-import ton_merdiveni as T  # noqa: E402
+from ton_merdiveni import hex2rgb, kontrast          # noqa: E402
 
-YAZI_TABANI = 4.5
-KENAR_TABANI = 3.0
+UI = KOK / "src" / "itucap" / "ui.py"
 
-ZEMIN = ("--ground", "--surface", "--surface-2")
+YAZI_TABANI = 4.5      # WCAG AA, normal boy yazı
+BUYUK_TABANI = 3.0     # ≥24px ya da ≥18.66px kalın
+KENAR_TABANI = 3.0     # denetim kenarı, odak halkası, ayırıcı çizgi
 
-# yazı rengi → üstüne yazıldığı zeminler (kullanım yerleri yorumda)
-YAZI = {
-    "--ink": ZEMIN,
-    # notlar, adım açıklaması, READY kademe kutusu, uyarı kutusu
-    "--ink-2": ZEMIN + ("--seal-soft", "--cap-soft", "--warn-soft"),
-    # 88 yerde küçük yazı: ipucu, sayaç, CRN, "tamamlandı", izle rozeti
-    "--ink-3": ZEMIN + ("--seal-soft", "--cap-soft", "--warn-soft"),
-    # eyebrow, tablo başlığı, etiket, bağlantı, seçili kip
-    "--seal": ZEMIN + ("--seal-soft",),
-    # yüzde, "+9", kategori rozeti
-    "--anadal": ("--surface", "--surface-2", "--anadal-soft"),
-    "--cap": ("--surface", "--surface-2", "--cap-soft"),
-    "--yandal": ("--surface", "--surface-2", "--yandal-soft"),
-    # rol etiketi
-    "--anadal-ink": ("--anadal-soft",),
-    "--cap-ink": ("--cap-soft",),
-    "--yandal-ink": ("--yandal-soft",),
-    "--danger": ZEMIN,
-    "--warn": ZEMIN,
-    "--warn-ink": ("--warn-soft",),
-    # seçili sekme, birincil düğme, bildirim: zemin rengi mühür üstünde
-    "--ground": ("--seal", "--seal-hover"),
-}
+# (yazı/kenar jetonu, zemin jetonu, taban, nerede)
+CIFTLER = [
+    ("ink",    "ground",    YAZI_TABANI, "gövde yazısı"),
+    ("ink",    "surface",   YAZI_TABANI, "kart içi gövde"),
+    ("ink",    "surface-2", YAZI_TABANI, "not kutusu, ikincil yüzey"),
+    ("ink-2",  "ground",    YAZI_TABANI, "açıklama, uzun metin"),
+    ("ink-2",  "surface",   YAZI_TABANI, "kart içi açıklama"),
+    ("ink-2",  "surface-2", YAZI_TABANI, "not kutusu açıklaması"),
+    ("ink-3",  "ground",    YAZI_TABANI, "meta, ipucu, CRN"),
+    ("ink-3",  "surface",   YAZI_TABANI, "kart içi meta"),
+    ("ink-3",  "surface-2", YAZI_TABANI, "kaydedilen kartta CRN"),
+    ("seal",   "ground",    YAZI_TABANI, "bağlantı, eyebrow"),
+    ("seal",   "surface",   YAZI_TABANI, "kart içi bağlantı"),
+    ("seal",   "seal-soft", YAZI_TABANI, "seçili kip/sekme yazısı"),
+    ("danger", "ground",    YAZI_TABANI, "çakışma, kredi aşımı"),
+    ("danger", "surface-2", YAZI_TABANI, "uyarı kutusunda hata"),
+    ("warn",   "ground",    YAZI_TABANI, "bayat veri uyarısı"),
+    ("warn-ink", "warn-soft", YAZI_TABANI, "uyarı kutusu yazısı"),
+    ("anadal-ink", "anadal-soft", YAZI_TABANI, "anadal bloğu yazısı"),
+    ("cap-ink",    "cap-soft",    YAZI_TABANI, "ÇAP bloğu yazısı"),
+    ("yandal-ink", "yandal-soft", YAZI_TABANI, "yandal bloğu yazısı"),
+    ("ground", "seal",      YAZI_TABANI, "seçili sekmede yazı (ters)"),
+    # Kenar ve halka — 3:1
+    ("border-strong", "ground",  KENAR_TABANI, "cetvel, tablo çizgisi"),
+    ("border-strong", "surface", KENAR_TABANI, "kart kenarı"),
+    ("seal",   "ground",    KENAR_TABANI, "odak halkası"),
+    ("anadal", "ground",    KENAR_TABANI, "anadal şeridi"),
+    ("cap",    "ground",    KENAR_TABANI, "ÇAP şeridi"),
+    ("yandal", "ground",    KENAR_TABANI, "yandal şeridi"),
+]
 
-# düğme / alan kenarı ve odak halkası → oturduğu zeminler
-KENAR = {
-    "--border-strong": ZEMIN,
-    "--seal": ZEMIN,
-}
+
+def palet() -> dict[str, dict[str, str]]:
+    """`ui.py`'nin `:root` (gece) ve `[data-theme="light"]` (gündüz) blokları."""
+    css = re.search(r"<style>(.*?)</style>", UI.read_text(encoding="utf-8"),
+                    re.S).group(1)
+    css = re.sub(r"/\*.*?\*/", " ", css, flags=re.S)
+
+    def blok(desen: str) -> dict[str, str]:
+        m = re.search(desen + r"\{(.*?)\n\}", css, re.S)
+        if not m:
+            raise SystemExit(f"palet bloğu bulunamadı: {desen}")
+        return {k.lstrip("-"): v for k, v in
+                re.findall(r"--([a-z0-9-]+)\s*:\s*(#[0-9A-Fa-f]{6})", m.group(1))}
+
+    return {"gece": blok(r":root"),
+            "gündüz": blok(r':root\[data-theme="light"\]')}
 
 
-def olc(P=None):
-    """[(tema, tür, ön, zemin, oran, taban)] — tür: 'yazı' | 'kenar'."""
-    P = P or T.palet()
-    satirlar = []
-    for tema, J in P.items():
-        for tur, ciftler, taban in (("yazı", YAZI, YAZI_TABANI),
-                                     ("kenar", KENAR, KENAR_TABANI)):
-            for on, zeminler in ciftler.items():
-                for z in zeminler:
-                    oran = T.kontrast(T.hex2rgb(J[on]), T.hex2rgb(J[z]))
-                    satirlar.append((tema, tur, on, z, oran, taban))
-    return satirlar
+def olc(P: dict | None = None) -> list[tuple]:
+    """Tabanı TUTMAYAN çiftler: (tema, yazı, zemin, oran, taban, nerede)."""
+    P = P or palet()
+    kotu = []
+    for tema, jeton in P.items():
+        for fg, bg, taban, nerede in CIFTLER:
+            if fg not in jeton or bg not in jeton:
+                continue          # o temada tanımlı değilse atla
+            oran = kontrast(hex2rgb(jeton[fg]), hex2rgb(jeton[bg]))
+            if oran < taban:
+                kotu.append((tema, fg, bg, oran, taban, nerede))
+    return kotu
 
 
 def main() -> int:
-    satirlar = olc()
-    kotu = [s for s in satirlar if s[4] < s[5]]
-    for tema, tur, on, z, oran, taban in satirlar:
-        isaret = "✓" if oran >= taban else "✗"
-        print(f"{isaret} {tema:7} {tur:5} {on:15} / {z:14} {oran:5.2f}  (taban {taban})")
-    print(f"\n{len(satirlar)} çift · {len(kotu)} taban altında")
-    return 1 if kotu else 0
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--hepsi", action="store_true", help="geçenleri de dök")
+    a = ap.parse_args()
+    P = palet()
+
+    sayi = 0
+    for tema, jeton in P.items():
+        if a.hepsi:
+            print(f"\n=== {tema} ===")
+        for fg, bg, taban, nerede in CIFTLER:
+            if fg not in jeton or bg not in jeton:
+                if a.hepsi:
+                    print(f"  {fg:14s} / {bg:12s}  — jeton yok")
+                continue
+            sayi += 1
+            oran = kontrast(hex2rgb(jeton[fg]), hex2rgb(jeton[bg]))
+            if a.hepsi:
+                isaret = "✅" if oran >= taban else "❌"
+                print(f"  {isaret} {fg:14s} / {bg:12s} {oran:5.2f} "
+                      f"(taban {taban}) · {nerede}")
+
+    kotu = olc(P)
+    print(f"\n{sayi} çift ölçüldü, iki temada.")
+    if kotu:
+        print("\nTABAN ALTINDA:")
+        for tema, fg, bg, oran, taban, nerede in kotu:
+            print(f"  ❌ {tema:6s} {fg} / {bg} → {oran:.2f} "
+                  f"(taban {taban}) · {nerede}")
+        return 1
+    print("✅ Bütün çiftler tabanın üstünde.")
+    return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

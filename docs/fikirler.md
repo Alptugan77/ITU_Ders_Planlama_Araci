@@ -216,5 +216,9 @@ ekran görüntüsü gönderdi. O hatanın düzeltmesi **depoda duruyor**; site F
 24'ten beri yayınlanmadı. Bu, listedeki en pahalı kalem: yapılan işin hiçbiri
 kullanıcıya ulaşmıyor.
 
-⚠️ Yayından önce `make all-plans` gerekiyor — depodaki katalogda **hiçbir
-yandal programı yok** (76 `_YD` kodunun `program` satırı eksik).
+~~⚠️ Yayından önce `make all-plans` gerekiyor — depodaki katalogda hiçbir
+yandal programı yok (76 `_YD` kodunun `program` satırı eksik).~~
+✅ **Geçersiz (17.09.2026'da ölçüldü).** Katalogdaki 71 `_YD` kodunun
+**71'inin de** `program` satırı var — eksik **0**. Bu uyarı yapılmış bir
+işi yapılmamış gösteriyor ve yayını geciktiriyordu. Kalan tek eksik F.1'in
+dört kodu (`ECN`, `SEC`, `VBA`, `YZV`).

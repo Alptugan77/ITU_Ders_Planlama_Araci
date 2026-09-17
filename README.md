@@ -43,9 +43,7 @@ ders hangisine sayılıyor, hangi önşart açık, bu dönem hangi kombinasyon
 * **Okunur haftalık program** — renk hangi programdan olduğunu (anadal /
   ÇAP / yandal), ton hangi ders olduğunu söylüyor. ⚠️ Ton merdiveni ölçüyle
   seçildi: yazı kontrastı iki temada da WCAG AA'nın (4.5) üstünde, 9 tondan
-  sonrası tekrar ediyor ve bunu ekranda **yazıyor**. Paletin geri kalanı da
-  ölçülüyor: küçük yazı düştüğü her zeminde ≥ 4.5, düğme kenarı ≥ 3
-  (`tools/kontrast_olcumu.py`).
+  sonrası tekrar ediyor ve bunu ekranda **yazıyor**.
 
 ## Tasarım ilkesi: bilinmeyen, bilinen gibi gösterilmez
 
@@ -70,8 +68,9 @@ bunu her yerde yazar.
 
 * **Web sürümünde sunucu yok.** Notların tarayıcında hesaplanıyor,
   tarayıcında saklanıyor, hiçbir yere gönderilmiyor: uç yok, istek yok,
-  telemetri yok. Pyodide bile CDN'den değil siteden geliyor — açılışta
-  üçüncü bir tarafa haber verilmiyor.
+  telemetri yok. Pyodide **ve yazı tipleri** CDN'den değil siteden
+  geliyor — açılışta üçüncü bir tarafa haber verilmiyor. Ölçülüyor:
+  üretilen HTML'de tek bir dış kaynak bile geçemiyor (test).
 * Yerel sürümde notların yalnız `data/user.sqlite3` dosyasında; `data/`
   klasörünün tamamı **`.gitignore`da**.
 * Ders kataloğu (`data/reference.sqlite3`) herkese açık veri, ayrı dosyada.
@@ -210,7 +209,7 @@ uygulanıyor; kaynak dosya değişmediği için hiçbir beyan kaybolmuyor.
 ## Test
 
 ```bash
-make test        # 1072 test + gizlilik denetimi
+make test        # 1065 test + gizlilik denetimi
 ```
 
 Gizlilik denetimi (`tools/gizlilik_denetimi.py`) dosya adına **değil

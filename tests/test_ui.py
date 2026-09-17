@@ -111,12 +111,23 @@ def test_render_embeds_valid_json(dbs):
     assert parsed["anadal"] == "HTAE"
 
 
-def test_html_is_self_contained_except_fonts(dbs):
-    """CDN yok: tek dosya, çift tıkla açılmalı. Tek dış kaynak Google Fonts."""
+def test_html_is_self_contained(dbs):
+    """CDN yok: tek dosya, çift tıkla açılmalı. **Hiç** dış kaynak yok.
+
+    ⚠️ Bu test 17.09.2026'ya kadar *"tek dış kaynak Google Fonts"* diyordu —
+    yani gizlilik açığını KURAL olarak yazıyordu. Ölçüldü: sayfa her
+    açılışta `fonts.googleapis.com`a istek atıyordu, oysa README "açılışta
+    üçüncü bir tarafa haber verilmiyor" diyor. İstisna kaldırıldı; yazı
+    tipleri Faz 43'te CSS'e gömüldü (`docs/faz43-tasarim-sistemi.md`).
+    """
     html = UI.render(_collect(dbs))
     externals = re.findall(r'(?:src|href)="(https?://[^"]+)"', html)
-    assert all("fonts.googleapis.com" in u or "fonts.gstatic.com" in u for u in externals), externals
-    assert "<script>" in html and "cdn" not in html.lower()
+    assert not externals, f"dış kaynak: {externals}"
+    assert "<script>" in html
+    # ⚠️ "cdn" araması GÖMÜLÜ YAZI TİPİNİ saymamalı: base64 bloğunun içinde
+    # o üç harf rastgele geçiyor. Aranan şey metin değil, DIŞ KAYNAK.
+    govde = re.sub(r"data:font/woff2;base64,[A-Za-z0-9+/=]+", "", html)
+    assert "cdn" not in govde.lower()
 
 
 def test_both_themes_declared(dbs):
