@@ -322,6 +322,49 @@ def _prereq_orphan(con):
         return f"{n} önşart dersi course tablosunda yok (kapatılmış ders olabilir)"
 
 
+@check("prereq_cozulemez", "warn")
+def _prereq_cozulemez(con):
+    """★★ FAZ 42 — önşartı katalogdaki HİÇBİR dersle sağlanamayan ders.
+
+    `prereq_orphan` yalnız kaç hayalet KOD olduğunu sayıyor (275) ve bu sayı
+    çoğunlukla zararsız: hayaletlerin 219'unun katalogda bir dil eşi var ve
+    kaynak metin ikisini "veya" ile eşliyor. Buradaki sayı ise SONUCU ölçüyor:
+    ağacın hiçbir dalı katalogdaki derslerle kapanmıyorsa, o ders bu araçtan
+    **hiç açılamaz**.
+
+    ⚠️ Bu bir veri hatası olmayabilir — ders gerçekten kapanmış olabilir.
+    Ama öğrenciye "eksik önşart: ELH 332" demek, olmayan bir dersi aramaya
+    göndermek olurdu; arayüz bunları ayrı kategoride gösteriyor.
+    """
+    katalog = {r[0] for r in con.execute("SELECT code FROM course")}
+    cocuk: dict[int, list] = {}
+    kok: dict[str, int] = {}
+    tip: dict[int, tuple] = {}
+    for nid, code, parent, ntype, req in con.execute(
+            "SELECT id, course_code, parent_id, node_type, req_course FROM prereq_node"):
+        tip[nid] = (ntype, req)
+        if parent is None:
+            kok[code] = nid
+        else:
+            cocuk.setdefault(parent, []).append(nid)
+
+    def cozulur(nid: int) -> bool:
+        ntype, req = tip[nid]
+        if ntype == "LEAF":
+            return req in katalog
+        alt = cocuk.get(nid, [])
+        if not alt:
+            return True                      # boş düğüm engel değil
+        return (all(cozulur(c) for c in alt) if ntype == "AND"
+                else any(cozulur(c) for c in alt))
+
+    kotu = [c for c, nid in kok.items() if not cozulur(nid)]
+    if kotu:
+        return (f"{len(kotu)} dersin önşartı katalogdaki hiçbir dersle "
+                f"sağlanamıyor: {', '.join(sorted(kotu)[:6])}"
+                + (f" +{len(kotu) - 6}" if len(kotu) > 6 else ""))
+
+
 @check("unmatched_pool_labels", "warn")
 def _unmatched(con):
     """★ Kategori TAŞIYAN ama çözemediğimiz etiketler — BİZİM eksiğimiz.

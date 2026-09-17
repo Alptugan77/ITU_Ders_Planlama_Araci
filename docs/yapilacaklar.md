@@ -107,6 +107,39 @@ ne kadar iş, neye bağlı.
 > yapılmamış bir tahmin ✅
 > ➜ Ayrıntı ve ölçümler: `docs/faz41-yeni-kullanici.md`
 >
+> **Faz 42'de kapananlar (16.09.2026 — hayalet önşart):** `fikirler.md` §1.1
+> ve F.4'ün ölçülmüş hâli. 19365 önşart yaprağının 1509'u (%7.8) katalogda
+> olmayan bir ders anıyor (275 kod, 910 ders); 219'unun dil eşi var ve
+> kaynak zaten "veya" ile eşliyor — orada zarar yok ✅ (ölçülerek
+> doğrulandı) · ★★ eksik önşart listesi alfabetik sıralanıp 4'e kesiliyordu,
+> FIZ 241E ve FIZ 272E'de gösterilen dördün dördü de katalogda yoktu ve
+> alınabilir dersler gizleniyordu ✅ (alınabilirler öne alındı, hayaletler
+> işaretlendi) · ★ önşartı hiçbir katalog dersiyle sağlanamayan 16 ders artık
+> "eksik önşart: ELH 332" demiyor, ayrı kategoride ✅ · yeni kategori komut
+> satırı + arayüz + kalite kaydının üçüne birden eklendi ✅ (Faz 37 tuzağı)
+> ⚠️ Kod göçü eşleme tablosu **doldurulmadı**: OBS'nin `equivalence` tablosu
+> bu katalogda boş (0 satır), yani kaynaksız eşleme uydurmak olurdu.
+> ➜ Ayrıntı ve ölçümler: `docs/faz42-hayalet-onsart.md`
+>
+> **Faz 43'te kapananlar (17.09.2026 — tasarım sistemi):** ★★ paletin 90
+> çiftinin 15'i taban altındaydı: `--ink-3` (88 yerde küçük yazı) gece
+> 3.32–4.03, gündüz 3.47–4.22 · gece şemasında düğme/alan kenarı 1.80–2.13 —
+> yalnız açıklık değişti, 92 çiftin 0'ı taban altında ✅ · ★★ tonlu blokta
+> ders adı (%85 opaklık, 3.80–4.37) ve saat · yer · CRN satırı (`--ink-2`,
+> 3.09–3.91) Faz 40 merdiveninin ölçmediği renklerdeydi ✅ · ★ bağlantının
+> kuralı yoktu, gece şemasında tarayıcı mavisi 1.66:1 ✅ · ★★ beş bölüm
+> açıklaması `display:flex` satırın içindeydi, kelimeler 14px aralıkla
+> dağılıyordu (`.cap` hata sınıfı) ✅ · aynı hata panelin "İlerleme bilinmiyor" notunda — yalnız yeni kullanıcı görüyordu ✅ · yazı boyutu 18 → 9 basamak, alt
+> sınır 10.5 · harf aralığı 13 → 6 · aralık 2px ızgarası ✅ · durumlar tek
+> dilde: hover beş grupta, devre dışı tek opaklık, tamamlandı = efsane,
+> kilitli adımın metni okunur (açıklama 1.77:1'di) ✅ · gölge yalnız yüzen
+> katmanda, paletin dışında sabit renk yok, açık palet iki blokta birebir ✅ ·
+> telefonda öneri sekmeleri alt alta ✅ · "beyanın" etiketinin kuralı yoktu ✅
+> ⚠️ Açık kalem: yazı tipleri hâlâ `fonts.googleapis.com`'dan — sayfa
+> açılışta üçüncü tarafa istek atıyor; README'nin gizlilik ilkesiyle
+> çelişiyor. Fontlar siteyle birlikte yayınlanmalı (`site_kur.py`).
+> ➜ Ayrıntı ve ölçümler: `docs/faz43-tasarim-sistemi.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` artık **tanımlı** (`origin`), ama **site hâlâ eski**:
 > yayın hattı çalıştırılmadan hiçbir düzeltme kullanıcıya ulaşmıyor
@@ -281,7 +314,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 1045 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 1055 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` dönemde bir kez yeter — 128 program, ~1081 plan, dakikalar
   sürüyor. Program değiştirmeyi düşünmüyorsan gerekmez.

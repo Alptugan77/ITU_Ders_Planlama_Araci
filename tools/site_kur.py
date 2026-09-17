@@ -274,13 +274,13 @@ _LOADER_CSS = """
 <style>
 #yukleniyor{position:fixed;inset:0;z-index:99;display:flex;align-items:center;
   justify-content:center;background:var(--ground);color:var(--ink)}
-#yukleniyor .kutu{max-width:460px;padding:0 24px}
-#yukleniyor .yukAd{font-size:30px;margin:8px 0 0;line-height:1.05;
+#yukleniyor .kutu{max-width:460px;padding:0 22px}
+#yukleniyor .yukAd{font-size:29px;margin:8px 0 0;line-height:1.05;
   font-family:"Chivo",Helvetica,Arial,sans-serif;font-weight:900}
 #yukleniyor .yukAd .kurum{color:var(--ink-3)}
 #yukleniyor .acilim{margin:6px 0 16px}
 #yukleniyor p{color:var(--ink-2);font-size:13.5px;line-height:1.65}
-#yukleniyor .adim{font-family:"IBM Plex Mono",monospace;font-size:12px;
+#yukleniyor .adim{font-family:"IBM Plex Mono",monospace;font-size:12.5px;
   color:var(--ink-3);margin-top:14px;min-height:18px}
 #yukleniyor .cubuk{height:3px;background:var(--surface-2);margin-top:10px;
   overflow:hidden}

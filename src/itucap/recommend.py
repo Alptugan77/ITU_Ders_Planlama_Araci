@@ -906,8 +906,53 @@ def weekly_grid(schedule: Schedule, start_hour: int = 8, end_hour: int = 20) -> 
 @dataclass
 class Blocker:
     course: str
-    reason: str          # 'ACILMAMIS' | 'PROGRAMA_KAPALI' | 'ONSART' | 'BILINMIYOR'
+    # 'ACILMAMIS' | 'PROGRAMA_KAPALI' | 'ONSART' | 'ONSART_KATALOGDA_YOK'
+    # | 'KREDI_ESIGI' | 'ALIYORSUN' | 'BILINMIYOR'
+    reason: str
     detail: str = ""
+
+
+# ★★ FAZ 42 — HAYALET ÖNŞART: katalogda olmayan dersi isteyen önşart.
+#
+# Ölçüm (16.09.2026, gerçek katalog): 19670 önşart yaprağının **1537'si (%7.8)**
+# katalogda bulunmayan bir ders adını taşıyor; 275 farklı kod, 910 ders.
+# Bunların 219'unun katalogda bir DİL EŞİ var (`BIL 100` yok ama `BIL 100E`
+# var) ve kaynak metin ikisini zaten "veya" ile eşliyor — orada zarar yok.
+# Geriye kalan 56 kodun hiçbir eşi yok: bunlar kapanmış ya da kod değiştirmiş
+# dersler.
+#
+# İki ölçülen zarar:
+#   ★★ Eksik önşart listesi ALFABETİK sıralanıp 4'e kesiliyordu. FIZ 241E ve
+#      FIZ 272E'de gösterilen dördün DÖRDÜ de katalogda yok
+#      (`BIL 102, BIL 102CE, BIL 102E, BIL 102FE`), öğrencinin gerçekten
+#      alabileceği `BIL 104E/105E/106E` ise kesilip gizleniyordu. Ekran yalnız
+#      çıkmaz sokakları gösteriyordu.
+#   ★  Engelli 4627 dersin 723'ünde (%15.6) listede en az bir hayalet kod var
+#      ve hangisinin peşine düşülebileceği YAZMIYOR.
+#
+# ⚠️ Hayalet kod ATILMIYOR: öğrencinin transkriptinde eski kodla duruyor
+# olabilir ve önşartı gerçekten sağlıyor olabilir. Yalnız SIRAYA sokuluyor
+# (alınabilir olanlar önce) ve işaretleniyor.
+def _onsart_ayikla(eksik: set[str], katalog: set[str],
+                   goster: int = 4) -> tuple[str, bool]:
+    """Eksik önşart listesini okunur hâle getirir.
+
+    Dönüş: (metin, hepsi_hayalet_mi).
+    """
+    alinabilir = sorted(c for c in eksik if c in katalog)
+    hayalet = sorted(c for c in eksik if c not in katalog)
+    # Alınabilirler ÖNCE — kesme hepsini yutmasın.
+    sirali = alinabilir + hayalet
+    gosterilen = sirali[:goster]
+    kalan = len(sirali) - len(gosterilen)
+    parca = ", ".join(gosterilen)
+    if kalan:
+        parca += f" +{kalan}"
+    n_hayalet = sum(1 for c in gosterilen if c not in katalog)
+    if n_hayalet:
+        parca += (f" (⚠ {n_hayalet}'i katalogda yok — eski kod olabilir)"
+                  if alinabilir else " — hiçbiri katalogda yok")
+    return parca, not alinabilir
 
 
 def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
@@ -936,6 +981,8 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
     rules = POL.load_rules()
     catalog_rule = POL.load_catalog_rule()
     credits_have = POL.earned_credits(con, grades)
+    # Faz 42 — hayalet önşartı ayırt etmek için katalogdaki kodlar (tek sorgu).
+    katalog_kodlari = {r[0] for r in con.execute("SELECT code FROM course")}
 
     out: list[Blocker] = []
     for row in con.execute(
@@ -975,8 +1022,16 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
             continue
         verdict = R.can_take_tree(trees.get(code), prereq_grades)
         if verdict.status is R.Status.BLOCKED:
-            missing = ", ".join(sorted({m[0] for m in verdict.missing})[:4])
-            out.append(Blocker(code, "ONSART", f"eksik: {missing}"))
+            metin, hepsi_hayalet = _onsart_ayikla(
+                {m[0] for m in verdict.missing}, katalog_kodlari)
+            if hepsi_hayalet:
+                # ⚠️ Bu ders katalogdaki HİÇBİR dersle açılamıyor. "eksik:
+                # ELH 332" demek, öğrenciyi var olmayan bir dersi aramaya
+                # göndermek olurdu.
+                out.append(Blocker(code, "ONSART_KATALOGDA_YOK",
+                                   f"önşartı katalogda yok: {metin}"))
+            else:
+                out.append(Blocker(code, "ONSART", f"eksik: {metin}"))
             continue
         # ★ Önşartı sağlansa bile mevzuat engelleyebilir (bitirme kredi eşiği).
         _ad = con.execute("SELECT name, class_restriction FROM course WHERE code=?",
@@ -1004,6 +1059,7 @@ def format_blockers(blockers: list[Blocker], n_lessons: int | None = None) -> st
         "ACILMAMIS": "bu dönem açılmamış",
         "PROGRAMA_KAPALI": "şubeleri programına kapalı",
         "ONSART": "önşart eksik",
+        "ONSART_KATALOGDA_YOK": "önşartı katalogda yok",
         "KREDI_ESIGI": "kredi eşiği dolmamış",
         "ALIYORSUN": "bu dönem alıyorsun",
         "BILINMIYOR": "önşart okunamadı",
@@ -1017,7 +1073,7 @@ def format_blockers(blockers: list[Blocker], n_lessons: int | None = None) -> st
     # düşürüyordu. Eleyen kural kendini göstermek zorunda (bkz. tasarım ilkesi)
     # — "GEO 4901E neden kayboldu" sorusunun komut satırındaki hâliydi.
     for reason in ("PROGRAMA_KAPALI", "ACILMAMIS", "ONSART",
-                   "KREDI_ESIGI", "BILINMIYOR"):
+                   "ONSART_KATALOGDA_YOK", "KREDI_ESIGI", "BILINMIYOR"):
         items = groups.get(reason)
         if not items:
             continue

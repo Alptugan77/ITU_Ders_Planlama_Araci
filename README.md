@@ -43,7 +43,9 @@ ders hangisine sayılıyor, hangi önşart açık, bu dönem hangi kombinasyon
 * **Okunur haftalık program** — renk hangi programdan olduğunu (anadal /
   ÇAP / yandal), ton hangi ders olduğunu söylüyor. ⚠️ Ton merdiveni ölçüyle
   seçildi: yazı kontrastı iki temada da WCAG AA'nın (4.5) üstünde, 9 tondan
-  sonrası tekrar ediyor ve bunu ekranda **yazıyor**.
+  sonrası tekrar ediyor ve bunu ekranda **yazıyor**. Paletin geri kalanı da
+  ölçülüyor: küçük yazı düştüğü her zeminde ≥ 4.5, düğme kenarı ≥ 3
+  (`tools/kontrast_olcumu.py`).
 
 ## Tasarım ilkesi: bilinmeyen, bilinen gibi gösterilmez
 
@@ -57,6 +59,7 @@ gerçek bir zarar. O yüzden baştan beri tek bir kural işliyor:
 | Notu girilmemiş ders | En kötü durum (DD) varsayılır — eşik yanlışlıkla açılmasın |
 | Ad benzerliğinden çıkan denklik | **Önerilir**, otomatik uygulanmaz (17 dersin adı "Fluid Mechanics") |
 | Bir dersi eleyen kural | Kendini gösterir — "GEO 4901E neden kayboldu" sorusu sorulmasın |
+| Önşart, katalogda olmayan bir dersi istiyor | Ayrı kategori: *"önşartı katalogda yok"* — olmayan bir dersi aramaya gönderilmiyorsun (16 ders) |
 | Kaçıncı dönemde olduğun bilinmiyor | Program **her dönemden** ders karıştırır ve bunu ölçüp yazar ("7 ayrı dönemden: 1.'den 4, 7.'den 3") — dönem **tahmin edilmez** |
 | Duramayacağımız sayı | Hiç gösterilmez (bkz. başvuru ekranında kalan kredi) |
 
@@ -207,7 +210,7 @@ uygulanıyor; kaynak dosya değişmediği için hiçbir beyan kaybolmuyor.
 ## Test
 
 ```bash
-make test        # 1045 test + gizlilik denetimi
+make test        # 1072 test + gizlilik denetimi
 ```
 
 Gizlilik denetimi (`tools/gizlilik_denetimi.py`) dosya adına **değil
