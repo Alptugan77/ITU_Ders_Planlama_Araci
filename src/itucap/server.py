@@ -39,6 +39,7 @@ import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Iterable
 from urllib.parse import parse_qs, urlparse
 
 from . import changes as CH
@@ -171,8 +172,9 @@ class State:
     # Tek yerde durunca iki taşıyıcı da aynı davranışı alıyor.
     def _route(self, path: str, b: dict) -> dict | None:
         if path == "/api/transcript":
-            return {"saved": self.save_transcript(b.get("items") or [],
-                                                  bool(b.get("replace")))}
+            return self.save_transcript(b.get("items") or [],
+                                        bool(b.get("replace")),
+                                        b.get("remove") or [])
         if path == "/api/transcript/paste":
             n, bad = self.save_text(b.get("text") or "", bool(b.get("replace")))
             return {"saved": n, "bad": bad}
@@ -421,10 +423,27 @@ class State:
         return [dict(r) for r in rows]
 
     # ------------------------------------------------------------- yazma
-    def save_transcript(self, items: list[dict], replace: bool) -> int:
+    def save_transcript(self, items: list[dict], replace: bool,
+                        remove: Iterable[str] = ()) -> dict:
         """Formdan gelen kayıtlar. Kural `student.make_entry` — metin girişiyle
         AYNI yer, yoksa aynı girdi nereden girildiğine göre farklı sonuç
-        verirdi."""
+        verirdi.
+
+        ★★ FAZ 47 — `remove` (kullanıcı bildirdi 18.09.2026: *"plandan
+        işaretle kısmında eğer tik geri çekilirse dersi alınmış olarak
+        gözükmesin"*).
+
+        Ölçüldü ve haklıydı: "Plandan işaretle" penceresi YALNIZ tikli
+        dersleri gönderiyordu ve `replace=False` ile ekliyordu. Tik geri
+        çekilince hiçbir şey olmuyordu — ders transkriptte kalıyor, ekranda
+        "almışsın" görünüyordu. (Ölçüm: GEO 303E tiklenip kaydedildi → 37
+        satır 38 oldu; tik geri çekilip kaydedildi → **hâlâ 38**.)
+
+        ⚠️ `replace=True` YAPMADIK, çünkü o her şeyi siler: elle girilmiş,
+        plan dışı dersler de gider. `remove` yalnız pencerenin GÖSTERDİĞİ ve
+        tiklenmemiş dersleri taşıyor — pencerenin görmediği hiçbir satıra
+        dokunulmuyor.
+        """
         entries = []
         for item in items:
             note = "--" if item.get("inProgress") else ""
@@ -432,13 +451,30 @@ class State:
                                  item.get("grade"), note)
             if entry:
                 entries.append(entry)
-        self._backup(replace)
+        kodlar = {S.normalize_course_code(str(c)) for c in (remove or ())}
+        kodlar = {c for c in kodlar if c}
+        # Silinecek gerçekten var mı? Yedeği boşuna almayalım (son 12 tutuluyor).
+        silinecek = 0
+        if kodlar:
+            yer = ",".join("?" * len(kodlar))
+            silinecek = self.ucon.execute(
+                f"SELECT COUNT(*) FROM earned_course WHERE student_id=?"
+                f" AND course_code IN ({yer})",
+                (self.student_id, *sorted(kodlar))).fetchone()[0]
+        self._backup(replace or bool(silinecek))
+        if silinecek:
+            yer = ",".join("?" * len(kodlar))
+            self.ucon.execute(
+                f"DELETE FROM earned_course WHERE student_id=?"
+                f" AND course_code IN ({yer})",
+                (self.student_id, *sorted(kodlar)))
+            self.ucon.commit()
         S.add_entries(self.ucon, self.student_id, entries, replace=replace)
-        return len(entries)
+        return {"saved": len(entries), "removed": silinecek}
 
-    def _backup(self, replace: bool) -> None:
+    def _backup(self, silici: bool) -> None:
         """Silici yazmadan önce yedek. Elle girilmiş transkript geri gelmez."""
-        if replace:
+        if silici:
             S.backup(self.ucon, self.student_id)
             S.prune_backups()
 

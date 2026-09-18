@@ -75,7 +75,8 @@ def test_program_yokken_karsilama_ENGELLEYICI(dbs):
     data = _bos(dbs)
     o = data["onboarding"]
     assert o and o["blocking"] is True
-    assert [a["key"] for a in o["steps"]] == ["program", "transkript", "donem"]
+    # ⚠️ Faz 47: dönem transkriptten ÖNCE (kullanıcı isteği 18.09.2026).
+    assert [a["key"] for a in o["steps"]] == ["program", "donem", "transkript"]
     assert all(not a["done"] for a in o["steps"])
 
 

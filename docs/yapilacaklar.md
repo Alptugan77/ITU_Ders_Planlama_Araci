@@ -1,10 +1,10 @@
 # Yapılacaklar
 
-Faz 1–46 bitti (1102 test). Depo GitHub'a hazır. Bu liste **sonrası** için:
+Faz 1–48 bitti (1128 test). Depo GitHub'a hazır. Bu liste **sonrası** için:
 ne kaldı, neden önemli, ne kadar iş, neye bağlı.
 
 ⚠️ **Yayınlanan site hâlâ eski.** Yayın hattı (`git push` → Actions → pages)
-çalıştırılmadan Faz 28–46'nın hiçbiri kullanıcıya ulaşmıyor. Bu, listedeki
+çalıştırılmadan Faz 28–48'in hiçbiri kullanıcıya ulaşmıyor. Bu, listedeki
 her maddeden önce gelen tek iş.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
@@ -184,6 +184,45 @@ her maddeden önce gelen tek iş.
 > en üstte"si ve Faz 39'un "masaüstünde küçük hedef doğru"su.
 > ➜ Ayrıntı ve ölçümler: `docs/faz46-kabuk.md`
 >
+> **Faz 47'de kapananlar (18.09.2026 — kullanım turu):** kullanıcı altı şey
+> bildirdi. ★★ **Plandan işaretle'de tik geri çekilince ders düşmüyordu** —
+> ölçüldü: tikle+kaydet 37→38 satır, tiki geri çek+kaydet **yine 38**. Ders
+> transkriptte kalıyor, ilerleme ve önşart hesabı onunla çalışıyordu ✅
+> (`remove` dar kapsamlı: pencerenin görmediği satıra dokunmuyor; silmeden
+> önce yedek) · ★ ızgara HER ekranda 660px'ti, 1920px'te iki yanda 290'ar
+> piksel boştu → ızgara görünümü genişledi (**660 → 846/1126px**), sağ sütun
+> 330→240px ve düğmeler alt alta, lejant ızgaranın altına ✅ ⚠️ genişleme
+> yalnız ızgara görünümünde; metin bölümleri 1340px okuma ölçüsünde kaldı ·
+> "Programa yükle" artık haftalık program görünümünü açıyor (Faz 46'da
+> `scrollIntoView` çalışmaz olmuştu) ✅ · ad yazısı 20→25px ✅ ·
+> ★ kurulum sırası **program → dönem → transkript** ve dönem biliniyorsa
+> geçmiş dönemlerin zorunluları ÖNERİ olarak tikleniyor (ölçüm: 31 ders) ✅
+> ⚠️ öneri İDDİA DEĞİL: sayıyla yazıyor, tek tıkla kalkıyor, Kaydet'e
+> basılmadan yazılmıyor; 1. dönemde hiçbir şey işaretlenmiyor ve bu
+> söyleniyor.
+> ➜ Ayrıntı ve ölçümler: `docs/faz47-kullanim-turu.md`
+>
+> **Faz 48'de kapananlar (18.09.2026 — tarama):** kullanıcı: *"eklenebilecek
+> başka düzeltmeler var mı diye kontrol edip ekle"*. On bir görünüm ve dokuz
+> pencere iki genişlikte, iki temada ve **yazdırma kipinde** tek tek gezildi;
+> çıkan yedi kusurun hepsi **Faz 46/47'nin kabuğunun eski bağlamlara
+> sızmasıydı**. ★★ **Program görünümü dışında Cmd+P boş kâğıt veriyordu**
+> (166 karakter): görünüm kipinin `[data-disgorunum]` gizlemesi ile yazdırma
+> bloğunun gizlemesi çarpışıyordu ✅ ★★ kâğıtta ızgara **660 → 1512px** (ray
+> ve bağlam sütunu kâğıda sızıyordu) ✅ ★★ gece şemasında yazdırınca saat
+> sütunu beyaz kâğıtta ~**2,6:1** çıkıyordu → kâğıt her zaman gündüz paleti
+> (uydurma değil, açık şemanın birebir jetonları; test ikisini
+> karşılaştırıyor) ✅ kâğıt artık **hangi görünümden yazdırırsan aynı** ✅ ·
+> pencerelerde 24px altı dokunma hedefi: katlanan başlıklar 19–21px, "kaldır"
+> 22px → taban kuralla **0** (1758 hedef ölçüldü) ✅ · ölü `scrollIntoView`
+> iki yerde daha (sınıfın 3. görülüşü) → **sınıf** teste bağlandı ✅
+> ⚠️ Muhafız denemesi iki testin **kendi yorumunu okuduğunu** ortaya çıkardı;
+> ikisi de yeniden yazıldı, jeton sayımı blok bazına geçti.
+> Ölçülüp temiz çıkanlar (değişiklik yok): odak halkaları · kapalı görünümde
+> klavye tuzağı yok (119 durağın 0'ı) · pencereler `:modal` ve Esc'te odak
+> dönüyor · 320px ve %200 yazıda taşma yok.
+> ➜ Ayrıntı ve ölçümler: `docs/faz48-tarama.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
@@ -347,7 +386,7 @@ yalnız **arz sorunlu** derste var — önşarta takılan ders nöbetle çözül
 ## 4.4 ~~Yayın~~ · ✅ **Faz 14'te kapandı** — statik site
 
 Motor **JS'e çevrilmedi**, Python tarayıcıya taşındı (Pyodide). Tek kod
-tabanı, 1102 testin tamamı web sürümünü de kapsıyor, iki sürüm ayrışamaz.
+tabanı, 1128 testin tamamı web sürümünü de kapsıyor, iki sürüm ayrışamaz.
 
 ```bash
 make site ARGS=node_modules/pyodide     # yerelde kur ve dene
@@ -392,7 +431,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 1102 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 1128 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` ✅ çalıştırıldı (katalogda 1081 ÇAP + 134 yandal planı).
   Dönemde bir kez yeter; program değiştirmeyi düşünmüyorsan gerekmez.

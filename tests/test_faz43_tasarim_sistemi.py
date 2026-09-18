@@ -33,6 +33,31 @@ KAYNAK = pathlib.Path(UI.__file__).read_text(encoding="utf-8")
 TOOLS = pathlib.Path(UI.__file__).resolve().parents[2] / "tools"
 sys.path.insert(0, str(TOOLS))
 
+_CSS = re.search(r"<style>(.*?)</style>", KAYNAK, re.S).group(1)
+
+
+def _palet(desen: str) -> dict:
+    """Bir palet bloğunun jetonları.
+
+    ⚠️ Bu yardımcı Faz 48'de eklendi: iki test jetonları TÜM DOSYADA
+    sayıyordu ("`--scrim:` tam 3 yerde geçmeli"). Kâğıt paleti dördüncü blok
+    olarak eklenince ikisi de kırıldı — oysa anlatmak istedikleri şey
+    "sayı 3'tür" değil, *"her palet bloğu her jetonu doldurur"*. Sayım artık
+    blok blok.
+    """
+    govde = re.search(desen, _CSS, re.S)
+    assert govde, f"palet bloğu bulunamadı: {desen}"
+    return {k: v.strip() for k, v in
+            re.findall(r"(--[a-z0-9-]+):\s*([^;}]+)", govde.group(1))}
+
+
+PALETLER = {
+    "gece": _palet(r"(?m)^:root\{(.*?)\n\}"),
+    "medya-gündüz": _palet(r"@media \(prefers-color-scheme:light\)\{(.*?)\n  \}"),
+    "açık-gündüz": _palet(r':root\[data-theme="light"\]\{(.*?)\n\}'),
+    "kâğıt": _palet(r"@media print\{.*?\n  :root\{(.*?)\}"),
+}
+
 
 # ------------------------------------------------- 1. üçüncü taraf yok
 def test_UCUNCU_TARAFA_hic_istek_YOK():
@@ -109,10 +134,15 @@ def test_PALET_kontrast_tabanini_tutuyor():
 
 
 def test_olculen_jetonlar_YERINDE():
-    """Düzeltmenin gerçekten uygulandığı — ve geri alınırsa fark edileceği."""
-    assert "--ink-3:#848EA1" in KAYNAK, "gece ink-3 eski değerde"
-    assert KAYNAK.count("--ink-3:#5F6878") == 2, "gündüz ink-3 iki blokta olmalı"
-    assert "--border-strong:#647085" in KAYNAK
+    """Düzeltmenin gerçekten uygulandığı — ve geri alınırsa fark edileceği.
+
+    ⚠️ Faz 48: "gündüz `ink-3` DOSYADA iki kez geçer" sayımı, kâğıt paleti
+    eklenince yanlış oldu. Sayım yerine bloklara bakıyoruz — asıl mesele
+    hangi bloğun hangi değeri taşıdığı."""
+    assert PALETLER["gece"]["--ink-3"] == "#848EA1", "gece ink-3 eski değerde"
+    assert PALETLER["gece"]["--border-strong"] == "#647085"
+    for ad in ("medya-gündüz", "açık-gündüz", "kâğıt"):
+        assert PALETLER[ad]["--ink-3"] == "#5F6878", f"{ad} ink-3 sapmış"
 
 
 # --------------------------------------------------------- 3. taklit kalın
@@ -132,11 +162,23 @@ def test_TAKLIT_KALIN_yok():
     assert "font-weight:600" in acilim, "Chivo 500 geri gelmiş (o yüz yok)"
 
 
-def test_yeni_jetonlar_UC_PALETTE_de_var():
-    """⚠️ Faz 38b'de `--yandal*` gündüz bloğunda UNUTULMUŞTU. Yeni jeton
-    eklerken üç blok da (gece, medya sorgulu gündüz, açık gündüz) dolmalı."""
-    for jeton, sayi in (("--seal-hover:", 3), ("--scrim:", 3)):
-        assert KAYNAK.count(jeton) == sayi, f"{jeton} {KAYNAK.count(jeton)} yerde"
+def test_yeni_jetonlar_HER_PALETTE_var():
+    """⚠️ Faz 38b'de `--yandal*` gündüz bloğunda UNUTULMUŞTU; Faz 48
+    taramasında `prefers-color-scheme` bloğunda aynı satır İKİ KEZ duruyordu.
+    Elle tutulan palet kopyaları kayıyor.
+
+    Artık tek tek jeton adı saymak yerine BÜTÜN blokların jeton KÜMESİ
+    karşılaştırılıyor: yeni bir jeton yalnız bir bloğa eklenirse test
+    kırılır, adını bu dosyaya yazmak gerekmeden.
+
+    Tek beklenen fark `--r` (köşe yarıçapı): temaya göre değişmiyor, gece
+    bloğunda bir kez tanımlanıp her yerde geçerli."""
+    gece = set(PALETLER["gece"]) - {"--r"}
+    for ad in ("medya-gündüz", "açık-gündüz", "kâğıt"):
+        d = set(PALETLER[ad])
+        assert d == gece, (f"{ad} paleti sapmış — eksik: {sorted(gece - d)} "
+                           f"fazla: {sorted(d - gece)}")
+    assert len(gece) >= 25, f"palet küçülmüş: {len(gece)}"
     assert "dialog::backdrop{background:var(--scrim)}" in KAYNAK
 
 

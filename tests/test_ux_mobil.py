@@ -3,6 +3,8 @@
 Gerçek ekranlar masaüstü + iPhone genişliğinde gezilerek bulundu; her test
 o gezide görülen somut bir sorunu kolluyor.
 """
+import re
+
 from itucap import recommend as REC
 from itucap import ui as UI
 
@@ -35,7 +37,12 @@ def test_rozet_TEK_PARCA():
     çiziyordu ("ÖNŞART / BİLGİSİ YOK"). inline-block + nowrap tek parça
     tutuyor."""
     src = _src()
-    chip = src.split(".chip{")[1].split("}")[0]
+    # ⚠️ `split(".chip{")` KIRILGANDI: `.prgyan .toolbar .chip{…}` gibi bir
+    # NİTELENMİŞ kural eklenince ilk parça o oluyor ve test temel kuralı
+    # hiç görmüyordu (Faz 47'de oldu). Satır başına çapalıyoruz.
+    m = re.search(r"(?m)^\.chip\{([^}]*)\}", src)
+    assert m, "temel .chip kuralı yok"
+    chip = m.group(1)
     assert "display:inline-block" in chip
     assert "white-space:nowrap" in chip
 

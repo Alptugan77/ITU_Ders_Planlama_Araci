@@ -77,8 +77,11 @@ def test_bolum_secilince_baslik_ARAÇ_CALISIYOR(dbs):
 def test_her_adimin_KENDI_eylem_adi_var(dbs):
     """★ "Aç" neyi açtığını söylemiyordu."""
     adimlar = _bos(dbs)["onboarding"]["steps"]
-    assert [a["cta"] for a in adimlar] == ["Bölümünü seç", "Dersleri gir",
-                                           "Dönemi seç"]
+    # ⚠️ Faz 47: SIRA DEĞİŞTİ — dönem, transkriptten önce. Sebebi bağımlılık:
+    # dönem biliniyorsa "Plandan işaretle" geçmiş dönemlerin zorunlularını
+    # ÖNERİ olarak tikliyor; ters sırada o öneri yapılamıyor.
+    assert [a["cta"] for a in adimlar] == ["Bölümünü seç", "Dönemi seç",
+                                           "Dersleri gir"]
     assert all(a["cta"] != "Aç" for a in adimlar)
 
 

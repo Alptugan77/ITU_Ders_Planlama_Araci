@@ -1100,20 +1100,34 @@ def _onboarding(con, ucon, student_id, settings, anadal_id, seconds) -> dict | N
          # dosyası `anadal_program = "XXX"` yazıyor ve kart bunu ✓ TAMAM diye
          # gösteriyordu — kurulum bitmiş sanılıyordu.
          "done": _gercek_program(settings.anadal_program), "action": "program"},
+        # ★★ FAZ 47 — DÖNEM, TRANSKRİPTTEN ÖNCE (kullanıcı 18.09.2026:
+        # *"ilk önce dönem seçtir; 1. dönem olan birisinin geçtiği ders
+        # yoktur veya 5. dönem olan birisi geçtiği dersleri işaretlemek
+        # için otomatik tik attırabilir"*).
+        #
+        # Sıra keyfî değil, BAĞIMLILIK: dönem biliniyorsa "Plandan işaretle"
+        # penceresi 1..N-1. dönemin zorunlularını ÖNERİ olarak tikleyebiliyor
+        # ve iş bir dakikadan on saniyeye iniyor. Tersi sırada o öneri
+        # yapılamıyor, çünkü hangi döneme kadar tikleneceği bilinmiyor.
+        {"key": "donem", "label": "Bulunduğun dönemi söyle",
+         "cta": "Dönemi seç",
+         "detail": "Kaçıncı dönemdesin? Tek tıklama.",
+         "why": "Hem \u201cN. dönem + alttan\u201d önerisi buna göre kuruluyor, "
+                "hem de bir sonraki adımda geçmiş dönemlerin zorunlu dersleri "
+                "senin için işaretleniyor.",
+         "sure": "5 saniye", "required": False,
+         "done": bool(settings.donem), "action": "donem"},
         {"key": "transkript", "label": "Geçtiğin dersleri gir",
          "cta": "Dersleri gir",
-         "detail": "En kolayı: transkriptini olduğu gibi yapıştır. İstersen "
-                   "plandan tikle.",
+         "detail": ("Dönemini söylediysen geçmiş dönemlerin zorunluları hazır "
+                    "işaretli gelir — sen yalnız düzeltirsin."
+                    if settings.donem else
+                    "En kolayı: transkriptini olduğu gibi yapıştır. İstersen "
+                    "plandan tikle."),
          "why": "Neyin kaldığını, önşartların tuttuğunu ve kredi tavanını "
                 "bundan çıkarıyor.",
          "sure": "1 dakika", "required": False,
          "done": bool(S.grades(ucon, student_id)), "action": "plan"},
-        {"key": "donem", "label": "Bulunduğun dönemi söyle",
-         "cta": "Dönemi seç",
-         "detail": "Kaçıncı dönemdesin? Tek tıklama.",
-         "why": "\u201cN. dönem + alttan\u201d önerisi buna göre kuruluyor.",
-         "sure": "5 saniye", "required": False,
-         "done": bool(settings.donem), "action": "donem"},
         # ⚠️ TERCİHLER BURAYA EKLENMEDİ — ve bu bilinçli. Denendi: dördüncü
         # bir "kurulum adımı" yapılınca karşılama kartı HİÇ kaybolmuyor,
         # çünkü tercih çoğu kullanıcıda hep boş kalıyor. Faz 26'nın tam da
@@ -1533,7 +1547,6 @@ __FONTLAR__
     --seal-hover:#2F3F8E; --scrim:rgba(8,16,26,.5);
     --anadal:#0A6B58; --anadal-soft:#D6EBE5; --anadal-ink:#074A3D;
     --cap:#8A5210; --cap-soft:#F6E7D2; --cap-ink:#633B08;
-  --yandal:#1F5C77; --yandal-soft:#DCECF4; --yandal-ink:#154457;
     --yandal:#1F5C77; --yandal-soft:#DCECF4; --yandal-ink:#154457;
     --danger:#C02D18; --warn:#7A5709;
     --warn-soft:#FCF1DB; --warn-ink:#6B4A05;
@@ -1570,6 +1583,19 @@ body{margin:0;background:var(--ground);color:var(--ink);
   font-variant-numeric:tabular-nums}
 .wrap{max-width:1340px;margin:0 auto;padding:32px 30px 80px;display:flex;
   flex-direction:column;gap:30px}
+/* ★★ FAZ 47 — HAFTALIK PROGRAM GÖRÜNÜMÜ GENİŞ (kullanıcı 18.09.2026:
+   *"yanlardaki boşlukları kaldırabilirsin, ders programını çok
+   sıkıştırıyor"*).
+
+   Ölçüldü: ızgara HER ekran genişliğinde 660px kalıyordu — 1920px'te iki
+   yanda 290'ar piksel, 2560px'te 610'ar piksel boş duruyordu. Gün sütunu
+   120px'e sıkışıyor ve ders adı kesiliyordu.
+
+   ⚠️ Tasarım sistemi "sayfa en fazla 1340px" diyor ve bu METİN için doğru:
+   uzun satır okunmaz. O yüzden genişleme YALNIZ ızgara görünümünde — metin
+   ağırlıklı bölümler (kademeler, aday tablosu, mevzuat) 1340'ta kalıyor. */
+:root[data-gorunum="schedSection"] .wrap{max-width:1720px;padding-left:24px;
+  padding-right:24px}
 /* Chivo, ağır ve büyük harf — Şematik'in sesi. Gövde IBM Plex Sans'ta kalıyor;
    Chivo'yu uzun metinde kullanmak gece zemininde yorucu olurdu. */
 h1,h2,h3{margin:0;text-wrap:balance;
@@ -1618,7 +1644,9 @@ body:not(.kurulum) header{display:flex;align-items:center;gap:8px 16px;
 body:not(.kurulum) header .masthead{display:contents}
 body:not(.kurulum) header .masthead>div{display:flex;align-items:baseline;
   gap:10px;flex-wrap:wrap;min-width:0}
-body:not(.kurulum) header h1{font-size:20px;letter-spacing:-.01em;order:1}
+/* ★ Faz 47 — kullanıcı: "itü depar yazısı biraz daha büyük olabilir".
+   Faz 46'da 29 → 20px inmişti; 25px üst çubuğu büyütmeden okunuyor. */
+body:not(.kurulum) header h1{font-size:25px;letter-spacing:-.015em;order:1}
 /* Tek satırda ad ÖNCE okunmalı; eyebrow (program listesi) onu izler. */
 body:not(.kurulum) header .eyebrow{order:2}
 body:not(.kurulum) header .acilim{display:none}
@@ -1629,8 +1657,14 @@ body:not(.kurulum) header #theme{margin-left:auto;order:9}
    Satır artık esnek: metin bir parça, düğme ayrı bir parça. */
 .veriyasi{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
 /* ★★ FAZ 46 — haftalık programın düzeni: ızgara solda, bağlam sağda. */
-.prgduzen{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:22px;
+/* ★★ FAZ 47 — sağ sütun 330 → 240px ve düğmeler ALT ALTA (kullanıcı
+   isteği: *"genişliğini azaltıp yukardan aşağıya tuşları listeleyip"*).
+   Kazanılan 90px doğrudan ızgaraya gidiyor. */
+.prgduzen{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:18px;
   align-items:start;margin-top:12px}
+.prgyan .toolbar{flex-direction:column;align-items:stretch;gap:6px}
+.prgyan .toolbar .ghost{width:100%;justify-content:center}
+.prgyan .chip{align-self:flex-start}
 .prgorta{min-width:0}
 .prgyan{display:flex;flex-direction:column;gap:12px;min-width:0}
 .prgyan .toolbar{margin:0}
@@ -1642,6 +1676,16 @@ body:not(.kurulum) header #theme{margin-left:auto;order:9}
   .prgyan{order:2}
   .prgorta{order:1}
 }
+/* ★ FAZ 48 — Katlanan başlık da bir HEDEF: 24px tabanı (WCAG 2.2 AA 2.5.8).
+   Ölçüldü (pencere taraması): dokuz pencerenin altısında `<summary>`
+   19–21px yüksekliğindeydi — puan kırılımı, "Gelişmiş", yedek listeleri.
+   İpucu ve arz başlıkları zaten 24'tü, onlara dokunmuyor.
+   ⚠️ Taban kuralda `display:flex` YOK, bilerek: (a) iki metin düğümü
+   arasındaki boşluğu yutuyor ("11 dersbu dönem" — arz başlığındaki nota
+   bak), (b) `list-item` kutusu kalkınca yerleşik açılma üçgeni siliniyor
+   ve o başlıkların TEK açılma işareti o. Dikey dolgu ikisine de
+   dokunmadan tabanı sağlıyor. */
+summary{padding-block:2px;min-height:24px}
 /* İpuçları katlanıyor — silinmiyor (Faz 40'ın dersi). */
 .ipucu>summary{cursor:pointer;font-size:12.5px;color:var(--ink-2);
   min-height:24px;display:flex;align-items:center;list-style:none}
@@ -1899,6 +1943,11 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
   border-bottom:1px solid var(--border-strong)}
 .trtable td{padding:5px 8px 5px 0;border-top:1px solid var(--border);vertical-align:middle}
 .trtable select{width:auto;min-width:74px;padding:3px 6px;font-size:12.5px}
+/* ★ Faz 48 — TABAN `.rm`in KENDİSİNDE. Faz 46'da yalnız `.trtable .rm`
+   büyütülmüştü; taramada "Sayılan derslerim" bölümündeki `kaldır` düğmesi
+   46×22px olarak kalmış çıktı. Aynı sınıfın üç kullanım yeri var; kural
+   sınıfa yazılınca üçü de tabanın üstünde. */
+.rm{min-height:24px;display:inline-flex;align-items:center}
 .trtable .rm{color:var(--danger);font-size:12px;padding:2px 8px;
   border:1px solid var(--border);border-radius:0;
   /* Faz 46: 46×22px'ti — WCAG 2.2 AA tabanı 24×24. */
@@ -2599,13 +2648,59 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
 @media print{
   @page{margin:12mm}
   html,body{background:#fff;color:#000}
+  /* ★★ FAZ 48 — KÂĞIT HER ZAMAN GÜNDÜZ PALETİ (taramada ölçüldü).
+     Gece şemasındayken yazdırınca `--ink-3` kâğıda **açık gri** çıkıyordu:
+     saat sütunu (08:00, 09:00…) rgb(132,142,161), özet satırı
+     rgb(154,165,184) — beyaz kâğıtta ~2,6:1, yani okunmuyor. Kart zemini de
+     rgb(22,27,36) kalıyordu (tarayıcı zemin basmayı açarsa siyah blok).
+     ⚠️ Yeni palet UYDURULMADI: birebir açık tema jetonları. */
+  :root{
+    --ground:#FFFFFF; --surface:#FFFFFF; --surface-2:#F0F2F6;
+    --border:#D4D9E2; --border-strong:#141821;
+    --ink:#0D1017; --ink-2:#4B5462; --ink-3:#5F6878;
+    --seal:#3B4E9E; --seal-soft:#E7EAF7;
+    --seal-hover:#2F3F8E; --scrim:rgba(8,16,26,.5);
+    --anadal:#0A6B58; --anadal-soft:#D6EBE5; --anadal-ink:#074A3D;
+    --cap:#8A5210; --cap-soft:#F6E7D2; --cap-ink:#633B08;
+    --yandal:#1F5C77; --yandal-soft:#DCECF4; --yandal-ink:#154457;
+    --danger:#C02D18; --warn:#7A5709;
+    --warn-soft:#FCF1DB; --warn-ink:#6B4A05;
+    --shadow:none}
+  /* Boş hücrenin "+" işareti bir DAVET; kâğıtta tıklanacak bir şey yok. */
+  #grid td.free::after{content:"" !important}
   header,#secnav,#setupbar,#hero,#sonraki,.toolbar,.candbar,.modes,
   #candSection,#blockSection,#suggestSection,#changeSection,#basvuruSection,
+  /* ⚠️ `#panels` ve `#savedSection` de burada: görünüm kipinden önce
+     hepsi birden açıktı, şimdi hangi görünümdeysen o kâğıda sızıyordu —
+     aynı Cmd+P aynı kâğıdı vermeli. */
+  #panels,#savedSection,
   #tierSection,#creditSection,.tabs,#notime .blockitem button,
-  #arzUyari,#ayarHatasi,dialog{display:none !important}
+  #arzUyari,#ayarHatasi,dialog,
+  /* ★★ FAZ 48 — Faz 46/47'nin KABUĞU KÂĞIDA SIZIYORDU (taramada ölçüldü).
+     `.govde` iki sütunlu ızgara: ray `display:none` olsa bile 216px'lik
+     SÜTUN duruyordu; `.prgduzen` de 240px'lik bağlam sütununu ayırıyordu.
+     Sonuç: A4'te ızgara 660px, sayfanın yarısı boş. Tasarım sisteminin
+     kuralı: "basılan sayfa ekranın fotoğrafı değil" — ekran denetimleri
+     çıkar, ızgara ve CRN listesi kalır. */
+  .ipucu,#kilitNot,#donemUyari,.gridaralik{display:none !important}
+  .govde,.prgduzen{display:block !important}
+  .prgyan{margin-bottom:6mm}
+  .icerik{display:block}
+  /* ★★ FAZ 48 — BAŞKA GÖRÜNÜMDEYKEN YAZDIRINCA KÂĞIT BOŞ ÇIKIYORDU.
+     Ölçüldü: "Alabileceğim dersler"deyken Cmd+P → 166 karakter, 179px.
+     Sebep iki kuralın çarpışması: görünüm kipi açık olmayan bölüme
+     `[data-disgorunum]{display:none !important}` koyuyor, yazdırma bloğu da
+     zaten öbür bölümleri gizliyor — geriye hiçbir şey kalmıyordu.
+     Kâğıt her zaman HAFTALIK PROGRAM + CRN listesi: yazdırma ekranın
+     fotoğrafı değil, elde taşınan çıktı. Görünüm gizlemesini burada
+     kimlik seçicisiyle geri alıyoruz (`!important`i ancak o yener). */
+  #schedSection[data-disgorunum]{display:block !important}
   /* Kâğıtta kart kenarlığı ve gölge gürültü. */
   .card{border:0;box-shadow:none;padding:0;margin:0 0 10mm}
   section[id]{break-inside:avoid}
+  /* Kâğıdın genişliği okuma ölçüsüne değil SAYFAYA bağlı; ekrandaki
+     1340/1720px kilidi kâğıtta 1464 ile 1280 arasında gidip geliyordu. */
+  .wrap{max-width:none !important;padding:0 !important}
   #grid{width:100%}
   #grid td,#grid th{border-color:#999}
   .blk{border:1px solid #666;background:#fff !important;color:#000 !important}
@@ -2718,6 +2813,19 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
   <!-- ★ Yazdırınca ızgaranın altına basılan CRN listesi (Faz 27).
        Ekranda gizli: orada CRN'ler zaten "Kayıt günü" penceresinde. -->
   <div id="printCrn"></div>
+  <!-- ★★ FAZ 47 — LEJANT IZGARANIN ALTINDA (kullanıcı 18.09.2026:
+       *"ders programı hakkındaki lejant gibi bilgileri ders programının
+       altında tutabilirsin"*). Faz 46'da sağ sütuna almıştım; orada dar
+       sütunu şişiriyordu ve anlattığı şeyin — ızgaranın — yanında değil
+       üstündeydi. ⚠️ Yine KATLI: Faz 40'ın dersi gereği silinmiyor. -->
+  <details class="ipucu">
+    <summary>Nasıl kullanılır · renkler ne diyor</summary>
+    <div class="hint">Derse tıkla → şube değiştir, yerine başka ders koy, çıkar.
+      Boş hücreye tıkla → o saate uyan dersler.</div>
+    <div class="hint" id="tonNot">Renk hangi programdan olduğunu söylüyor
+      &nbsp;·&nbsp; ton hangi ders olduğunu: aynı ton, aynı ders — 9 tondan
+      sonrası tekrar eder, emin olmak için dersin üstüne gel</div>
+  </details>
   </div><!-- /prgorta -->
 
   <aside class="prgyan">
@@ -2741,18 +2849,6 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
       <button class="ghost" id="crnLoad">CRN'den yükle</button>
       <span id="savedMark" class="chip" style="color:var(--anadal)" hidden></span>
     </div>
-    <!-- ★★ FAZ 46 — İKİ İPUCU SATIRI KATLANDI (59 kelime).
-         ⚠️ SİLİNMEDİ: Faz 40'ın dersi, bir görsel kodlama anlam taşıyorsa
-         ne taşıdığını söylemek zorunda. Ama her açılışta 59 kelimeyi
-         ızgaranın önüne koymak, o cümleyi okunmaz yapıyordu. -->
-    <details class="ipucu">
-      <summary>Nasıl kullanılır · renkler ne diyor</summary>
-      <div class="hint">Derse tıkla → şube değiştir, yerine başka ders koy, çıkar.
-        Boş hücreye tıkla → o saate uyan dersler.</div>
-      <div class="hint" id="tonNot">Renk hangi programdan olduğunu söylüyor
-        &nbsp;·&nbsp; ton hangi ders olduğunu: aynı ton, aynı ders — 9 tondan
-        sonrası tekrar eder, emin olmak için dersin üstüne gel</div>
-    </details>
   </aside>
   </div><!-- /prgduzen -->
 </section>
@@ -3720,6 +3816,33 @@ function checklistDialog(){
                          ip: o.status === "IN_PROGRESS", credits: o.credits};
     }))));
 
+  /* ★★ FAZ 47 — DÖNEMDEN ÖNERİLEN TİKLER (kullanıcı 18.09.2026:
+     *"5. dönem olan birisi geçtiği dersleri işaretlemek için otomatik tik
+     attırabilir"*).
+
+     ⚠️⚠️ ÖNERİ, İDDİA DEĞİL. Bu depoda kural: bilinmeyen, bilinen gibi
+     gösterilmez. "5. dönemdesin" demek "1–4. dönemin hepsini geçtin"
+     DEMEK DEĞİL — ders bırakmış, kalmış, yatay geçmiş olabilir. O yüzden:
+     · yalnız transkript HENÜZ BOŞKEN öneriliyor (girdiysen dokunulmuyor),
+     · kaç ders işaretlendiği pencerenin tepesinde SAYIYLA yazıyor,
+     · "hepsini kaldır" tek tık,
+     · ve hiçbiri Kaydet'e basmadan yazılmıyor.
+     1. dönemdeysen hiçbir şey işaretlenmiyor — geçmiş dönemin yok. */
+  const donem = DATA.donem || 0;
+  const bostu = !(SETUP.transcript || []).length;
+  let onerilen = [];
+  if(donem > 1 && bostu){
+    plans.forEach(p => p.terms.forEach(t => {
+      if(!t.term || t.term >= donem) return;
+      t.slots.forEach(sl => { if(sl.required) sl.options.forEach(o => {
+        if(state[o.course] && !state[o.course].taken){
+          state[o.course].taken = true;
+          onerilen.push(o.course);
+        }
+      }); });
+    }));
+  }
+
   const gradeOptions = (course) => {
     const st = state[course];
     const zero = st && (st.credits === 0);
@@ -3768,6 +3891,16 @@ function checklistDialog(){
       <b>0 kredili</b> dersler harf notu almaz — onlarda
       <b class="mono">BL</b> (başarılı) / <b class="mono">BZ</b> (başarısız).
       Not bilmiyorsan <b>DD</b> sayılır.</p>
+    ${onerilen.length ? `<div class="note" style="border-left:3px solid var(--warn);
+      padding-left:10px;margin:8px 0">
+      <b>${onerilen.length} ders senin için işaretlendi</b> — ${donem}.
+      dönemde olduğunu söyledin, 1–${donem - 1}. dönemin zorunluları tiklendi.
+      <b>Bu bir tahmin, kayıt değil:</b> geçmediğin varsa tikini kaldır.
+      <button class="ghost mini" id="ckUndo" style="margin-left:6px"
+        >hepsinin tikini kaldır</button></div>`
+      : (donem === 1 ? `<div class="note" style="margin:8px 0">
+          <b>1. dönemdesin</b> — geçmiş dönemin yok, bu liste boş başlıyor.
+          Yaz okulu ya da muafiyetle aldığın ders varsa tikle.</div>` : "")}
     <div class="chipline"><span class="chip">tik at</span>
       <span style="color:var(--ink-3);font-size:12px" id="ckCount"></span>
       <button class="ghost" id="ckAllTerm" style="margin-left:auto"
@@ -3793,6 +3926,18 @@ function checklistDialog(){
         st.ip = sel.value === "--";
         st.grade = (sel.value === "--" || sel.value === "") ? "" : sel.value;
       }));
+    const geriAl = $("#ckUndo");
+    if(geriAl) geriAl.addEventListener("click", () => {
+      onerilen.forEach(k => { if(state[k]) state[k].taken = false; });
+      onerilen = [];
+      box.querySelectorAll('input[type=checkbox][data-course]').forEach(cb => {
+        cb.checked = state[cb.dataset.course].taken;
+        const sel = box.querySelector(`select.g[data-course="${CSS.escape(cb.dataset.course)}"]`);
+        if(sel) sel.disabled = !cb.checked;
+      });
+      count();
+      geriAl.closest(".note").remove();
+    });
     const bulk = $("#ckAllTerm");
     if(bulk) bulk.addEventListener("click", () => {
       // Bulunduğun dönemden ÖNCEKİ tüm zorunlu dersleri işaretle — çoğu
@@ -3811,10 +3956,20 @@ function checklistDialog(){
       count();
     });
 
+    /* ★★ FAZ 47 — TİK GERİ ÇEKİLİNCE DERS DÜŞÜYOR (kullanıcı bildirdi
+       18.09.2026). Ölçüldü: pencere yalnız TİKLİ dersleri gönderiyordu ve
+       `replace:false` ile ekliyordu; tik geri çekilince hiçbir şey olmuyor,
+       ders transkriptte kalıyordu (37 → 38 satır, geri çekince yine 38).
+
+       ⚠️ `replace:true` YAPILMADI — o, elle girilmiş ve plan dışı dersleri
+       de silerdi. `remove` YALNIZ bu pencerenin gösterdiği ve tiklenmemiş
+       dersleri taşıyor; pencerenin görmediği hiçbir satıra dokunulmuyor. */
     $("#setupSave").addEventListener("click", () => save(() => api("/api/transcript", {
       items: Object.entries(state).filter(([, v]) => v.taken)
         .map(([course, v]) => ({course, grade: v.grade, inProgress: v.ip})),
-      replace: false,        // ★ EKLER, silmez: plan dışı dersler korunur
+      remove: Object.entries(state).filter(([, v]) => !v.taken)
+        .map(([course]) => course),
+      replace: false,        // ★ EKLER: plan DIŞI dersler korunur
     })));
   });
 }
@@ -4547,7 +4702,13 @@ function renderSaved(){
     sel = saved.map(p => ({course: p.course, crn: p.crn}))
                .filter(p => sectionOf(p.course, p.crn));
     render();
-    $("#schedSection").scrollIntoView({behavior: "smooth", block: "start"});
+    /* ★★ FAZ 47 — YÜKLEYİNCE HAFTALIK PROGRAMA GEÇ (kullanıcı 18.09.2026).
+       Burada `scrollIntoView` vardı; Faz 46'da görünüm kipine geçince
+       ÇALIŞMAZ oldu — hedef bölüm kapalı, kaydırılacak bir şey yok.
+       Kullanıcı "yükle"ye basıp aynı ekranda kalıyordu: program yüklendi
+       ama göründüğü yer kapalı. Görünüm değişikliği kaydırmanın yerini
+       alıyor. */
+    gorunumAc("schedSection", true);
   });
   $("#savedCrn").addEventListener("click", () => {
     const line = saved.map(p => p.crn).join(" ");
@@ -4728,7 +4889,10 @@ function loadFromCrn(bulunan){
   injectSections(bulunan);
   sel = bulunan.map(x => ({course: x.course, crn: x.crn}));
   render();
-  $("#schedSection").scrollIntoView({behavior: "smooth", block: "start"});
+  /* ★★ FAZ 48 — aynı sınıf: kapalı bölüme kaydırmak hiçbir şey yapmıyordu.
+     CRN'den program yükleyen kişi listeyi girip "tamam" diyor ve aynı
+     ekranda kalıyordu. */
+  gorunumAc("schedSection", true);
 }
 
 /* ---------- plan dışı ders ekleme (Faz 25/B1) ----------
@@ -7069,8 +7233,12 @@ Hiçbir dersi elemez; yalnız sıralamayı değiştirir."
   el.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", () => {
     if(b.dataset.go === "crn"){ crnDialog(); return; }
     if(b.dataset.go === "tercih"){ tercihDialog(); return; }
-    const hedef = document.getElementById(b.dataset.go);
-    if(hedef) hedef.scrollIntoView({behavior: "smooth", block: "start"});
+    /* ★★ FAZ 48 — `scrollIntoView` BURADA DA ÖLÜYDÜ (taramada bulundu).
+       Faz 46'da görünüm kipine geçtik; kapalı bir bölüme kaydırmak hiçbir
+       şey yapmıyor. "Haftalık programa bak" ve "Ders ekle / değiştir"
+       düğmeleri tıklanıyor, hiçbir şey olmuyordu. Aynı sınıftan üçüncü
+       hata — `test_faz48` artık sınıfın tamamını tutuyor. */
+    gorunumAc(b.dataset.go, true);
   }));
   el.querySelector("[data-kapat]").addEventListener("click", () => {
     localStorage_set("sonrakiKapali", "1");
@@ -7137,6 +7305,11 @@ function gorunumAc(id, odakla){
   if(!acik.length){ GORUNUM = ""; return ""; }
   if(!acik.some(([x]) => x === id)) id = acik[0][0];
   GORUNUM = id;
+  /* ★ Faz 47 — etkin görünüm KÖK ÖĞEDE de duruyor: haftalık program
+     görünümü sayfayı GENİŞLETİYOR (aşağıdaki `.wrap` kuralı), metin ağırlıklı
+     görünümler 1340px okuma ölçüsünde kalıyor. CSS'in JS değişkenini
+     görmesinin tek yolu bu. */
+  document.documentElement.dataset.gorunum = id;
   for(const [x] of SECTIONS){
     const el = document.getElementById(x);
     if(!el) continue;
