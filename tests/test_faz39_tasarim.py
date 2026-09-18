@@ -130,9 +130,24 @@ def test_bolum_cubugu_DOKUNMA_HEDEFI_yeterli():
 
 
 def _mobil_css():
-    m = re.search(r"@media \(max-width:700px\)\{(.*?)\n\}", CSS, re.S)
-    assert m, "mobil medya bloğu yok"
-    return m.group(1)
+    """Bütün `max-width:700px` bloklarını süslü parantez sayarak toplar.
+
+    ⚠️ Eskiden `(.*?)\\n\\}` ile İLK bloğun bir kısmını alıyordu: depoda üç
+    ayrı 700px bloğu var ve aranan kural hangisine yazıldıysa test onu
+    göremiyordu (Faz 50'de oldu).
+    """
+    out = []
+    for m in re.finditer(r"@media \(max-width:700px\)\{", CSS):
+        i, derinlik = m.end(), 1
+        while i < len(CSS) and derinlik:
+            if CSS[i] == "{":
+                derinlik += 1
+            elif CSS[i] == "}":
+                derinlik -= 1
+            i += 1
+        out.append(CSS[m.end():i - 1])
+    assert out, "mobil medya bloğu yok"
+    return "\n".join(out)
 
 
 def test_TELEFONDA_kucuk_denetim_KALMADI():
@@ -145,10 +160,19 @@ def test_TELEFONDA_kucuk_denetim_KALMADI():
     tabanı (24×24) İŞARETLEYİCİ girdiler için de geçerli, yalnız dokunma
     için değil — ve masaüstünde 24px altında **72 hedef** vardı. Artık
     taban her yerde 24, telefonda 32/34. Yani telefon kuralı duruyor,
-    masaüstü muafiyeti kalktı."""
+    masaüstü muafiyeti kalktı.
+
+    ⚠️⚠️ FAZ 50: bu iki kuralın İKİSİ DE ÖLÜYDÜ ve bu test onu göremiyordu.
+    `.watchmini` ve `.tier li .dispre` TEMEL kuralları kaynakta medya
+    bloğundan SONRA geliyor; medya sorgusu özgüllük kazandırmadığı için
+    24px'i eziyordu. Tarayıcıda ölçüldü: hesaplanan `min-height` = 24px.
+    Seçiciler öğe adıyla nitelendi (`button.watchmini`, `span.dispre`) ve
+    asıl güvence artık HESAPLANAN değeri ölçen `test_faz50_telefon`
+    (`KUCUK34`). Burada yalnız kuralın niteli hâli aranıyor —
+    çünkü niteliksiz hâli sessizce ölüyor."""
     mobil = _mobil_css().replace(" ", "").replace("\n", "")
-    assert ".rm,.watchmini{min-height:34px" in mobil
-    assert ".tierli.dispre{min-height:32px" in mobil
+    assert "button.rm,button.watchmini{min-height:34px" in mobil
+    assert ".tierlispan.dispre{min-height:32px" in mobil
     # Masaüstünde de taban var — ama TELEFONUNKİNDEN KÜÇÜK (24 < 32/34).
     # ⚠️ `_mobil_css()` iç içe blokları yutabiliyor; bu yüzden kuralları
     # doğrudan kendi seçicileriyle arıyoruz, "mobil bloğu çıkar" diye değil.

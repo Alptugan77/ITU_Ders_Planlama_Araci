@@ -1,10 +1,10 @@
 # Yapılacaklar
 
-Faz 1–49 bitti (1136 test). Depo GitHub'a hazır. Bu liste **sonrası** için:
+Faz 1–50 bitti (1145 test). Depo GitHub'a hazır. Bu liste **sonrası** için:
 ne kaldı, neden önemli, ne kadar iş, neye bağlı.
 
 ⚠️ **Yayınlanan site hâlâ eski.** Yayın hattı (`git push` → Actions → pages)
-çalıştırılmadan Faz 28–49'un hiçbiri kullanıcıya ulaşmıyor. Bu, listedeki
+çalıştırılmadan Faz 28–50'nin hiçbiri kullanıcıya ulaşmıyor. Bu, listedeki
 her maddeden önce gelen tek iş.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
@@ -243,6 +243,28 @@ her maddeden önce gelen tek iş.
 > kaynakta var mı" diye bakıyordu; davranışa çevrildi.
 > ➜ Ayrıntı ve ölçümler: `docs/faz49-kip-disi-ders.md`
 >
+> **Faz 50'de kapananlar (18.09.2026 — çubuklar + telefon):** kullanıcı iki
+> şey söyledi. ★★ *"not dağılımında +lar yüzünden barların tabanları aynı
+> seviyede olmuyor"*: ölçüldü, 15 kova kipinde tabanlar **üç ayrı
+> seviyede** (7px fark) ✅ Kök sebep etiketten derindi — `.ndsut` esnek
+> kutuydu, üç öğe kabı taşırıyor, tarayıcı büzüyor, büzülme çubuğun boyuna
+> göre değiştiği için taban kayıyordu; **yüzdeler de yanlıştı** (%100 kabın
+> tamamı kadar isteniyordu). Sütun üç satırlık ızgara oldu; yer varsa
+> (≥560px) dikey etiket de kalktı ✅ · ★★ *"telefonda kullanılması biraz
+> zor"*: aday listesinde bir ders satırı **330px**'ti ve kontenjan sütunu
+> kutunun dışına taşıp rakamı kesiyordu ("180"→"18") → telefonda **kart**
+> düzeni, satır **118–165px**, kesik yok, tek DOM (masaüstü tablo olarak
+> kalıyor) ✅ · içeriğin başladığı yer 10 görünümde **475 → 255px** ("Şimdi"
+> paneli telefonda yalnız program görünümünde; iki düğmesi alt çubuğun
+> kopyasıydı) ✅ · öneri sekmeleri 3 satır → 1–2 satır ve "ÖNERİ 1 ·
+> 20**KREDİ**" boşluk yutulması düzeldi (esnek kutu sınıfının ÜÇÜNCÜ
+> görülüşü) ✅ · ★★ üç telefon dokunma kuralı (`.watchmini` 34, `.dispre`
+> 32, `summary` 32) **ölüydü**: temel kuralları medya bloğundan sonra gelip
+> aynı özgüllükte eziyordu — *medya sorgusu özgüllük kazandırmaz* ✅
+> ⚠️ Başlık bloğu (213px) bilerek küçültülmedi: içindekilerin hepsi taşıyıcı
+> (hangi program, hangi dönem, verinin yaşı, tazele).
+> ➜ Ayrıntı ve ölçümler: `docs/faz50-telefon.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
@@ -406,7 +428,7 @@ yalnız **arz sorunlu** derste var — önşarta takılan ders nöbetle çözül
 ## 4.4 ~~Yayın~~ · ✅ **Faz 14'te kapandı** — statik site
 
 Motor **JS'e çevrilmedi**, Python tarayıcıya taşındı (Pyodide). Tek kod
-tabanı, 1136 testin tamamı web sürümünü de kapsıyor, iki sürüm ayrışamaz.
+tabanı, 1145 testin tamamı web sürümünü de kapsıyor, iki sürüm ayrışamaz.
 
 ```bash
 make site ARGS=node_modules/pyodide     # yerelde kur ve dene
@@ -451,7 +473,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 1136 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 1145 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` ✅ çalıştırıldı (katalogda 1081 ÇAP + 134 yandal planı).
   Dönemde bir kez yeter; program değiştirmeyi düşünmüyorsan gerekmez.

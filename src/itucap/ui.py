@@ -1788,6 +1788,9 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   letter-spacing:.06em;text-transform:uppercase;
   font-family:"Chivo",Helvetica,Arial,sans-serif}
 .tab:first-child{border-left:0}
+/* Etiketin tek parçası — kırpma (ellipsis) buradan işliyor, düğmeden değil:
+   esnek kutunun öğesi kırpılır, kabın kendisi değil. */
+.tabmetin{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Seçili sekme: zemin --seal, yazı --ground. İkisi de temaya göre dönüyor,
    yani üç durumun (açık / koyu / sistem) hepsinde kontrast korunuyor —
    sabit #fff yazsaydık koyu temada mavi üstünde beyaz kalırdı. */
@@ -2013,25 +2016,86 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
   h1{font-size:23px}
   .pad{padding:15px 14px}
   .panels{gap:12px}
-  /* Dokunma hedefleri: 44px kuralı */
-  .ghost,.tab{min-height:40px;display:inline-flex;align-items:center}
+  /* Dokunma hedefleri: 44px kuralı.
+     ⚠️ Kural "44" diyordu ama değer 40'tı (Faz 39). Faz 50 telefon turunda
+     ölçüldü: her görünümde 7–8 denetim 44'ün altında (`Tema` 34, `tazele`
+     ve bütün `.ghost`lar 40). WCAG 2.2 tabanı 24 — o sağlanıyordu; bu
+     deponun KENDİ telefon kuralı 44 ve tutulmuyordu. */
+  .ghost,.tab{min-height:44px;display:inline-flex;align-items:center}
   /* ★ Ölçüm (Faz 39, 390px): telefonda 32 denetim 32px'in ALTINDAydı —
      `kaldır` ×4 (22px), `izle` ×11 (21px), `+N dış önşart` ×17 (19px).
      Masaüstünde sıkışık durmaları doğru (fare pikseli tutturur), parmakla
      ıskalanıyorlardı. Yalnız telefonda büyütülüyor. */
-  .rm,.watchmini{min-height:34px;padding-left:10px;padding-right:10px;
-    display:inline-flex;align-items:center;justify-content:center}
-  .tier li .dispre{min-height:32px;padding:0 9px;
+  /* ⚠️⚠️ ÖĞE ADIYLA nitelenmiş (`button.rm`), bilerek: bu kural bir medya
+     sorgusunda ama `.watchmini`nin TEMEL kuralı kaynakta DAHA SONRA
+     geliyor (Faz 46'da `min-height:24px` eklendi) ve aynı özgüllükte
+     olduğu için onu eziyordu. Ölçüldü (Faz 50, 390px): `.watchmini`
+     hesaplanan `min-height` = 24px, yani bu satır iki fazdır ÖLÜYDÜ.
+     Medya sorgusu özgüllük KAZANDIRMIYOR — sık yapılan varsayım. */
+  button.rm,button.watchmini{min-height:34px;padding-left:10px;
+    padding-right:10px;display:inline-flex;align-items:center;
+    justify-content:center}
+  /* Birincil denetimler 44: kip anahtarı ve rol süzgeci (ölçüm: 33px). */
+  .modebtn,#candRole button{min-height:44px;display:inline-flex;
+    align-items:center;justify-content:center}
+  /* ★ Faz 50 ölçümü: katlanan başlık (24px) ve onay kutusu (18px)
+     telefonda tabanın altındaydı. Katlanan başlık bir DÜĞME gibi
+     davranıyor — parmakla açılıyor. */
+  /* ⚠️ Sınıflı kardeşleri de yazmak ŞART: `.ipucu>summary` ve
+     `.arzdetay>summary` kendi 24px'ini koyuyor ve öğe seçicisinden daha
+     özgül. Bu dosyadaki üçüncü "ölü kural" tuzağı (Faz 50). */
+  summary,.ipucu>summary,.arzdetay>summary{min-height:32px}
+  .tickbox{min-height:44px}
+  .tickbox input[type="checkbox"]{width:22px;height:22px}
+  /* ⚠️ `span.` niteliği ŞART — `.watchmini` ile aynı hastalık: temel
+     kural (satır ~2450) kaynakta daha sonra geliyor ve aynı özgüllükte
+     olduğu için bunu eziyordu. Ölçüldü (Faz 50, 390px): hesaplanan
+     `min-height` 24px, yani bu satır da iki fazdır ölüydü. */
+  .tier li span.dispre{min-height:32px;padding:0 9px;
     display:inline-flex;align-items:center}
   .tiers{gap:8px}
   /* Aday tablosu 6 sütunla telefona sığmıyordu; kutusunun içinde yana
      kayıyordu ama asıl iş burada yapılıyor — kaydırarak kullanılmamalı.
      Plan ve AKTS sütunları düşüyor: rol zaten ders hücresindeki etikette,
      AKTS karar için kritik değil. Satıra dokununca hepsi diyalogda. */
-  table.list th:nth-child(3),table.list td:nth-child(3),
-  table.list th:nth-child(5),table.list td:nth-child(5){display:none}
+  #cands th:nth-child(3),#cands td:nth-child(3),
+  #cands th:nth-child(5),#cands td:nth-child(5){display:none}
   table.list{font-size:13px}
   table.list td{padding:11px 8px 11px 0}
+  /* ★★ FAZ 50 — ADAY TABLOSU TELEFONDA KART (kullanıcı: "telefonda
+     kullanılması biraz zor").
+     Ölçüldü (390px): dört sütun kalsa bile ders sütununa ~160px düşüyordu;
+     açıklama 25 karakterde sarıyor, TEK ders satırı **330px** oluyordu ve
+     sağdaki kontenjan sütunu kutunun DIŞINA taşıp rakamı kesiyordu
+     ("180" → "18"). Yani telefonda liste hem çok uzun hem eksik okunuyordu.
+
+     Tablo tek DOM olarak kalıyor — masaüstünde hâlâ tablo, telefonda kart.
+     İki ayrı çizim yazsaydık ikisi ayrışırdı (bu depoda ölçülmüş bir
+     hata sınıfı). Aynı `<tr>`, başka yerleşim:
+        kod + rozetler ................................ puan
+        açıklama (tam genişlik)
+        kredi ................................. kontenjan
+     ⚠️ Sütun BAŞLIKLARI kartta yok; sayının ne olduğu `data-e` ile
+     hücrenin yanına yazılıyor — başlıksız çıplak sayı bırakmıyoruz. */
+  #cands,#cands tbody,#cands tr,#cands td{display:block}
+  #cands thead{display:none}
+  #cands tr[data-course]{display:grid;grid-template-columns:minmax(0,1fr) auto;
+    gap:2px 10px;align-items:baseline;padding:12px 0;
+    border-bottom:1px solid var(--border)}
+  #cands tr[data-course]>td{padding:0;border:0}
+  #cands td.score{grid-column:2;grid-row:1;text-align:right;font-size:15px;
+    font-weight:700;color:var(--ink)}
+  #cands td.score::after{content:" puan";font-size:10px;font-weight:600;
+    letter-spacing:.06em;color:var(--ink-3)}
+  #cands tr[data-course]>td:nth-child(2){grid-column:1;grid-row:1}
+  #cands tr[data-course]>td:nth-child(4){grid-column:1;grid-row:2}
+  #cands tr[data-course]>td:nth-child(4)::after{content:" " attr(data-e);
+    color:var(--ink-3);font-size:11.5px}
+  #cands tr[data-course]>td:nth-child(6){grid-column:2;grid-row:2;
+    justify-self:end;white-space:nowrap}
+  #cands .why{margin-top:2px}
+  /* Kart düzeninde tablo kaydırma kutusu boş yere kaymasın. */
+  #candWrap{overflow-x:visible}
 }
 table.grid{border-collapse:collapse;width:100%;min-width:660px;table-layout:fixed}
 /* Izgara kırpma düğmesi (Faz 39) — ızgaranın hemen altında, sessiz. */
@@ -2267,16 +2331,40 @@ table.list tr:hover td{background:var(--surface-2)}
 .ndgrafik{display:grid;grid-template-columns:repeat(9,1fr);gap:6px;
   align-items:end;height:104px;margin:10px 0 8px}
 .ndgrafik.genis{grid-template-columns:repeat(15,1fr);gap:3px}
-.ndsut{display:flex;flex-direction:column;justify-content:flex-end;
-  align-items:center;height:100%;gap:3px;min-width:0}
+/* ★★ FAZ 50 — SÜTUN ÜÇ SATIRLIK IZGARA (eskiden esnek kutuydu).
+   Ölçüldü: esnek kutuda üç öğe (sayı 10px + çubuk %100 + etiket) kabı
+   TAŞIYOR, tarayıcı da hepsini büzüyordu — büzülme miktarı çubuğun boyuna
+   göre değiştiği için TABANLAR kayıyordu. Üstelik "%100" çubuk kabın
+   tamamı kadar isteniyor, yani ölçek de yanlıştı.
+   Izgarada: 1. satır sayı, 2. satır ÇUBUK ALANI (kalan yer), 3. satır
+   etiket. Birinci ve üçüncü satır bütün sütunlarda aynı yükseklikte
+   olduğu için taban ortak ve yüzdeler aynı alana göre. */
+.ndsut{display:grid;grid-template-rows:auto minmax(0,1fr) auto;
+  justify-items:center;height:100%;gap:3px;min-width:0}
+.ndsut>i{align-self:end}
 .ndsut>b{font-size:10px;font-weight:600;color:var(--ink-3);line-height:1;
   font-variant-numeric:tabular-nums}
 .ndsut>i{display:block;width:100%;background:var(--seal);border-radius:2px 2px 0 0}
 .ndsut>i.kotu{background:var(--warn)}
-.ndsut>span{font-size:10px;color:var(--ink-2);line-height:1;white-space:nowrap}
+/* ★★ FAZ 50 — ETİKET SATIRI SABİT YÜKSEKLİKTE (kullanıcı 18.09.2026:
+   *"+lar yüzünden barların tabanları aynı seviyede olmuyor"*).
+   Ölçüldü ("artıları ayır", 15 sütun): tabanlar ÜÇ AYRI seviyede, 7px
+   fark. Sebep: sütun alttan hizalı (`justify-content:flex-end`) ve DİKEY
+   yazılan etiket karakter sayısıyla büyüyor — "BA+" 17px, "AA" 12px. Uzun
+   etiket çubuğu yukarı itiyordu. Etiket kutusu sabitlenince taban ortak. */
+.ndsut>span{font-size:10px;color:var(--ink-2);line-height:1;white-space:nowrap;
+  height:12px;display:flex;align-items:flex-start;justify-content:center}
 .ndgrafik.genis .ndsut>b{font-size:8.5px}
+/* Dar ekranda 15 etiket yan yana sığmıyor (ölçüm: 390px'te sütun 17.7px,
+   yatay "BA+" 17px — bitişik), o yüzden dikey. Kutu yine SABİT. */
 .ndgrafik.genis .ndsut>span{font-size:8.5px;writing-mode:vertical-rl;
-  transform:rotate(180deg)}
+  transform:rotate(180deg);height:20px;align-items:center}
+/* ⚠️ Yer varsa dikey yazı YOK: ölçüldü, 560px'ten sonra sütun ≥26px ve
+   yatay etiket 17px — sığıyor. Döndürülmüş 8.5px yazı okunmuyor. */
+@media (min-width:560px){
+  .ndgrafik.genis .ndsut>span{writing-mode:horizontal-tb;transform:none;
+    height:12px;align-items:flex-start}
+}
 .ndozet{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--ink-2);
   align-items:center}
 /* Dönem seçici — OBS'nin kendi sayfasında da var. */
@@ -2473,7 +2561,26 @@ table.cmp .meta.arti{color:var(--anadal)}
   .tab{flex:1 1 auto;min-width:0;padding:8px 9px;font-size:11px;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tab:not([aria-selected="true"]) .tabfark{display:none}
-  #karsilastir{flex:1 1 100%;border-left:0;border-top:1px solid var(--border)}
+  /* ★ FAZ 50 — "Karşılaştır" kendi satırını İSTEMİYOR artık: kredi sayısı
+     `.tabfark` içine girince seçili olmayan sekme "Öneri 2" kadar kısa ve
+     dördü tek satıra sığıyor (ölçüldü: 3 satır → 1, ~180px kazanç). */
+  #karsilastir{flex:0 1 auto;border-left:1px solid var(--border)}
+  /* ★★ FAZ 50 — "Şimdi:" panelindeki İKİ DÜĞME ALT ÇUBUĞUN KOPYASI.
+     Telefonda gezinme sabit alt çubukta: "Program" ve "Dersler" sekmeleri
+     ekranın altında HER ZAMAN duruyor. Aynı iki hedefi panelde tekrar
+     etmek, ölçülen 232px'lik panelin yarısını yiyordu — üstelik her
+     görünümde, içeriğin ÖNÜNDE.
+     ⚠️ Bilgi gizlenmiyor: hedefin kendisi ekranda, bir dokunuş uzakta.
+     Panelde yalnız alt çubukta KARŞILIĞI OLMAYAN eylemler kalıyor. */
+  #sonraki [data-go="schedSection"],
+  #sonraki [data-go="candSection"]{display:none}
+  #sonraki{padding:10px 12px}
+  .sonrakiliste{gap:8px}
+  /* ⚠️ Panel "Programın hazır. Şimdi:" diyor — yeri PROGRAM görünümü.
+     Telefonda her görünümün üstünde duruyordu: ölçüldü, 11 görünümün
+     10'unda içeriğin önünde 144px. Masaüstünde kalıyor (orada içerik
+     zaten ekranın üstünde başlıyor). */
+  :root:not([data-gorunum="schedSection"]) #sonraki{display:none}
   /* Başlık satırı telefonda iki satıra bölünmesin diye sekmeler alta. */
   .prgbaslik .tabs{margin-left:0;flex:1 1 100%}
   /* Üst çubuk: ad ve Tema aynı satırda, durum satırları küçük. */
@@ -2481,7 +2588,7 @@ table.cmp .meta.arti{color:var(--anadal)}
   body:not(.kurulum) header h1{font-size:18px}
   body:not(.kurulum) header .eyebrow{flex:1 1 100%;order:3;font-size:9.5px}
   body:not(.kurulum) header .sub{flex:1 1 100%;order:4;font-size:11.5px}
-  body:not(.kurulum) header #theme{order:2;min-height:34px;padding:0 10px}
+  body:not(.kurulum) header #theme{order:2;min-height:44px;padding:0 12px}
   .veriyasi{gap:2px 6px}
   /* Dördü çubukta, gerisi "Daha" altında. */
   .ray a[data-alt]{display:none}
@@ -5757,11 +5864,20 @@ function renderTabs(){
       + oneriFarki(s, i).replace(/<[^>]+>/g, "")
       + (eksik.length ? " · taban ✗: " + eksik.map(g =>
           `${g.role} ${g.missing} kredi`).join(", ") : "");
+    /* ⚠️⚠️ Etiketin TAMAMI TEK `<span>` içinde ve bu şart: `.tab` esnek
+       kutu (telefonda 44px hedef için), esnek kutu da ÖĞE SINIRINDAKİ
+       boşluğu yutuyor. Ölçüldü (390px): "ÖNERİ 1 · 20KREDİ" — `kredi`nin
+       önündeki boşluk `.tabfark` esnek öğe olduğu için siliniyordu. Aynı
+       sınıf arz başlığında (Faz 46) ve `summary` tabanında (Faz 48) da
+       çıktı; burası üçüncüsü.
+       ⚠️ KREDİ SAYISI da `.tabfark` içinde: telefonda seçili olmayan sekme
+       yalnız "Öneri 2" yazıyor ve üç sekme + Karşılaştır TEK SATIRA sığıyor
+       (ölçüldü: 3 satır → 1). Tam metin her sekmenin `title`ında. */
     return `<button class="tab" role="tab" aria-selected="${i===active}" data-i="${i}"
-       title="${esc(tam)}">
-       Öneri ${i+1} · ${s.credits}<span class="tabfark"> kredi${
+       title="${esc(tam)}"><span class="tabmetin"
+       >Öneri ${i+1}<span class="tabfark"> · ${s.credits} kredi${
          oneriFarki(s, i)}</span>${eksik.length
-         ? ` <span style="color:var(--danger)">· taban ✗</span>` : ""}</button>`;
+         ? ` <span style="color:var(--danger)">· taban ✗</span>` : ""}</span></button>`;
   }).join("") || oneriYok();
   /* ★ Faz 27 — yan yana karşılaştırma. Sekmeler arasında geçiş vardı ama
      farkı görmek için ızgarayı iki kez ezberlemek gerekiyordu. */
@@ -7039,7 +7155,10 @@ function renderCandidates(){
         <div class="why">${esc(c.name)}${c.reasons.length
           ? " — " + c.reasons.map(esc).join("; ") : ""}${acilanNot(c)}</div></td>
       <td><span class="tag ${c.role}">${c.role}</span></td>
-      <td class="mono">${c.credits}</td>
+      <!-- data-e: telefonda kart düzeninde sütun başlığı olmuyor; sayının
+           ne olduğu hücrenin yanına yazılıyor (Faz 50).
+           Ters tırnak YOK: bu metin bir JS şablon dizgesinin içinde. -->
+      <td class="mono" data-e="kredi">${c.credits}</td>
       <td class="mono" style="color:var(--ink-3)">${c.ects}</td>
       <td>${doluluk(c.sections)}</td>
     </tr>`;
