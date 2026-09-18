@@ -209,6 +209,15 @@ class Settings:
     # Liste olarak tutuluyor çünkü `update_settings` liste yazabiliyor —
     # ayrı bir [[tablo]] biçimi yeni bir yazıcı gerektirirdi.
     mesgul: list[str] = field(default_factory=list)
+    # ★★ SAATE KİLİT (Faz 45, kullanıcı isteği 17.09.2026: *"dersleri saate
+    # kitleme ve önerilerin onun etrafında şekillenmesi"*).
+    # Biçim: "DERS@CRN"  →  "GEO 315E@13601"
+    # `watch_courses` "bu ders programda olsun" der ama ŞUBEYİ motora bırakır;
+    # kilit "bu dersi TAM BU SAATTE tut" der. Motor kilitli dersin yalnız o
+    # şubesini dener, kalan programı onun etrafında kurar.
+    # ⚠️ CRN saklanıyor, saat değil — saat CRN'in bir özelliği. Dönem değişip
+    # CRN kaybolursa kilit sessizce düşmemeli; arayüz "kilit tutmuyor" demeli.
+    kilitli: list[str] = field(default_factory=list)
     request_delay_s: float = 1.0
     # HTTP başlıkları ASCII olmak zorunda — Türkçe karakter KOYMA (httpx patlar).
     # Yine de güvenlik için http.ascii_header() ile temizleniyor.
@@ -428,7 +437,7 @@ _EDITABLE = {
     "anadal_program", "anadal_plan_id", "second_kind",
     "cap_program", "cap_plan_id", "yandal_program", "yandal_plan_id",
     "donem", "term", "unit", "max_load", "max_load_auto", "program_codes", "watch_courses",
-    "cap_baslangic_yariyili", "mesgul",
+    "cap_baslangic_yariyili", "mesgul", "kilitli",
     "tercih_en_erken", "tercih_bos_gunler", "tercih_kampus_degisimi",
     "tercih_cevrimici", "tercih_istenen_hocalar", "tercih_istenmeyen_hocalar",
 }

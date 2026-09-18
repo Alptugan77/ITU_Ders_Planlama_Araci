@@ -137,10 +137,17 @@ def test_kullanilan_her_css_jetonu_TANIMLI(dbs):
 
 
 def test_ust_cubuk_opak(dbs):
+    """★ Faz 46: çubuk RAY oldu. Ders aynı — kaydırırken kaybolmamalı ve
+    altından içerik görünmemeli — ama iki ayrı yerde geçerli:
+    masaüstünde yapışkan sütun, telefonda opak ALT çubuk."""
     html = UI.render(_collect(dbs))
-    kural = re.search(r"\.secnav\{[^}]*\}", html, re.S).group(0)
-    assert "background:var(--ground)" in kural
+    kural = re.search(r"(?m)^\.ray\{[^}]*\}", html, re.S).group(0)
     assert "position:sticky" in kural
+    mobil = re.search(r"@media \(max-width:700px\)\{.*?\n  \.ray\{([^}]*)\}",
+                      html, re.S)
+    assert mobil, "telefonda ray kuralı yok"
+    assert "position:fixed" in mobil.group(1)
+    assert "background:var(--surface)" in mobil.group(1)
 
 
 # --------------------------------------------------------- 3. kademe düzeni
@@ -160,10 +167,24 @@ def test_kaydedilen_bolum_sablonda(dbs):
         assert parca in html, parca
 
 
-def test_kaydedilen_bolum_bolum_cubugunda_ILK(dbs):
+def test_ILK_GORUNUM_haftalik_program(dbs):
+    """⚠️⚠️ FAZ 20 KARARI FAZ 46'DA DEĞİŞTİ — sebebiyle birlikte.
+
+    Faz 20: *kaydedilen program en üstte, çünkü kayıt haftasında araca
+    dönmenin sebebi "ben ne kaydetmiştim"*. Doğruydu; ama o zaman sayfa
+    tek yığındı ve "en üstte" = "ilk görülen".
+
+    Faz 46'da ray tek görünüm açıyor ve açılış görünümü listenin ilki.
+    Kaydedilen programı açılışa koymak, kullanıcıyı **düzenlenemeyen** bir
+    kaydın karşısına çıkarırdı. Oysa `startFromSaved()` zaten kaydedileni
+    ÇALIŞMA ızgarasına yüklüyor: haftalık program görünümü, kaydın kendisi
+    artı düzenlenebilirlik. Kayıt ayrıca rayda, sayısıyla duruyor.
+    """
     html = UI.render(_collect(dbs))
     m = re.search(r"const SECTIONS = \[(.*?)\];", html, re.S).group(1)
-    assert m.strip().startswith('["savedSection"')
+    ilk = [x for x in m.strip().splitlines() if x.strip().startswith("[")][0]
+    assert '"schedSection"' in ilk, ilk
+    assert '"savedSection"' in m, "kaydedilen program raydan düşmüş"
 
 
 # -------------------------------------------------------- 5. kredi tavanı

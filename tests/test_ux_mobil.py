@@ -49,15 +49,20 @@ def test_sube_KARTI_mobilde_STACK():
     assert ".opt{flex-direction:column" in mobil
 
 
-# ====================================== 4. bölüm çubuğu kaydırma ipucu
-def test_secnav_KENAR_SOLMASI():
-    """★ Mobilde 9 bölüm çubuğa sığmıyor, sonuncusu kesiliyor ve
-    kaydırılabildiğine dair ipucu yoktu."""
+# ====================================== 4. telefonda hiçbir görünüm kaybolmuyor
+def test_TELEFONDA_hicbir_gorunum_ULASILAMAZ_DEGIL():
+    """★ Mobilde 9 bölüm çubuğa sığmıyordu; Faz 39'da kenar solmasıyla
+    "sağa kaydır" denmişti.
+
+    ⚠️ Faz 46 ölçümü o çözümü çürüttü: 390px'te 10 çapanın **3'ü**
+    görünüyordu ve kenar solması kaydırmayı ancak İMA ediyordu. Artık dört
+    sekme yazılı, gerisi "Daha" altında — ima değil, düğme."""
     src = _src()
-    assert "const kenarSolmasi = " in src
-    assert 'nav.dataset.more' in src
-    assert '.secnav[data-more="right"]' in src
-    assert '.secnav[data-more="both"]' in src
+    assert 'class="raydaha" id="rayDaha"' in src, "Daha düğmesi yok"
+    assert "aria-expanded" in src
+    duz = src.replace(" ", "").replace("\n", "")
+    assert ".raya[data-alt]{display:none}" in duz, "alt sekmeler gizlenmiyor"
+    assert ".ray[data-acik]a[data-alt]" in duz, "Daha açınca gelmiyor"
 
 
 # ====================================== 5. kredi tavanı kaynağı başlıkta

@@ -219,6 +219,9 @@ class State:
             return {"crn": self.course_sections(str(b.get("course") or ""))}
         if path == "/api/watch":
             return self.toggle_watch(str(b.get("course") or ""))
+        if path == "/api/kilit":
+            return self.toggle_lock(str(b.get("course") or ""),
+                                    str(b.get("crn") or ""))
         if path == "/api/mesgul":
             return self.save_busy(b.get("day") or 0, b.get("start") or 0,
                                   b.get("end") or 0, str(b.get("label") or ""),
@@ -1043,6 +1046,45 @@ class State:
             current = sorted({*current, code})
         config.update_settings({"watch_courses": current})
         return {"watching": current, "on": code in current}
+
+    def toggle_lock(self, course: str, crn: str = "") -> dict:
+        """Bir dersi BULUNDUĞU ŞUBEYE (dolayısıyla saate) kilitler/açar.
+
+        ★★ Faz 45 — kullanıcı isteği 17.09.2026: *"dersleri saate kitleme ve
+        önerilerin onun etrafında şekillenmesi"*.
+
+        Kilit `watch_courses`'tan farklı: o "bu ders programda olsun" der ve
+        şubeyi motora bırakır — motor daha ucuz bir şube bulunca saati
+        kaydırır. Kilit "bu dersi TAM BU SAATTE tut" der.
+
+        ★ Bir ders için TEK kilit. Aynı derse ikinci bir CRN kilitlenirse
+        eskisi düşer; iki şube birden tutmak zaten çelişki olurdu (ikisi de
+        zorunlu → hiçbir program kurulamaz). Sessizce üst üste yazmak yerine
+        eskisini AÇIKÇA değiştiriyoruz ve arayüze hangisinin düştüğünü
+        döndürüyoruz.
+        """
+        from .normalize import normalize_course_code
+
+        code = normalize_course_code(course or "")
+        if not code:
+            raise ValueError("ders kodu gerekli")
+        crn = str(crn or "").strip()
+        settings = config.Settings.load()
+        current = [str(x).strip() for x in (settings.kilitli or []) if str(x).strip()]
+        # Aynı dersin eski kilidi — hem "aç" hem "şube değiştir" için gerek.
+        eski = next((x for x in current
+                     if x.split("@", 1)[0].strip().upper() == code), "")
+        kalan = [x for x in current if x != eski] if eski else list(current)
+        if not crn or (eski and eski.split("@", 1)[-1].strip() == crn):
+            # CRN verilmediyse ya da zaten kilitli olan şube ise → AÇ.
+            config.update_settings({"kilitli": sorted(kalan)})
+            return {"locked": sorted(kalan), "on": False, "course": code,
+                    "crn": eski.split("@", 1)[-1].strip() if eski else ""}
+        yeni = sorted({*kalan, f"{code}@{crn}"})
+        config.update_settings({"kilitli": yeni})
+        return {"locked": yeni, "on": True, "course": code, "crn": crn,
+                # Arayüz "GEO 315E artık 13601 yerine 13602'ye kilitli" diyebilsin.
+                "replaced": eski.split("@", 1)[-1].strip() if eski else ""}
 
     def _reenroll(self) -> None:
         """Program değişince öğrenci kaydını yeni planlara bağla.

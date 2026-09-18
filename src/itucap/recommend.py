@@ -696,7 +696,8 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
                     limit: int = 3, pinned: Iterable[str] = (),
                     fixed: Iterable[Section] = (),
                     floors: dict[str, float] | None = None,
-                    prefs: Preferences | None = None) -> list[Schedule]:
+                    prefs: Preferences | None = None,
+                    locked: Mapping[str, str] | None = None) -> list[Schedule]:
     """Greedy + backtracking. Farklı DERS KÜMELERİ üretir, aynı kümenin
     farklı CRN varyantlarını tekrar etmez (alternatifler ayrıca raporlanır).
 
@@ -708,6 +709,30 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
        Bir HAVUZ toplayıp toplam puana göre sıralıyoruz; böylece "şubeyi kaydırıp
        bir ders daha sığdıran" çözüm öne geçiyor."""
     pinned = {p.upper() for p in pinned}
+    # ★★ FAZ 45 — SAATE KİLİT (kullanıcı isteği 17.09.2026).
+    #
+    # `pinned` "bu ders programda olsun" diyor ama ŞUBEYİ motora bırakıyor;
+    # kullanıcı bir dersi beğendiği SAATTE tutmak istiyor. `locked` tam olarak
+    # o: {ders: CRN}. Kilitli dersin yalnız o şubesi denenir, gerisi onun
+    # etrafında kurulur.
+    #
+    # ⚠️ Kilit SERT kısıt — ve bu bilinçli. Yumuşak olsaydı (sıralamayı
+    # etkileseydi) motor kilidi sessizce yok sayabilirdi; kullanıcı da
+    # "kilitledim ama değişti" derdi. Sert olduğu için kilitler birbiriyle
+    # çakıştığında SONUÇ BOŞ çıkıyor — arayüz bunu "kilit yüzünden" diye
+    # söylemek zorunda, yoksa "çakışmasız kombinasyon yok" sanılır.
+    locked = {str(k).upper(): str(v) for k, v in (locked or {}).items()}
+    # ⚠️ Kilit yalnız BU HAVUZDA olan derse bağlanır. Sebebi ölçülmüş bir
+    # tuzak: arayüzün iki kipi (DEPAR / "N. dönem + alttan") AYRI aday
+    # havuzları kuruyor. `all` kipinde kilitlenen üst dönem dersi, dönemlik
+    # havuzda hiç yok — kilidi orada da zorunlu saysaydık o kip topyekûn
+    # boşalırdı. Ders masada değilse kilit "yok sayılmıyor", KAPSAM DIŞI.
+    # Ders havuzda ama CRN kapanmışsa kilit SERT kalıyor ve sonuç boşalıyor;
+    # o gerçekten söylenmesi gereken bir durum (arayüz `locked[].ok` ile
+    # söylüyor), sessizce şube kaydırmak değil.
+    havuzda = {c.course for c in cands}
+    locked = {k: v for k, v in locked.items() if k in havuzda}
+    pinned |= set(locked)
     fixed = list(fixed)
     results: list[Schedule] = []
     seen: set[tuple[str, ...]] = set()
@@ -720,6 +745,8 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
 
     budget = [SEARCH_BUDGET]
     pool_size = max(limit, limit * POOL_FACTOR)
+    # Aday indeksi → denenecek şubeler, sıralı. Bkz. `search` içindeki not.
+    _sira: dict[int, list[Section]] = {}
 
     def blocking_cost(section: Section, index: int) -> float:
         """Bu şube seçilirse, GERİYE KALAN adaylardan kaçının puanı yanar?
@@ -783,12 +810,26 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
             # AZ değer yakan bir şube farkını çevirebilir; daha fazlasını
             # çeviremez. Ders puanları 40–100 aralığında olduğu için tercih
             # hiçbir zaman değerli bir dersi programdan düşüremiyor.
-            def _sube_maliyeti(s: Section) -> float:
-                return blocking_cost(s, index) - sube_tercih_puani(s, prefs)
+            # ★★ FAZ 46 — SIRA İNDEKS BAŞINA BİR KEZ (ölçüm 18.09.2026).
+            # `blocking_cost(s, index)` yalnız `index`e ve şubeye bağlı;
+            # `chosen`a BAKMIYOR. Yani aynı indeksteki sıralama arama
+            # ağacının her düğümünde aynı çıkıyordu ve baştan hesaplanıyordu:
+            # profilde 46.549 çağrı, `snapshot()`ın 3,4 saniyesi.
+            # ⚠️ Bu bir ÖNBELLEK, davranış değişikliği değil: sıralama
+            # anahtarına `chosen` girerse bu memo KALDIRILMALI (testte
+            # tutuluyor).
+            ordered = _sira.get(index)
+            if ordered is None:
+                def _sube_maliyeti(s: Section) -> float:
+                    return blocking_cost(s, index) - sube_tercih_puani(s, prefs)
 
-            ordered = sorted(cand.sections,
-                             key=lambda s: (not s.meetings, _sube_maliyeti(s),
-                                            -s.free, s.crn))
+                ordered = sorted(cand.sections,
+                                 key=lambda s: (not s.meetings, _sube_maliyeti(s),
+                                                -s.free, s.crn))
+                # Kilitliyse tek şube denenir — "saate kilit" tam olarak bu.
+                if cand.course in locked:
+                    ordered = [s for s in ordered if s.crn == locked[cand.course]]
+                _sira[index] = ordered
             for section in ordered:
                 if not fits(section, chosen):
                     continue

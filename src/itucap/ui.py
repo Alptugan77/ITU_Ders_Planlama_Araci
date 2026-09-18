@@ -176,6 +176,45 @@ def _busy_info(declared) -> list[dict]:
     return out
 
 
+def _kilit_ayikla(declared) -> dict[str, str]:
+    """`["GEO 315E@13601"]` → `{"GEO 315E": "13601"}` (Faz 45).
+
+    Biçimi bozuk satır ATLANIYOR ama sessizce değil: `_kilit_bilgisi` aynı
+    listeyi ayrıca tarayıp arayüze "bu satır okunamadı" diye taşıyor. Motor
+    okuyamadığı bir kilidi uygulayamaz; kullanıcıya uygulanmış gibi
+    göstermek Faz 44'ün hatası olurdu.
+    """
+    out: dict[str, str] = {}
+    for raw in declared or ():
+        ders, _, crn = str(raw).partition("@")
+        ders, crn = ders.strip().upper(), crn.strip()
+        if ders and crn:
+            out[ders] = crn
+    return out
+
+
+def _kilit_bilgisi(declared, havuz: dict) -> list[dict]:
+    """Kilitleri arayüze taşır — ve her birinin GERÇEKTEN TUTUP tutmadığını.
+
+    `havuz`: `{DERS: {CRN: [{"day":…,"start":…,"end":…}, …]}}` — aday havuzu.
+
+    ★★ `ok=False` olan kilit, dönem değişip CRN kaybolduğunda (ya da ders
+    havuzdan çıktığında) çıkıyor. O satırı listeden düşürmek en kolayı
+    olurdu ama kullanıcı "dersim kilitliydi, saati neden kaydı?" diye
+    sorardı. Kilit duruyor, yanında neden tutmadığı yazıyor.
+    """
+    out = []
+    for ders, crn in _kilit_ayikla(declared).items():
+        subeler = havuz.get(ders) or {}
+        out.append({"course": ders, "crn": crn, "ok": crn in subeler,
+                    "meetings": subeler.get(crn) or [],
+                    # Ders havuzda ama CRN yok → "şube kapandı"; ders de yok →
+                    # "bu ders artık aday değil". İkisi farklı cümle.
+                    "neden": ("" if crn in subeler
+                              else ("sube" if subeler else "ders"))})
+    return sorted(out, key=lambda x: x["course"])
+
+
 def _basvuru_info(con: sqlite3.Connection, ucon: sqlite3.Connection,
                   student_id: int, settings) -> dict | None:
     """Başvurulabilirlik taraması — iki tür için de (ÇAP ve yandal).
@@ -420,12 +459,17 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         # ★ Meşgul saatler `fixed` olarak giriyor: motor onları "zaten dolu"
         # sayıyor ve çakışan şubeyi hiç önermiyor. Ayrı bir çakışma yolu
         # yazmak iki tanım demek olurdu (bkz. REC.busy_sections).
+        # ★★ Faz 45 — `locked` motora SERT kısıt olarak giriyor: kilitli
+        # dersin yalnız o şubesi deneniyor, program onun etrafında kuruluyor.
         return cs, REC.build_schedules(cs, max_load=limit, limit=n_schedules,
-                                       fixed=busy, floors=floors, prefs=prefs)
+                                       fixed=busy, floors=floors, prefs=prefs,
+                                       locked=locked)
 
     # ★ Faz 27 — yumuşak tercihler. SIRALAMAYA giriyor, eleme YAPMIYOR.
     prefs = settings.preferences()
     busy = REC.busy_sections(settings.mesgul)
+    # ★★ Faz 45 — saate kilit. `build()` bunu okuyor (kapanış değişkeni).
+    locked = _kilit_ayikla(settings.kilitli)
     # ★ Yarıyıl kredi tabanı artık motora GİRİYOR (yapılacaklar 1.4).
     # Faz 13'ten beri yalnız bir uyarıydı; gerçek veride önerilen program
     # ikinci anadaldan 4 kredi içeriyordu, taban 9'du.
@@ -901,6 +945,15 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         # Ders konulamayacak saatler — ızgarada gösteriliyor ve motor
         # bunlarla çakışan şubeyi hiç önermiyor.
         "busy": _busy_info(settings.mesgul),
+        # ★★ Faz 45 — SAATE KİLİTLİ dersler. Motor bunları sert kısıt olarak
+        # uyguluyor; buradaki liste arayüzün kilit rozetini basması ve bir
+        # kilidin tutmadığını SÖYLEYEBİLMESİ için.
+        "locked": _kilit_bilgisi(
+            settings.kilitli,
+            {c.course: {s.crn: [{"day": m.day, "start": m.start, "end": m.end}
+                                for m in s.meetings]
+                        for s in c.sections}
+             for c in [*cands, *term_cands]}),
         "taking": sorted(S.in_progress(ucon, student_id)),
         "panels": panels,
         "candidates": candidates_json(cands),
@@ -1555,6 +1608,64 @@ header .masthead{display:flex;flex-wrap:wrap;align-items:flex-end;
   justify-content:space-between;gap:16px;
   padding-bottom:14px;border-bottom:3px solid var(--seal);margin-bottom:4px}
 header .sub{color:var(--ink-2);font-size:13.5px;margin-top:6px}
+/* ★★ FAZ 46 — ÜST ÇUBUK. Ölçüm: başlık 174px ve 45 kelimeydi; ızgaranın
+   önündeki en büyük tek blok. Kurulum BİTMİŞSE ad küçülüp durum satırıyla
+   aynı hizaya geçiyor (54px). Kurulum sürerken tam masthead kalıyor:
+   orada ekranda gösterilecek başka bir şey yok ve aracın kendini tanıtması
+   gereken tek an o. */
+body:not(.kurulum) header{display:flex;align-items:center;gap:8px 16px;
+  flex-wrap:wrap;padding-bottom:10px;border-bottom:3px solid var(--seal)}
+body:not(.kurulum) header .masthead{display:contents}
+body:not(.kurulum) header .masthead>div{display:flex;align-items:baseline;
+  gap:10px;flex-wrap:wrap;min-width:0}
+body:not(.kurulum) header h1{font-size:20px;letter-spacing:-.01em;order:1}
+/* Tek satırda ad ÖNCE okunmalı; eyebrow (program listesi) onu izler. */
+body:not(.kurulum) header .eyebrow{order:2}
+body:not(.kurulum) header .acilim{display:none}
+body:not(.kurulum) header .sub{margin:0;font-size:12.5px}
+body:not(.kurulum) header #theme{margin-left:auto;order:9}
+/* ⚠️ "tazele" düğmesi CÜMLENİN İÇİNDE duruyordu; 390px'te satır düğmenin
+   ortasından kırılıyor, hem okuma hem tıklama bozuluyordu (ölçüldü).
+   Satır artık esnek: metin bir parça, düğme ayrı bir parça. */
+.veriyasi{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+/* ★★ FAZ 46 — haftalık programın düzeni: ızgara solda, bağlam sağda. */
+.prgduzen{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:22px;
+  align-items:start;margin-top:12px}
+.prgorta{min-width:0}
+.prgyan{display:flex;flex-direction:column;gap:12px;min-width:0}
+.prgyan .toolbar{margin:0}
+/* ⚠️ Dar ekranda sütun ızgaranın ALTINA düşüyor, üstüne değil: üstüne
+   düşseydi Faz 46'nın çözdüğü sorun (313 kelime ızgaranın önünde) telefonda
+   aynen geri gelirdi. */
+@media (max-width:1100px){
+  .prgduzen{grid-template-columns:minmax(0,1fr)}
+  .prgyan{order:2}
+  .prgorta{order:1}
+}
+/* İpuçları katlanıyor — silinmiyor (Faz 40'ın dersi). */
+.ipucu>summary{cursor:pointer;font-size:12.5px;color:var(--ink-2);
+  min-height:24px;display:flex;align-items:center;list-style:none}
+.ipucu>summary::-webkit-details-marker{display:none}
+.ipucu>summary::before{content:"▸";margin-right:6px;color:var(--ink-3)}
+.ipucu[open]>summary::before{content:"▾"}
+.ipucu>summary:hover{color:var(--seal)}
+.ipucu .hint{display:block;margin-top:6px}
+/* Arz uyarısı katlanmış — SAYISI kapalıyken de görünüyor. */
+.arzdetay>summary{cursor:pointer;min-height:24px;display:flex;align-items:center;
+  list-style:none;color:var(--warn-ink)}
+.arzdetay>summary::-webkit-details-marker{display:none}
+.arzdetay>summary::before{content:"▸";margin-right:6px;opacity:.8}
+.arzdetay[open]>summary::before{content:"▾"}
+.arzgovde{margin-top:6px}
+/* Yatay kaydırılabilir tablo: kenar solması "devamı var" diyor. */
+.listwrap{overflow-x:auto;scrollbar-width:thin}
+.listwrap[data-more="right"]{mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
+.listwrap[data-more="left"]{mask-image:linear-gradient(90deg,transparent,#000 28px)}
+.listwrap[data-more="both"]{mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
+/* Kip + öneri sekmeleri TEK satır (eskiden iki bloktu, 145px). */
+.prgbaslik{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.prgbaslik h2{margin-right:2px}
+.prgbaslik .tabs{margin-left:auto}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 /* ★★ FAZ 39 — DÜĞMELERDE BÜYÜK HARF KALKTI.
    Ölçüm: sayfada 162 öğe zorla BÜYÜK HARF'e çevriliyordu ve bunların en
@@ -1572,7 +1683,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
    halkasının yanında, her düğmede basıldığı anı da belli ediyor. Hareket
    duyarlılığında kapalı. */
 @media (prefers-reduced-motion:no-preference){
-  .ghost:active,.tab:active,.modebtn:active,.secnav a:active,.kod.ekle:active{
+  .ghost:active,.tab:active,.modebtn:active,.ray a:active,.kod.ekle:active{
     transform:translateY(1px)}
 }
 /* Seçili OLMAYAN öneri sekmesi de tıklanabilir görünsün (eskiden hover yoktu). */
@@ -1729,7 +1840,12 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
 .candbar .radios{flex:0 0 auto}
 .candbar .radios button{flex:0 0 auto;padding:6px 11px}
 .tickbox{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);
-  cursor:pointer;white-space:nowrap}
+  cursor:pointer;white-space:nowrap;min-height:24px}
+/* ★ Faz 46 — onay kutusu 13×13px'ti (tarayıcı varsayılanı). Etiketin
+   tamamı zaten tıklanabilir ama kutunun KENDİSİ de tabanın üstünde
+   olmalı: dokunmatikte insanlar kutuya basıyor. */
+.tickbox input[type="checkbox"]{width:18px;height:18px;margin:3px;
+  accent-color:var(--seal);flex:0 0 auto}
 .candcount{margin-left:auto;font-size:12px;color:var(--ink-3);
   font-variant-numeric:tabular-nums}
 /* Klavye ipucu — dar ekranda gizli (orada klavye yok). */
@@ -1783,8 +1899,10 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
   border-bottom:1px solid var(--border-strong)}
 .trtable td{padding:5px 8px 5px 0;border-top:1px solid var(--border);vertical-align:middle}
 .trtable select{width:auto;min-width:74px;padding:3px 6px;font-size:12.5px}
-.trtable .rm{color:var(--danger);font-size:12px;padding:2px 6px;
-  border:1px solid var(--border);border-radius:0}
+.trtable .rm{color:var(--danger);font-size:12px;padding:2px 8px;
+  border:1px solid var(--border);border-radius:0;
+  /* Faz 46: 46×22px'ti — WCAG 2.2 AA tabanı 24×24. */
+  min-height:24px;display:inline-flex;align-items:center}
 .scroll{max-height:290px;overflow-y:auto;margin-top:10px}
 .hits{border:1px solid var(--border);border-radius:0;margin-top:6px;
   max-height:190px;overflow-y:auto}
@@ -1874,13 +1992,25 @@ table.grid th{font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transfo
   color:var(--seal);padding:0 0 8px;text-align:left;border-bottom:3px solid var(--seal);
   font-family:"Chivo",Helvetica,Arial,sans-serif}
 table.grid th:first-child{width:58px}
-table.grid td{height:19px;padding:0 2px;vertical-align:top}
+/* ★★ FAZ 46 — YARIM SAAT SATIRI 19px → 28px.
+   Ölçüm (17.09.2026): boş hücreler 235×19px'ti; WCAG 2.2 AA (2.5.8 Target
+   Size, Minimum) tabanı 24×24. Yani Faz 44'te düzelttiğimiz "boş saate
+   tıkla → ders ekle" özelliğinin HEDEFİ tabanın altındaydı — 38 hücrede.
+   Bedeli: 19 satırlık ızgara 361px → 532px. Kazanılan: özelliğin
+   tıklanabilmesi. */
+table.grid td{height:28px;padding:0 2px;vertical-align:top}
 table.grid tr.hr>td{border-top:1px solid var(--border-strong);opacity:1}
 table.grid tr.half>td{border-top:1px dotted var(--border)}
 table.grid td.hour{border:0!important;color:var(--ink-3);font-size:11.5px;padding-top:2px}
-table.grid td.free{cursor:pointer}
-table.grid td.free:hover{background:var(--surface-2);
+/* ⚠️ Boş hücrenin TIKLANABİLİR olduğu, üstüne gelmeden de görünmeli:
+   ölçümde hücrenin hiçbir görsel işareti yoktu, yalnız hover vardı.
+   İşaret sönük ve hücrenin köşesinde — ızgaranın okunmasını bozmuyor. */
+table.grid td.free{cursor:pointer;position:relative}
+table.grid td.free::after{content:"+";position:absolute;left:4px;top:1px;
+  font-size:12px;line-height:1;color:var(--ink-3);opacity:.45}
+table.grid td.free:hover{background:var(--seal-soft);
   box-shadow:inset 0 0 0 1px var(--border-strong)}
+table.grid td.free:hover::after{opacity:1;color:var(--seal)}
 /* ★★ FAZ 40 — DERS BAŞINA TON (kullanıcı isteği 16.09.2026).
    Eskiden bir rolün bütün dersleri BİREBİR aynı renkteydi: ızgaradaki 14
    bloğun 10'u aynı yeşil. "Salı 13:30'daki hangi dersti" sorusu ancak
@@ -1936,6 +2066,22 @@ table.grid td.free:hover{background:var(--surface-2);
    çerçevesinin üstüne binmiyor (o `border-left` + inset gölge kullanıyor). */
 .blk.esder,.daylist .row.esder{outline:2px solid var(--ink);outline-offset:-2px}
 .blk.esder{z-index:1}
+/* ★★ FAZ 45 — SAATE KİLİTLİ ders.
+   İşaret yine RENK DEĞİL (renk programı, ton dersi söylüyor; üçüncü bir
+   anlamı renge yüklemek üçünü birden okunmaz yapardı). Kilit iki şeyle
+   görünüyor: sol kenar KALINLAŞIYOR ve köşeye bir asma kilit çiziliyor.
+   İkisi birden, çünkü kalın kenar tek başına dar hücrede fark edilmiyor,
+   simge tek başına da 12px'te kayboluyor. */
+.blk.kilit{border-left-width:6px;border-left-style:solid}
+.kilitim{position:absolute;right:4px;bottom:3px;line-height:0;opacity:.85;
+  color:var(--accent-ink,var(--ink))}
+.kilitim svg{display:block;width:10px;height:10px}
+.daylist .row.kilit{border-left-width:6px;border-left-style:solid}
+/* Kilit şeridi — hangi derslerin kilitli olduğu ızgaraya bakmadan okunsun. */
+.note.kilit{margin-top:10px;border-left:3px solid var(--ink);padding-left:10px}
+.note.kilit.tutmuyor{border-left-color:var(--danger)}
+.note.kilit .kilitsatir{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.note.kilit .kilitsatir button{font-size:12px}
 .blkad{display:block;font-size:10.5px;line-height:1.25;opacity:.85;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
 .daylist .row.online{border-left-style:dashed}
@@ -2006,8 +2152,11 @@ table.list tr:hover td{background:var(--surface-2)}
    taşındı; durumu artık `aria-pressed` söylüyor (ekran okuyucu "izle"
    düğmesinin basılı olduğunu duymuyordu). */
 .watchmini{margin-left:6px;font-size:10.5px;letter-spacing:.05em;
-  text-transform:uppercase;border:1px solid currentColor;padding:1px 6px;
-  color:var(--ink-3)}
+  text-transform:uppercase;border:1px solid currentColor;padding:1px 8px;
+  color:var(--ink-3);
+  /* Faz 46: 38×21px'ti — WCAG 2.2 AA tabanı 24×24. */
+  min-height:24px;min-width:24px;display:inline-flex;align-items:center;
+  justify-content:center}
 .watchmini[aria-pressed="true"]{color:var(--cap)}
 .note{font-size:12.5px;color:var(--ink-2);background:var(--surface-2);
   border-radius:0;padding:11px 14px;border-left:3px solid var(--warn)}
@@ -2172,8 +2321,10 @@ table.cmp .meta.arti{color:var(--anadal)}
 /* Plan DIŞI önşart artık KOMPAKT rozet — eskiden 2-3 satır metin her kutuyu
    şişiriyordu (mobilde iyice). Tam liste ipucunda. */
 .tier li .dispre{font-size:10px;color:var(--ink-3);border:1px solid var(--border);
-  padding:0 5px;align-self:flex-start;border-radius:var(--r);cursor:pointer;
-  user-select:none}
+  padding:0 7px;align-self:flex-start;border-radius:var(--r);cursor:pointer;
+  user-select:none;
+  /* Faz 46: 72×18px'ti — WCAG 2.2 AA tabanı 24×24. */
+  min-height:24px;display:inline-flex;align-items:center}
 .tier li .dispre:hover{color:var(--ink-2);border-color:var(--border-strong)}
 .tier li .dispre[aria-expanded="true"]{color:var(--seal);border-color:var(--seal);
   background:var(--seal-soft)}
@@ -2209,27 +2360,107 @@ table.cmp .meta.arti{color:var(--anadal)}
 /* ⚠️ `var(--bg)` diye bir jeton YOK — doğrusu `--ground`. Yanlış ad
    çözümlenmeyince arka plan ŞEFFAF kalıyor ve kartlar çubuğun içinden
    geçerken üst üste biniyordu (kullanıcı raporu 23.08.2026). */
-.secnav{position:sticky;top:0;z-index:30;display:flex;gap:2px;overflow-x:auto;
-  background:var(--ground);border-bottom:2px solid var(--border-strong);
-  box-shadow:0 6px 14px -8px rgba(0,0,0,.55);
-  margin:0 0 18px;padding:8px 0;scrollbar-width:none}
-.secnav::-webkit-scrollbar{display:none}
-/* Kenar solması: bölüm çubuğu kaydırılabiliyorsa o yönde soluyor. */
-.secnav[data-more="right"]{mask-image:linear-gradient(90deg,#000 calc(100% - 34px),transparent)}
-.secnav[data-more="left"]{mask-image:linear-gradient(90deg,transparent,#000 34px)}
-.secnav[data-more="both"]{mask-image:linear-gradient(90deg,transparent,#000 34px,#000 calc(100% - 34px),transparent)}
-.secnav a{flex:0 0 auto;font-size:12.5px;letter-spacing:.01em;
+/* ★★ FAZ 46 — RAY (eski `.secnav` çapa çubuğu).
+   Ölçülen sorun: 10 çapa, hepsi aynı sayfada; tıklamak kaydırıyordu.
+   Artık görünüm değiştiriyor ve sayfa tek görünüm uzunluğunda.
+   ⚠️ Ölçüde değişen tek şey konum DEĞİL, ANLAM: bu yüzden `aria-current`
+   "page" (bulunduğun görünüm), eskiden "true" (kaydırılan bölüm) idi. */
+.govde{display:grid;grid-template-columns:216px minmax(0,1fr);gap:26px;
+  align-items:start}
+.ray{position:sticky;top:18px;display:flex;flex-direction:column;gap:2px;
+  border-right:1px solid var(--border);padding-right:10px}
+.ray a{font-size:13.5px;letter-spacing:.01em;
   font-family:"Chivo",Helvetica,Arial,sans-serif;font-weight:700;
-  color:var(--ink-2);text-decoration:none;padding:9px 11px;
-  border:1px solid transparent;
-  /* ★ Faz 39: dokunma hedefi 32px'ti — parmakla ıskalanacak kadar kısa. */
-  min-height:40px;display:flex;align-items:center}
-.secnav a:hover{color:var(--ink)}
-.secnav a[aria-current="true"]{color:var(--seal);border-color:var(--border-strong);
+  color:var(--ink-2);text-decoration:none;padding:0 10px;
+  border-left:3px solid transparent;
+  /* ★ Faz 46: dokunma hedefi 40 → 44px (WCAG 2.2 AA tabanı 24, dokunmatik
+     kılavuzu 44). Ray zaten dikey, yüksekliği bedava. */
+  min-height:44px;display:flex;align-items:center;gap:8px}
+.ray a:hover{color:var(--ink);background:var(--surface-2)}
+.ray a[aria-current="page"]{color:var(--seal);border-left-color:var(--seal);
   background:var(--seal-soft)}
-.secnav:empty{display:none}
-/* Yapışkan çubuk, kaydırınca başlığın üstüne oturmasın diye hedefe pay. */
-section[id]{scroll-margin-top:56px}
+.ray .raysayi{margin-left:auto;font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:11.5px;font-weight:400;color:var(--ink-3)}
+.ray .raysayi:empty{display:none}
+.ray .rayad.kisa{display:none}
+.raydaha,.raykesme{display:none}
+.ray .raybaslik{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10.5px;
+  letter-spacing:.16em;color:var(--ink-3);padding:14px 10px 6px;text-transform:uppercase}
+.ray .raybaslik:first-child{padding-top:0}
+.ray:empty{display:none}
+.govde:has(.ray:empty){grid-template-columns:minmax(0,1fr)}
+.icerik{display:flex;flex-direction:column;gap:30px;min-width:0}
+/* ★ Telefon: ray ALT SEKME ÇUBUĞU olur. Ölçüm: 390px'te 10 çapanın 3'ü
+   görünüyordu ve haftalık program 4 ekran aşağıdaydı. Alt çubuk hem her
+   zaman görünür hem başparmak menzilinde. Birincil 4 sekme yazılı,
+   gerisi "Daha" altında — sığmayanı kaydırmaya bırakmak, görünmeyen
+   sekme demekti. */
+@media (max-width:700px){
+  .govde{grid-template-columns:minmax(0,1fr);gap:0}
+  .ray{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:40;
+    flex-direction:row;gap:0;padding:0;border-right:0;
+    border-top:1px solid var(--border);background:var(--surface);
+    box-shadow:0 -6px 14px -8px rgba(0,0,0,.55)}
+  .ray a{flex:1 1 0;min-width:0;min-height:56px;padding:0 4px;
+    flex-direction:column;justify-content:center;gap:2px;
+    font-size:10.5px;letter-spacing:.02em;text-align:center;
+    border-left:0;border-top:3px solid transparent}
+  .ray a[aria-current="page"]{border-left-color:transparent;
+    border-top-color:var(--seal)}
+  .ray a .rayad{display:block;overflow:hidden;text-overflow:ellipsis;
+    white-space:nowrap;max-width:100%}
+  .ray .rayad.uzun{display:none}
+  .ray .rayad.kisa{display:block}
+  .ray .raysayi{margin:0}
+  .ray .raybaslik{display:none}
+  /* ★★ FAZ 46 — ÖNERİ SEKMELERİ TELEFONDA TEK SATIR.
+     Ölçüm: "ÖNERİ 2 · 19.5 KREDİ · 2 ÇEVRİMİÇİ" 390px'te sığmıyor ve üç
+     sekme alt alta 4 satır yer kaplıyordu — haftalık programın hemen
+     önünde. Ayırt edici metin YALNIZ SEÇİLİ sekmede kalıyor: öbürlerinde
+     zaten okunmuyordu, çünkü seçili olmayan sekmenin farkı ancak ona
+     geçince işe yarıyor.
+     ⚠️ Bilgi kaybolmuyor — sekmeye basınca beliriyor, ve `title` her
+     sekmede tam metni taşıyor. */
+  .tab{flex:1 1 auto;min-width:0;padding:8px 9px;font-size:11px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tab:not([aria-selected="true"]) .tabfark{display:none}
+  #karsilastir{flex:1 1 100%;border-left:0;border-top:1px solid var(--border)}
+  /* Başlık satırı telefonda iki satıra bölünmesin diye sekmeler alta. */
+  .prgbaslik .tabs{margin-left:0;flex:1 1 100%}
+  /* Üst çubuk: ad ve Tema aynı satırda, durum satırları küçük. */
+  body:not(.kurulum) header{gap:4px 10px;padding-bottom:8px}
+  body:not(.kurulum) header h1{font-size:18px}
+  body:not(.kurulum) header .eyebrow{flex:1 1 100%;order:3;font-size:9.5px}
+  body:not(.kurulum) header .sub{flex:1 1 100%;order:4;font-size:11.5px}
+  body:not(.kurulum) header #theme{order:2;min-height:34px;padding:0 10px}
+  .veriyasi{gap:2px 6px}
+  /* Dördü çubukta, gerisi "Daha" altında. */
+  .ray a[data-alt]{display:none}
+  .raydaha{display:flex;flex:1 1 0;min-width:0;min-height:56px;padding:0 4px;
+    flex-direction:column;align-items:center;justify-content:center;
+    background:transparent;border:0;border-top:3px solid transparent;
+    font-family:"Chivo",Helvetica,Arial,sans-serif;font-weight:700;
+    font-size:10.5px;letter-spacing:.02em;color:var(--ink-2);cursor:pointer}
+  .raydaha[aria-expanded="true"]{color:var(--seal);border-top-color:var(--seal);
+    background:var(--seal-soft)}
+  /* ⚠️ `wrap-reverse` + `order` ŞART. Düz `wrap` ile alt sekmeler DOM
+     sırasına göre birinci satıra karışıyor ve dört birincil sekme
+     "Pr… De… Ne…" diye eziliyordu (ölçüldü). `order` dördünü tek satırda
+     tutuyor, `wrap-reverse` o satırı EN ALTTA — başparmak menzilinde —
+     bırakıyor; açılan ızgara yukarı doğru büyüyor. */
+  .ray[data-acik]{flex-wrap:wrap-reverse}
+  .ray a:not([data-alt]),.raydaha,.raykesme{order:1}
+  .ray[data-acik] .raykesme{display:block;flex:0 0 100%;height:0;min-height:0}
+  .ray[data-acik] a[data-alt]{display:flex;flex:0 0 33.333%;order:2;
+    border-bottom:1px solid var(--border)}
+  /* Alt çubuk içeriğin son satırını yemesin. */
+  .wrap{padding-bottom:78px}
+}
+/* ⚠️ Etkin olmayan görünüm KAPALI ama DOM'da: `hidden` (veri yok) ile
+   karıştırılmasın diye ayrı öznitelik. İkisini tek bayrağa bindirmek,
+   "veri yok" ile "şu an bakmıyorsun"u aynı şey yapardı. */
+[data-disgorunum]{display:none !important}
+section[id]{scroll-margin-top:16px}
 
 /* ★ Bölüm seçilmemişken rapor bölümleri GİZLİ. Boş bir ızgara, dolu bir
    yanlış ızgaradan iyidir ama ikisi de gereksiz — kullanıcının yapması
@@ -2252,6 +2483,9 @@ body.kurulum #tierSection,
    yapılanı GÖRMEK ve düzeltmek. */
 body.kurulum #setupbar,
 body.kurulum #secnav{display:none}
+/* Ray gizliyken içerik tek sütuna açılsın (aksi hâlde 216px'lik boş bir
+   sütun kalır ve karşılama kartı sağa kaçar). */
+body.kurulum .govde{grid-template-columns:minmax(0,1fr)}
 
 /* Karşılama (ilk ziyaret). */
 .hero{border-top:6px solid var(--seal)}
@@ -2413,18 +2647,26 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
 <!-- D1: bozuk ayar dosyası. Sayfa açılıyor ama ne olduğu yazıyor. -->
 <div class="note ayarhata" id="ayarHatasi" hidden></div>
 
-<!-- ★ Bölüm çubuğu (22.08.2026). Sayfa on bölüm uzunluğunda; aranan yere
-     kaydırarak gitmek en sık yapılan iş hâline gelmişti. Gizli bölümler
-     (veri yoksa) çubukta da GÖRÜNMÜYOR — tıklayınca hiçbir yere gitmeyen
-     bir bağlantı, olmayan bir bağlantıdan kötüdür. -->
-<nav class="secnav" id="secnav" aria-label="Bölümler"></nav>
-
 <!-- ★ İLK ZİYARET. Program seçilmemişken rapor GÖSTERİLMİYOR: seçilmemiş
      bir bölümün dolu haftalık programı, aracın söyleyebileceği en yanlış şey. -->
 <section class="card pad hero" id="hero" hidden></section>
 
 <!-- Faz 26: kurulum bitince "şimdi ne yapabilirsin". Bir kerelik. -->
 <div class="note sonraki" id="sonraki" hidden></div>
+
+<!-- ★★ FAZ 46 — KABUK (kullanıcı isteği 18.09.2026: "bütün düzeltmeleri ve
+     yeni tasarımı uygular mısın").
+     Ölçüm: haftalık programın tepesi masaüstünde y=1825px, telefonda
+     y=3354px'ti; sayfa 11 bölüm yığını hâlinde 7,3 / 16,4 ekrandı. Bölüm
+     çubuğu bir ÇAPAYDI — tıklamak sayfayı kaydırıyor, kısaltmıyordu.
+     Artık: solda ray (telefonda alt sekme çubuğu), sağında TEK görünüm.
+     ⚠️ Bölümler DOM'dan silinmiyor, yalnız etkin olmayan görünüm
+     kapanıyor; veri yokluğundan `hidden` olanlar ayrı bir şey ve ray'de
+     hiç görünmüyor (tıklayınca boş açılan bir sekme, olmayan sekmeden
+     kötüdür). -->
+<div class="govde">
+<nav class="ray" id="secnav" aria-label="Bölümler"></nav>
+<div class="icerik" id="icerik">
 
 <section class="setupbar" id="setupbar"></section>
 
@@ -2447,57 +2689,72 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
 
 <section class="card pad" id="schedSection">
   <div class="sechead"><div class="eyebrow">Bu dönem</div><div class="rule"></div></div>
-  <div style="display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;
-              align-items:flex-end;margin-bottom:4px">
-    <div>
-      <h2>Haftalık program</h2>
-      <div class="modes" id="modes" style="margin-top:10px"></div>
-      <div class="modenote" id="modeNote"></div>
-    </div>
+  <!-- ★★ FAZ 46 — başlık, kip ve öneri sekmeleri TEK satırda (eskiden iki
+       blok, 145px). Kip notu ("79 aday · plandaki tüm açık dersler") altta
+       kalıyor: tek satır ve kipin ne demek olduğunu söyleyen tek yer. -->
+  <div class="prgbaslik">
+    <h2>Haftalık program</h2>
+    <div class="modes" id="modes"></div>
     <div class="tabs" id="tabs">
       <!-- Faz 27: önerileri yan yana karşılaştır. -->
     </div>
   </div>
-  <div class="summary" id="schedSummary"></div>
-  <!-- C3: arz uyarısı — kayıt gününden ÖNCE bilinmesi gereken şey. -->
-  <div class="note arz" id="arzUyari" hidden></div>
-  <!-- ★★ FAZ 41 — DÖNEM BİLİNMİYORSA PROGRAM BUNU SÖYLEMELİ.
-       Ölçüldü: bölümünü seçip başka bir şey girmeyen bir öğrenciye kurulan
-       program 1., 3., 4., 5., 7. ve 8. dönem derslerini yan yana koyuyordu
-       (1. dönemden 4, 7. dönemden 3 ders) ve ekranda bunu söyleyen tek bir
-       satır yoktu. Motor yanlış değil — bilmediği için hepsini aday
-       sayıyor — ama ekran bunu "senin programın" gibi gösteriyordu. -->
-  <div class="note donemsiz" id="donemUyari" hidden></div>
-  <div class="toolbar">
-    <span id="editState" class="chip edited" hidden>değiştirildi</span>
-    <button class="ghost" id="crnLoad">CRN'den yükle</button>
-    <button class="ghost primary" id="savePicks" hidden>Programı kaydet</button>
-    <!-- D2: tek adım geri. "Öneriye dön" her şeyi siliyordu. -->
-    <button class="ghost" id="undo" hidden>Geri al</button>
-    <button class="ghost" id="reset" hidden>Öneriye dön</button>
-    <button class="ghost" id="crnBtn">Kayıt günü</button>
-    <button class="ghost" id="icsBtn">Takvime aktar</button>
-    <button class="ghost" id="shareBtn">Bağlantı</button>
-    <span id="savedMark" class="chip" style="color:var(--anadal)" hidden></span>
-    <span class="hint">Derse tıkla → şube değiştir, yerine başka ders koy, çıkar
-      &nbsp;·&nbsp; Boş hücreye tıkla → o saate uyan dersler</span>
-    <!-- ★ FAZ 40 — TONUN NE DEDİĞİ YAZILI OLMALI. Bir görsel kodlama anlam
-         taşıyorsa, ne taşıdığını söylemek zorunda: yoksa kullanıcı koyu
-         yeşili "daha dolu" ya da "daha zor" diye okuyabilir. Sayı da
-         gizlenmiyor — 9 ton var, 9'dan fazla ders tonu tekrar eder. -->
-    <span class="hint" id="tonNot">Renk hangi programdan olduğunu söylüyor
-      &nbsp;·&nbsp; ton hangi ders olduğunu: aynı ton, aynı ders — 9 tondan
-      sonrası tekrar eder, emin olmak için dersin üstüne gel</span>
-  </div>
-  <div class="gridwrap" style="margin-top:14px"><table class="grid" id="grid"></table></div>
+  <div class="modenote" id="modeNote"></div>
+  <!-- ★★ FAZ 46 — PROGRAM ORTADA, BAĞLAM SAĞDA.
+       Ölçüm (17.09.2026): ızgaranın ÜSTÜNDE 8 blokta 313 kelime vardı —
+       özet, arz uyarısı, kilit şeridi, araç çubuğu ve iki ipucu satırı.
+       Hepsi tek tek doğru ama hepsi birden ızgarayı ekrandan itiyordu.
+       Artık sağ sütunda: aynı bilgi, aynı yerde, programın yanında.
+       ⚠️ Hiçbiri GİZLENMİYOR — yalnız yer değiştiriyor. Dar ekranda
+       (≤1100px) sütun ızgaranın ALTINA düşüyor, üstüne değil. -->
+  <div class="prgduzen">
+  <div class="prgorta">
+  <div class="gridwrap"><table class="grid" id="grid"></table></div>
   <div id="gridAralik" class="gridaralik"></div>
   <!-- Dar ekranda ızgaranın yerini alır. Aynı veriden kuruluyor; ızgara
        yana kaydırma istediği için telefonda kullanışsızdı (yapılacaklar 4.1). -->
-  <div class="daylist" id="daylist" style="margin-top:14px"></div>
+  <div class="daylist" id="daylist"></div>
   <div id="notime" style="margin-top:14px"></div>
   <!-- ★ Yazdırınca ızgaranın altına basılan CRN listesi (Faz 27).
        Ekranda gizli: orada CRN'ler zaten "Kayıt günü" penceresinde. -->
   <div id="printCrn"></div>
+  </div><!-- /prgorta -->
+
+  <aside class="prgyan">
+    <div class="summary" id="schedSummary"></div>
+    <!-- C3: arz uyarısı — kayıt gününden ÖNCE bilinmesi gereken şey. -->
+    <div class="note arz" id="arzUyari" hidden></div>
+    <!-- ★★ FAZ 45 — SAATE KİLİT ŞERİDİ. Kilit görünmez bir kısıt olamaz:
+         motor onun etrafında program kuruyor. -->
+    <div class="note kilit" id="kilitNot" hidden></div>
+    <!-- ★★ FAZ 41 — DÖNEM BİLİNMİYORSA PROGRAM BUNU SÖYLEMELİ. -->
+    <div class="note donemsiz" id="donemUyari" hidden></div>
+    <div class="toolbar">
+      <span id="editState" class="chip edited" hidden>değiştirildi</span>
+      <button class="ghost primary" id="savePicks" hidden>Programı kaydet</button>
+      <!-- D2: tek adım geri. "Öneriye dön" her şeyi siliyordu. -->
+      <button class="ghost" id="undo" hidden>Geri al</button>
+      <button class="ghost" id="reset" hidden>Öneriye dön</button>
+      <button class="ghost" id="crnBtn">Kayıt günü</button>
+      <button class="ghost" id="icsBtn">Takvime aktar</button>
+      <button class="ghost" id="shareBtn">Bağlantı</button>
+      <button class="ghost" id="crnLoad">CRN'den yükle</button>
+      <span id="savedMark" class="chip" style="color:var(--anadal)" hidden></span>
+    </div>
+    <!-- ★★ FAZ 46 — İKİ İPUCU SATIRI KATLANDI (59 kelime).
+         ⚠️ SİLİNMEDİ: Faz 40'ın dersi, bir görsel kodlama anlam taşıyorsa
+         ne taşıdığını söylemek zorunda. Ama her açılışta 59 kelimeyi
+         ızgaranın önüne koymak, o cümleyi okunmaz yapıyordu. -->
+    <details class="ipucu">
+      <summary>Nasıl kullanılır · renkler ne diyor</summary>
+      <div class="hint">Derse tıkla → şube değiştir, yerine başka ders koy, çıkar.
+        Boş hücreye tıkla → o saate uyan dersler.</div>
+      <div class="hint" id="tonNot">Renk hangi programdan olduğunu söylüyor
+        &nbsp;·&nbsp; ton hangi ders olduğunu: aynı ton, aynı ders — 9 tondan
+        sonrası tekrar eder, emin olmak için dersin üstüne gel</div>
+    </details>
+  </aside>
+  </div><!-- /prgduzen -->
 </section>
 
 
@@ -2561,7 +2818,11 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
     <span class="candcount" id="candCount"></span>
     <span class="kisayol">↑↓ gez · Enter ekle · / ara</span>
   </div>
-  <div style="overflow-x:auto;margin-top:12px">
+  <!-- ★ Faz 46: 390px'te tablo 418px — kutusunun içinde yana kayıyor ama
+       kaydırılabildiğine dair hiçbir işaret yoktu (ölçüldü). Kenar solması
+       "burada devamı var" diyor; tamamen kaydırınca kayboluyor ki yanlış
+       ipucu vermesin. -->
+  <div class="listwrap" id="candWrap" style="margin-top:12px">
     <table class="list" id="cands">
       <thead><tr><th>Puan</th><th>Ders</th><th>Plan</th><th>Kredi</th><th>AKTS</th>
         <th>Şube</th></tr></thead>
@@ -2613,6 +2874,9 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
   <!-- Her ikinci programın KENDİ zinciri; aralarında önşart ilişkisi yok. -->
   <div id="tierGroups" style="margin-top:14px"></div>
 </section>
+
+</div><!-- /icerik -->
+</div><!-- /govde -->
 
 <footer>
   Bu araç bilgilendirme amaçlıdır; ders kayıt kararların için danışmanına ve OBS'ye danış.
@@ -2851,8 +3115,10 @@ function renderVeriYasi(){
      gizleniyor — düğme de onunla birlikte kaybolurdu. Tazeleme, verinin
      yaşını yazan satırın yanına taşındı: soruyu soran cümlenin yanında
      cevabı veren düğme. */
-  el.innerHTML = esc(veriYasiMetni())
-    + (LIVE ? ` <button class="ghost mini" id="veriTazele">tazele</button>` : "")
+  /* ⚠️ Metin ve düğme AYRI parça (Faz 46): tek metin düğümü içine gömülü
+     bir düğme dar ekranda cümlenin ortasında kalıyordu. */
+  el.innerHTML = `<span class="veriyazi">${esc(veriYasiMetni())}</span>`
+    + (LIVE ? `<button class="ghost mini" id="veriTazele">tazele</button>` : "")
     + gecmisDonemUyarisi();
   el.classList.toggle("stale", !!(DATA.dataAge && DATA.dataAge.stale));
   const b = $("#veriTazele");
@@ -5125,14 +5391,30 @@ function renderArzUyarisi(){
     ? `<div style="margin-top:4px"><b>${liste.length}</b> ders ${ad}:
        <span class="mono">${liste.slice(0, 6).map(b => esc(b.course)).join(", ")}${
          liste.length > 6 ? ` +${liste.length - 6}` : ""}</span></div>` : "";
+  /* ★★ FAZ 46 — KATLANDI, GİZLENMEDİ.
+     Ölçüm (17.09.2026): bu kutu 115px ve 47 kelimeydi ve haftalık ızgaranın
+     ÖNÜNDE duruyordu; sayfada aynı anda açık 60 ikincil metin parçasının
+     en büyüğüydü. Artık özeti tek satır — ama SAYIYLA, çünkü bu depoda
+     "genel uyarı" yasak: kaç ders olduğu kapalıyken de yazıyor. Ayrıntı
+     tek tıkla, aynı yerde.
+     ⚠️ `open` YOK: kutu kapalı açılıyor. İlk açılışta açık olsaydı
+     katlamanın bir anlamı kalmazdı.
+     ⚠️ Başlık TEK `<span>` içinde: `<summary>` esnek kutu ve iki ayrı metin
+     düğümü arasındaki boşluk yutuluyor ("11 dersbu dönem" çıkıyordu).
+     ⚠️⚠️ Şablon dizgesinin İÇİNDE ters tırnak kullanma — JS dizgeyi orada
+     kapatıyor ve sayfa komple ölüyor (bu satır o hatadan kaldı). */
   kutu.innerHTML = `
-    <b>Planındaki bazı dersler bu dönem alınamıyor.</b>
-    ${satir(acilmamis, "şu ana kadar ilan edilmemiş")}
-    ${satir(kapali, "şubeleri başka programlara ayrılmış")}
-    <div style="margin-top:6px" class="meta">Veri
-      <span class="mono">${esc(DATA.generatedAt)}</span> itibarıyla —
-      dönem başında ilanlar kademeli yayınlanıyor.
-      <a href="#blockSection" id="arzDetay">Darboğaz bölümünde ayrıntı</a>.</div>`;
+    <details class="arzdetay">
+      <summary><span><b>${arz.length} ders</b> bu dönem alınamıyor</span></summary>
+      <div class="arzgovde">
+        ${satir(acilmamis, "şu ana kadar ilan edilmemiş")}
+        ${satir(kapali, "şubeleri başka programlara ayrılmış")}
+        <div style="margin-top:6px" class="meta">Veri
+          <span class="mono">${esc(DATA.generatedAt)}</span> itibarıyla —
+          dönem başında ilanlar kademeli yayınlanıyor.
+          <a href="#blockSection" id="arzDetay">Darboğaz bölümünde ayrıntı</a>.</div>
+      </div>
+    </details>`;
 }
 
 /* ★★ FAZ 41 — "KAÇINCI DÖNEMDESİN" BİLİNMİYORSA, PROGRAM BUNU SÖYLER.
@@ -5298,12 +5580,19 @@ function renderTabs(){
      "en iyi" diye göstermek olurdu. */
   $("#tabs").innerHTML = M().schedules.map((s,i) => {
     const eksik = (s.floorGaps || []);
+    /* ⚠️ `title` HER sekmede tam metni taşıyor: telefonda ayırt edici
+       kısım seçili olmayan sekmede gizleniyor (Faz 46) ve bilgi yalnız
+       görsel olarak katlanıyor, yok olmuyor. */
+    const tam = `Öneri ${i + 1} · ${s.credits} kredi`
+      + oneriFarki(s, i).replace(/<[^>]+>/g, "")
+      + (eksik.length ? " · taban ✗: " + eksik.map(g =>
+          `${g.role} ${g.missing} kredi`).join(", ") : "");
     return `<button class="tab" role="tab" aria-selected="${i===active}" data-i="${i}"
-       ${eksik.length ? `title="taban eksiği: ${eksik.map(g =>
-         `${g.role} ${g.missing} kredi`).join(", ")}"` : ""}>
-       Öneri ${i+1} · ${s.credits} kredi${oneriFarki(s, i)}${eksik.length
+       title="${esc(tam)}">
+       Öneri ${i+1} · ${s.credits}<span class="tabfark"> kredi${
+         oneriFarki(s, i)}</span>${eksik.length
          ? ` <span style="color:var(--danger)">· taban ✗</span>` : ""}</button>`;
-  }).join("") || `<span class="empty">öneri üretilemedi</span>`;
+  }).join("") || oneriYok();
   /* ★ Faz 27 — yan yana karşılaştırma. Sekmeler arasında geçiş vardı ama
      farkı görmek için ızgarayı iki kez ezberlemek gerekiyordu. */
   if(M().schedules.length > 1)
@@ -5312,6 +5601,28 @@ function renderTabs(){
     b.addEventListener("click", () => { active = +b.dataset.i; resetTo(active); }));
   const k = $("#karsilastir");
   if(k) k.addEventListener("click", karsilastirDialog);
+}
+
+/* ★★ FAZ 45 — "öneri üretilemedi" TEK BAŞINA YALAN SAYILIR bir cümle.
+   Kilit SERT kısıt: iki kilit birbiriyle çakışırsa ya da kilitli şube
+   meşgul saatle çakışırsa motor hiçbir program kuramaz. Kullanıcı o an
+   "bu dönem çakışmasız program yok" sanır — oysa sebep kendi koyduğu
+   kısıt ve bir tıkla geri alınabilir. Sebebi söylemeyen bir boş ekran,
+   bu depoda tekrarlayan hatanın (Faz 25, Faz 44) aynısı olurdu. */
+function oneriYok(){
+  const kl = kilitliBuKipte();
+  if(!kl.length) return `<span class="empty">öneri üretilemedi</span>`;
+  /* ⚠️ Uzun cümle BURAYA sığmıyor (ölçüldü: sekme şeridi dar, metin
+     kenara değiyor). Kısa sebep burada, ayrıntı + "aç" düğmeleri
+     kilit şeridinde — ikisi aynı ekranda. */
+  return `<span class="empty" style="color:var(--danger)"
+    >öneri üretilemedi — <b>${kl.length} kilit yüzünden</b></span>`;
+}
+
+/** Bu kipte GERÇEKTEN bağlayan kilitler (aday havuzunda olanlar). */
+function kilitliBuKipte(){
+  const havuz = new Set((M().candidates || []).map(c => c.course));
+  return (DATA.locked || []).filter(l => havuz.has(l.course));
 }
 
 const GUNAD = ["Pzt", "Sal", "Çar", "Per", "Cum"];
@@ -5471,10 +5782,15 @@ function renderDayList(){
     out += `<section><h3>${DAYS[d-1]}</h3>`;
     out += items.length ? items.map((it,i) =>
       `<button class="row${clash.has(i) ? " clash" : ""}${
-         it.p.sec.online ? " online" : ""}" data-role="${it.p.cand.role}"
+         it.p.sec.online ? " online" : ""}${
+         kilitliMi(it.p.cand.course, it.p.sec.crn) ? " kilit" : ""}"
+         data-role="${it.p.cand.role}"
          data-course="${esc(it.p.cand.course)}"
          style="${tonStil(it.p.cand.course, it.p.cand.role)}">
          <span><b class="mono">${esc(it.p.cand.course)}</b>
+           ${kilitliMi(it.p.cand.course, it.p.sec.crn)
+             ? `<span class="kilitim" style="position:static;display:inline-block;
+                  vertical-align:-1px;margin-left:4px">${KILIT_SVG}</span>` : ""}
            ${it.p.cand.name ? `<span class="blkad">${esc(it.p.cand.name)}</span>` : ""}
            <small class="mono">${hhmm(it.m.start)}–${hhmm(it.m.end)}
              ${it.p.sec.online ? "çevrimiçi ⌂"
@@ -5503,6 +5819,8 @@ function render(){
     }),
   ]);
   renderTabs();
+  renderKilitNot();          // Faz 45 — saate kilitli dersler şeridi
+  raySayilari();             // Faz 46 — raydaki sayılar kip değişince de doğru
   renderPanels();
   const t = totals();
   const over = DATA.maxLoad && t.load > DATA.maxLoad;
@@ -5612,14 +5930,18 @@ function render(){
          olduğunu bilmiyor, ve kayıt gününün asıl sayısı CRN.
          ⚠️ Ad hücreye SIĞMAYABİLİR; kesiliyor ama `title` tam adı taşıyor —
          bilgi kaybolmuyor, yalnız yer darsa görünmüyor. */
+      const kld = kilitliMi(c.p.cand.course, c.p.sec.crn);
       html += `<td rowspan="${c.span}"><div class="blk ${
-          c.p.sec.online ? "online" : ""}" data-role="${c.p.cand.role}"
+          c.p.sec.online ? "online" : ""} ${kld ? "kilit" : ""}"
+          data-role="${c.p.cand.role}"
           data-course="${esc(c.p.cand.course)}" tabindex="0" role="button"
           style="${tonStil(c.p.cand.course, c.p.cand.role)}"
           title="${esc([c.p.cand.course, c.p.cand.name, c.p.sec.instructor,
                         "CRN " + c.p.sec.crn,
-                        c.p.sec.online ? "çevrimiçi" : yerBaslik(c.m.building)]
+                        c.p.sec.online ? "çevrimiçi" : yerBaslik(c.m.building),
+                        kld ? "saate kilitli" : ""]
                        .filter(Boolean).join(" · "))}">
+          ${kld ? `<span class="kilitim">${KILIT_SVG}</span>` : ""}
           <b class="mono">${esc(c.p.cand.course)}</b>
           ${c.p.cand.name ? `<span class="blkad">${esc(c.p.cand.name)}</span>` : ""}
           <small class="mono">${hhmm(c.m.start)}–${hhmm(c.m.end)}
@@ -5693,6 +6015,165 @@ function renderGeri(){
   b.hidden = !GERI.length;
   const son = GERI[GERI.length - 1];
   b.textContent = son && son.etiket ? `Geri al: ${son.etiket}` : "Geri al";
+}
+
+/* ---------- SAATE KİLİT (Faz 45) ----------
+   Kullanıcı isteği 17.09.2026: *"dersleri saate kitleme ve önerilerin onun
+   etrafında şekillenmesi"*.
+
+   ★ Kilit `sel` (senin seçimin) DEĞİL, bir AYAR: motora giriyor ve bütün
+   öneriler onun etrafında kuruluyor. O yüzden sunucuya yazılıyor ve
+   sayfa yenilenince duruyor — "geri al" ile kaybolan bir şey değil.
+
+   ⚠️ Kilit ile "programımda dursun" AYNI ŞEY DEĞİL. Motor bir dersi
+   programda tutup ŞUBESİNİ kaydırabiliyor (daha ucuz şube bulunca). Kilit
+   şubeyi — dolayısıyla saati — sabitliyor. */
+const KILIT_SVG = `<svg viewBox="0 0 12 12" fill="none" aria-hidden="true"
+  ><path d="M3.4 5.2V3.6a2.6 2.6 0 0 1 5.2 0v1.6" stroke="currentColor"
+    stroke-width="1.3" stroke-linecap="round"/><rect x="2.1" y="5.2" width="7.8"
+    height="5.6" rx="1.1" fill="currentColor"/></svg>`;
+
+function kilitler(){
+  const m = {};
+  (DATA.locked || []).forEach(l => { m[l.course] = l; });
+  return m;
+}
+/** Bu ders (istenirse: bu şube) saate kilitli mi? */
+function kilitliMi(course, crn){
+  const l = kilitler()[course];
+  return !!l && (crn === undefined || l.crn === crn);
+}
+/** Kilidi aç/kapat. `crn` boşsa AÇMA demek (sunucu uçu öyle okuyor). */
+async function kilitYaz(course, crn, btn){
+  const eski = btn ? btn.innerHTML : "";
+  if(btn){ btn.disabled = true; btn.textContent = "…"; }
+  try{
+    applyState(await api("/api/kilit", {course, crn: crn || ""}));
+    const d = $("#detail");
+    if(d && d.open) d.close();
+  }catch(err){
+    if(btn){ btn.disabled = false; btn.innerHTML = eski;
+             btn.title = "hata: " + err.message; }
+  }
+}
+
+function kilitButonu(course, crn){
+  /* Statik tek dosyada (`make ui`) yazacak bir yer yok; sahte bir düğme
+     göstermek kaydetmediğini gizlemek olurdu (bkz. `watchButton`). */
+  if(!DATA.live) return "";
+  const on = kilitliMi(course, crn);
+  return `<button class="ghost" id="kilitBtn" data-course="${esc(course)}"
+    data-crn="${esc(crn)}" style="${on ? "color:var(--ink);border-color:var(--ink)" : ""}"
+    >${on ? "Kilidi aç" : "Bu saate kilitle"}</button>`;
+}
+
+function kilitNotu(course, crn){
+  if(!DATA.live) return "";
+  const l = kilitler()[course];
+  if(l && l.crn !== crn)
+    return `<div class="why" style="margin-top:8px">Bu ders
+      <span class="mono">CRN ${esc(l.crn)}</span> şubesine kilitli; ekranda
+      duran <span class="mono">CRN ${esc(crn)}</span>. Kilitlersen kilit
+      <b>bu şubeye taşınır</b> — bir derste tek kilit olabilir.</div>`;
+  if(l)
+    return `<div class="why" style="margin-top:8px">Saate kilitli: öneriler
+      bu dersi <b>bu şubede</b> tutup <b>etrafında</b> kuruluyor.</div>`;
+  return `<div class="why" style="margin-top:8px">Kilitlersen motor bu dersi
+    <b>bu şubede</b> tutar ve programın kalanını etrafında kurar. Kilitlemezsen
+    ders programda kalabilir ama <b>şubesi (dolayısıyla saati) kayabilir</b>.</div>`;
+}
+
+function wireKilit(){
+  const b = $("#kilitBtn");
+  if(b) b.addEventListener("click", () =>
+    kilitYaz(b.dataset.course,
+             kilitliMi(b.dataset.course, b.dataset.crn) ? "" : b.dataset.crn, b));
+}
+
+/** Izgaranın üstündeki şerit: hangi dersler kilitli, biri tutmuyorsa neden. */
+function renderKilitNot(){
+  const el = $("#kilitNot");
+  if(!el) return;
+  const list = DATA.locked || [];
+  if(!list.length){ el.hidden = true; return; }
+  el.hidden = false;
+  /* ★ Sunucusuz tek dosyada (`make ui`) kilit YİNE UYGULANIYOR — ayardan
+     okunuyor — ama açılamıyor. Düğmeleri göstermek yerine bunu yazıyoruz;
+     tıklanınca hiçbir şey yapmayan bir düğme, kaydetmediğini gizlerdi. */
+  if(!DATA.live){
+    el.innerHTML = `<b>${list.length} ders saate kilitli</b>
+      (${list.map(l => `<span class="mono">${esc(l.course)}</span>`).join(", ")}).
+      Öneriler bunların etrafında kuruldu. Kilidi açmak için
+      <span class="mono">make app</span> ile aç ya da
+      <span class="mono">settings.toml</span> içindeki
+      <span class="mono">kilitli</span> satırını düzenle.`;
+    return;
+  }
+  const kirik = list.filter(l => !l.ok);
+  el.classList.toggle("tutmuyor",
+    kirik.length > 0 || (!(M().schedules || []).length && !!kilitliBuKipte().length));
+  const ad = (l) => `<span class="mono">${esc(l.course)}</span>`;
+  const rozet = list.map(l => `<button class="ghost mini" data-ac="${esc(l.course)}"
+      title="kilidi aç">${esc(l.course)} · CRN ${esc(l.crn)}${
+      l.ok ? "" : " ✗"} ✕</button>`).join("");
+  /* ⚠️ TUTMAYAN kilit gizlenmiyor. Dönem/şube değişince CRN kaybolabiliyor;
+     satırı sessizce düşürseydik kullanıcı "kilitlemiştim, saati neden
+     kaydı?" diye sorardı — ya da daha kötüsü, hiç sormazdı. */
+  /* ★ EKRANDAKİ ŞUBE İLE KİLİT AYRIŞMIŞ olabilir: kilitli bir dersin
+     şubesini elle değiştirmek kilidi TAŞIMIYOR (ayara sessizce yazmak
+     istemiyoruz). O zaman ızgarada kilit rozeti de çıkmıyor ve kullanıcı
+     kilidin düştüğünü sanabilir. Ayrışmayı burada söyleyip taşımayı tek
+     düğmeye indiriyoruz. */
+  const kayan = list.map(l => {
+    const s = sel.find(x => x.course === l.course);
+    return (s && s.crn !== l.crn) ? {l, crn: s.crn} : null;
+  }).filter(Boolean);
+  /* ★★ SONUÇ BOŞSA SEBEBİ BURADA YAZILI. Kilit sert kısıt: iki kilit
+     çakışırsa ya da kilitli şube meşgul saate denk gelirse motor hiçbir
+     program kuramıyor. Sekme şeridinde yalnız kısa sebep var; hangi
+     kilitlerin bağladığı ve nasıl açılacağı burada. */
+  const bagli = kilitliBuKipte();
+  const bosSonuc = !(M().schedules || []).length;
+  el.innerHTML = `<b>${list.length} ders saate kilitli.</b>
+    Öneriler bu derslerin şubesini sabit tutup <b>etrafında</b> kuruluyor.
+    ${bosSonuc && bagli.length ? `<div style="margin-top:6px;color:var(--danger)">
+      <b>Bu kipte hiçbir program kurulamadı</b> — bu kipte bağlayan
+      ${bagli.length} kilit (${bagli.map(l =>
+        `<span class="mono">${esc(l.course)}</span>`).join(", ")})
+      birbiriyle ya da meşgul saatinle çakışıyor. Aşağıdan birini aç.
+      </div>` : ""}
+    ${kirik.length ? `<div style="margin-top:6px;color:var(--danger)">
+      ${kirik.map(l => `${ad(l)} kilidi <b>tutmuyor</b> — ${
+        l.neden === "sube"
+          ? `CRN ${esc(l.crn)} bu kipte açık değil`
+          : "bu ders artık aday listesinde yok"}.`).join("<br>")}
+      </div>` : ""}
+    ${kayan.length ? `<div style="margin-top:6px">
+      ${kayan.map(k => `${ad(k.l)} ekranda <span class="mono">CRN ${esc(k.crn)}</span>,
+        kilit <span class="mono">CRN ${esc(k.l.crn)}</span> —
+        <button class="ghost mini" data-tasi="${esc(k.l.course)}"
+          data-crn="${esc(k.crn)}">kilidi buraya taşı</button>`).join("<br>")}
+      </div>` : ""}
+    <div class="kilitsatir">${rozet}
+      ${list.length > 1 ? `<button class="ghost mini" id="kilitHepsi"
+        >hepsini aç</button>` : ""}</div>`;
+  el.querySelectorAll("[data-ac]").forEach(b =>
+    b.addEventListener("click", () => kilitYaz(b.dataset.ac, "", b)));
+  el.querySelectorAll("[data-tasi]").forEach(b =>
+    b.addEventListener("click", () => kilitYaz(b.dataset.tasi, b.dataset.crn, b)));
+  const h = $("#kilitHepsi");
+  if(h) h.addEventListener("click", async () => {
+    h.disabled = true; h.textContent = "…";
+    /* ★ Her çağrı TAM DURUMU döndürüyor (`dispatch` snapshot ekliyor);
+       sonuncusunu uygulamak yeter. Ayrı bir "durumu tazele" uçu POST
+       kabul etmiyor — oraya gitmek sessiz bir hata olurdu. */
+    let son = null;
+    for(const l of list){
+      try{ son = await api("/api/kilit", {course: l.course, crn: ""}); }
+      catch(e){ h.textContent = "hata: " + e.message; return; }
+    }
+    if(son) applyState(son);
+  });
 }
 
 function choose(course, crn){
@@ -5930,11 +6411,14 @@ function courseDialog(course){
       `<div class="empty">bu saatlere uyan başka aday yok</div>`}</div>
     <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="ghost danger" id="removeCourse">Programdan çıkar</button>
+      ${kilitButonu(cand.course, cur.crn)}
       ${watchButton(cand.course)}
     </div>
+    ${kilitNotu(cand.course, cur.crn)}
     ${watchNote(cand.course)}`);
   const rm = $("#removeCourse");
   if(rm) rm.addEventListener("click", () => { $("#detail").close(); removeCourse(course); });
+  wireKilit();
   wireWatch();
   ndBagla(course);            // dönem sekmeleri + artı kırılımı (Faz 38b)
 }
@@ -6052,7 +6536,7 @@ function slotDialog(day, min){
       rows.push([-(drop.length * 10000) - dist % 10000 + cand.score / 1000
                  - (disinda(cand.course) ? 5 : 0),   // kip içi önce sıralanır
         optionRow(cand, pick, notlar.join(" · ")),
-        cand.course]);
+        cand.course, drop.length]);   // [3] = kaç ders düşer (Faz 44)
     }
     rows.sort((a,b) => b[0]-a[0]);
     return rows;
@@ -6060,16 +6544,46 @@ function slotDialog(day, min){
   const near = collect(true);
   const nearCodes = new Set(near.map(r => r[2]));
   const rest = collect(false).filter(r => !nearCodes.has(r[2]));
+  /* ★★ FAZ 44 — "EKLENEBİLİR" İLE "TAKAS" AYRILDI.
+     Kullanıcı 17.09.2026: *"x.dönem + alttan kısmında takvime tıklayıp
+     ekstra ders eklenemiyor"*. Ölçüldü, haklıydı:
+
+       "N. dönem + alttan" kipi — 38 boş hücrenin **27'sinde (%71)** sunulan
+       seçeneklerin HEPSİ mevcut bir dersi çıkarıyordu; yalnız 10 hücrede
+       hiçbir şey düşürmeyen bir seçenek vardı.
+       `all` kipi — 56 hücrenin 24'ünde yalnız takas, **hiçbirinde** temiz
+       ekleme yoktu.
+
+     Motor yanlış değil: hafta 14 dersle dolu, boş hücreler derslerin
+     ARASINDAKİ boşluklar ve aday şubelerin çoğu 2–3 saatlik, komşu derse
+     taşıyor. Yanlış olan SUNUM — "çıkarılır: GEO 321E" notu her satırın
+     içine gömülüydü, liste "ekleyebileceğin dersler" gibi duruyordu.
+     Kullanıcı tek tek okuyup "hiçbirini ekleyemiyorum" sonucuna varıyordu.
+
+     ⚠️ Takas seçenekleri GİZLENMİYOR: bazen gerçekten istenen şey odur
+     ("şunun yerine bunu koy"). Yalnız ayrı başlık altına alınıyor ve ne
+     kaybedileceği başlıkta yazıyor. */
+  const temiz = (r) => r[3] === 0;
+  const nearT = near.filter(temiz), nearX = near.filter(r => !temiz(r));
+  const restT = rest.filter(temiz), restX = rest.filter(r => !temiz(r));
+  const hicTemiz = !nearT.length && !restT.length;
+  const varTakas = nearX.length + restX.length;
+  const grup = (baslik, cls, liste) => liste.length
+    ? `<div class="chipline"><span class="chip ${cls}">${baslik}</span>
+         <span style="color:var(--ink-3);font-size:12px">${liste.length} ders</span></div>
+       <div class="optlist">${liste.slice(0, 12).map(r => r[1]).join("")}</div>` : "";
   openDialog(`
     <div class="eyebrow">Boş saat</div>
     <h2>${DAYS[day-1]} ${hhmm(min)}</h2>
-    ${near.length ? `<div class="chipline"><span class="chip">bu saat civarı</span>
-        <span style="color:var(--ink-3);font-size:12px">${near.length} ders</span></div>
-      <div class="optlist">${near.slice(0, 12).map(r => r[1]).join("")}</div>` : ""}
-    ${rest.length ? `<div class="chipline"><span class="chip unknown">${
-        DAYS[day-1]} günü, başka saatte</span>
-        <span style="color:var(--ink-3);font-size:12px">${rest.length} ders</span></div>
-      <div class="optlist">${rest.slice(0, 12).map(r => r[1]).join("")}</div>` : ""}
+    ${hicTemiz && varTakas ? `<div class="note" style="margin-bottom:12px">
+        <b>Bu saate çakışmadan sığan ders yok.</b>
+        <div style="margin-top:4px">Aşağıdaki <b>${varTakas}</b> dersten biri
+        için programında <b>yer açman</b> gerekiyor — her birinin altında
+        hangi dersin çıkacağı yazılı.</div></div>` : ""}
+    ${grup("buraya sığıyor", "", nearT)}
+    ${grup(DAYS[day-1] + " günü, başka saatte sığıyor", "", restT)}
+    ${grup("yer açman gerekiyor — bu saat civarı", "unknown", nearX)}
+    ${grup("yer açman gerekiyor — " + DAYS[day-1] + " günü", "unknown", restX)}
     ${(!near.length && !rest.length)
       ? `<div class="empty">bu güne uyan aday ders yok</div>` : ""}
     ${LIVE ? `<div style="margin-top:14px;padding-top:12px;
@@ -6240,6 +6754,21 @@ function acilanNot(c){
     a.length > 4 ? ` +${a.length - 4}` : ""}</span>`;
 }
 
+/* Aday tablosunun yatay kaydırma ipucu (Faz 46). Aynı desen eski bölüm
+   çubuğundaydı; çubuk kalktı, ipucu gereken yere taşındı. */
+function listeKenarSolmasi(){
+  const w = $("#candWrap");
+  if(!w) return;
+  const guncelle = () => {
+    const sonda = w.scrollLeft + w.clientWidth >= w.scrollWidth - 2;
+    const basta = w.scrollLeft <= 2;
+    w.dataset.more = w.scrollWidth <= w.clientWidth + 2 ? "none"
+      : basta ? "right" : sonda ? "left" : "both";
+  };
+  guncelle();
+  w.onscroll = () => requestAnimationFrame(guncelle);
+}
+
 function renderCandidates(){
   const chosen = new Set(sel.map(x => x.course));
   const hepsi = filteredCandidates();
@@ -6295,6 +6824,7 @@ function renderCandidates(){
     $("#candQ").value = ""; $("#candFree").checked = false;
     renderCandFilters(); renderCandidates();
   });
+  listeKenarSolmasi();
 }
 
 $("#candQ").addEventListener("input", (e) => {
@@ -6564,62 +7094,154 @@ function localStorage_set(k, v){
 /* ★ C5 — sekme adları öğrencinin sözlüğünde olmalı. "EŞİKLER · DENKLİK ·
    DEĞİŞİM · ADAYLAR" araç geliştiricisinin dili; öğrenci ne olduklarını
    bilmiyor. */
+/* ★★ FAZ 46 — GÖRÜNÜMLER (eski "bölüm çapaları").
+   `grup`: rayda hangi başlığın altında. `kisa`: telefon sekmesinde yazan ad
+   (uzun ad 390px'te üç sekmeyi ekrandan taşırıyordu). `alt: true` =
+   telefonda "Daha" altında; başparmak menzilindeki dört yer, dönemde en çok
+   dönülen dört işe ayrıldı.
+   ⚠️ SIRA ÖNEMLİ: ilk uygun görünüm açılış görünümüdür. Haftalık program
+   başta duruyor çünkü aracın ÜRETTİĞİ şey o. */
 const SECTIONS = [
-  ["savedSection", "Kaydettiğim"], ["panels", "İlerlemem"],
-  ["schedSection", "Haftalık programım"],
-  ["creditSection", "Kredi sınırım"], ["suggestSection", "Sayılan derslerim"],
-  ["denklikSection", "Denkliği açık"],
-  ["changeSection", "Son değişiklikler"], ["candSection", "Alabileceğim dersler"],
-  ["blockSection", "Neden alamıyorum"], ["basvuruSection", "Başvuru"],
-  ["tierSection", "Kademeler"],
+  ["schedSection", "Haftalık programım", "PLANLA", "Program", false],
+  ["candSection", "Alabileceğim dersler", "PLANLA", "Dersler", false],
+  ["blockSection", "Neden alamıyorum", "PLANLA", "Neden", false],
+  ["savedSection", "Kaydettiğim", "PLANLA", "Kayıtlı", true],
+  ["panels", "İlerlemem", "DURUM", "İlerlemem", false],
+  ["creditSection", "Kredi sınırım", "DURUM", "Kredi", true],
+  ["suggestSection", "Sayılan derslerim", "DURUM", "Sayılan", true],
+  ["denklikSection", "Denkliği açık", "DURUM", "Denklik", true],
+  ["changeSection", "Son değişiklikler", "DURUM", "Değişen", true],
+  ["basvuruSection", "Başvuru", "DURUM", "Başvuru", true],
+  ["tierSection", "Kademeler", "DURUM", "Kademe", true],
+  /* ★ Kurulum çubuğu da bir görünüm (Faz 46): her ziyarette bakılan bir
+     şey değil, ama kaybolmamalı — bölüm/dönem/not düzeltmenin tek yeri. */
+  ["setupbar", "Bölüm, dönem, notlar", "AYAR", "Ayar", true],
 ];
+
+/* Görünümü olan bölümler: DOM'da var ve veri yokluğundan gizli DEĞİL.
+   ⚠️ `offsetParent` KULLANILMIYOR: artık etkin olmayan görünüm de
+   `display:none` ve o kontrol her bölümü "kapalı" sayardı — ray kendi
+   kendini boşaltırdı. */
+function acikGorunumler(){
+  return SECTIONS.filter(([id]) => {
+    const el = document.getElementById(id);
+    return el && !el.hidden;
+  });
+}
+
+let GORUNUM = "";
+
+/** Tek görünüm açık kalsın. Bilinmeyen/kapalı id verilirse ilk uyguna düşer. */
+function gorunumAc(id, odakla){
+  const acik = acikGorunumler();
+  if(!acik.length){ GORUNUM = ""; return ""; }
+  if(!acik.some(([x]) => x === id)) id = acik[0][0];
+  GORUNUM = id;
+  for(const [x] of SECTIONS){
+    const el = document.getElementById(x);
+    if(!el) continue;
+    if(x === id) el.removeAttribute("data-disgorunum");
+    else el.setAttribute("data-disgorunum", "");
+  }
+  const nav = $("#secnav");
+  if(nav) nav.querySelectorAll("a[data-gorunum]").forEach(a =>
+    a.setAttribute("aria-current", a.dataset.gorunum === id ? "page" : "false"));
+  /* ⚠️⚠️ ÖLÇÜLERİNİ ÇİZİM ANINDA ALAN ŞEYLER YENİDEN ÇİZİLMELİ.
+     Testte yakalandı: kademe diyagramının bağ çizgileri `getBoundingClientRect`
+     ile kuruluyor; bölüm kapalıyken hepsi 0 çıkıyor ve görünüm açılınca
+     çizgisiz bir diyagram kalıyordu. Gizli bir bölümün ölçüsü yoktur —
+     görünür olunca bir kez daha ölçmek zorundayız. */
+  if(id === "tierSection" && typeof drawTierLinks === "function")
+    requestAnimationFrame(drawTierLinks);
+  if(odakla){
+    /* ⚠️ Görünüm değişince sayfa kaydırılmıyor — KAYDIRMAMAK bu değişikliğin
+       amacı. Ama ekran okuyucu ve klavye kullanıcısı için odağın nereye
+       gittiği söylenmeli, yoksa "hiçbir şey olmadı" sanılır. */
+    const el = document.getElementById(id);
+    if(el){ el.setAttribute("tabindex", "-1"); el.focus({preventScroll: true}); }
+    if(scrollY > 0) scrollTo({top: 0, behavior: "smooth"});
+  }
+  return id;
+}
 
 function renderSecNav(){
   const nav = $("#secnav");
   if(!nav) return;
-  const acik = SECTIONS.filter(([id]) => {
-    const el = document.getElementById(id);
-    return el && !el.hidden && el.offsetParent !== null;
+  const acik = acikGorunumler();
+  /* Tek bölüm varsa ray gereksiz — ama o zaman o bölüm de açık kalmalı. */
+  if(acik.length < 2){
+    nav.innerHTML = "";
+    for(const [x] of SECTIONS){
+      const el = document.getElementById(x);
+      if(el) el.removeAttribute("data-disgorunum");
+    }
+    GORUNUM = acik.length ? acik[0][0] : "";
+    return;
+  }
+  let grup = "";
+  nav.innerHTML = acik.map(([id, lbl, g, kisa, alt]) => {
+    const bas = g !== grup ? `<div class="raybaslik">${g}</div>` : "";
+    grup = g;
+    return bas + `<a href="#${id}" data-gorunum="${id}"${alt ? ' data-alt="1"' : ""}
+      ><span class="rayad uzun">${lbl}</span><span class="rayad kisa">${kisa}</span
+      ><span class="raysayi" data-sayi="${id}"></span></a>`;
+  }).join("");
+  /* ★ Telefonda dört sekme yazılı, gerisi "Daha"da. Kaydırmaya bırakmak
+     ölçülmüş bir hataydı: 390px'te 10 çapanın 3'ü görünüyordu. */
+  if(acik.some(([, , , , alt]) => alt))
+    /* ⚠️ `raykesme` bir SATIR KIRICI, süs değil. Ölçüldü: birincil
+       sekmelerin `flex-basis`i 0 olduğu için esnek satır dolmuş sayılmıyor
+       ve "Daha" açılınca ilk iki alt sekme aynı satıra sızıp dört birincil
+       sekmeyi 26px'e eziyordu. Boyu 0, ekran okuyucuda yok. */
+    nav.insertAdjacentHTML("beforeend",
+      `<button type="button" class="raydaha" id="rayDaha" aria-expanded="false"
+        ><span class="rayad kisa">Daha</span></button>
+       <span class="raykesme" aria-hidden="true"></span>`);
+  nav.querySelectorAll("a[data-gorunum]").forEach(a =>
+    a.addEventListener("click", ev => {
+      ev.preventDefault();
+      nav.removeAttribute("data-acik");
+      const d = $("#rayDaha");
+      if(d) d.setAttribute("aria-expanded", "false");
+      gorunumAc(a.dataset.gorunum, true);
+    }));
+  const daha = $("#rayDaha");
+  if(daha) daha.addEventListener("click", () => {
+    const acikMi = nav.hasAttribute("data-acik");
+    if(acikMi) nav.removeAttribute("data-acik"); else nav.setAttribute("data-acik", "");
+    daha.setAttribute("aria-expanded", String(!acikMi));
   });
-  nav.innerHTML = acik.length < 3 ? ""
-    : acik.map(([id, lbl]) => `<a href="#${id}">${lbl}</a>`).join("");
-  nav.querySelectorAll("a").forEach(a => a.addEventListener("click", ev => {
-    ev.preventDefault();
-    document.getElementById(a.hash.slice(1))
-            .scrollIntoView({behavior: "smooth", block: "start"});
-  }));
-  /* ★ Kaydırılabilir olduğunu GÖSTER (UX 27.08.2026). Mobilde 9 bölüm
-     çubuğa sığmıyor, son bölüm ("Kademeler") kenardan kesiliyor ve
-     kaydırılabildiğine dair hiçbir ipucu yoktu — kullanıcı orada başka
-     bölüm olduğunu göremiyordu. Kenar solması "sağa kaydır" diyor;
-     tamamen kaydırınca kayboluyor ki yanlış ipucu vermesin. */
-  const kenarSolmasi = () => {
-    const sonda = nav.scrollLeft + nav.clientWidth >= nav.scrollWidth - 2;
-    const basta = nav.scrollLeft <= 2;
-    nav.dataset.more = nav.scrollWidth <= nav.clientWidth + 2 ? "none"
-      : basta ? "right" : sonda ? "left" : "both";
-  };
-  kenarSolmasi();
-  nav.onscroll = () => requestAnimationFrame(kenarSolmasi);
-  markCurrentSection();
+  raySayilari();
+  gorunumAc(GORUNUM || acik[0][0]);
 }
 
-/* Hangi bölümdeyiz — çubukta işaretli dursun. IntersectionObserver yerine
-   kaydırma anında ölçüyoruz: bölümler açılıp kapandığı için gözlemciyi her
-   çizimde yeniden kurmak gerekirdi. */
-function markCurrentSection(){
-  const nav = $("#secnav");
-  if(!nav || !nav.children.length) return;
-  let simdiki = nav.children[0].hash.slice(1);
-  for(const a of nav.children){
-    const el = document.getElementById(a.hash.slice(1));
-    if(el && el.getBoundingClientRect().top <= 80) simdiki = a.hash.slice(1);
-  }
-  for(const a of nav.children)
-    a.setAttribute("aria-current", String(a.hash.slice(1) === simdiki));
+/* ★★ Sayfa içi bölüm bağlantıları da GÖRÜNÜM AÇAR (Faz 46).
+   Metin içinde "Darboğaz bölümünde ayrıntı" gibi bağlantılar var; eskiden
+   o bölüme kaydırıyorlardı. Görünüm kipinde kaydırmak hiçbir şey yapmaz —
+   hedef bölüm kapalı. Bağlantıyı çalışmaz bırakmak, Faz 25'te ve 44'te
+   ölçtüğümüz "gizlenen şey yok sayılır" hatasının aynısı olurdu. */
+addEventListener("click", ev => {
+  const a = ev.target.closest && ev.target.closest('a[href^="#"]:not([data-gorunum])');
+  if(!a) return;
+  const id = a.getAttribute("href").slice(1);
+  if(!SECTIONS.some(([x]) => x === id)) return;
+  ev.preventDefault();
+  gorunumAc(id, true);
+});
+
+/* Rayda sayı: "kaç aday", "kaç engel". Bölüme girmeden büyüklüğü görünsün —
+   eskiden bunu öğrenmenin tek yolu oraya kaydırmaktı.
+   ⚠️ Uydurma sayı yok: sayamadığımız bölümde hiçbir şey yazmıyor. */
+function raySayilari(){
+  const yaz = (id, n) => {
+    const el = document.querySelector(`.raysayi[data-sayi="${id}"]`);
+    if(el) el.textContent = n == null ? "" : String(n);
+  };
+  yaz("candSection", (M().candidates || []).length || null);
+  yaz("blockSection", (DATA.blockers || []).length || null);
+  yaz("changeSection", (DATA.changes || []).length || null);
+  yaz("savedSection", ((DATA.savedPicks && DATA.savedPicks.picks) || []).length || null);
 }
-addEventListener("scroll", () => requestAnimationFrame(markCurrentSection),
-                 {passive: true});
 
 const BASVURU_KINDS = [["cap", "Çift anadal", "ÇAP planları"],
                        ["yandal", "Yandal", "Yandal planları"]];

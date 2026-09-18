@@ -19,6 +19,7 @@ mevcut veride hiçbir sonucu değiştirmiyor. Yine de karışık girdi gelirse
 """
 from __future__ import annotations
 
+import functools
 import re
 import sqlite3
 from dataclasses import dataclass, field
@@ -317,8 +318,22 @@ class _Parser:
         return Node("LEAF", course=code, min_grade=grade)
 
 
+@functools.lru_cache(maxsize=None)
 def parse(raw: str | None) -> Parsed:
-    """Ham önşart metnini ağaca çevirir. Asla exception sızdırmaz."""
+    """Ham önşart metnini ağaca çevirir. Asla exception sızdırmaz.
+
+    ★★ FAZ 46 — ÖNBELLEKLİ (ölçüm 18.09.2026).
+    `snapshot()` profillendi: 7,9 saniyenin **14,8'i** (kümülatif) burada
+    geçiyordu. Sebep: `parsed_trees` tek bir durum çıkarımında **12 kez**
+    çağrılıyor ve her seferinde aynı ~4.630 önşart metnini baştan
+    ayrıştırıyordu — toplam 55.560 ayrıştırma. Metin aynıysa ağaç da aynı.
+
+    ⚠️ Güvenli, çünkü ağaç ÜRETİLDİKTEN SONRA değiştirilmiyor: mutasyon
+    yalnız ayrıştırma sırasında (`node.parenthesized`) ve veritabanından
+    kurarken (`load_tree`) var; tüketiciler `courses()`, `satisfied()`,
+    `missing()` gibi salt okunur çağrılar yapıyor. Ağaç mutasyonu eklenirse
+    bu önbellek KALDIRILMALI — testte tutuluyor.
+    """
     original = (raw or "").strip()
     if original.lower() in _NO_PREREQ:
         return Parsed(None, original)

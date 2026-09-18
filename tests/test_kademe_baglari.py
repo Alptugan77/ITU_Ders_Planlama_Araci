@@ -152,6 +152,11 @@ def page(dbs, tmp_path):
     errors = []
     p.on("pageerror", lambda e: errors.append(str(e)))
     p.goto(dest.as_uri())
+    # ⚠️ Faz 46: ray tek görünüm açıyor ve açılış görünümü haftalık program.
+    # Kademeler bölümü DOM'da ama kapalı — testin ölçtüğü şey kademe
+    # diyagramı, "hangi görünüm açık" değil.
+    p.evaluate("() => gorunumAc('tierSection')")
+    p.wait_for_timeout(120)
     yield p, errors
     browser.close()
     pw.stop()

@@ -111,19 +111,22 @@ def test_UZUN_etiketlerde_BUYUK_HARF_YOK():
         raise AssertionError(f"kural yok: {seçici}")
 
     assert "text-transform:uppercase" not in kural(".ghost")
-    assert "text-transform:uppercase" not in kural(".secnav a")
+    assert "text-transform:uppercase" not in kural(".ray a")
     # Kimlik duruyor:
     assert "text-transform:uppercase" in kural(".eyebrow")
     assert "text-transform:uppercase" in kural("h3")   # h1,h2,h3 grubu
 
 
 def test_bolum_cubugu_DOKUNMA_HEDEFI_yeterli():
-    """Ölçüm: 32px'ti — parmakla ıskalanacak kadar kısa."""
+    """Ölçüm: 32px'ti — parmakla ıskalanacak kadar kısa.
+
+    ⚠️ Faz 46'da çubuk RAY oldu (dikey) ve hedef 40 → 44px çıktı: dikey
+    rayda yükseklik bedava, dokunmatik kılavuzunun tabanı 44."""
     for sel, gövde in _kurallar():
-        if sel == ".secnav a":
-            assert "min-height:40px" in gövde.replace(" ", "")
+        if sel == ".ray a":
+            assert "min-height:44px" in gövde.replace(" ", "")
             return
-    raise AssertionError(".secnav a kuralı yok")
+    raise AssertionError(".ray a kuralı yok")
 
 
 def _mobil_css():
@@ -136,16 +139,27 @@ def test_TELEFONDA_kucuk_denetim_KALMADI():
     """★ Ölçüm (390px): 32 denetim 32px'in ALTINDAYDI — `kaldır` ×4 (22px),
     `izle` ×11 (21px), `+N dış önşart` ×17 (19px). Değişiklikten sonra: 0.
 
-    ⚠️ Yalnız TELEFONDA büyütülüyor: masaüstünde bu rozetlerin sıkışık
-    durması doğru, fare pikseli tutturur."""
+    ⚠️⚠️ FAZ 46'DA BU KURALIN İKİNCİ YARISI GERİ ALINDI. Faz 39'da
+    "masaüstünde sıkışık durması doğru, fare pikseli tutturur" demiştim.
+    Ölçüm (18.09.2026, 1440px) bunu çürüttü: WCAG 2.2 AA 2.5.8 hedef
+    tabanı (24×24) İŞARETLEYİCİ girdiler için de geçerli, yalnız dokunma
+    için değil — ve masaüstünde 24px altında **72 hedef** vardı. Artık
+    taban her yerde 24, telefonda 32/34. Yani telefon kuralı duruyor,
+    masaüstü muafiyeti kalktı."""
     mobil = _mobil_css().replace(" ", "").replace("\n", "")
     assert ".rm,.watchmini{min-height:34px" in mobil
     assert ".tierli.dispre{min-height:32px" in mobil
-    # Masaüstünde büyütülmüyor (mobil blok çıkarılarak bakılıyor):
-    masaustu = CSS.replace(_mobil_css(), " ")
-    for sel, gövde in re.findall(r"([^{}]+)\{([^{}]*)\}", masaustu):
-        if sel.strip() in (".rm", ".watchmini") and "min-height" in gövde:
-            raise AssertionError(f"{sel.strip()} masaüstünde de büyütülmüş")
+    # Masaüstünde de taban var — ama TELEFONUNKİNDEN KÜÇÜK (24 < 32/34).
+    # ⚠️ `_mobil_css()` iç içe blokları yutabiliyor; bu yüzden kuralları
+    # doğrudan kendi seçicileriyle arıyoruz, "mobil bloğu çıkar" diye değil.
+    for seçici in (r"\.trtable \.rm", r"\.watchmini", r"\.tier li \.dispre"):
+        # `(?m)^` şart: mobil karşılıkları girintili ve `.rm,.watchmini{`
+        # gibi birleşik — girintisiz satır başı yalnız masaüstü kuralı.
+        m = re.search(r"(?m)^" + seçici + r"\{([^{}]*)\}", CSS)
+        assert m, f"{seçici} kuralı yok"
+        h = re.search(r"min-height:\s*(\d+)px", m.group(1))
+        assert h, f"{seçici} masaüstünde tabansız"
+        assert 24 <= int(h.group(1)) < 32, f"{seçici}: {h.group(1)}px"
 
 
 def test_izleme_rozeti_SATIR_ICI_STILDEN_kurtuldu():

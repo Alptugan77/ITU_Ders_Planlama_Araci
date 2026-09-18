@@ -1,7 +1,11 @@
 # Yapılacaklar
 
-Faz 1–27 bitti (834 test). Depo GitHub'a hazır; statik site yayında. Bu liste **sonrası** için: ne kaldı, neden önemli,
-ne kadar iş, neye bağlı.
+Faz 1–46 bitti (1102 test). Depo GitHub'a hazır. Bu liste **sonrası** için:
+ne kaldı, neden önemli, ne kadar iş, neye bağlı.
+
+⚠️ **Yayınlanan site hâlâ eski.** Yayın hattı (`git push` → Actions → pages)
+çalıştırılmadan Faz 28–46'nın hiçbiri kullanıcıya ulaşmıyor. Bu, listedeki
+her maddeden önce gelen tek iş.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
 > keşfi ✅ · tüm ÇAP/yandal planları ✅
@@ -136,12 +140,55 @@ ne kadar iş, neye bağlı.
 > oraya girdi; `pyproject` paket verisi güncellendi.
 > ➜ Ayrıntı ve ölçümler: `docs/faz43-tasarim-sistemi.md`
 >
+> **Faz 44'te kapananlar (17.09.2026 — boş saate ders ekleme):**
+> kullanıcı bildirdi: *"x.dönem + alttan kısmında takvime tıklayıp ekstra
+> ders eklenemiyor"*. Ölçüldü: 38 boş hücrenin **27'sinde (%71)** sunulan
+> seçeneklerin hepsi mevcut bir dersi çıkarıyordu, `all` kipinde 56
+> hücrenin hiçbirinde temiz ekleme yoktu. Motor doğru (seçeneklerin
+> %96'sı gerçek zaman çakışması), sunum yanlıştı — "çıkarılır: …" notu
+> satır içine gömülüydü. ★★ pencere artık **"buraya sığıyor"** ile
+> **"yer açman gerekiyor"**u ayırıyor, sığanlar önce ✅ · hiç sığmıyorsa
+> bunu sayıyla söylüyor ✅ · takaslar gizlenmiyor, ayrı başlıkta ✅
+> ⚠️ İlk teşhis YANLIŞTI (Faz 39 kırpması sanıldı, ölçünce ders görünür
+> aralıktaydı); ona göre yazılan kod geri alındı ve teste bağlandı.
+> ➜ Ayrıntı ve ölçümler: `docs/faz44-bos-saat-ekleme.md`
+>
+> **Faz 45'te kapananlar (17.09.2026 — saate kilit):**
+> kullanıcı istedi: *"dersleri saate kitleme ve önerilerin onun etrafında
+> şekillenmesi"*. ★★ Bir dersi **şubesine (dolayısıyla saatine)
+> kilitleyebiliyorsun**; motor onu sabit tutup programın kalanını
+> etrafında kuruyor ✅ Ölçüldü: `BLG 351E` Pzt 14:30'a kilitlenince
+> ATA 121 ve ATA 122 başka güne kaydı, `GEO 401E` düştü (16 ders/22.5
+> kredi → 15/20.5) — yani kilit **bedava değil** ve bu ekranda görünüyor.
+> ⚠️ Kilit SERT kısıt: çelişen iki kilit DEPAR kipinde 3 → 0 program
+> yaptı, o yüzden boş sonuç artık **sebebini söylüyor** ✅ ⚠️ Kilit yalnız
+> o kipin aday havuzundaki derse bağlanıyor — yoksa `all` kipinde
+> kilitlenen ders dönemlik kipi de boşaltırdı ✅ Tutmayan kilit
+> (CRN kapandı / ders havuzdan çıktı) gizlenmiyor, sebebiyle yazılıyor ✅
+> Izgarada işaret **renk değil**: kalın sol kenar + asma kilit simgesi ✅
+> ➜ Ayrıntı ve ölçümler: `docs/faz45-saate-kilit.md`
+>
+> **Faz 46'da kapananlar (18.09.2026 — kabuk):** kullanıcı istedi:
+> *"bütün düzeltmeleri ve yeni tasarımı uygular mısın"*. Önce ölçüldü
+> (`docs/faz46-arayuz-olcumu.md`), sonra uygulandı. ★★ Üç sütunlu kabuk:
+> solda ray, ortada haftalık program, sağda bağlam ✅ Gezinme artık ÇAPA
+> DEĞİL görünüm değiştirici — aynı anda tek bölüm açık ✅
+> Sayfa **7,3 → 1,4 ekran** (telefonda 16,4 → 3,1); haftalık programın
+> tepesi **1825 → 444px** (telefonda 3354 → 728px) ✅ 24px altı dokunma
+> hedefi **72 → 0** ✅ aynı anda görünen ikincil metin **60 → 6** ✅
+> ★★ Bir ayar değişimi **5,7 → 1,1 sn**: profil `snapshot()`ın 14,8
+> saniyesinin önşart ayrıştırmada (55.560 çağrı, hep aynı metinler) ve
+> 3,4'ünün şube sıralamasında (46.549 çağrı) geçtiğini gösterdi; iki
+> önbellek eklendi ve sonucu DEĞİŞTİRMEDİĞİ teste bağlandı ✅
+> ⚠️ İki eski karar sebebiyle geri alındı: Faz 20'nin "kaydedilen program
+> en üstte"si ve Faz 39'un "masaüstünde küçük hedef doğru"su.
+> ➜ Ayrıntı ve ölçümler: `docs/faz46-kabuk.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
-> ⚠️ `git remote` artık **tanımlı** (`origin`), ama **site hâlâ eski**:
-> yayın hattı çalıştırılmadan hiçbir düzeltme kullanıcıya ulaşmıyor
-> (`fikirler.md` F.5). ✅ F.5'in "önce `make all-plans` gerekiyor" uyarısı
-> 17.09.2026'da ölçülüp **geçersiz** bulundu (71 `_YD` kodunun 71'i de
-> yerinde) — yayının önünde o engel yok.
+> ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
+> F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
+> geçersiz bulundu (71 `_YD` kodunun 71'i de yerinde). Kalan tek şey
+> komutu çalıştırmak — bkz. §4.4.
 
 Sıralama tahmine değil, iki ölçüte dayanıyor: (a) kayıt gününde işe yarar mı,
 (b) yanlış cevap verme riski taşıyor mu. İkisi de "hayır" olan iş listede
@@ -152,6 +199,24 @@ Zorluk: **S** birkaç saat · **M** bir gün · **L** birkaç gün.
 ---
 
 ## 1. Şimdi sıradakiler
+
+### 1.0 Gerçekten açık olan ne — 18.09.2026
+
+Bu bölümün çoğu kapandı. Açık kalanlar, sırayla:
+
+| # | iş | kimde | zorluk |
+|---|---|---|---|
+| 0 | **Yayın** — `git push`, Actions "pages". Faz 28–46 kullanıcıya ancak böyle ulaşıyor | **sende** | S |
+| 0 | `make notdagilimi` — not dağılımı 176 dersten öteye geçsin | **sende** | S |
+| 1.2 | Denklik keşfini genişlet (çoklu kaynak; resmi tablo boş) | — | M |
+| 2.1 | Çok dönemli plan | — | L |
+| 2.3 | Yaz okulu | — | M |
+| 2.4 | Saate kilit → saat ARALIĞINA kilit | — | S |
+| 3 | 1545 karşılıksız havuz seçeneği · 13 boş havuz | — | M · S |
+| 4.2 | Nöbeti `launchd` ile arka planda çalıştırma | — | S |
+
+⚠️ Sıfır numaralı iki iş kod işi değil, **çalıştırma** işi: depoda her şey
+hazır, çalıştırılmadıkça hiçbiri kimseye görünmüyor.
 
 ### 1.1 ~~Kalan iki GNO eşiğini doğrula~~ · ✅ **Faz 12'de kapandı**
 22.08.2026'da ÇAP/Yandal Yönergesi ve Yönetmelik MADDE 20/31 okundu. İki
@@ -188,10 +253,12 @@ ikisi de daha güvenilir:
 `make basvuru` ve arayüzdeki "Başvurabilir miyim" bölümü. Şartlar üç değerli
 işaretle (✓ / ✗ / **—** buradan bakılamaz), programlar kalan işe göre sıralı.
 
-**Kalan iş burada:** ÇAP planı yalnız BLG için çekilmiş; diğer 126 program
-"planı yok" listesinde. `make all-plans` (senin makinende çalışıyor) bunu
-doldurur ve ekran anlamlı hâle gelir. Lisans planından tahmin **bilerek
-yapılmıyor** — ÇAP planı lisansın küçük bir alt kümesi.
+**Kalan iş burada:** ✅ `make all-plans` çalıştırıldı — katalogda artık
+**1081 ÇAP planı** (63 program) ve **134 yandal planı** var. Ölçüldü
+(18.09.2026): 128 lisans programının **69'unda** hâlâ ÇAP planı yok. Bunlar
+OBS'de yayınlanmamış olanlar; lisans planından tahmin **bilerek yapılmıyor**
+— ÇAP planı lisansın küçük bir alt kümesi ve tahmin, olmayan bir şartı
+"sağlanıyor" göstermeye açık.
 
 ### 1.4 ~~Yarıyıl tabanını öneri motoruna sok~~ · ✅ **Faz 22'de kapandı**
 `build_schedules(..., floors={"CAP": 9})`. Tabanı karşılayan program öne
@@ -217,13 +284,15 @@ mezuniyet bir dönem öteleniyor" duyarlılık analizi.
 **Uyarı:** Arz belirsizliği burada belirleyici — 14 ÇAP dersinden 11'i arz
 sorunlu (Faz 5). Plan, veriden çok varsayıma dayanacak; bunu gizlememek gerek.
 
-### 2.2 Tercih ağırlıkları · M
-**Neden:** Motor "en yüksek puanlı çakışmasız program"ı buluyor ama senin
-tercihlerini bilmiyor: sabah dersi istemiyorum, Cuma boş olsun, şu hoca,
-kampüs değişimi olmasın.
+### 2.2 ~~Tercih ağırlıkları~~ · ✅ **Faz 27'de kapandı**
+Ayrı bir `tercihler.toml` YAPILMADI: tercihler `settings.toml`daki
+`tercih_*` alanlarında ve arayüzdeki "Nasıl bir program istediğini söyle"
+penceresinde. Yumuşak: puanlamaya giriyor, eleme yapmıyor.
 
-**Ne:** `config/tercihler.toml` ile beyan edilen yumuşak ağırlıklar; puanlamaya
-eklenir, sert kısıt olmaz. Arayüzde kaydırıcı olabilir.
+⚠️ Ölçülmüş bir ayrıntı: tercih önce ayrı bir sıralama anahtarıydı ve
+**hiçbir şeyi değiştirmiyordu** — `blocking_cost` bir float, neredeyse hiç
+eşitlenmiyor, ikinci anahtara sıra hiç gelmiyordu. Aynı ölçekte toplanınca
+anlam doğru çıktı (bkz. `recommend.py`, `_sube_maliyeti`).
 
 ### 2.3 Yaz okulu · M
 **Neden:** Alttan ders taşıyan ÇAP öğrencisi için yaz okulu en önemli
@@ -231,6 +300,12 @@ tıkanıklık çözücü. Şu an dönem kavramı Güz/Bahar varsayıyor.
 
 **Ne:** `term` kodunda yaz dönemini tanı, kredi tavanını ayrı al, "bunu yazda
 alırsan şu zincir bir dönem kısalır" analizi.
+
+### 2.4 Saate kilit — sonraki adım · S
+✅ Faz 45 tek dersi şubesine kilitliyor. Kalan: **saat aralığına** kilit
+("Salı öğleden sonra boş kalsın" değil — o meşgul saat; "bu ders sabah
+olsun, şubesi fark etmez"). Bugün bunun tek yolu ders penceresinden şube
+seçmek.
 
 ---
 
@@ -242,13 +317,13 @@ her biri motorun bir köşesini kör bırakıyor.
 | İş | Etki | Zorluk |
 |---|---|---|
 | ~~**2 çözülemeyen önşart**~~ · ✅ **Faz 12** — ikisi de önşart değilmiş (katalogda ders adı / dil yazılmış); `[[onsart_beyani]]` ile kapandı | 0 çözülemeyen önşart kaldı | — |
-| **275 önşart hedefi katalogda yok** — kapatılmış dersler; "sağlanamaz" mı "yok say" mı karar ver | yanlış tarafa kararsa ders elenir ya da yanlışlıkla açılır | M |
+| ~~**275 önşart hedefi katalogda yok**~~ · ✅ **Faz 42** — ölçüldü ve bugün de aynı: 19365 yaprağın **1509'u** (%7,8) katalogda olmayan **275 kod**u anıyor. Karar verildi: "yok say" DEĞİL, **söyle** — eksik önşart listesinde işaretleniyor, alınabilirler öne alınıyor, hiçbiri sağlanamıyorsa ayrı kategori | ders ne sessizce eleniyor ne yanlışlıkla açılıyor | — |
 | ~~**havuz etiketi `OTHER`**~~ · ✅ **Faz 23** — ölçüldü: 1236 slotun 1210'unda kaynakta kategori YOK, düzeltilebilir olan 26. Uyarı ikiye ayrıldı | kategori sayaçlarındaki boşluk artık açıklanıyor | — |
-| **1396 havuz seçeneğinin ders karşılığı yok** | seçmeli havuzda görünmeyen alternatifler | M |
+| **1545 havuz seçeneğinin ders karşılığı yok** (18.09.2026 ölçümü; 152504 seçeneğin **%1,0**'i, 197 ayrı kod) | seçmeli havuzda görünmeyen alternatifler | M |
 | ~~**85 ÇAP planında 435 satır kayıp**~~ · ✅ **Faz 17** — iki dilli kod hücresi; `dropped_plan_rows` kontrolü artık kalıcı bekçi | plan "5 ders" görünüyordu | — |
-| **13 boş seçmeli havuz** — Faz 23'te sebep ayrıştırıldı (`pool_status`): OBS'nin tablosuz sayfa döndürdükleri bizim hatamız değil. Yeniden taramadan sonra gerçek parse hatası kalırsa o bakılır | başka bölümlerin havuzları | S |
+| **13 boş seçmeli havuz** — Faz 23'te sebep ayrıştırıldı (`pool_status`): OBS'nin tablosuz sayfa döndürdükleri bizim hatamız değil. 18.09.2026'da yeniden sayıldı: 6983 havuz slotunun **13'ü** hâlâ boş (%0,2) | başka bölümlerin havuzları | S |
 | ~~**`plan_host_program` boş**~~ · ✅ **Faz 19** — yandal sayfalarında tablonun `id` niteliği yoktu, başlıktan tanınıyor | ÇAP planının doğru plan olduğu doğrulanabiliyor | — |
-| **Resmi denklik yok** (D3) — bu çiftte OBS'de yayınlanmamış | Faz 10 keşfi ad+krediden aday üretiyor; resmi kaynak hâlâ boş | — · **OBS'ye bağlı** |
+| **Resmi denklik tablosu boş** (D3) — ✅ hattı Faz 34'te yazıldı (`eq_all_programs = true`, OBS Ders Plan Denklikleri sayfası) ama 18.09.2026 ölçümünde `equivalence` tablosunda **0 satır** var: OBS bu programlar için yayınlamıyor | Faz 10 keşfi ad+krediden aday üretiyor; resmi kaynak hâlâ boş | — · **OBS'ye bağlı** |
 
 ---
 
@@ -272,13 +347,18 @@ yalnız **arz sorunlu** derste var — önşarta takılan ders nöbetle çözül
 ## 4.4 ~~Yayın~~ · ✅ **Faz 14'te kapandı** — statik site
 
 Motor **JS'e çevrilmedi**, Python tarayıcıya taşındı (Pyodide). Tek kod
-tabanı, 433 test web sürümünü de kapsıyor, iki sürüm ayrışamaz.
+tabanı, 1102 testin tamamı web sürümünü de kapsıyor, iki sürüm ayrışamaz.
 
 ```bash
-make site                              # yerelde kur ve dene
+make site ARGS=node_modules/pyodide     # yerelde kur ve dene
 make refresh && gh release create katalog-$(date +%Y%m%d) data/reference.sqlite3
-# GitHub -> Actions -> "pages" -> Run workflow
+git push                                # Actions "pages" kendiliğinden koşuyor
 ```
+
+⚠️ `ARGS` verilmezse Pyodide **paketlenmiyor** ve site çalışma anında
+`cdn.jsdelivr.net`e istek atıyor — yani her ziyaretçi üçüncü bir tarafa
+görünüyor. Kurulum betiği bunu uyarı olarak yazıyor; yayın hattı
+(`pages.yml`) `npm install pyodide` ile zaten paketliyor.
 
 Ziyaretçinin notları tarayıcısında (IndexedDB) kalıyor; sunucu, uç, telemetri
 yok. Yayınlanan tek veri herkese açık katalog — **tutulacak kişisel veri
@@ -312,10 +392,12 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 1065 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 1102 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
-* `make all-plans` dönemde bir kez yeter — 128 program, ~1081 plan, dakikalar
-  sürüyor. Program değiştirmeyi düşünmüyorsan gerekmez.
+* `make all-plans` ✅ çalıştırıldı (katalogda 1081 ÇAP + 134 yandal planı).
+  Dönemde bir kez yeter; program değiştirmeyi düşünmüyorsan gerekmez.
+* `make notdagilimi` **senin makinende çalıştırılacak** — not dağılımı şu an
+  176 ders için var, komut bunu genişletiyor (katalog boyutunu da büyütür).
 * `make watch` kayıt haftasında açık bırakılacak şey; `watch_courses` ile
   birkaç derse daraltmadan kullanma, bildirim gürültüye döner.
 * `config/` altındaki üç dosya elle düzenlenebilir ve **yorumları korunur**:

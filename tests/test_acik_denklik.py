@@ -128,7 +128,7 @@ def test_arayuzde_BOLUM_var():
     assert "function renderAcikDenklik()" in src
     assert '"openEquivalents"' in src
     # Bölüm çubuğunda ve kurulum/yazdırma gizleme listelerinde.
-    assert '["denklikSection", "Denkliği açık"]' in src
+    assert '"denklikSection", "Denkliği açık"' in src
 
 
 def test_program_kapali_kaynak_ELENIYOR(con):

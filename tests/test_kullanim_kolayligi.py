@@ -70,9 +70,14 @@ def test_sablon_basvuru_penceresini_kuruyor(data):
 
 
 def test_sablon_bolum_cubugunu_kuruyor(data):
+    """★ Faz 46: çubuk artık ÇAPA değil GÖRÜNÜM DEĞİŞTİRİCİ.
+    `markCurrentSection` (kaydırma anında hangi bölümdeyiz) yerini
+    `gorunumAc` aldı."""
     html = UI.render(data)
-    for parca in ("secnav", "renderSecNav", "markCurrentSection", "scroll-margin-top"):
+    for parca in ("secnav", "renderSecNav", "gorunumAc", "acikGorunumler",
+                  "scroll-margin-top"):
         assert parca in html, parca
+    assert "markCurrentSection" not in html, "eski çapa mantığı depoda kalmış"
 
 
 # ------------------------------------------------------ tarayıcıda gerçek
@@ -99,6 +104,7 @@ def page_ui(data, tmp_path):
 def test_basvuru_bolumu_iki_satira_indi(page_ui):
     """★ Küçülme ölçülebilir olsun: bölümde tablo KALMAMALI."""
     p, errors = page_ui
+    p.evaluate("() => gorunumAc('basvuruSection')")
     assert p.locator("#basvuruSection table").count() == 0
     assert p.locator("#basvuruSummary .basvuruitem").count() >= 1
     assert errors == []
@@ -107,6 +113,7 @@ def test_basvuru_bolumu_iki_satira_indi(page_ui):
 def test_pencere_acilinca_tablo_geliyor(page_ui):
     """★ Gizlemek erişilemez kılmak değil: ayrıntı bir tık uzakta."""
     p, errors = page_ui
+    p.evaluate("() => gorunumAc('basvuruSection')")
     assert p.locator("#basvuruDlg[open]").count() == 0
     p.locator('#basvuruSummary button[data-k="cap"]').click()
     assert p.locator("#basvuruDlg[open]").count() == 1
@@ -117,6 +124,7 @@ def test_pencere_acilinca_tablo_geliyor(page_ui):
 
 def test_pencerede_sekme_degistirilebiliyor(page_ui):
     p, errors = page_ui
+    p.evaluate("() => gorunumAc('basvuruSection')")
     p.locator('#basvuruSummary button[data-k="yandal"]').click()
     assert p.locator("#basvuruDlgTitle").text_content().strip() == "Yandal planları"
     p.locator('#basvuruTabs .tab[data-k="cap"]').click()
@@ -126,34 +134,48 @@ def test_pencerede_sekme_degistirilebiliyor(page_ui):
 
 def test_pencere_kapaniyor(page_ui):
     p, _ = page_ui
+    p.evaluate("() => gorunumAc('basvuruSection')")
     p.locator('#basvuruSummary button[data-k="cap"]').click()
     p.locator("#basvuruDlg [data-close]").first.click()
     assert p.locator("#basvuruDlg[open]").count() == 0
 
 
 def test_bolum_cubugu_yalniz_ACIK_bolumleri_gosteriyor(page_ui):
-    """★ Hiçbir yere gitmeyen bağlantı, olmayan bağlantıdan kötüdür."""
+    """★ Hiçbir yere gitmeyen bağlantı, olmayan bağlantıdan kötüdür.
+
+    ⚠️ Faz 46: hedef bölüm DOM'da var ama yalnız SEÇİLİYKEN görünür.
+    "Açık" ölçütü artık `hidden` değil olmak; görünürlük tıklayınca
+    doğrulanıyor — ders aynı, kontrol daha sıkı."""
     p, errors = page_ui
     baglar = [a.get_attribute("href")[1:] for a in p.locator("#secnav a").all()]
-    assert baglar, "çubuk boş"
+    assert baglar, "ray boş"
     for hedef in baglar:
         assert p.locator(f"#{hedef}").count() == 1
-        assert p.locator(f"#{hedef}").is_visible()
+        assert p.evaluate(f"() => !document.getElementById('{hedef}').hidden")
+        p.evaluate(f"() => gorunumAc('{hedef}')")
+        assert p.locator(f"#{hedef}").is_visible(), hedef
     assert errors == []
 
 
-def test_bolum_cubugu_kaydiriyor(page_ui):
-    """Son bağlantıyı SEÇMİYORUZ: sayfa sonunda bölüm zaten yukarı çıkamaz,
-    test o zaman kaydırmayı değil sayfa boyunu ölçerdi."""
+def test_ray_GORUNUM_degistiriyor_KAYDIRMIYOR(page_ui):
+    """★★ FAZ 46'NIN ÇEKİRDEĞİ. Eskiden bu test çubuğun KAYDIRDIĞINI
+    tutuyordu; ölçüm o davranışın sorunun kendisi olduğunu gösterdi
+    (sayfa 7,3 ekran, haftalık program 1825px aşağıda). Artık tıklamak
+    sayfayı kaydırmıyor — görünümü değiştiriyor: tek bölüm açık kalıyor."""
     p, errors = page_ui
     baglar = p.locator("#secnav a")
-    i = 2 if baglar.count() > 3 else 1
+    assert baglar.count() >= 2
+    once_id = p.evaluate("() => GORUNUM")
+    i = 1 if baglar.nth(0).get_attribute("href")[1:] == once_id else 0
     hedef = baglar.nth(i).get_attribute("href")[1:]
-    once = p.locator(f"#{hedef}").bounding_box()["y"]
     baglar.nth(i).click()
-    p.wait_for_timeout(800)                      # smooth scroll
-    sonra = p.locator(f"#{hedef}").bounding_box()["y"]
-    assert sonra < once and sonra < 200, f"{once} -> {sonra}"
+    p.wait_for_timeout(300)
+    assert p.evaluate("() => GORUNUM") == hedef
+    assert p.locator(f"#{hedef}").is_visible()
+    # Önceki görünüm KAPANDI — sayfa iki bölüm birden taşımıyor.
+    assert not p.locator(f"#{once_id}").is_visible()
+    # Sayfa tek görünüm uzunluğunda: kaydırılacak bir şey kalmıyor.
+    assert p.evaluate("() => document.documentElement.scrollHeight <= innerHeight * 3")
     assert errors == []
 
 
@@ -161,20 +183,45 @@ def test_cubuk_kaydirinca_ekranda_kaliyor(page_ui):
     """★ `position:sticky` sessizce bozulur: bir üst kapsayıcıya `overflow`
     eklendiği anda çalışmayı bırakır ve kimse fark etmez."""
     p, errors = page_ui
+    # ⚠️ Faz 46'da sayfa TEK GÖRÜNÜM uzunluğunda ve test verisi küçük:
+    # `.govde` görüntü alanından kısa kalırsa `sticky` HİÇ devreye girmez
+    # ve test yapışkanlığı değil veri miktarını ölçer. Ölçülen şey CSS
+    # mekanizması olduğu için açık görünüme uzun bir dolgu koyuyoruz.
+    p.evaluate("""() => { const el = document.getElementById(GORUNUM);
+      const d = document.createElement("div");
+      d.id = "olcumDolgusu"; d.style.height = "2400px";
+      el.appendChild(d); }""")
+    p.wait_for_timeout(200)
+    assert p.evaluate(
+        "() => document.querySelector('.govde').getBoundingClientRect().height"
+        " > innerHeight + 400"), "gövde kaydırılabilir değil"
     p.mouse.wheel(0, 1500)
     p.wait_for_timeout(300)
-    kutu = p.locator("#secnav").bounding_box()
-    assert kutu["y"] < 10, f"çubuk kaydı: {kutu['y']}"
+    # ⚠️ `bounding_box()` sayfa koordinatı veriyor; yapışkanlık GÖRÜNTÜ
+    # ALANINA göre ölçülür. Kaydırma miktarını çıkarmak yerine doğrudan
+    # tarayıcıya soruyoruz.
+    bilgi = p.evaluate("""() => { const n = document.querySelector('#secnav');
+      return {tepe: Math.round(n.getBoundingClientRect().top),
+              kaydi: Math.round(scrollY)}; }""")
+    assert bilgi["kaydi"] > 100, f"sayfa kaymadı: {bilgi}"
+    # Faz 46: ray `top:18px` ile yapışık (eski çubuk `top:0` idi).
+    assert bilgi["tepe"] < 30, f"ray kaydı: {bilgi}"
     assert errors == []
 
 
 def test_cubuk_bulundugun_bolumu_isaretliyor(page_ui):
+    """⚠️ Faz 46: işaret artık `aria-current="page"` — "bulunduğun sayfa",
+    eskiden "true" ("kaydırılan bölüm"). Anlam değişti, öznitelik de."""
     p, errors = page_ui
-    ilk = p.locator('#secnav a[aria-current="true"]').get_attribute("href")
-    p.mouse.wheel(0, 2500)
-    p.wait_for_timeout(400)
-    assert p.locator('#secnav a[aria-current="true"]').count() == 1
-    assert p.locator('#secnav a[aria-current="true"]').get_attribute("href") != ilk
+    isaretli = lambda: p.locator('#secnav a[aria-current="page"]')
+    assert isaretli().count() == 1
+    ilk = isaretli().get_attribute("href")
+    baglar = p.locator("#secnav a")
+    i = 1 if baglar.nth(0).get_attribute("href") == ilk else 0
+    baglar.nth(i).click()
+    p.wait_for_timeout(300)
+    assert isaretli().count() == 1, "birden fazla ya da hiç işaret"
+    assert isaretli().get_attribute("href") != ilk
     assert errors == []
 
 
