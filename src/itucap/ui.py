@@ -4438,7 +4438,13 @@ function renderAcikDenklik(){
       const s = k.sections[0] || {};
       /* Aday havuzunda mı — tıklayıp eklenebilir mi? Değilse bilgi kartı
          (yine de CRN/saat/kontenjan görünüyor). Sessiz tıklanamazlık yerine
-         görünüm ve ipucu farklı. */
+         görünüm ve ipucu farklı.
+         ⚠️ Faz 49'da bakıldı ve BİLEREK `CAND` bırakıldı: buradaki
+         tıklanamazlık SESSİZ değil (kartın görünümü ve `title`ı söylüyor),
+         yani ızgaradaki hatanın sınıfında değil. `addDialog` artık tam
+         havuza düşüyor, yani açmak isteyen tek satır uzakta — ama bu
+         öğrencinin verisinde ölçülecek tek bir kart bile çıkmadı
+         (`openEquivalents` boş), ölçmeden değiştirmiyoruz. */
       const eklenebilir = !!CAND[k.code];
       return `<div class="denkkaynak${eklenebilir ? "" : " bilgi"}"
           data-course="${esc(k.code)}"${eklenebilir
@@ -6231,8 +6237,20 @@ function kilitButonu(course, crn){
     >${on ? "Kilidi aç" : "Bu saate kilitle"}</button>`;
 }
 
-function kilitNotu(course, crn){
+/* `disKip`: ders AKTİF kipin havuzunda değil. `oneren`: onu havuzunda tutan
+   kipin sırası, yoksa -1.
+
+   ⚠️ Motor kilidi YALNIZ o kipin havuzundaki derse bağlıyor
+   (`recommend.build_schedules`: `locked = {… if k in havuzda}`) — yani bu
+   kipte kilit SESSİZCE bağlamaz. Düğmeyi gizlemiyoruz (öbür kipte gerçekten
+   işe yarıyor); ne yapıp ne yapmayacağını yazıyoruz. */
+function kilitNotu(course, crn, disKip, oneren){
   if(!DATA.live) return "";
+  if(disKip)
+    return `<div class="why" style="margin-top:8px">⚠️ Kilit <b>bu kipte
+      bağlamaz</b> — ders bu kipin aday havuzunda değil.${
+      oneren >= 0 ? ` Kilitlersen <b>${esc(MODES[oneren].label)}</b> kipinin
+      önerilerinde bu şube sabit tutulur.` : ""}</div>`;
   const l = kilitler()[course];
   if(l && l.crn !== crn)
     return `<div class="why" style="margin-top:8px">Bu ders
@@ -6297,9 +6315,21 @@ function renderKilitNot(){
      program kuramıyor. Sekme şeridinde yalnız kısa sebep var; hangi
      kilitlerin bağladığı ve nasıl açılacağı burada. */
   const bagli = kilitliBuKipte();
+  /* Kilit duruyor ve şubesi açık (`ok`), ama ders BU kipin havuzunda yok. */
+  const kapsamDisi = list.filter(l => l.ok && !bagli.includes(l));
+  const kipAdi = (course) => {
+    const i = MODES.findIndex(m => (m.candidates || []).some(c => c.course === course));
+    return i >= 0 ? MODES[i].label : "";
+  };
   const bosSonuc = !(M().schedules || []).length;
   el.innerHTML = `<b>${list.length} ders saate kilitli.</b>
-    Öneriler bu derslerin şubesini sabit tutup <b>etrafında</b> kuruluyor.
+    ${/* ⚠️ Giriş cümlesi KOŞULLU: kilitlerin hepsi bu kipin havuzu dışındaysa
+          "etrafında kuruluyor" demek düpedüz yanlış olurdu — motor onları bu
+          kipte hiç görmüyor (Faz 49). */ ""}
+    ${bagli.length ? `Öneriler ${bagli.length < list.length
+        ? `bu kipte bağlayan <b>${bagli.length}</b> dersin`
+        : "bu derslerin"} şubesini sabit tutup <b>etrafında</b> kuruluyor.`
+      : `<b>Bu kipte hiçbiri bağlamıyor.</b>`}
     ${bosSonuc && bagli.length ? `<div style="margin-top:6px;color:var(--danger)">
       <b>Bu kipte hiçbir program kurulamadı</b> — bu kipte bağlayan
       ${bagli.length} kilit (${bagli.map(l =>
@@ -6311,6 +6341,18 @@ function renderKilitNot(){
         l.neden === "sube"
           ? `CRN ${esc(l.crn)} bu kipte açık değil`
           : "bu ders artık aday listesinde yok"}.`).join("<br>")}
+      </div>` : ""}
+    ${/* ★★ FAZ 49 — KAPSAM DIŞI KİLİT. Motor kilidi yalnız o kipin
+          havuzundaki derse bağlıyor; kilitli üst dönem dersi "5. dönem +
+          alttan" kipinde sessizce yok sayılıyordu ve şerit yine
+          "etrafında kuruluyor" diyordu. Tutmayan kilitle aynı sınıf:
+          söylenmeden bırakılamaz, ama HATA da değil — öbür kipte
+          çalışıyor, o yüzden kırmızı değil. */ ""}
+    ${kapsamDisi.length ? `<div style="margin-top:6px">
+      ${kapsamDisi.map(l => `${ad(l)} kilidi <b>bu kipte bağlamıyor</b> —
+        ders bu kipin aday havuzunda değil${
+        kipAdi(l.course) ? `; <b>${esc(kipAdi(l.course))}</b> kipinde bağlıyor`
+                         : ""}.`).join("<br>")}
       </div>` : ""}
     ${kayan.length ? `<div style="margin-top:6px">
       ${kayan.map(k => `${ad(k.l)} ekranda <span class="mono">CRN ${esc(k.crn)}</span>,
@@ -6528,7 +6570,10 @@ function ndBagla(course){
   if(!kutu) return;
   const yenile = () => {
     const acik = kutu.open;
-    kutu.outerHTML = notDagilimi(CAND[course]);
+    /* ⚠️ `candOf` — `CAND` DEĞİL: pencere artık kipin havuzunda olmayan
+       ders için de açılıyor (Faz 49); burada `CAND` kalsaydı dönem sekmesine
+       basınca not dağılımı kutusu boşalırdı. */
+    kutu.outerHTML = notDagilimi(candOf(course));
     const yeni = $(`[data-ndbox="${CSS.escape(course)}"]`);
     if(yeni){ yeni.open = acik; ndBagla(course); }
   };
@@ -6547,9 +6592,33 @@ function ndBagla(course){
   });
 }
 
+/* ★★ FAZ 49 — IZGARADAKİ DERSE TIKLANAMIYORDU (kullanıcı 18.09.2026:
+   *"x.dönem + alttan kısmında kaydettiğim program yüklenince üstten olan
+   derslere tıklayamıyorum"*).
+
+   Ölçüldü (gerçek veri, "5. dönem + alttan"): açılışta kaydedilen program
+   yükleniyor, ızgarada 14 ders var, bunların **5'i** (GEO 401E, ATA 121,
+   TUR 121, GEO 464E, SNT 103E) kipin 11 kişilik havuzunda YOK. O beşine
+   tıklayınca hiçbir şey olmuyordu: ne pencere, ne hata, ne açıklama.
+
+   Sebep tek kelimeydi: pencere dersi `CAND` (AKTİF KİPİN havuzu) üzerinden
+   çözüyordu. Oysa ızgara `candOf` ile çiziliyor — o, kipte yoksa tam havuza
+   düşüyor. Yani ekranda çizilen ama açılamayan ders çıkıyordu.
+
+   ⚠️ Bu depoda kip politikası zaten yazılıydı (27.08.2026, boş saat
+   penceresi): *"kip yalnız ÖNERİYİ daraltıyor, elle ekleme hakkını değil."*
+   Pencere o politikadan habersizdi. Artık `choose`, `sectionOf`, `picks` ve
+   ızgarayla aynı yerden okuyor.
+
+   ⚠️ Açmak yetmez: ders bu kipin havuzunda olmadığını SÖYLEMELİ, yoksa
+   "çıkardım, geri gelmedi" sessiz bir şaşkınlık olurdu. */
 function courseDialog(course){
-  const cand = CAND[course], cur = sel.find(x => x.course === course);
+  const cand = candOf(course), cur = sel.find(x => x.course === course);
   if(!cand || !cur) return;
+  const disKip = !CAND[course];
+  const onerenKip = disKip
+    ? MODES.findIndex(m => (m.candidates || []).some(c => c.course === course))
+    : -1;
   const others = cand.sections.filter(s => s.crn !== cur.crn);
   const fits = others.filter(s => conflictsWith(s, course).length === 0);
   const busy = others.length - fits.length;
@@ -6563,6 +6632,12 @@ function courseDialog(course){
     <div class="meta" style="color:var(--ink-3);font-size:12px">
       ${cand.credits} kredi · ${cand.ects} AKTS
       ${cand.reasons.length ? "<br>" + cand.reasons.map(esc).join("; ") : ""}</div>
+    ${disKip ? `<div class="why" style="margin-top:8px">Bu ders
+      <b>${esc(M().label || "bu kip")}</b> kipinin aday havuzunda değil —
+      programında duruyor ve buradan şubesini değiştirebilirsin, ama bu kip
+      onu <b>kendiliğinden önermez</b>: çıkarırsan geri getirmez.
+      ${onerenKip >= 0 ? `Öneren kip: <b>${esc(MODES[onerenKip].label)}</b>.`
+        : ""}</div>` : ""}
     ${puanKirilimi(cand)}
     ${notDagilimi(cand)}
     ${fits.length ? `<div class="chipline"><span class="chip">başka şube</span>
@@ -6578,7 +6653,7 @@ function courseDialog(course){
       ${kilitButonu(cand.course, cur.crn)}
       ${watchButton(cand.course)}
     </div>
-    ${kilitNotu(cand.course, cur.crn)}
+    ${kilitNotu(cand.course, cur.crn, disKip, onerenKip)}
     ${watchNote(cand.course)}`);
   const rm = $("#removeCourse");
   if(rm) rm.addEventListener("click", () => { $("#detail").close(); removeCourse(course); });
@@ -7047,7 +7122,10 @@ document.addEventListener("keydown", (e) => {
 });
 
 function addDialog(course){
-  const cand = CAND[course];
+  /* Aynı sınıf (Faz 49): ekleme penceresi de kipin havuzuna kilitliydi.
+     Çağıranların hepsi bugün kip havuzundan geliyor, ama denklik kartı ve
+     katalogdan ekleme yolları tam havuzdan ders getirebiliyor. */
+  const cand = candOf(course);
   if(!cand) return;
   if(sel.some(x => x.course === course)) return courseDialog(course);
   const rows = cand.sections.map(s => {

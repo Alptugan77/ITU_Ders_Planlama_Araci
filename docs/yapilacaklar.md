@@ -1,10 +1,10 @@
 # Yapılacaklar
 
-Faz 1–48 bitti (1128 test). Depo GitHub'a hazır. Bu liste **sonrası** için:
+Faz 1–49 bitti (1136 test). Depo GitHub'a hazır. Bu liste **sonrası** için:
 ne kaldı, neden önemli, ne kadar iş, neye bağlı.
 
 ⚠️ **Yayınlanan site hâlâ eski.** Yayın hattı (`git push` → Actions → pages)
-çalıştırılmadan Faz 28–48'in hiçbiri kullanıcıya ulaşmıyor. Bu, listedeki
+çalıştırılmadan Faz 28–49'un hiçbiri kullanıcıya ulaşmıyor. Bu, listedeki
 her maddeden önce gelen tek iş.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
@@ -223,6 +223,26 @@ her maddeden önce gelen tek iş.
 > dönüyor · 320px ve %200 yazıda taşma yok.
 > ➜ Ayrıntı ve ölçümler: `docs/faz48-tarama.md`
 >
+> **Faz 49'da kapananlar (18.09.2026):** kullanıcı: *"x.dönem + alttan
+> kısmında kaydettiğim program yüklenince üstten olan derslere
+> tıklayamıyorum"*. ★★ Ölçüldü ve haklıydı: "5. dönem + alttan" kipinde
+> ızgarada **14** ders duruyor, kipin havuzunda **11** var; kalan **5'ine**
+> (GEO 401E, ATA 121, TUR 121, GEO 464E, SNT 103E) tıklayınca **hiçbir şey**
+> olmuyordu — ne pencere, ne hata, ne açıklama ✅ Sebep: pencere dersi `CAND`
+> (aktif kipin havuzu) ile çözüyor, ızgara ise `candOf` ile çiziliyordu;
+> *çizen* ile *açan* ayrı havuza bakıyordu. Kip politikası depoda zaten
+> yazılıydı (*"kip yalnız ÖNERİYİ daraltıyor, elle ekleme hakkını değil"*),
+> pencere ondan habersizdi · ⚠️ açmak yetmedi: ders bu kipin havuzunda
+> olmadığını ve hangi kipin önerdiğini SÖYLÜYOR ✅ · ★ pencere açılınca kilit
+> düğmesi de göründü ve motor kilidi bu kipte bağlamıyor — düğme gizlenmedi,
+> ne yapacağı yazıldı ✅ · kilit şeridi kapsam dışı kilit varken "etrafında
+> kuruluyor" diyordu, artık "bu kipte hiçbiri bağlamıyor" ✅ · aynı sınıftan
+> iki yer daha (`ndBagla`, `addDialog`) düzeltildi, biri (denklik kartı)
+> ölçülüp bilerek bırakıldı ✅ · sınıf muhafızı: `CAND[` okumaları sayılıyor
+> ⚠️ Muhafız denemesinde yedi denemenin **üçü yeşil kaldı** — üçü de "metin
+> kaynakta var mı" diye bakıyordu; davranışa çevrildi.
+> ➜ Ayrıntı ve ölçümler: `docs/faz49-kip-disi-ders.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
@@ -386,7 +406,7 @@ yalnız **arz sorunlu** derste var — önşarta takılan ders nöbetle çözül
 ## 4.4 ~~Yayın~~ · ✅ **Faz 14'te kapandı** — statik site
 
 Motor **JS'e çevrilmedi**, Python tarayıcıya taşındı (Pyodide). Tek kod
-tabanı, 1128 testin tamamı web sürümünü de kapsıyor, iki sürüm ayrışamaz.
+tabanı, 1136 testin tamamı web sürümünü de kapsıyor, iki sürüm ayrışamaz.
 
 ```bash
 make site ARGS=node_modules/pyodide     # yerelde kur ve dene
@@ -431,7 +451,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 1128 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 1136 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` ✅ çalıştırıldı (katalogda 1081 ÇAP + 134 yandal planı).
   Dönemde bir kez yeter; program değiştirmeyi düşünmüyorsan gerekmez.
