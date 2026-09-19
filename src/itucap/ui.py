@@ -2236,6 +2236,23 @@ table.list tr:hover td{background:var(--surface-2)}
 .chip{display:inline-block;white-space:nowrap;font-size:10.5px;font-weight:600;
   padding:3px 9px;border-radius:0;margin-bottom:3px;
   letter-spacing:.05em;text-transform:uppercase;border:1px solid currentColor}
+/* ★★ FAZ 51 — `title` DOKUNMATİKTE GÖRÜNMEZ.
+   Ölçüldü (390px, on bir görünüm): görünür 102 `title`ın 82'si tıklanamayan
+   bir öğedeydi, yani telefonda o metne ULAŞILAMIYORDU. Bunların 24'ü
+   kısa bir etiketi açıklayan GERÇEK cümleler ve üçü bu projenin temel
+   dürüstlük notları:
+     · "önşart bilgisi yok" → *"Katalogda önşart metni yok — 'önşartı yok'
+       demek DEĞİL. OBS'den doğrula."*
+     · "⚠ dönem bitmiş görünüyor" → hangi kanıta dayandığı,
+     · kategori/eşik rozetleri → yönergedeki şartın kendisi.
+   Fare kullanıcısı bunu üstüne gelerek okuyordu; telefondaki kişi hiç
+   okuyamıyordu. Artık noktalı altı çizili ve DOKUNULABİLİR: metin kısa
+   bildirim olarak çıkıyor (canlı bölgeye de düşüyor).
+   ⚠️ `title` KALDIRILMADI: ekran okuyucu onu zaten açıklama olarak
+   okuyor, fare kullanıcısı da üstüne gelince görüyor. Eklenen tek şey
+   dokunmatikteki yol. */
+.chip[title],.cat[title],.veriyasi .stale[title],.aciklamali[title]{
+  text-decoration:underline dotted;text-underline-offset:3px;cursor:help}
 /* Denkliği açık gereken dersler (kullanıcı isteği 27.08.2026). */
 .denkrow{padding:10px 0;border-top:1px solid var(--border)}
 .denkrow:first-child{border-top:0}
@@ -2752,6 +2769,60 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
    ⚠️ Yazdırılan sayfa, ekranın bir fotoğrafı değil: düğmeler, süzgeçler,
    gezinme çubuğu kâğıtta işe yaramaz — çıkarılıyor. Kalan şey kayıt
    masasında lazım olan şey. */
+/* ★★ FAZ 51 — ZORLANMIŞ RENK KİPİ (Windows yüksek kontrast /
+   `forced-colors: active`). Tarayıcı bu kipte bütün renkleri kullanıcının
+   paletiyle DEĞİŞTİRİYOR. Bu araçta renk veri taşıdığı için ölçüm kötüydü:
+
+     · ızgara blokları **11 ayrı tondan tek renge** düştü (rol + ders tonu
+       bilgisi tamamen kayboldu); telefonda gün listesi de aynı,
+     · doluluk ve ilerleme çubuklarının DOLU kısmı ile kanalı aynı renge
+       düştü — yani çubuk tamamen GÖRÜNMEZ oldu (kayıt gününde bakılan tek
+       sayı bu),
+     · seçili sekme, seçili kip ve açık bölüm "seçili" görünmüyordu.
+
+   Bu depoda kural: bilgi sessizce kaybolmaz. Renk gidiyorsa YAZI gelir,
+   çubuklar sistem renkleriyle yeniden çizilir.
+   ⚠️ `forced-color-adjust:none` KULLANILMADI: kullanıcının paletini
+   ezmek, yüksek kontrast isteyen kişinin isteğini geri çevirmek olurdu.
+   Sistem renkleri (`Highlight`, `CanvasText`) zaten o palettendir. */
+@media (forced-colors: active){
+  /* 1. ROL, renk yerine yazıyla. Ton (ders ayrımı) yazıya çevrilemez ama
+        blok zaten ders KODUNU taşıyor; kaybolan tek şey roldü. */
+  .blk[data-role="ANADAL"]::after,.daylist .row[data-role="ANADAL"]::after{
+    content:" · anadal"}
+  .blk[data-role="CAP"]::after,.daylist .row[data-role="CAP"]::after{
+    content:" · ÇAP"}
+  .blk[data-role="YANDAL"]::after,.daylist .row[data-role="YANDAL"]::after{
+    content:" · yandal"}
+  .blk[data-role="PLAN_DISI"]::after,.daylist .row[data-role="PLAN_DISI"]::after{
+    content:" · plan dışı"}
+  .blk[data-role]::after,.daylist .row[data-role]::after{
+    font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+    white-space:nowrap}
+  .blk[data-role]{border:1px solid CanvasText}
+  /* 2. ÇUBUKLAR: dolu kısım sistem vurgusu, kanal kenarlıkla belli. */
+  .capbar,.meter,.gaugebar .track{border:1px solid CanvasText;background:Canvas}
+  .capbar>i,.meter i,.gaugebar .track i{background:Highlight}
+  /* Taralı "bu dönem planlanan" dilim: tarama da düzleşiyor, ayrımı
+     kesikli kenarla koruyoruz. */
+  .meter i.plan{background:Canvas;border-right:2px dashed CanvasText;opacity:1}
+  /* 3. SEÇİLİ durumlar. `aria-selected`/`aria-pressed` ekran okuyucuya
+        zaten söylüyordu; eksik olan GÖRSEL ayrımdı.
+     ⚠️⚠️ `background:Highlight; color:HighlightText` KULLANILMADI, ölçüldü:
+     Chromium zorlanmış kipte yazının arkasına `Canvas` renginde bir
+     "arka levha" çiziyor; HighlightText de beyaz olunca yazı BEYAZ ÜSTÜNE
+     BEYAZ düşüyor ve sekme düpedüz boş beyaz bir şerit olarak çıkıyordu
+     (ekran görüntüsüyle doğrulandı). Seçiliyi KALIN ÇERÇEVEYLE
+     söylüyoruz; yazı okunaklı kalıyor. */
+  .tab[aria-selected="true"],.modebtn[aria-pressed="true"],
+  .ray a[aria-current="page"],.watchmini[aria-pressed="true"]{
+    background:Canvas;color:CanvasText;
+    outline:3px solid Highlight;outline-offset:-3px}
+  /* 4. Doluluk uyarısı (dolu / az yer kaldı) renkle söyleniyordu; sayı
+        zaten yazıyor, kenarlıkla pekiştiriyoruz. */
+  .cap.full,.cap.tight{outline:1px solid CanvasText;outline-offset:1px}
+}
+
 @media print{
   @page{margin:12mm}
   html,body{background:#fff;color:#000}
@@ -2868,7 +2939,11 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
      kötüdür). -->
 <div class="govde">
 <nav class="ray" id="secnav" aria-label="Bölümler"></nav>
-<div class="icerik" id="icerik">
+<!-- ★ FAZ 51 — `<main>` yer işareti. Ölçüldü: sayfada `banner` (header),
+     `navigation` (ray) ve `contentinfo` (footer) vardı ama **`main` YOKTU**;
+     ekran okuyucu kullanıcısı "asıl içeriğe atla" yapamıyordu. Etiket
+     değişti, sınıf aynı — bütün CSS `.icerik` üzerinden. -->
+<main class="icerik" id="icerik">
 
 <section class="setupbar" id="setupbar"></section>
 
@@ -3012,7 +3087,11 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
        dersi arayan kişi onu bulamıyor, "bu araç benim dersimi bilmiyor"
        diye çıkıyordu. Süzgeç kesme sınırını da kaldırıyor. -->
   <div class="candbar">
-    <input type="search" id="candQ"
+    <!-- ★ FAZ 51 — YER TUTUCU ETİKET DEĞİLDİR. Ölçüldü: bu kutunun
+         `<label>`ı, `aria-label`ı ve `aria-labelledby`si yoktu; ekran
+         okuyucu "arama" diyip geçiyordu. Üstelik yer tutucu yazmaya
+         başlayınca kayboluyor — neyin arandığını hatırlatan tek şeydi. -->
+    <input type="search" id="candQ" aria-label="Aday derslerde ara"
       placeholder="ders ara — kod, ad ya da hoca (örn. MAT 103E, olasılık, Feza)">
     <div class="radios" id="candRole"></div>
     <label class="tickbox"><input type="checkbox" id="candFree"> yalnız yeri olanlar</label>
@@ -3078,7 +3157,7 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
   <div id="tierGroups" style="margin-top:14px"></div>
 </section>
 
-</div><!-- /icerik -->
+</main><!-- /icerik -->
 </div><!-- /govde -->
 
 <footer>
@@ -3283,7 +3362,14 @@ function veriYasiMetni(){
    sebeple olmaz: kip bir pencere açıp sayfayı kilitler, ve tarayıcı
    otomasyonunda tüm olayları durdurur. `aria-live` ile okuyucuya da gidiyor. */
 let _bildirimZaman = null;
-function say2(text){
+/* ★★ FAZ 51 — CANLI BÖLGE AÇILIŞTA VAR OLMALI.
+   Ölçüldü: sayfada `aria-live` taşıyan HİÇBİR öğe yoktu; bölge ilk
+   bildirimle birlikte, İÇİ DOLU olarak DOM'a giriyordu. Ekran okuyucular
+   canlı bölgeyi önceden tanıyıp sonraki DEĞİŞİKLİĞİ duyuruyor; hazır
+   metinle sonradan eklenen bir bölge çoğu okuyucuda hiç okunmuyor. Yani
+   "kaydedildi", "tazeleme bu ortamda yapılamıyor" gibi bütün kısa
+   bildirimler görme engelli kullanıcıya SESSİZ geçiyordu. */
+function bildirimBolgesi(){
   let el = $("#bildirim");
   if(!el){
     el = document.createElement("div");
@@ -3291,6 +3377,11 @@ function say2(text){
     el.setAttribute("role", "status"); el.setAttribute("aria-live", "polite");
     document.body.appendChild(el);
   }
+  return el;
+}
+
+function say2(text){
+  const el = bildirimBolgesi();
   el.textContent = text;
   el.classList.add("acik");
   clearTimeout(_bildirimZaman);
@@ -3389,6 +3480,30 @@ async function api(path, payload){
   return body;
 }
 
+/* ★★ FAZ 51 — HATA GÖRME ENGELLİ KULLANICIYA DA ULAŞSIN.
+   Ölçüldü: bir uç 500 dönünce hata GÖRÜNÜYOR — ama yalnız düğmenin
+   ETİKETİ olarak ("hata: deneme"). Sekiz çağrı yerinin hepsi böyle. İki
+   sorun: (a) hiçbiri canlı bölgeye düşmüyor, yani ekran okuyucu hiçbir şey
+   söylemiyor; (b) düğmenin erişilebilir ADI hatayla değişiyor — geri
+   dönen kullanıcı "hata: …" adlı bir düğme buluyor, ne yaptığını bilmiyor.
+   ⚠️ Görsel biçim DEĞİŞTİRİLMEDİ: hatayı eylemin durduğu yerde göstermek
+   doğru ve yerleşik. Eklenen tek şey, aynı cümlenin canlı bölgeye de
+   düşmesi ve düğmenin asıl adının `aria-label`da korunması. */
+function hataBildir(btn, err){
+  const mesaj = (err && err.message) || String(err || "hata");
+  if(btn){
+    if(!btn.dataset.asilAd) btn.dataset.asilAd = (btn.textContent || "").trim();
+    btn.disabled = false;
+    btn.textContent = "hata: " + mesaj;
+    btn.title = mesaj;
+    /* Erişilebilir ad eski eylemi söylemeye devam ediyor. */
+    if(btn.dataset.asilAd)
+      btn.setAttribute("aria-label", btn.dataset.asilAd + " — hata: " + mesaj);
+  }
+  say2("hata: " + mesaj);
+  return mesaj;
+}
+
 /** Sunucudan gelen yeni durumu uygula — sayfa yenilenmeden. */
 function applyState(next){
   Object.assign(DATA, next);
@@ -3455,7 +3570,21 @@ function openSetup(html, wire){
   $("#setupBody").querySelectorAll("[data-close]").forEach(b =>
     b.addEventListener("click", () => $("#setup").close()));
   wire();
+  pencereAdiVer($("#setup"), $("#setupBody"));      /* Faz 51 */
   $("#setup").showModal();
+}
+
+/** Pencerenin adını İLK BAŞLIĞINDAN türetir (Faz 51).
+    Üç ayrı pencere açıcı var; üçü de buradan geçiyor ki biri unutulmasın. */
+function pencereAdiVer(dlg, govde){
+  if(!dlg) return;
+  const bas = (govde || dlg).querySelector("h1,h2,h3");
+  if(bas){
+    if(!bas.id) bas.id = "dlgbaslik-" + (dlg.id || "x");
+    dlg.setAttribute("aria-labelledby", bas.id);
+  }else{
+    dlg.removeAttribute("aria-labelledby");
+  }
 }
 
 function say(text, bad){
@@ -4430,7 +4559,7 @@ function renderLoad(){
   if(btn) btn.addEventListener("click", async () => {
     btn.disabled = true; btn.textContent = "…";
     try{ applyState(await api("/api/maxload", {maxLoad: L.max})); }
-    catch(err){ btn.disabled = false; btn.textContent = "hata: " + err.message; }
+    catch(err){ hataBildir(btn, err); }
   });
 }
 
@@ -4731,7 +4860,7 @@ function renderSuggestions(){
       b.disabled = true; b.textContent = "…";
       try{ applyState(await api("/api/equivalence",
           {target: b.dataset.eq, sources: [b.dataset.src]})); }
-      catch(err){ b.disabled = false; b.textContent = "hata: " + err.message; }
+      catch(err){ hataBildir(b, err); }
     }));
   wireApplied();
   const all = $("#eqAll");
@@ -4743,7 +4872,7 @@ function renderSuggestions(){
         next = await api("/api/equivalence", {target: i.target, sources: [i.source]});
       }
       applyState(next);
-    }catch(err){ all.disabled = false; all.textContent = "hata: " + err.message; }
+    }catch(err){ hataBildir(all, err); }
   });
 }
 
@@ -4878,7 +5007,7 @@ function wirePicks(){
       //   kuruluyor, düğme zaten yenileniyor; geri() yalnız hata yolunda.)
       applyState(await api("/api/picks", {picks: sel}));
     }catch(err){
-      geri(); btn.textContent = "hata: " + err.message;
+      geri(); hataBildir(btn, err);
     }
   };
   const crn = $("#crnBtn");
@@ -6338,8 +6467,11 @@ async function kilitYaz(course, crn, btn){
     const d = $("#detail");
     if(d && d.open) d.close();
   }catch(err){
+    /* ⚠️ Burada etiket KORUNUYOR (düğmede kilit simgesi var, yazıya
+       çevirmek simgeyi yok ederdi) — hata `title`da ve canlı bölgede. */
     if(btn){ btn.disabled = false; btn.innerHTML = eski;
              btn.title = "hata: " + err.message; }
+    say2("hata: " + err.message);
   }
 }
 
@@ -6492,7 +6624,7 @@ function renderKilitNot(){
     let son = null;
     for(const l of list){
       try{ son = await api("/api/kilit", {course: l.course, crn: ""}); }
-      catch(e){ h.textContent = "hata: " + e.message; return; }
+      catch(e){ hataBildir(h, e); return; }
     }
     if(son) applyState(son);
   });
@@ -6529,6 +6661,14 @@ function openDialog(html){
       choose(b.dataset.course, b.dataset.crn);
       $("#detail").close();
     }));
+  /* ★★ FAZ 51 — PENCERENİN ADI. Ölçüldü: altı pencerenin HİÇBİRİNDE
+     `aria-label`/`aria-labelledby` yoktu; ekran okuyucu açılışta yalnız
+     "iletişim kutusu" diyordu — hangi ders, hangi saat, ne penceresi
+     olduğu söylenmiyordu. Hepsinin ilk başlığı zaten bir `<h2>`; adı
+     ondan TÜRETİYORUZ, tek yerde, yeni pencereler dahil.
+     ⚠️ Elle yazılmış bir ada gerek yok: ikisi ayrışırsa ekranda bir şey,
+     kulakta başka bir şey olurdu. */
+  pencereAdiVer($("#detail"), $("#detailBody"));
   $("#detail").showModal();
 }
 
@@ -6822,7 +6962,7 @@ function wireWatch(){
       const r = await api("/api/watch", {course: b.dataset.course});
       applyState(r);
       $("#detail").close();
-    }catch(err){ b.disabled = false; b.textContent = "hata: " + err.message; }
+    }catch(err){ hataBildir(b, err); }
   });
 }
 
@@ -6979,7 +7119,7 @@ function busyDialog(day, min, remove){
       try{
         applyState(await api("/api/mesgul", {remove}));
         $("#detail").close();
-      }catch(err){ btn.disabled = false; btn.textContent = "hata: " + err.message; }
+      }catch(err){ hataBildir(btn, err); }
     });
     return;
   }
@@ -7599,6 +7739,25 @@ addEventListener("click", ev => {
   gorunumAc(id, true);
 });
 
+/* ★★ FAZ 51 — AÇIKLAMAYA DOKUNMA. `title` dokunmatik ekranda hiç
+   görünmüyor; ölçüldü, 24 gerçek açıklama telefonda ulaşılmazdı.
+   ⚠️ YAKALAMA evresinde (`true`) ve `stopPropagation` ile: bu rozetlerin
+   çoğu tıklanabilir bir SATIRIN içinde duruyor; yakalamasaydık dokunuş
+   satırın penceresini açar, açıklama yine okunmazdı.
+   ⚠️ Öğelere `tabindex`/`role` EKLENMİYOR: ekran okuyucu `title`ı zaten
+   açıklama olarak okuyor, 24 yeni durak eklemek onun için gürültü olurdu.
+   Eklenen tek şey, dokunmatikteki okuma yolu. */
+addEventListener("click", ev => {
+  const e = ev.target.closest &&
+    ev.target.closest(".chip[title], .cat[title], .stale[title], .aciklamali[title]");
+  if(!e) return;
+  const t = (e.getAttribute("title") || "").replace(/\s+/g, " ").trim();
+  if(!t) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  say2(t);
+}, true);
+
 /* Rayda sayı: "kaç aday", "kaç engel". Bölüme girmeden büyüklüğü görünsün —
    eskiden bunu öğrenmenin tek yolu oraya kaydırmaktı.
    ⚠️ Uydurma sayı yok: sayamadığımız bölümde hiçbir şey yazmıyor. */
@@ -7647,6 +7806,7 @@ function renderBasvuru(){
 function openBasvuru(kind){
   basvuruKind = kind || basvuruKind;
   renderBasvuruBody();
+  pencereAdiVer($("#basvuruDlg"));                  /* Faz 51 */
   $("#basvuruDlg").showModal();
 }
 
@@ -7995,6 +8155,7 @@ addEventListener("resize", () => requestAnimationFrame(drawTierLinks));
 /* ★ Tek giriş noktası. Sunucudan yeni durum gelince (program/dönem/transkript
    değişti) sayfa yenilenmeden buradan yeniden çiziliyor. */
 function boot(){
+  bildirimBolgesi();      /* canlı bölge ÖNCE var olsun (Faz 51) */
   setupBar();
   renderHeader();
   renderGpa();

@@ -49,10 +49,16 @@ CSS = re.search(r"<style>(.*?)</style>", KAYNAK, re.S).group(1)
 
 # ------------------------------------------------------------- iskelet
 def test_KABUK_ray_ve_icerik_ayri():
-    """★★ Üç sütunlu kabuk: ray + içerik. Bölümler `.icerik` içinde."""
+    """★★ Üç sütunlu kabuk: ray + içerik. Bölümler `.icerik` içinde.
+
+    ⚠️ Faz 51: içerik kabı `<div>` iken `<main>` oldu — sayfada `main` yer
+    işareti YOKTU (ölçüldü) ve ekran okuyucu kullanıcısı asıl içeriğe
+    atlayamıyordu. Test etikete değil, YER İŞARETİ + sınıf ikilisine
+    bakıyor: `.icerik` bütün CSS'in dayanağı, `<main>` da erişilebilirlik
+    sözü."""
     assert '<div class="govde">' in KAYNAK
     assert '<nav class="ray" id="secnav"' in KAYNAK
-    assert '<div class="icerik" id="icerik">' in KAYNAK
+    assert '<main class="icerik" id="icerik">' in KAYNAK
     kural = re.search(r"(?m)^\.govde\{([^}]*)\}", CSS).group(1)
     assert "grid-template-columns:216px" in kural.replace(" ", "")
 

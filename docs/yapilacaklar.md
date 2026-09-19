@@ -1,10 +1,10 @@
 # Yapılacaklar
 
-Faz 1–50 bitti (1145 test). Depo GitHub'a hazır. Bu liste **sonrası** için:
+Faz 1–51 bitti (1155 test). Depo GitHub'a hazır. Bu liste **sonrası** için:
 ne kaldı, neden önemli, ne kadar iş, neye bağlı.
 
 ⚠️ **Yayınlanan site hâlâ eski.** Yayın hattı (`git push` → Actions → pages)
-çalıştırılmadan Faz 28–50'nin hiçbiri kullanıcıya ulaşmıyor. Bu, listedeki
+çalıştırılmadan Faz 28–51'in hiçbiri kullanıcıya ulaşmıyor. Bu, listedeki
 her maddeden önce gelen tek iş.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
@@ -265,6 +265,30 @@ her maddeden önce gelen tek iş.
 > (hangi program, hangi dönem, verinin yaşı, tazele).
 > ➜ Ayrıntı ve ölçümler: `docs/faz50-telefon.md`
 >
+> **Faz 51'de kapananlar (19.09.2026 — UX/UI incelemesi):** kullanıcı:
+> *"ux ve ui açısından uygulamayı inceleyip eksiklerini giderir misin"*.
+> Hiç bakılmamış üç boyut tarandı; üçünde de aynı şey çıktı: **bilgi var
+> ama bazı kullanıcılara hiç ulaşmıyor.** ★★ Ekran okuyucu: `main` yer
+> işareti YOKTU · canlı bölge (`aria-live`) **açılışta yoktu**, yani bütün
+> kısa bildirimler sessiz geçiyordu · **altı pencerenin altısı adsızdı**
+> ("iletişim kutusu") · arama kutusunun etiketi yoktu ✅ (pencere adı kendi
+> başlığından türetiliyor, üç açıcı da tek yardımcıdan geçiyor) ·
+> ★★ **Zorlanmış renk kipinde** (Windows yüksek kontrast) ızgara blokları
+> 11 tondan tek renge düşüyor (rol bilgisi yok oluyor), doluluk ve ilerleme
+> çubukları **tamamen görünmez** oluyor, seçili sekme/kip "seçili"
+> görünmüyordu → rol artık YAZIYLA, çubuklar sistem renkleriyle, seçili
+> kalın çerçeveyle ✅ ⚠️ `HighlightText` kalıbı denendi ve ölçümle çürüdü
+> (Chromium'un arka levhası yüzünden yazı beyaz üstüne beyaz düşüyor) ·
+> ★ uç hatası yalnız düğme etiketine yazılıyordu: ekran okuyucuya hiç
+> gitmiyor, üstelik düğmenin erişilebilir adını siliyordu → sekiz çağrı
+> yeri tek yardımcıya bağlandı ✅ · ★★ **`title` dokunmatikte görünmez**:
+> görünür 102 `title`ın 82'si tıklanamayan öğedeydi, 24'ü gerçek açıklama
+> ve üçü bu projenin dürüstlük notları ("'önşartı yok' demek DEĞİL") →
+> noktalı altı çizili ve dokunulabilir ✅
+> ⚠️ Ölçüm aracının kendisi de çürüdü: `getBoundingClientRect()` kapalı
+> `<details>` içindekini "görünür" sayıyor; doğrusu `checkVisibility()`.
+> ➜ Ayrıntı ve ölçümler: `docs/faz51-erisim.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
@@ -428,7 +452,7 @@ yalnız **arz sorunlu** derste var — önşarta takılan ders nöbetle çözül
 ## 4.4 ~~Yayın~~ · ✅ **Faz 14'te kapandı** — statik site
 
 Motor **JS'e çevrilmedi**, Python tarayıcıya taşındı (Pyodide). Tek kod
-tabanı, 1145 testin tamamı web sürümünü de kapsıyor, iki sürüm ayrışamaz.
+tabanı, 1155 testin tamamı web sürümünü de kapsıyor, iki sürüm ayrışamaz.
 
 ```bash
 make site ARGS=node_modules/pyodide     # yerelde kur ve dene
@@ -473,7 +497,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 1145 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 1155 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` ✅ çalıştırıldı (katalogda 1081 ÇAP + 134 yandal planı).
   Dönemde bir kez yeter; program değiştirmeyi düşünmüyorsan gerekmez.
