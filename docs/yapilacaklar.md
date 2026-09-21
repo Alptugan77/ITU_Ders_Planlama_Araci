@@ -1,10 +1,10 @@
 # Yapılacaklar
 
-Faz 1–51 bitti (1155 test). Depo GitHub'a hazır. Bu liste **sonrası** için:
+Faz 1–52 bitti (1167 test). Depo GitHub'a hazır. Bu liste **sonrası** için:
 ne kaldı, neden önemli, ne kadar iş, neye bağlı.
 
 ⚠️ **Yayınlanan site hâlâ eski.** Yayın hattı (`git push` → Actions → pages)
-çalıştırılmadan Faz 28–51'in hiçbiri kullanıcıya ulaşmıyor. Bu, listedeki
+çalıştırılmadan Faz 28–52'nin hiçbiri kullanıcıya ulaşmıyor. Bu, listedeki
 her maddeden önce gelen tek iş.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
@@ -289,6 +289,30 @@ her maddeden önce gelen tek iş.
 > `<details>` içindekini "görünür" sayıyor; doğrusu `checkVisibility()`.
 > ➜ Ayrıntı ve ölçümler: `docs/faz51-erisim.md`
 >
+> **Faz 52'de kapananlar (21.09.2026 — yüklenme ekranı + tek genişlik):**
+> kullanıcı: *"açılış ekranını güncelleyip yazıları büyütebilirsin — açılış
+> ekranı dediğim yüklenme ekranı"* ve *"bütün sekmelerde arayüzün genişliği
+> aynı olsun"*. Statik sitenin ilk ziyareti yavaş bağlantıda ~92 sn ve
+> kullanıcı o sürede yalnız bu ekranı görüyor. ★★ **Çubuk yalan
+> söylüyordu**: Python inerken **68 sn %16,7'de donuk**, son adımın başında
+> %100 ve **4,7 sn daha** çalışıyor → artık gerçekten inen **baytı** sayıyor
+> (17,3 / 17,3 MB), %100 ancak arayüz beslenince ✅ ⚠️ ilk sürüm ölçümle
+> çürüdü: Pyodide `fetch`e `URL` nesnesi veriyor, sayaç 17,3 MB'ın 5,2'sini
+> görüyor ve yanlış "takıldı" uyarısı çıkıyordu · ★ beyaz sayfa **2984 →
+> 632 ms**: gömülü yazı tipleri (486 KB) yükleyicinin önündeydi, sona alındı;
+> `app.js` yükleyicinin hemen ardında `async` ✅ · yazılar büyüdü (durum
+> satırı 12px gri → **19px koyu**, ad 30 → 56px, gizlilik notu 13,5 → 16px,
+> çubuk 3 → 8px) ✅ · hata artık hangi adımda durduğunu söylüyor +
+> "Yeniden dene" ✅ · ekran okuyucu 90 sn hiçbir şey duymuyordu → `status` +
+> `progressbar` ✅ · ★ **çerçeve her sekmede aynı** (1720px): sekme değişince
+> ray 1920px'te **196px zıplıyordu** → 0; okuma ölçüsü çerçeveden metne
+> taşındı (`80ch`) ✅ ⚠️ Faz 47'nin "genişleme yalnız ızgarada" kararı
+> kullanıcı isteğiyle **geri alındı**, iki testi gerekçesiyle yeniden yazıldı.
+> ⚠️ Geri alma düzeneği üç kez yanıldı (bayat `.pyc` · 1440px'te kör
+> genişlik bekçisi · son adımı göremeyen sahte Pyodide); üçü de düzeltildi,
+> 28 durumun 28'i kendi sebebiyle kırmızı.
+> ➜ Ayrıntı ve ölçümler: `docs/faz52-yukleme.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
@@ -311,7 +335,7 @@ Bu bölümün çoğu kapandı. Açık kalanlar, sırayla:
 
 | # | iş | kimde | zorluk |
 |---|---|---|---|
-| 0 | **Yayın** — `git push`, Actions "pages". Faz 28–46 kullanıcıya ancak böyle ulaşıyor | **sende** | S |
+| 0 | **Yayın** — `git push`, Actions "pages". Faz 28–52 kullanıcıya ancak böyle ulaşıyor | **sende** | S |
 | 0 | `make notdagilimi` — not dağılımı 176 dersten öteye geçsin | **sende** | S |
 | 1.2 | Denklik keşfini genişlet (çoklu kaynak; resmi tablo boş) | — | M |
 | 2.1 | Çok dönemli plan | — | L |
@@ -452,7 +476,7 @@ yalnız **arz sorunlu** derste var — önşarta takılan ders nöbetle çözül
 ## 4.4 ~~Yayın~~ · ✅ **Faz 14'te kapandı** — statik site
 
 Motor **JS'e çevrilmedi**, Python tarayıcıya taşındı (Pyodide). Tek kod
-tabanı, 1155 testin tamamı web sürümünü de kapsıyor, iki sürüm ayrışamaz.
+tabanı, 1167 testin tamamı web sürümünü de kapsıyor, iki sürüm ayrışamaz.
 
 ```bash
 make site ARGS=node_modules/pyodide     # yerelde kur ve dene
@@ -497,7 +521,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 1155 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 1167 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` ✅ çalıştırıldı (katalogda 1081 ÇAP + 134 yandal planı).
   Dönemde bir kez yeter; program değiştirmeyi düşünmüyorsan gerekmez.

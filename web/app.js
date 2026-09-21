@@ -36,13 +36,229 @@ const KULLANICI_DOSYALARI = [
 ];
 
 const el = (id) => document.getElementById(id);
-let adimNo = 0;
-const ADIM_SAYISI = 6;
-function adim(metin){
-  adimNo++;
-  const a = el("yukAdim"), c = el("yukCubuk");
-  if(a) a.textContent = metin;
-  if(c) c.style.width = Math.min(100, (adimNo / ADIM_SAYISI) * 100) + "%";
+
+/* ==================================================================
+   ★★ FAZ 52 — İLERLEME GERÇEK İŞİ GÖSTERİYOR.
+
+   Ölçüm (önce, ~200 KB/s'lik bağlantı, toplam 93 sn):
+     0,2 sn  %16,7  Python çalışma ortamı … 68,2 sn BOYUNCA KIPIRDAMADI
+    68,4 sn  %33    Motor
+    72,6 sn  %50    Ders kataloğu (14,8 sn donuk)
+    88,5 sn  %100   Hesaplanıyor … %100'DEYKEN 4,7 sn daha
+   Çubuk ADIM sayıyordu ve adımlar eşit değildi (68 sn ile 0,0 sn).
+
+   Şimdi:
+     · %90'ı İNEN BAYT — `fetch` sarmalayıcısı akan her parçayı sayıyor,
+       beklenen boyları `manifest.json` biliyor (site_kur yazıyor),
+     · %10'u biten adım,
+     · bayt akmıyor ama iş sürüyorsa (derleme, hesap) kayan şerit,
+     · indirme 12 sn takılırsa "sayfayı kapatma" uyarısı,
+     · çubuk %100'e ancak GERÇEKTEN bitince varıyor.
+   ⚠️ Beklenen boylar bilinmiyorsa (eski kurulum, CDN'den Pyodide) uydurma
+   bir sayı gösterilmiyor: o zaman çubuk adım sayar, eskisi gibi.
+   ================================================================== */
+const ASAMALAR = ["python", "motor", "katalog", "veri", "hesap"];
+const ETIKET = {
+  python:  "Python çalışma ortamı indiriliyor",
+  motor:   "Motor dosyaları yükleniyor",
+  katalog: "Ders kataloğu indiriliyor",
+  veri:    "Kayıtlı verin geri yükleniyor",
+  hesap:   "Programın hesaplanıyor",
+};
+const PYODIDE_ADLARI = ["pyodide.js", "pyodide.asm.mjs", "pyodide.asm.wasm",
+                        "python_stdlib.zip", "pyodide-lock.json"];
+const IZ = {
+  beklenen: {}, toplam: 0, alinan: {},
+  asama: null, asamaBas: 0, biten: 0,
+  t0: performance.now(), sonDegisim: performance.now(),
+  pyHazirlaniyor: false, yuzde: -1, zaman: null, bitti: false,
+};
+
+function mb(n){
+  return (n / 1e6).toLocaleString("tr-TR",
+    {minimumFractionDigits: 1, maximumFractionDigits: 1});
+}
+function sn(ms){
+  const s = ms / 1000;
+  return s < 10
+    ? s.toLocaleString("tr-TR", {maximumFractionDigits: 1}) + " sn"
+    : Math.round(s) + " sn";
+}
+
+/* İsteğin yolu hangi beklenen dosya? Pyodide CDN'den gelirse yolu farklı
+   (`/pyodide/v…/full/…`), o yüzden eşleme yolun SONUNA göre. */
+function baytAnahtari(url){
+  let yol;
+  try{ yol = new URL(url, location.href).pathname; }catch(e){ return null; }
+  for(const k of Object.keys(IZ.beklenen))
+    if(yol === "/" + k || yol.endsWith("/" + k)) return k;
+  return null;
+}
+function baytEkle(anahtar, n){
+  const ust = IZ.beklenen[anahtar] || 0;
+  // Sunucu sıkıştırıp açarsa akan bayt dosya boyunu aşabilir: tavanla.
+  IZ.alinan[anahtar] = Math.min(ust, (IZ.alinan[anahtar] || 0) + n);
+  IZ.sonDegisim = performance.now();
+}
+const alinanToplam = () =>
+  Object.values(IZ.alinan).reduce((a, b) => a + b, 0);
+const pyodideIndi = () => PYODIDE_ADLARI.every(k =>
+  !(k in IZ.beklenen) || (IZ.alinan[k] || 0) >= IZ.beklenen[k]);
+
+/* `fetch` sarmalayıcısı: yanıt gövdesini SAYAN bir akışa çeviriyor.
+   ⚠️ Başlıklar AYNEN korunuyor — `WebAssembly.instantiateStreaming`
+   `application/wasm` türünü şart koşuyor; kaybolsaydı Pyodide dosyayı
+   İKİNCİ KEZ indirirdi. Yükleme bitince asıl `fetch` geri konuyor. */
+const _asilFetch = window.fetch.bind(window);
+window.fetch = async function(girdi, secenek){
+  const res = await _asilFetch(girdi, secenek);
+  /* ⚠️ Pyodide `fetch`e DİZGE değil `URL` NESNESİ veriyor. İlk sürüm
+     yalnız dizge ve `Request.url` okuyordu: ölçüldü, 17,3 MB'ın yalnız
+     5,2'si sayıldı, `.wasm` (9,6 MB) hiç sayılmadı ve indirme sürerken
+     yanlış "takıldı" uyarısı çıktı. `String(URL)` tam adresi veriyor. */
+  const url = girdi && typeof girdi === "object" && typeof girdi.url === "string"
+    ? girdi.url : String(girdi || "");
+  const anahtar = IZ.bitti ? null : baytAnahtari(url);
+  if(!anahtar || !res.body || !res.ok ||
+     (secenek && (secenek.method || "").toUpperCase() === "HEAD")) return res;
+  const okuyucu = res.body.getReader();
+  const akis = new ReadableStream({
+    async pull(denetim){
+      try{
+        const {done, value} = await okuyucu.read();
+        if(done){ denetim.close(); return; }
+        baytEkle(anahtar, value.byteLength);
+        denetim.enqueue(value);
+      }catch(e){ denetim.error(e); }
+    },
+    cancel(neden){ return okuyucu.cancel(neden); },
+  });
+  return new Response(akis, {status: res.status, statusText: res.statusText,
+                             headers: res.headers});
+};
+/* `<script>` ile gelenler (`pyodide.js`, `pyodide.asm.mjs`) akıtılamıyor;
+   bitince sayılıyor. */
+try{
+  new PerformanceObserver(liste => {
+    for(const g of liste.getEntries()){
+      if(g.initiatorType === "fetch") continue;          // akıştan sayıldı
+      const k = baytAnahtari(g.name);
+      if(k && !(IZ.alinan[k] >= IZ.beklenen[k])) baytEkle(k, IZ.beklenen[k]);
+    }
+  }).observe({type: "resource", buffered: true});
+}catch(e){ /* eski tarayıcı: adım kipi yine çalışır */ }
+
+function listeOgesi(ad){
+  return document.querySelector(`#yukListe li[data-a="${ad}"]`);
+}
+function durumYaz(metin){
+  const a = el("yukAdim");
+  if(a && a.textContent !== metin) a.textContent = metin;   // canlı bölge
+}
+function asama(ad){
+  const simdi = performance.now();
+  if(IZ.asama){
+    const li = listeOgesi(IZ.asama);
+    if(li){
+      li.dataset.durum = "bitti";
+      const s = li.querySelector(".sure");
+      if(s) s.textContent = sn(simdi - IZ.asamaBas);
+    }
+    IZ.biten++;
+  }
+  IZ.asama = ad; IZ.asamaBas = simdi; IZ.pyHazirlaniyor = false;
+  const li = listeOgesi(ad);
+  if(li) li.dataset.durum = "simdi";
+  durumYaz(ETIKET[ad] + "…");
+  ciz();
+}
+function oran(){
+  if(IZ.bitti) return 1;
+  if(IZ.toplam > 0)
+    return Math.min(0.99, 0.9 * (alinanToplam() / IZ.toplam)
+                          + 0.1 * (IZ.biten / ASAMALAR.length));
+  return Math.min(0.99, IZ.biten / ASAMALAR.length);
+}
+function ciz(){
+  const simdi = performance.now();
+  const kap = el("yukCubukKap"), cubuk = el("yukCubuk");
+  const o = oran();
+  if(cubuk) cubuk.style.width = (o * 100).toFixed(1) + "%";
+  const yuzde = Math.round(o * 100);
+  if(kap && yuzde !== IZ.yuzde){
+    IZ.yuzde = yuzde;
+    kap.setAttribute("aria-valuenow", String(yuzde));
+  }
+  // Python bitti mi, yoksa derleniyor mu? (bayt tamam, ortam hazır değil)
+  if(IZ.asama === "python" && IZ.toplam > 0 && pyodideIndi() && !IZ.pyHazirlaniyor){
+    IZ.pyHazirlaniyor = true;
+    durumYaz("Python çalışma ortamı hazırlanıyor…");
+  }
+  const indiriyor = (IZ.asama === "python" && !pyodideIndi()) ||
+                    (IZ.asama === "katalog" && IZ.toplam > 0);
+  if(kap) kap.classList.toggle("calisiyor", !indiriyor && !IZ.bitti);
+  const sayi = el("yukSayi");
+  if(sayi){
+    const gecen = sn(simdi - IZ.t0);
+    sayi.textContent = IZ.toplam > 0
+      ? `${mb(alinanToplam())} / ${mb(IZ.toplam)} MB · ${gecen}`
+      : gecen;
+  }
+  // Takılma: indirirken 12 sn hiç bayt gelmediyse söyle — kullanıcı
+  // "dondu" sanıp sayfayı kapatmasın.
+  const uyari = el("yukUyari");
+  if(uyari){
+    const takildi = indiriyor && simdi - IZ.sonDegisim > 12000;
+    if(takildi && uyari.hidden){
+      uyari.textContent = "Bağlantı yavaş görünüyor — sayfayı açık bırak, " +
+        "indirme sürüyor. İlk açılıştan sonra büyük dosyalar önbellekten gelir.";
+      uyari.hidden = false;
+    }else if(!takildi && !uyari.hidden){
+      uyari.hidden = true;
+    }
+  }
+}
+function izlemeyiBaslat(manifest){
+  const y = manifest && manifest.yuk;
+  if(y && y.dosyalar && y.toplam > 0){
+    IZ.beklenen = y.dosyalar;
+    IZ.toplam = y.toplam;
+  }
+  ciz();
+  IZ.zaman = setInterval(ciz, 500);
+}
+function izlemeyiBitir(){
+  IZ.bitti = true;
+  clearInterval(IZ.zaman);
+  window.fetch = _asilFetch;              // sarmalayıcı yalnız yükleme için
+}
+
+/* Hata: donmuş bir ekran değil, ne olduğu + tek tıkla yeniden deneme. */
+function hataGoster(err){
+  izlemeyiBitir();
+  const li = IZ.asama && listeOgesi(IZ.asama);
+  if(li) li.dataset.durum = "hata";
+  const kap = el("yukCubukKap");
+  if(kap) kap.classList.remove("calisiyor");
+  durumYaz("Yüklenemedi");
+  const kutu = el("yukHata");
+  if(!kutu) return;
+  const ad = li ? li.firstChild.textContent.trim() : "yükleme";
+  kutu.innerHTML = `<h2>Site açılamadı</h2>
+    <p><b></b> adımında durdu. Çoğunlukla bağlantı kesintisidir — bir kez daha
+      denemek yeter. Sorun sürerse aşağıdaki hatayı GitHub'da bildir.</p>
+    <code></code>
+    <button type="button" id="yukTekrar">Yeniden dene</button>`;
+  kutu.querySelector("b").textContent = ad;             // innerHTML'e değil
+  kutu.querySelector("code").textContent = String((err && err.message) || err);
+  kutu.hidden = false;
+  const yuk = el("yukleniyor");
+  if(yuk) yuk.removeAttribute("aria-busy");
+  const tekrar = el("yukTekrar");
+  if(tekrar){
+    tekrar.addEventListener("click", () => location.reload());
+    tekrar.focus();
+  }
 }
 
 /* ---------------------------------------------------------------- IndexedDB
@@ -123,18 +339,30 @@ async function kullaniciKaydet(py){
   }
 }
 
+/* ★ Faz 52: bu betik artık yükleyicinin HEMEN ARKASINDAN, `async` olarak
+   geliyor — indirme HTML bitmeden başlasın diye. Arayüzün kendisi
+   (`__ITUCAP_APPLY__`) sayfanın sonunda tanımlanıyor; onu beslemeden önce
+   DOM'un bitmesini bekliyoruz. */
+function domHazir(){
+  return document.readyState === "loading"
+    ? new Promise(ok => document.addEventListener("DOMContentLoaded", ok,
+                                                  {once: true}))
+    : Promise.resolve();
+}
+
 /* ------------------------------------------------------------------ boot */
 async function calistir(){
   const t0 = performance.now();
-  const manifest = await (await fetch("./manifest.json")).json();
+  const manifest = await (await _asilFetch("./manifest.json")).json();
+  izlemeyiBaslat(manifest);
 
-  adim("Python çalışma ortamı yükleniyor (bir kez, sonra önbellekten)…");
+  asama("python");
   const surum = (manifest.pyodide && manifest.pyodide.version) || "";
   // Pakete alınmış kopya asıl yol: CDN'e istek atmıyoruz (gizlilik) ve
   // CDN engellense de site çalışıyor. CDN yalnız son çare.
   let indexURL = "./pyodide/";
   try{
-    if(!(await fetch("./pyodide/pyodide.js", {method: "HEAD"})).ok)
+    if(!(await _asilFetch("./pyodide/pyodide.js", {method: "HEAD"})).ok)
       indexURL = cdnUrl(surum);
   }catch(e){ indexURL = cdnUrl(surum); }
   await new Promise((ok, hata) => {
@@ -153,7 +381,7 @@ async function calistir(){
   try{
     py.runPython("import sqlite3");
   }catch(e){
-    adim("Veritabanı desteği yükleniyor…");
+    durumYaz("Veritabanı desteği yükleniyor…");
     try{
       await py.loadPackage("sqlite3");
       py.runPython("import sqlite3");
@@ -165,7 +393,7 @@ async function calistir(){
     }
   }
 
-  adim("Motor yükleniyor…");
+  asama("motor");
   py.FS.mkdirTree("/app/itucap");
   py.FS.mkdirTree("/app/config");
   py.FS.mkdirTree("/app/data");
@@ -175,13 +403,14 @@ async function calistir(){
     ...manifest.config.map(f => dosyaYaz(py, `/app/config/${f}`, `./config/${f}`)),
   ]);
 
-  adim(`Ders kataloğu indiriliyor (${(manifest.catalog.bytes/1e6).toFixed(1)} MB)…`);
+  asama("katalog");
+  durumYaz(`Ders kataloğu indiriliyor (${mb(manifest.catalog.bytes)} MB)…`);
   await katalogYukle(py, manifest);
 
-  adim("Kayıtlı verin geri yükleniyor…");
+  asama("veri");
   const vardi = await kullaniciGeriYukle(py);
 
-  adim("Motor kuruluyor…");
+  asama("hesap");
   await py.runPythonAsync(`
 import sys, pathlib
 sys.path.insert(0, "/app")
@@ -233,11 +462,19 @@ def _cagir(path, govde):
     return cevap;
   };
 
-  adim("Hesaplanıyor…");
   const durum = py.globals.get("_durum");
   const data = JSON.parse(durum());
   await kullaniciKaydet(py);             // ilk kurulumu da sakla
 
+  await domHazir();
+  const son = listeOgesi(IZ.asama);
+  if(son){
+    son.dataset.durum = "bitti";
+    const s = son.querySelector(".sure");
+    if(s) s.textContent = sn(performance.now() - IZ.asamaBas);
+  }
+  izlemeyiBitir();
+  ciz();                                  // son kare: %100, ancak şimdi
   window.__ITUCAP_APPLY__(data);
   const yuk = el("yukleniyor");
   if(yuk) yuk.remove();
@@ -247,11 +484,5 @@ def _cagir(path, govde):
 
 calistir().catch(err => {
   console.error(err);
-  const a = el("yukAdim");
-  if(a){
-    a.innerHTML = `<b style="color:var(--danger)">Yüklenemedi:</b> ${
-      String(err.message || err)}<br><br>
-      Sayfayı yenilemeyi dene. Sorun sürerse tarayıcı konsolundaki hatayı
-      GitHub'da bildir.`;
-  }
+  hataGoster(err);
 });

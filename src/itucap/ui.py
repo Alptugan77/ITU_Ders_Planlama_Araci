@@ -1373,18 +1373,40 @@ def _gomulu_json(data: dict) -> str:
             .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
 
 
-def render(data: dict, *, deferred: bool = False) -> str:
+def render(data: dict, *, deferred: bool = False,
+           fontlar_sonda: bool = False) -> str:
     """Tek dosyalık arayüz.
 
     `deferred=True` → veriyi SONRA yükleyen bir kabuk üretir. Statik site
     (GitHub Pages) için: sayfa açılır, Pyodide yüklenir, motor tarayıcıda
     çalışır, sonuç `window.__ITUCAP_APPLY__(data)` ile içeri verilir.
 
+    `fontlar_sonda=True` → gömülü yazı tipleri `<head>` yerine sayfanın
+    SONUNA konuyor. ★★ Faz 52 ölçümü: statik sitede yükleme ekranından ÖNCE
+    571 KB iniyordu ve bunun **486 KB'ı yazı tipiydi**; ~200 KB/s'lik bir
+    bağlantıda ziyaretçi **3 saniye bembeyaz** sayfaya bakıyordu. Yazı
+    tipleri sona alınınca yükleyiciden önce yalnız ~86 KB kalıyor. Bedeli:
+    yükleyici ilk anda sistem yazı tipiyle çiziliyor (`font-display:swap`),
+    yazı tipi gelince değişiyor. Uygulamanın kendisi saniyeler sonra
+    çizildiği için onu hiç etkilemiyor.
+    ⚠️ Yalnız statik site için: `make app` ve `make ui` yerelden açılıyor,
+    orada bekleme yok ve sıra değişmiyor.
+
     ★ Şablon kopyalanmıyor — aynı CSS ve aynı JS. İki sürüm çıkarsaydı
     tasarım düzeltmesi birinde yapılır, öbüründe unutulurdu.
     """
     html = _TEMPLATE.replace("__DATA__", _gomulu_json(data))
-    html = html.replace("__FONTLAR__", _font_yuzleri())
+    if fontlar_sonda:
+        html = html.replace(
+            "__FONTLAR__", "/* yazı tipleri sayfanın sonunda (Faz 52) */")
+        # ⚠️ SON `</body>`: şablonun ortasında (bir JS dizgesinde, bir
+        # yorumda) aynı dizge geçerse ilkini değiştirmek yazı tiplerini
+        # oraya gömerdi. Bugün tek tane var; yarın olmayabilir.
+        bas, _, son = html.rpartition("</body>")
+        html = (bas + f'<style id="gomuluFontlar">\n{_font_yuzleri()}\n</style>\n'
+                + "</body>" + son)
+    else:
+        html = html.replace("__FONTLAR__", _font_yuzleri())
     # ★ Ad TEK KAYNAKTAN. Şablona üç ayrı yere elle yazılsaydı biri değişip
     # öbürü kalırdı; `acilim_html` de vurguyu kısaltmadan türetiyor.
     for anahtar, deger in (("__AD_TAM__", AD_TAM), ("__AD_KURUM__", AD_KURUM),
@@ -1581,7 +1603,8 @@ body{margin:0;background:var(--ground);color:var(--ink);
   -webkit-font-smoothing:antialiased}
 .mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
   font-variant-numeric:tabular-nums}
-.wrap{max-width:1340px;margin:0 auto;padding:32px 30px 80px;display:flex;
+/* Çerçeve genişliği: BÜTÜN SEKMELERDE AYNI (Faz 52 — aşağıdaki nota bak). */
+.wrap{max-width:1720px;margin:0 auto;padding:32px 24px 80px;display:flex;
   flex-direction:column;gap:30px}
 /* ★★ FAZ 47 — HAFTALIK PROGRAM GÖRÜNÜMÜ GENİŞ (kullanıcı 18.09.2026:
    *"yanlardaki boşlukları kaldırabilirsin, ders programını çok
@@ -1593,9 +1616,20 @@ body{margin:0;background:var(--ground);color:var(--ink);
 
    ⚠️ Tasarım sistemi "sayfa en fazla 1340px" diyor ve bu METİN için doğru:
    uzun satır okunmaz. O yüzden genişleme YALNIZ ızgara görünümünde — metin
-   ağırlıklı bölümler (kademeler, aday tablosu, mevzuat) 1340'ta kalıyor. */
-:root[data-gorunum="schedSection"] .wrap{max-width:1720px;padding-left:24px;
-  padding-right:24px}
+   ağırlıklı bölümler (kademeler, aday tablosu, mevzuat) 1340'ta kalıyor.
+
+   ★★ FAZ 52 — BU KARAR KULLANICI İSTEĞİYLE GERİ ALINDI (21.09.2026:
+   *"bütün sekmelerde arayüzün genişliği aynı olsun"*). Ölçüldü:
+     · 1920px ekranda program 1720px, öbür sekmeler 1340px — sekme değişince
+       sol ray **196px zıplıyor**, çerçeve 380px daralıyordu (1440px'te 56px);
+     · üstelik 1340px çerçeve okuma ölçüsünü zaten KORUMUYORDU: düz yazı
+       satırları o genişlikte bile **~153 karaktere** çıkıyordu.
+   Yani kilit yanlış yerdeydi. Çerçeve artık her sekmede aynı (1720px), okuma
+   ölçüsü ise METNİN KENDİSİNDE (aşağıda `max-width:80ch`). Hem zıplama
+   kalktı hem uzun satırlar bugünkünden KISA. */
+/* Okuma ölçüsü: düz yazı ~80 karakterde kırılsın (çerçeve ne kadar geniş
+   olursa olsun). Tablolar, ızgara ve kartlar çerçevenin tamamını kullanıyor. */
+main .summary,main .modenote,main p,main .hint{max-width:80ch}
 /* Chivo, ağır ve büyük harf — Şematik'in sesi. Gövde IBM Plex Sans'ta kalıyor;
    Chivo'yu uzun metinde kullanmak gece zemininde yorucu olurdu. */
 h1,h2,h3{margin:0;text-wrap:balance;

@@ -232,12 +232,7 @@ def build(pyodide_dir: Path | None = None) -> Path:
     tmp.unlink()
     gz = (SITE / "katalog.sqlite3.gz").stat().st_size
 
-    # ★ Kabuk: AYNI şablon, verisi sonradan yükleniyor.
-    shell = UI.render({}, deferred=True)
-    shell = shell.replace("</head>", f'{_LOADER_CSS}</head>', 1)
-    shell = shell.replace("<body>", f"<body>{_loader_html(UI)}", 1)
-    shell = shell.replace("</body>", f'<script src="./app.js"></script></body>', 1)
-    (SITE / "index.html").write_text(shell, encoding="utf-8")
+    (SITE / "index.html").write_text(kabuk(UI), encoding="utf-8")
     shutil.copy(ROOT / "web" / "app.js", SITE / "app.js")
 
     (SITE / "manifest.json").write_text(json.dumps({
@@ -246,6 +241,13 @@ def build(pyodide_dir: Path | None = None) -> Path:
                     "local": bool(pyodide_dir and pyodide_dir.exists())},
         "catalog": {"file": "katalog.sqlite3.gz", "bytes": gz, "raw": raw,
                     **{k: str(v) for k, v in stats.items()}},
+        # ★★ FAZ 52 — İLERLEME ÇUBUĞU GERÇEK BAYTA BAĞLI. Eskiden adım
+        # sayıyordu (6 adım, her biri %16,7); ölçüldü: yavaş bağlantıda
+        # çubuk **68 saniye %16,7'de donuk** kaldı, sonra **%100'deyken
+        # 4,7 sn** daha çalıştı. Adımlar eşit değil, çubuk da yalan
+        # söylüyordu. Artık yükleyici hangi dosyadan kaç bayt beklediğini
+        # buradan biliyor.
+        "yuk": _beklenen_baytlar(pyodide_dir, SITE),
     }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # GitHub Pages Jekyll'i atlasın (alt çizgiyle başlayan dosyaları yer).
@@ -270,42 +272,177 @@ def build(pyodide_dir: Path | None = None) -> Path:
     return SITE
 
 
+def kabuk(UI) -> str:
+    """Statik sitenin `index.html`i: AYNI şablon, verisi sonradan yükleniyor.
+
+    ★★ FAZ 52 — iki sıra değişti, ikisi de ölçümden:
+      · yazı tipleri SONDA (bkz. `UI.render` fontlar_sonda): ~200 KB/s'de
+        yükleyiciden önce 571 KB iniyordu → 3 sn beyaz sayfa;
+      · `app.js` yükleyicinin HEMEN ARKASINDA ve `async`: eskiden sayfanın en
+        sonundaydı, yani Pyodide indirmesi 835 KB'lık HTML bitmeden
+        BAŞLAMIYORDU. `async` betik indikçe çalışıyor; arayüzü beslemeden önce
+        DOM'un bitmesini kendisi bekliyor (`domHazir`).
+    Ayrı bir işlev, çünkü test bu sırayı `build()` çalıştırmadan doğruluyor.
+    """
+    shell = UI.render({}, deferred=True, fontlar_sonda=True)
+    shell = shell.replace("</head>", f'{_LOADER_CSS}</head>', 1)
+    return shell.replace(
+        "<body>", f'<body>{_loader_html(UI)}'
+                  f'<script src="./app.js" async></script>', 1)
+
+
+# Pyodide'ın açılışta çektiği dosyalar (314.0.5 için ölçüldü, 21.09.2026):
+# `pyodide.js` ve `pyodide.asm.mjs` <script> ile, gerisi `fetch` ile geliyor.
+PYODIDE_DOSYALARI = ["pyodide.js", "pyodide.asm.mjs", "pyodide.asm.wasm",
+                     "python_stdlib.zip", "pyodide-lock.json"]
+
+
+def _beklenen_baytlar(pyodide_dir: Path | None, site: Path) -> dict:
+    """Yükleyicinin indireceği her dosyanın boyu — çubuğun paydası.
+
+    ⚠️ Anahtar, istek yolunun SONU: Pyodide pakete alınmadıysa CDN'den
+    geliyor ve yolu farklı (`/pyodide/v314.0.5/full/…`); o yüzden Pyodide
+    dosyaları yalnız ADIYLA tutuluyor. Pyodide bilinmiyorsa (paketlenmemiş
+    ve yerelde yok) o dosyalar listede yok — yükleyici o bölümde adım
+    kipine düşüyor, uydurma bir sayı göstermiyor.
+    """
+    dosyalar: dict[str, int] = {}
+    if pyodide_dir and pyodide_dir.exists():
+        for ad in PYODIDE_DOSYALARI:
+            p = pyodide_dir / ad
+            if p.exists():
+                dosyalar[ad] = p.stat().st_size
+    for alt in ("itucap", "config"):
+        for p in sorted((site / alt).glob("*")):
+            if p.is_file():
+                dosyalar[f"{alt}/{p.name}"] = p.stat().st_size
+    katalog = site / "katalog.sqlite3.gz"
+    if katalog.exists():
+        dosyalar[katalog.name] = katalog.stat().st_size
+    return {"dosyalar": dosyalar, "toplam": sum(dosyalar.values())}
+
+
 _LOADER_CSS = """
 <style>
+/* ★★ FAZ 52 — YÜKLEME EKRANI (kullanıcı 21.09.2026: "açılış ekranını
+   güncelleyip yazıları büyütebilirsin — açılış ekranı dediğim yüklenme
+   ekranı"). Ölçüm (önce):
+     · izlenen tek satır (hangi adımda olduğu) 12px, GRİ, eş aralıklı,
+     · çubuk 3px,
+     · adımlar SAYILIYORDU, işler değil: yavaş bağlantıda çubuk 68 sn
+       %16,7'de durdu, sonra %100'deyken 4,7 sn daha çalıştı.
+   Şimdi: durum 19px ve koyu, çubuk 8px ve bayta bağlı, bayt + süre satırı,
+   beş adımlık liste, hata olursa "Yeniden dene". */
 #yukleniyor{position:fixed;inset:0;z-index:99;display:flex;align-items:center;
-  justify-content:center;background:var(--ground);color:var(--ink)}
-#yukleniyor .kutu{max-width:460px;padding:0 22px}
-#yukleniyor .yukAd{font-size:29px;margin:8px 0 0;line-height:1.05;
-  font-family:"Chivo",Helvetica,Arial,sans-serif;font-weight:900}
+  justify-content:center;background:var(--ground);color:var(--ink);
+  overflow:auto;padding:32px 20px}
+#yukleniyor .kutu{width:100%;max-width:560px}
+#yukleniyor .yukAd{font-size:clamp(40px,9vw,56px);margin:0;line-height:1;
+  font-family:"Chivo",Helvetica,Arial,sans-serif;font-weight:900;
+  letter-spacing:-.01em}
 #yukleniyor .yukAd .kurum{color:var(--ink-3)}
-#yukleniyor .acilim{margin:6px 0 16px}
-#yukleniyor p{color:var(--ink-2);font-size:13.5px;line-height:1.65}
-#yukleniyor .adim{font-family:"IBM Plex Mono",monospace;font-size:12.5px;
-  color:var(--ink-3);margin-top:14px;min-height:18px}
-#yukleniyor .cubuk{height:3px;background:var(--surface-2);margin-top:10px;
-  overflow:hidden}
+#yukleniyor .acilim{font-size:14px;margin:12px 0 30px}
+/* Durum: izlenen asıl şey — büyük, koyu, canlı bölge. */
+#yukleniyor .yukAdim{font-size:19px;font-weight:600;line-height:1.35;
+  color:var(--ink);min-height:26px}
+#yukleniyor .cubuk{height:8px;background:var(--surface-2);margin-top:14px;
+  overflow:hidden;position:relative;border:1px solid var(--border)}
 #yukleniyor .cubuk i{display:block;height:100%;width:0;background:var(--seal);
-  transition:width .3s ease}
-#yukleniyor .gizli{color:var(--anadal);font-weight:600}
+  transition:width .35s ease}
+/* Bayt akmıyor ama iş sürüyor (derleme, hesap): kayan şerit — çubuk
+   donmuş görünmesin. İndirme sırasında YOK: orada hareket bayttan geliyor,
+   sahte hareket takılmayı gizlerdi. */
+#yukleniyor .cubuk.calisiyor::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);
+  animation:yukKay 1.4s linear infinite}
+@keyframes yukKay{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+#yukleniyor .yukSayi{font-family:"IBM Plex Mono",monospace;font-size:14px;
+  color:var(--ink-2);margin-top:9px;min-height:20px;
+  font-variant-numeric:tabular-nums}
+#yukleniyor .yukUyari{font-size:15px;line-height:1.5;color:var(--warn-ink);
+  margin-top:8px}
+#yukleniyor .yukListe{list-style:none;margin:24px 0 0;padding:16px 0 0;
+  border-top:1px solid var(--border);display:grid;gap:8px}
+#yukleniyor .yukListe li{font-size:15px;color:var(--ink-3);display:flex;
+  gap:10px;align-items:baseline}
+/* ⚠️ İşaretler eş aralıklı yazı tipinde DEĞİL: IBM Plex Mono'da "✓" yok,
+   yedek yazı tipi onu "√" gibi çiziyordu (ekran görüntüsünde görüldü). */
+#yukleniyor .yukListe li::before{content:"○";width:1.1em;flex:none;
+  font-family:system-ui,"Segoe UI Symbol","Apple Symbols","Noto Sans Symbols 2",
+    sans-serif;font-weight:700}
+#yukleniyor .yukListe li[data-durum="simdi"]{color:var(--ink);font-weight:600}
+#yukleniyor .yukListe li[data-durum="simdi"]::before{content:"●";color:var(--seal)}
+#yukleniyor .yukListe li[data-durum="bitti"]{color:var(--ink-2)}
+#yukleniyor .yukListe li[data-durum="bitti"]::before{content:"✓";color:var(--anadal)}
+#yukleniyor .yukListe li[data-durum="hata"]{color:var(--danger);font-weight:600}
+#yukleniyor .yukListe li[data-durum="hata"]::before{content:"✕"}
+#yukleniyor .yukListe .sure{margin-left:auto;font-weight:400;font-size:13px;
+  color:var(--ink-3);font-family:"IBM Plex Mono",monospace}
+#yukleniyor .gizlilik{font-size:16px;line-height:1.6;color:var(--ink-2);
+  margin:26px 0 0}
+#yukleniyor .gizlilik b{color:var(--anadal)}
+#yukleniyor .yukHata{margin-top:20px;padding-top:14px;
+  border-top:3px solid var(--danger)}
+#yukleniyor .yukHata h2{font-size:21px;color:var(--danger);margin:0 0 6px}
+#yukleniyor .yukHata p{font-size:15px;line-height:1.55;color:var(--ink-2);
+  margin:0 0 12px}
+#yukleniyor .yukHata code{font-family:"IBM Plex Mono",monospace;
+  font-size:13.5px;display:block;white-space:pre-wrap;word-break:break-word;
+  color:var(--ink);background:var(--surface-2);padding:8px 10px;margin:0 0 14px}
+#yukleniyor .yukHata button{font:inherit;font-size:16px;font-weight:600;
+  min-height:48px;padding:0 22px;background:var(--seal);color:var(--ground);
+  border:0;cursor:pointer}
+@media (prefers-reduced-motion:reduce){
+  #yukleniyor .cubuk i{transition:none}
+  #yukleniyor .cubuk.calisiyor::after{animation:none}}
+/* Zorlanmış renk (Faz 51 dersi): dolu kısım ile kanal aynı renge düşmesin. */
+@media (forced-colors:active){
+  #yukleniyor .cubuk{border-color:CanvasText;background:Canvas}
+  #yukleniyor .cubuk i{background:Highlight}
+  #yukleniyor .cubuk.calisiyor::after{display:none}}
 </style>
 """
+
+# Adım adları app.js'teki `ASAMALAR` ile AYNI sırada — test ikisini eşliyor.
+YUK_ASAMALARI = [("python", "Python çalışma ortamı"),
+                 ("motor", "Motor dosyaları"),
+                 ("katalog", "Ders kataloğu"),
+                 ("veri", "Kayıtlı verin"),
+                 ("hesap", "Programın hesaplanıyor")]
 
 
 def _loader_html(UI) -> str:
     """Yükleme ekranı — ad TEK KAYNAKTAN (ui.AD_*). Eskiden "İTÜ ÇAP · YANDAL /
     Ders planlama" elle yazılıydı ve ad değişince (İTÜ DEPAR) burada eski
     kalıyordu. Artık uygulama başlığıyla aynı: kurum + kısaltma + vurgulu açılım.
+
+    ★ Faz 52: ekran okuyucu için `role="status"` (adım değişince okunuyor)
+    ve gerçek bir `role="progressbar"` (değeri app.js güncelliyor). Eskiden
+    ikisi de yoktu — görmeyen kullanıcı 90 sn'lik bekleyişte hiçbir şey
+    duymuyordu. Bayt satırı `aria-hidden`: saniyede iki kez değişiyor,
+    okunsaydı gürültü olurdu.
     """
+    adimlar = "".join(
+        f'<li data-a="{a}" data-durum="bekliyor">{ad}<span class="sure"></span></li>'
+        for a, ad in YUK_ASAMALARI)
     return f"""
-<div id="yukleniyor"><div class="kutu">
+<div id="yukleniyor" aria-busy="true"><div class="kutu">
   <h1 class="yukAd"><span class="kurum">{UI.AD_KURUM}</span> {UI.AD_KISA}</h1>
   <div class="acilim">{UI.acilim_html()}</div>
-  <p><span class="gizli">Notların tarayıcından çıkmıyor.</span>
+  <div class="yukAdim" id="yukAdim" role="status" aria-live="polite">Başlıyor…</div>
+  <div class="cubuk" id="yukCubukKap" role="progressbar"
+       aria-label="Yükleme ilerlemesi" aria-valuemin="0" aria-valuemax="100"
+       aria-valuenow="0"><i id="yukCubuk"></i></div>
+  <div class="yukSayi" id="yukSayi" aria-hidden="true"></div>
+  <div class="yukUyari" id="yukUyari" hidden></div>
+  <!-- Hata, durumun HEMEN ALTINDA: gizlilik notunun arkasında kalsaydı
+       telefonda "Yeniden dene" ilk ekrandan taşabilirdi. -->
+  <div class="yukHata" id="yukHata" hidden></div>
+  <ol class="yukListe" id="yukListe">{adimlar}</ol>
+  <p class="gizlilik"><b>Notların tarayıcından çıkmıyor.</b>
      Bu sitenin sunucusu yok: hesap senin cihazında yapılıyor, girdiğin
      notlar yalnız bu tarayıcıda saklanıyor. Yayınlanan tek veri herkese
      açık ders kataloğu.</p>
-  <div class="cubuk"><i id="yukCubuk"></i></div>
-  <div class="adim" id="yukAdim">başlıyor…</div>
 </div></div>
 """
 

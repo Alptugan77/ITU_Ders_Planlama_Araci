@@ -168,11 +168,23 @@ def test_BIRINCI_DONEM_hicbir_sey_isaretlemiyor():
 
 # ------------------------------------------------- 1-4. yerleşim
 def test_IZGARA_GORUNUMU_genis():
-    """★ Ölçüm: ızgara her ekranda 660px'ti. ⚠️ Genişleme YALNIZ ızgara
-    görünümünde — metin ağırlıklı bölümler 1340px okuma ölçüsünde kalıyor."""
-    assert ':root[data-gorunum="schedSection"] .wrap{max-width:1720px' in CSS
+    """★ Ölçüm: ızgara her ekranda 660px'ti; genişletildi (kullanıcı isteği).
+
+    ⚠️⚠️ FAZ 52'DE YENİDEN YAZILDI — kilitlediği karar kullanıcı isteğiyle
+    geri alındı (21.09.2026: *"bütün sekmelerde arayüzün genişliği aynı
+    olsun"*). Bu test eskiden "genişleme YALNIZ ızgara görünümünde, metin
+    bölümleri 1340px'te" diyordu. Ölçüm o kararın iki bedelini gösterdi:
+    1920px'te sekme değişince ray 196px zıplıyordu, ve 1340px çerçeve okuma
+    ölçüsünü zaten korumuyordu (satırlar ~153 karakter). Artık:
+    · çerçeve HER sekmede aynı ve geniş,
+    · okuma ölçüsü metnin kendisinde (`max-width:80ch`).
+    Izgaranın genişliği (bu testin asıl konusu) korunuyor."""
     temel = re.search(r"(?m)^\.wrap\{([^}]*)\}", CSS).group(1)
-    assert "max-width:1340px" in temel, "metin bölümleri de genişlemiş"
+    assert "max-width:1720px" in temel, "çerçeve yeniden daraltılmış"
+    # Sekmeye göre çerçeve DEĞİŞMEMELİ — görünüme bağlı bir .wrap kuralı yok.
+    assert not re.search(r":root\[data-gorunum=[^\]]*\]\s*\.wrap\{", CSS), \
+        "çerçeve yine sekmeye göre değişiyor"
+    assert "main .summary,main .modenote,main p,main .hint{max-width:80ch}" in CSS
     assert 'document.documentElement.dataset.gorunum = id;' in KAYNAK
 
 
@@ -272,7 +284,10 @@ with sync_playwright() as p:
       cb.checked = false; cb.dispatchEvent(new Event("change", {bubbles:true})); }""")
     pg.click("#setupSave"); pg.wait_for_timeout(2500)
     print("SONRA:" + str(pg.evaluate("() => SETUP.transcript.length")))
-    # ızgara görünümü geniş mi
+    # ızgara görünümü geniş mi — ⚠️ Faz 52: 1920px'te ölçülüyor. 1440px'te
+    # görünüme bağlı bir tavan (ör. 1440 ↔ 1720) ekranın kendisine takılıp
+    # AYNI çıkıyordu; geri alma deneyi bekçiyi yeşil bıraktı.
+    pg.set_viewport_size({"width": 1920, "height": 1000}); pg.wait_for_timeout(300)
     pg.evaluate("() => gorunumAc('schedSection')"); pg.wait_for_timeout(400)
     print("WRAP_IZGARA:" + str(pg.evaluate(
         "() => Math.round(document.querySelector('.wrap').getBoundingClientRect().width)")))
@@ -308,5 +323,8 @@ def test_UCTAN_UCA_faz47(tmp_path, monkeypatch):
     assert c["SERIT"] == "E", "öneri şeridi ve geri al düğmesi yok"
     assert int(c["KAYITLI"]) == 3, c
     assert int(c["SONRA"]) == 2, f"tik geri çekilince ders düşmedi: {c}"
-    assert int(c["WRAP_IZGARA"]) > int(c["WRAP_METIN"]), \
-        f"ızgara görünümü genişlemiyor: {c}"
+    # ⚠️ Faz 52: eskiden "ızgara görünümü metin görünümünden GENİŞ" isteniyordu.
+    # Kullanıcı bütün sekmelerde AYNI genişliği istedi; ölçüt tersine döndü.
+    assert int(c["WRAP_IZGARA"]) == int(c["WRAP_METIN"]), \
+        f"sekmeye göre çerçeve genişliği değişiyor: {c}"
+    assert int(c["WRAP_IZGARA"]) >= 1700, f"çerçeve daralmış (1920px ekranda): {c}"
