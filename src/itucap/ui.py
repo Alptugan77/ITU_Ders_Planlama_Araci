@@ -33,6 +33,7 @@ from . import recommend as REC
 from . import rules as R
 from . import sequence as SEQ
 from . import student as S
+from . import tasarim as TASARIM
 # ★★ Faz 38 — not dağılımı yalnız OKUNUYOR. İlk yazımda bu satır
 # `from .sources import obs_notdagilimi` idi ve YAYINLANAN SİTE AÇILMADI:
 # `site_kur.py` tarayıcıya `sources/` kopyalamıyor (scraper bağımlılıkları).
@@ -1444,6 +1445,9 @@ def render(data: dict, *, deferred: bool = False,
     tasarım düzeltmesi birinde yapılır, öbüründe unutulurdu.
     """
     html = _TEMPLATE.replace("__DATA__", _gomulu_json(data))
+    # ★ Faz 56 — palet ve ölçekler tek kaynaktan (`tasarim.py`).
+    html = (html.replace("__JETONLAR__", TASARIM.css_jetonlari())
+            .replace("__JETONLAR_KAGIT__", TASARIM.css_kagit()))
     if fontlar_sonda:
         html = html.replace(
             "__FONTLAR__", "/* yazı tipleri sayfanın sonunda (Faz 52) */")
@@ -1581,65 +1585,21 @@ __FONTLAR__
    Bu tasarım KOYU doğar: :root koyu paletidir. Işık modu Şematik'in kendi
    dünyasına yaklaşır (beyaz zemin, sert siyah cetvel) — aynı yapı, iki zemin.
 --------------------------------------------------------------------------- */
-:root{
-  --ground:#10141B; --surface:#161B24; --surface-2:#1E242F;
-  /* ★★ FAZ 43 — ÖLÇÜLEN AA HATASI (tasarım sistemi, 17.09.2026).
-     `--ink-3` gece zemininde 4.03:1'di (taban 4.5), yüzeyde 3.40:1.
-     `--border-strong` 2.13:1'di (denetim kenarı tabanı 3.0). İkisi de
-     ikincil METİN ve KENAR taşıyor, yani az görünen değil çok görünen
-     yerler: meta, ipucu, CRN, tablo çizgisi. Yeni değerler ölçüldü:
-     5.59 / 4.72 ve 3.69. (`tools/kontrast_olcumu.py`) */
-  --border:#262E3A; --border-strong:#647085;
-  --ink:#E4E9F2; --ink-2:#9AA5B8; --ink-3:#848EA1;
-  --seal:#8FA3E8; --seal-soft:#1A2036;
-  /* Faz 43 — tasarım sisteminden: birincil düğmenin üzerine gelme rengi
-     (opaklık DEĞİL, ayrı bir renk) ve pencere perdesi. */
-  --seal-hover:#9EB3F9; --scrim:rgba(8,16,26,.5);
-  --anadal:#5FC0A6; --anadal-soft:#123029; --anadal-ink:#8FD8C3;
-  --cap:#D9A05B; --cap-soft:#2E2415; --cap-ink:#EFC48E;
-  /* ★ Yandal AYRI renk: ÇAP ve yandal aynı anda olabiliyor, aynı renkte
-     olsalardı panelde ve ızgarada hangisi olduğu anlaşılmazdı. */
-  --yandal:#7FB2C9; --yandal-soft:#16252C; --yandal-ink:#A9D2E4;
-  --danger:#E0836F; --warn:#D9B061;
-  /* ★ Faz 38b — uyarı kutusunun zemini/mürekkebi. Eskiden iki yerde
-     `var(--warn-bg,#fdf3e3)` diye YEDEKLİ yazılıyordu: jeton tanımsız
-     olduğu için gece şemasında da açık zemin çıkıyordu. */
-  --warn-soft:#2B2415; --warn-ink:#E8C88A;
-  --shadow:0 18px 44px -20px rgba(0,0,0,.85);
-  --r:0px;
-}
-:root:not([data-theme="dark"]){
-  @media (prefers-color-scheme:light){
-    --ground:#FFFFFF; --surface:#FFFFFF; --surface-2:#F0F2F6;
-    --border:#D4D9E2; --border-strong:#141821;
-    --ink:#0D1017; --ink-2:#4B5462; --ink-3:#5F6878;
-    --seal:#3B4E9E; --seal-soft:#E7EAF7;
-    --seal-hover:#2F3F8E; --scrim:rgba(8,16,26,.5);
-    --anadal:#0A6B58; --anadal-soft:#D6EBE5; --anadal-ink:#074A3D;
-    --cap:#8A5210; --cap-soft:#F6E7D2; --cap-ink:#633B08;
-    --yandal:#1F5C77; --yandal-soft:#DCECF4; --yandal-ink:#154457;
-    --danger:#C02D18; --warn:#7A5709;
-    --warn-soft:#FCF1DB; --warn-ink:#6B4A05;
-    --shadow:0 18px 44px -26px rgba(10,15,30,.5);
-  }
-}
-:root[data-theme="light"]{
-  --ground:#FFFFFF; --surface:#FFFFFF; --surface-2:#F0F2F6;
-  --border:#D4D9E2; --border-strong:#141821;
-  --ink:#0D1017; --ink-2:#4B5462; --ink-3:#5F6878;
-  --seal:#3B4E9E; --seal-soft:#E7EAF7;
-  --seal-hover:#2F3F8E; --scrim:rgba(8,16,26,.5);
-  --anadal:#0A6B58; --anadal-soft:#D6EBE5; --anadal-ink:#074A3D;
-  --cap:#8A5210; --cap-soft:#F6E7D2; --cap-ink:#633B08;
-  /* ⚠️ Faz 38b'de fark edildi: bu blokta `--yandal*` YOKTU, yani açık şema
-     AÇIKÇA seçilince yandal renkleri gece paletinden geliyordu (medya
-     sorgulu blokta vardı, burada unutulmuş). */
-  --yandal:#1F5C77; --yandal-soft:#DCECF4; --yandal-ink:#154457;
-  --danger:#C02D18; --warn:#7A5709;
-  --warn-soft:#FCF1DB; --warn-ink:#6B4A05;
-  --shadow:0 18px 44px -26px rgba(10,15,30,.5);
-}
+/* ★★ FAZ 56 — PALET VE ÖLÇEKLER ÜRETİLİYOR (`src/itucap/tasarim.py`).
+   Bu üç blok eskiden burada ELLE yazılıydı, kâğıt bloğuyla dört kopya.
+   İki kez ayrıştılar: Faz 38b'de `--yandal*` açık blokta unutuldu, Faz 43'te
+   iki yeni jeton üç bloğa tek tek eklendi. Faz 43'ün ölçtüğü AA düzeltmeleri
+   (`--ink-3`, `--border-strong`) ve Faz 40'ın ton merdiveni aynı değerlerle
+   `tasarim.RENKLER`de duruyor — değer değişmedi, yeri değişti. */
+__JETONLAR__
 *{box-sizing:border-box}
+/* ★ Faz 56 — içeriğe atla: odaklanana kadar ekranın dışında. */
+.atla{position:absolute;left:var(--sp-4);top:-80px;z-index:var(--z-skip);
+  padding:var(--sp-4) var(--sp-6);background:var(--seal);color:var(--on-seal);
+  font-family:var(--font-display);font-weight:700;font-size:var(--fs-md);
+  text-decoration:none}
+.atla:focus{top:var(--sp-4)}
+#icerik:focus{outline:none}
 /* ★★ `hidden` GERÇEKTEN gizlesin (24.08.2026 ölçümü).
    Tarayıcının `[hidden]{display:none}` kuralı en zayıf özgüllükte; `.ghost`
    ya da `.radios` gibi display kuran HER sınıf onu eziyor ve `hidden`
@@ -1647,13 +1607,13 @@ __FONTLAR__
    yerde duruyordu). Bu tek satır hata sınıfının tamamını kapatıyor. */
 [hidden]{display:none !important}
 body{margin:0;background:var(--ground);color:var(--ink);
-  font:400 15px/1.6 "IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font:400 var(--fs-base)/var(--lh-body) var(--font-sans);
   -webkit-font-smoothing:antialiased}
-.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+.mono{font-family:var(--font-mono);
   font-variant-numeric:tabular-nums}
 /* Çerçeve genişliği: BÜTÜN SEKMELERDE AYNI (Faz 52 — aşağıdaki nota bak). */
 .wrap{max-width:1720px;margin:0 auto;padding:32px 24px 80px;display:flex;
-  flex-direction:column;gap:30px}
+  flex-direction:column;gap:32px}
 /* ★★ FAZ 47 — HAFTALIK PROGRAM GÖRÜNÜMÜ GENİŞ (kullanıcı 18.09.2026:
    *"yanlardaki boşlukları kaldırabilirsin, ders programını çok
    sıkıştırıyor"*).
@@ -1678,12 +1638,22 @@ body{margin:0;background:var(--ground);color:var(--ink);
 /* Okuma ölçüsü: düz yazı ~80 karakterde kırılsın (çerçeve ne kadar geniş
    olursa olsun). Tablolar, ızgara ve kartlar çerçevenin tamamını kullanıyor. */
 main .summary,main .modenote,main p,main .hint{max-width:80ch}
+/* ★★ FAZ 56 — AÇIKLAMA PARAGRAFI ESNEK SATIR DEĞİL.
+   Bölüm açıklamaları `.summary` taşıyordu; o bir ESNEK sayı satırı (gap
+   14px) ve içine düz yazı konunca her `<b>` ayrı bir öğe oluyor. Vitrin
+   ekranında ölçüldü: Kademeler'de "Çizgiler önşart bağıdır" cümlenin
+   ortasında kendi satırına kırılıyordu. v1 tasarım sistemi bu kuralı
+   yazmıştı (`.aciklama`), uygulama hiç almamıştı. Esnek kutu sınıfının
+   dördüncü görülüşü (bkz. Faz 48 `summary`, Faz 50 "20KREDİ"). */
+.aciklama{font-size:var(--fs-lg);color:var(--ink-2);margin-top:2px;
+  line-height:var(--lh-body)}
+main .aciklama{max-width:80ch}
 /* Chivo, ağır ve büyük harf — Şematik'in sesi. Gövde IBM Plex Sans'ta kalıyor;
    Chivo'yu uzun metinde kullanmak gece zemininde yorucu olurdu. */
 h1,h2,h3{margin:0;text-wrap:balance;
-  font-family:"Chivo",Helvetica,Arial,sans-serif;font-weight:800;
+  font-family:var(--font-display);font-weight:800;
   text-transform:uppercase}
-h1{font-size:29px;letter-spacing:-.02em;line-height:1.1;font-weight:900}
+h1{font-size:var(--fs-4xl);letter-spacing:var(--ls-tight);line-height:var(--lh-tight);font-weight:900}
 /* ★ FAZ 43 — TAKLİT KALIN (synthetic bold) YOK.
    Ölçüm (tarayıcıda, 17.09.2026): sayfa üç ağırlığı İSTİYOR ama hiçbiri
    yüklü değildi — 36 ders kodu `IBM Plex Mono 700`, 7 `<b>`
@@ -1703,19 +1673,21 @@ b.mono,.mono b,.mono strong{font-weight:600}
    okunuyor ama kopyalanınca ve ekran okuyucuda "Ders Planlama Aracı"
    kalıyor — vurgu bir sunum tercihi, metnin kendisi değil. */
 h1 .kurum{color:var(--ink-3);font-weight:700}
-.acilim{margin-top:5px;font-family:"Chivo",Helvetica,Arial,sans-serif;
-  font-size:11.5px;letter-spacing:.13em;color:var(--ink-3);font-weight:600;
+.acilim{margin-top:6px;font-family:var(--font-display);
+  font-size:var(--fs-sm);letter-spacing:var(--ls-label);color:var(--ink-3);font-weight:600;
   text-transform:uppercase}
-.acilim b{color:var(--seal);font-weight:900;letter-spacing:.1em}
-h2{font-size:15px;letter-spacing:.02em;font-weight:800}
-.eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
-  color:var(--seal);font-family:"Chivo",Helvetica,Arial,sans-serif}
+.acilim b{color:var(--seal);font-weight:900;letter-spacing:var(--ls-caps)}
+/* ★ Faz 56 — h2 15 → 18px. Bölüm başlığı gövdeyle AYNI boydaydı; tek
+   ayrım ağırlık ve büyük harfti. Ölçek basamağı `fs-xl`. */
+h2{font-size:var(--fs-xl);letter-spacing:var(--ls-0);font-weight:800;line-height:var(--lh-tight)}
+.eyebrow{font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-eyebrow);text-transform:uppercase;
+  color:var(--seal);font-family:var(--font-display)}
 /* Belge başlığı: kalın yapısal cetvel + ince alt cetvel. */
 header{padding-bottom:16px;border-bottom:1px solid var(--border)}
 header .masthead{display:flex;flex-wrap:wrap;align-items:flex-end;
   justify-content:space-between;gap:16px;
   padding-bottom:14px;border-bottom:3px solid var(--seal);margin-bottom:4px}
-header .sub{color:var(--ink-2);font-size:13.5px;margin-top:6px}
+header .sub{color:var(--ink-2);font-size:var(--fs-lg);margin-top:6px}
 /* ★★ FAZ 46 — ÜST ÇUBUK. Ölçüm: başlık 174px ve 45 kelimeydi; ızgaranın
    önündeki en büyük tek blok. Kurulum BİTMİŞSE ad küçülüp durum satırıyla
    aynı hizaya geçiyor (54px). Kurulum sürerken tam masthead kalıyor:
@@ -1728,11 +1700,11 @@ body:not(.kurulum) header .masthead>div{display:flex;align-items:baseline;
   gap:10px;flex-wrap:wrap;min-width:0}
 /* ★ Faz 47 — kullanıcı: "itü depar yazısı biraz daha büyük olabilir".
    Faz 46'da 29 → 20px inmişti; 25px üst çubuğu büyütmeden okunuyor. */
-body:not(.kurulum) header h1{font-size:25px;letter-spacing:-.015em;order:1}
+body:not(.kurulum) header h1{font-size:var(--fs-3xl);letter-spacing:var(--ls-tight);order:1}
 /* Tek satırda ad ÖNCE okunmalı; eyebrow (program listesi) onu izler. */
 body:not(.kurulum) header .eyebrow{order:2}
 body:not(.kurulum) header .acilim{display:none}
-body:not(.kurulum) header .sub{margin:0;font-size:12.5px}
+body:not(.kurulum) header .sub{margin:0;font-size:var(--fs-md)}
 body:not(.kurulum) header #theme{margin-left:auto;order:9}
 /* ⚠️ "tazele" düğmesi CÜMLENİN İÇİNDE duruyordu; 390px'te satır düğmenin
    ortasından kırılıyor, hem okuma hem tıklama bozuluyordu (ölçüldü).
@@ -1742,7 +1714,7 @@ body:not(.kurulum) header #theme{margin-left:auto;order:9}
 /* ★★ FAZ 47 — sağ sütun 330 → 240px ve düğmeler ALT ALTA (kullanıcı
    isteği: *"genişliğini azaltıp yukardan aşağıya tuşları listeleyip"*).
    Kazanılan 90px doğrudan ızgaraya gidiyor. */
-.prgduzen{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:18px;
+.prgduzen{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:20px;
   align-items:start;margin-top:12px}
 .prgyan .toolbar{flex-direction:column;align-items:stretch;gap:6px}
 .prgyan .toolbar .ghost{width:100%;justify-content:center}
@@ -1769,7 +1741,7 @@ body:not(.kurulum) header #theme{margin-left:auto;order:9}
    dokunmadan tabanı sağlıyor. */
 summary{padding-block:2px;min-height:24px}
 /* İpuçları katlanıyor — silinmiyor (Faz 40'ın dersi). */
-.ipucu>summary{cursor:pointer;font-size:12.5px;color:var(--ink-2);
+.ipucu>summary{cursor:pointer;font-size:var(--fs-md);color:var(--ink-2);
   min-height:24px;display:flex;align-items:center;list-style:none}
 .ipucu>summary::-webkit-details-marker{display:none}
 .ipucu>summary::before{content:"▸";margin-right:6px;color:var(--ink-3)}
@@ -1800,10 +1772,10 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
    İ/I ayrımı yüzünden daha da yavaş okunur. Sesi taşıyan şey Chivo ve ağırlık
    — onlar duruyor. ⚠️ BAŞLIKLAR, eyebrow'lar, tablo başlıkları ve rozetler
    BÜYÜK HARF kalıyor: onlar kısa ve tasarımın kimliği. */
-.ghost{border:1px solid var(--border-strong);border-radius:var(--r);
-  padding:7px 13px;min-height:34px;
-  font-size:12.5px;background:transparent;font-weight:600;letter-spacing:.01em;
-  font-family:"Chivo",Helvetica,Arial,sans-serif}
+.ghost{border:1px solid var(--border-control);border-radius:var(--r);
+  padding:8px 14px;min-height:34px;
+  font-size:var(--fs-md);background:transparent;font-weight:600;letter-spacing:var(--ls-wide);
+  font-family:var(--font-display)}
 .ghost:hover{background:var(--seal-soft);border-color:var(--seal);color:var(--seal)}
 /* ★ Tıklama geri bildirimi (01.09.2026): hafif "bas-hisset". Kayıt/tazele
    halkasının yanında, her düğmede basıldığı anı da belli ediyor. Hareket
@@ -1814,61 +1786,61 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 }
 /* Seçili OLMAYAN öneri sekmesi de tıklanabilir görünsün (eskiden hover yoktu). */
 .tab:not([aria-selected="true"]):hover{background:var(--seal-soft);color:var(--seal)}
-:focus-visible{outline:2px solid var(--seal);outline-offset:2px;border-radius:0}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:var(--r)}
 /* Şematik: kutu değil cetvel. Kart, üstündeki kalın çizgiyle bölünüyor;
    kenarlık yalnız hafif bir hat olarak kalıyor. */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r)}
-.pad{padding:20px 22px}
+.pad{padding:20px 24px}
 /* Bölüm başlığı: büyük harf etiket + sona kadar uzanan yapısal cetvel */
 .sechead{display:flex;align-items:center;gap:12px;margin-bottom:2px}
 .sechead .rule{flex:1;height:2px;background:var(--border-strong);opacity:.55}
 
-.panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:18px}
+.panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:20px}
 .panel{border-top:6px solid var(--accent)}
 .panel[data-role="ANADAL"]{--accent:var(--anadal);--soft:var(--anadal-soft)}
 .panel[data-role="CAP"]{--accent:var(--cap);--soft:var(--cap-soft)}
 .panel[data-role="YANDAL"]{--accent:var(--yandal);--soft:var(--yandal-soft)}
 .panel .top{display:flex;align-items:baseline;gap:10px;justify-content:space-between}
-.panel .pctbox{text-align:right;line-height:1}
-.panel .pct{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
-  font-size:27px;font-weight:600;color:var(--accent);letter-spacing:-.03em}
+.panel .pctbox{text-align:right;line-height:var(--lh-none)}
+.panel .pct{font-family:var(--font-mono);font-variant-numeric:tabular-nums;
+  font-size:var(--fs-3xl);font-weight:600;color:var(--accent);letter-spacing:var(--ls-tight)}
 /* ★ Büyük yüzde etiketsizdi — ne olduğu (tamamlanma) belirsizdi (01.09.2026). */
-.panel .pctlbl{font-family:"Chivo",Helvetica,Arial,sans-serif;font-size:9px;
-  font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);
-  margin-top:3px}
+.panel .pctlbl{font-family:var(--font-display);font-size:var(--fs-xs);
+  font-weight:700;letter-spacing:var(--ls-label);text-transform:uppercase;color:var(--ink-3);
+  margin-top:4px}
 /* ★ Transkript yokken yüzde bir ÖLÇÜM değil: "%0" yerine "—". */
 .panel .pct.unknown{color:var(--ink-3)}
-.panel .name{color:var(--ink-2);font-size:12.5px;margin:3px 0 15px}
+.panel .name{color:var(--ink-2);font-size:var(--fs-md);margin:4px 0 16px}
 .proj.bilinmiyor{border-left:3px solid var(--warn);padding:8px 10px;
-  background:var(--surface-2);margin-bottom:12px;line-height:1.6}
+  background:var(--surface-2);margin-bottom:12px;line-height:var(--lh-body)}
 
 /* ★ İki katmanlı ölçek: dolu = geçilmiş, taralı = bu dönem seçili.
    'Bu dönemi bitirirsen nerede olursun' sorusunun görsel cevabı. */
 .meter{height:10px;background:var(--surface-2);border:1px solid var(--border);
-  border-radius:0;overflow:hidden;display:flex}
+  border-radius:var(--r);overflow:hidden;display:flex}
 .meter i{display:block;height:100%;background:var(--accent)}
 .meter i.plan{background:repeating-linear-gradient(135deg,
   var(--accent) 0 3px,transparent 3px 6px);opacity:.72}
-.proj{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;margin-top:9px;
-  font-size:12.5px;color:var(--ink-2);min-height:19px}
+.proj{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;margin-top:10px;
+  font-size:var(--fs-md);color:var(--ink-2);min-height:19px}
 .proj .arrow{color:var(--ink-3)}
 .proj b{color:var(--accent);font-weight:600}
 .proj .flat{color:var(--ink-3)}
-.stats{display:flex;flex-wrap:wrap;gap:16px;margin-top:11px;font-size:13px;
-  color:var(--ink-2);padding-top:11px;border-top:1px solid var(--border)}
+.stats{display:flex;flex-wrap:wrap;gap:16px;margin-top:12px;font-size:var(--fs-md);
+  color:var(--ink-2);padding-top:12px;border-top:1px solid var(--border)}
 .stats b{color:var(--ink);font-weight:600}
 .stats .gain{color:var(--accent);font-weight:600}
 .cats{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
-.cat{font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:0;
-  background:var(--soft);color:var(--accent);font-weight:600;letter-spacing:.02em}
+.cat{font-size:var(--fs-xs);padding:4px 8px;border:1px solid var(--border);border-radius:var(--r);
+  background:var(--soft);color:var(--accent);font-weight:600;letter-spacing:var(--ls-wide)}
 .cat.zero{background:transparent;color:var(--ink-3)}
 
 .tabs{display:flex;gap:0;flex-wrap:wrap;border:1px solid var(--border);
   border-radius:var(--r);overflow:hidden;background:var(--surface)}
 .tab{border:0;border-left:1px solid var(--border);background:transparent;
-  padding:8px 15px;font-size:11.5px;color:var(--ink-2);font-weight:600;
-  letter-spacing:.06em;text-transform:uppercase;
-  font-family:"Chivo",Helvetica,Arial,sans-serif}
+  padding:8px 12px;font-size:var(--fs-xs);color:var(--ink-2);font-weight:600;
+  letter-spacing:var(--ls-caps);text-transform:uppercase;
+  font-family:var(--font-display)}
 .tab:first-child{border-left:0}
 /* Etiketin tek parçası — kırpma (ellipsis) buradan işliyor, düğmeden değil:
    esnek kutunun öğesi kırpılır, kabın kendisi değil. */
@@ -1885,13 +1857,13 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
    parçası ama tıklanamıyor (kullanıcı raporu 28.08.2026). Artık kutu tam
    düğmeler kadar; dar ekranda taşmasın diye max-width. */
 .modes{display:inline-flex;max-width:100%;gap:0;flex-wrap:wrap;
-  border:1px solid var(--border-strong);
+  border:1px solid var(--border-control);
   border-radius:var(--r);overflow:hidden;background:var(--surface)}
-.modebtn{padding:6px 14px;font-size:13px;color:var(--ink-2);cursor:pointer;
+.modebtn{padding:6px 14px;font-size:var(--fs-md);color:var(--ink-2);cursor:pointer;
   border-left:1px solid var(--border)}
 .modebtn:first-child{border-left:0}
 .modebtn[aria-pressed="true"]{background:var(--seal-soft);color:var(--seal);font-weight:600}
-.modenote{font-size:12px;color:var(--ink-3);margin-top:7px}
+.modenote{font-size:var(--fs-sm);color:var(--ink-3);margin-top:8px}
 /* ★ FAZ 41 — BOŞ kip kutusu 2×2px SİYAH NOKTA olarak çiziliyordu.
    `.modes` çerçeveli; içi boşalınca geriye yalnız çerçeve kalıyor ve açık
    şemada `--border-strong` (#141821) neredeyse siyah. Kip düğmeleri ancak
@@ -1907,67 +1879,70 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 
 /* ---------- kurulum şeridi (Faz 8) ---------- */
 .setupbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;
-  padding:11px 14px;border:1px solid var(--border);border-left:3px solid var(--seal);
+  padding:12px 14px;border:1px solid var(--border);border-left:3px solid var(--seal);
   border-radius:var(--r);background:var(--surface)}
-.setupbar .who{font-size:13px;color:var(--ink-2);margin-right:auto}
+.setupbar .who{font-size:var(--fs-md);color:var(--ink-2);margin-right:auto}
 .setupbar .who b{color:var(--ink);font-weight:600}
-.setupbar .ro{font-size:12px;color:var(--ink-3)}
+.setupbar .ro{font-size:var(--fs-sm);color:var(--ink-3)}
 /* Faz 54 — sitede verinin yedeği: kendi satırında, çubuğun altında. */
 .setupbar .verikutusu{flex-basis:100%;margin-top:8px;padding:12px 14px;
   border:1px solid var(--border);border-left:3px solid var(--seal);
-  background:var(--surface);font-size:13.5px;line-height:1.55;color:var(--ink-2)}
+  background:var(--surface);font-size:var(--fs-lg);line-height:var(--lh-normal);color:var(--ink-2)}
 .verikutusu b{color:var(--ink)}
 .veridugmeler{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-.verikalici,.veriyedek{margin-top:8px;font-size:13px}
+.verikalici,.veriyedek{margin-top:8px;font-size:var(--fs-md)}
 .veriyedek:empty{display:none}
 .heroyedek{margin-top:8px}
 /* Kısa bildirim — kip pencere DEĞİL: sayfayı kilitlemiyor. */
 .bildirim{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(12px);
-  background:var(--seal);color:var(--ground);padding:9px 16px;border-radius:var(--r);
-  font-size:13.5px;box-shadow:0 6px 24px rgba(0,0,0,.22);z-index:60;
-  opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;max-width:min(92vw,520px)}
+  background:var(--seal);color:var(--ground);padding:10px 16px;border-radius:var(--r);
+  font-size:var(--fs-lg);box-shadow:var(--shadow-toast);z-index:var(--z-toast);
+  opacity:0;pointer-events:none;transition:opacity var(--dur-base),transform var(--dur-base);max-width:min(92vw,520px)}
 .bildirim.acik{opacity:1;transform:translateX(-50%) translateY(0)}
 @media (prefers-reduced-motion:reduce){.bildirim{transition:none}}
 /* Satır içi küçük düğme — veri yaşının yanındaki "tazele". */
-.ghost.mini{font-size:11.5px;padding:1px 8px;vertical-align:baseline}
+.ghost.mini{font-size:var(--fs-sm);padding:1px 8px;vertical-align:baseline}
 /* Türetilen program kodları — okunur rozet; önerilenler tıklanabilir. */
 .kodlar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 4px}
-.kod{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
-  font-size:12px;padding:2px 9px;border-radius:var(--r);
-  border:1px solid var(--border-strong);color:var(--ink-2);background:var(--surface)}
+.kod{font-family:var(--font-mono);
+  font-size:var(--fs-sm);padding:2px 10px;border-radius:var(--r);
+  border:1px solid var(--border-control);color:var(--ink-2);background:var(--surface)}
 .kod.ekle{cursor:pointer;border-style:dashed;color:var(--seal)}
 .kod.ekle:hover{border-style:solid;background:var(--surface-2)}
 /* Seçili ama planı bulunamayan ikinci program — seçim duruyor, hesap yok. */
-.setupbar .uyari{font-size:11px;padding:1px 6px;border:1px solid var(--warn);
+.setupbar .uyari{font-size:var(--fs-xs);padding:1px 6px;border:1px solid var(--warn);
   color:var(--warn);border-radius:var(--r);white-space:nowrap}
 .ghost[disabled]{opacity:.45;cursor:not-allowed}
 /* Meşgul düğme dönen halkası — "kaydediliyor" belli olsun (kullanıcı isteği
    28.08.2026). Meşgulken opaklığı düşürmüyoruz ki metin+dönme okunur kalsın. */
 .ghost.mesgul{opacity:1;cursor:progress}
 .spin{display:inline-block;width:13px;height:13px;vertical-align:-2px;
-  margin-right:7px;border:2px solid currentColor;border-top-color:transparent;
-  border-radius:50%;animation:spin .7s linear infinite}
+  margin-right:8px;border:2px solid currentColor;border-top-color:transparent;
+  border-radius:var(--r-round);animation:spin var(--dur-spin) linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.spin{animation:none;border-top-color:currentColor}}
 .ghost.primary{background:var(--seal);color:var(--ground);border-color:var(--seal);
   font-weight:600}
-.ghost.primary:hover{opacity:.9;background:var(--seal)}
+/* ★ Faz 56 — `--seal-hover` Faz 43'ten beri TANIMLIYDI ama hiç kullanılmıyordu;
+   üzerine gelme hâlâ opaklıkla yapılıyordu (zemin de soluyor). */
+.ghost.primary:hover{background:var(--seal-hover);border-color:var(--seal-hover);
+  color:var(--on-seal)}
 
 /* form öğeleri */
 .field{display:block;margin-top:12px}
-.field>span{display:block;font-size:10.5px;font-weight:600;letter-spacing:.11em;
-  text-transform:uppercase;color:var(--seal);margin-bottom:5px}
-.field .hint{font-size:12px;color:var(--ink-3);margin-top:4px;letter-spacing:0;
+.field>span{display:block;font-size:var(--fs-xs);font-weight:600;letter-spacing:var(--ls-label);
+  text-transform:uppercase;color:var(--seal);margin-bottom:6px}
+.field .hint{font-size:var(--fs-sm);color:var(--ink-3);margin-top:4px;letter-spacing:var(--ls-0);
   text-transform:none;font-weight:400}
 select,input[type=text],input[type=search],textarea{
-  font:inherit;font-size:13.5px;width:100%;padding:7px 9px;color:var(--ink);
-  background:var(--surface);border:1px solid var(--border-strong);border-radius:0}
-textarea{font-family:"IBM Plex Mono",monospace;font-size:12.5px;min-height:130px;
+  font:inherit;font-size:var(--fs-lg);width:100%;padding:8px 10px;color:var(--ink);
+  background:var(--surface);border:1px solid var(--border-control);border-radius:var(--r)}
+textarea{font-family:var(--font-mono);font-size:var(--fs-md);min-height:130px;
   resize:vertical}
-select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-offset:1px}
-.radios{display:flex;gap:0;border:1px solid var(--border-strong);border-radius:0;
+select:focus,input:focus,textarea:focus{outline:2px solid var(--focus);outline-offset:1px}
+.radios{display:flex;gap:0;border:1px solid var(--border-control);border-radius:var(--r);
   overflow:hidden}
-.radios button{flex:1;padding:7px 10px;font-size:13px;color:var(--ink-2);
+.radios button{flex:1;padding:8px 10px;font-size:var(--fs-md);color:var(--ink-2);
   border-left:1px solid var(--border)}
 .radios button:first-child{border-left:0}
 .radios button[aria-pressed="true"]{background:var(--seal-soft);color:var(--seal);
@@ -1976,18 +1951,18 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
 .candbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px}
 .candbar input[type=search]{flex:1 1 240px;min-width:200px}
 .candbar .radios{flex:0 0 auto}
-.candbar .radios button{flex:0 0 auto;padding:6px 11px}
-.tickbox{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);
+.candbar .radios button{flex:0 0 auto;padding:6px 12px}
+.tickbox{display:flex;align-items:center;gap:6px;font-size:var(--fs-md);color:var(--ink-2);
   cursor:pointer;white-space:nowrap;min-height:24px}
 /* ★ Faz 46 — onay kutusu 13×13px'ti (tarayıcı varsayılanı). Etiketin
    tamamı zaten tıklanabilir ama kutunun KENDİSİ de tabanın üstünde
    olmalı: dokunmatikte insanlar kutuya basıyor. */
-.tickbox input[type="checkbox"]{width:18px;height:18px;margin:3px;
+.tickbox input[type="checkbox"]{width:18px;height:18px;margin:4px;
   accent-color:var(--seal);flex:0 0 auto}
-.candcount{margin-left:auto;font-size:12px;color:var(--ink-3);
+.candcount{margin-left:auto;font-size:var(--fs-sm);color:var(--ink-3);
   font-variant-numeric:tabular-nums}
 /* Klavye ipucu — dar ekranda gizli (orada klavye yok). */
-.kisayol{font-size:11px;color:var(--ink-3);white-space:nowrap}
+.kisayol{font-size:var(--fs-xs);color:var(--ink-3);white-space:nowrap}
 @media (max-width:700px){.kisayol{display:none}}
 /* ★ Satıra tıklayınca ekleme penceresi açılıyor ama tıklanabilir olduğu belli
    değildi (01.09.2026) — imleç + hafif vurgu ekledik. Klavye odağı (.odak)
@@ -1995,81 +1970,100 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
 #cands tbody tr[data-course]{cursor:pointer}
 #cands tbody tr[data-course]:hover{background:var(--surface-2)}
 /* Klavye odağı — fare seçimi gibi görünmeli ki nerede olduğun belli olsun. */
-#cands tbody tr.odak{outline:2px solid var(--seal);outline-offset:-2px;
+#cands tbody tr.odak{outline:2px solid var(--focus);outline-offset:-2px;
   background:var(--seal-soft)}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
 /* Gelişmiş alan — ilk kurulumda kapalı. Nadir kullanılan bir metin kutusunu
    zorunlu alanların yanına koymak, kurulumu üç kat karmaşık gösteriyordu. */
 .adv{margin-top:14px;border-top:1px solid var(--border);padding-top:8px}
-.adv>summary{cursor:pointer;font-size:12px;color:var(--ink-3);
-  letter-spacing:.06em;text-transform:uppercase}
+.adv>summary{cursor:pointer;font-size:var(--fs-sm);color:var(--ink-3);
+  letter-spacing:var(--ls-caps);text-transform:uppercase}
 .adv>summary:hover{color:var(--ink)}
 .dlgactions{display:flex;gap:8px;justify-content:flex-end;align-items:center;
-  margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
-.dlgactions .msg{margin-right:auto;font-size:12.5px;color:var(--ink-2)}
+  margin-top:20px;padding-top:14px;border-top:1px solid var(--border)}
+.dlgactions .msg{margin-right:auto;font-size:var(--fs-md);color:var(--ink-2)}
 .dlgactions .msg.bad{color:var(--danger)}
 .terms{display:flex;flex-wrap:wrap;gap:6px}
-.terms button{width:42px;padding:7px 0;text-align:center;font-size:13px;
-  border:1px solid var(--border-strong);border-radius:0;color:var(--ink-2)}
+.terms button{width:42px;padding:8px 0;text-align:center;font-size:var(--fs-md);
+  border:1px solid var(--border-control);border-radius:var(--r);color:var(--ink-2)}
 .terms button[aria-pressed="true"]{background:var(--seal);color:var(--ground);
   border-color:var(--seal);font-weight:600}
 
 /* plandan tikleme */
 .ckterm{margin-bottom:10px}
-.cktermhead{font-size:10.5px;font-weight:600;letter-spacing:.11em;
+.cktermhead{font-size:var(--fs-xs);font-weight:600;letter-spacing:var(--ls-label);
   text-transform:uppercase;color:var(--seal);padding:8px 0 4px;
   border-bottom:1px solid var(--border);margin-bottom:4px}
-.ckrow{display:flex;align-items:center;gap:9px;padding:4px 2px;font-size:13px;
-  border-radius:0;cursor:pointer}
+.ckrow{display:flex;align-items:center;gap:10px;padding:4px 2px;font-size:var(--fs-md);
+  border-radius:var(--r);cursor:pointer}
 .ckrow:hover{background:var(--surface-2)}
 .ckrow input{width:15px;height:15px;accent-color:var(--seal);cursor:pointer}
 .ckcode{min-width:74px;font-weight:600}
-.ckname{flex:1;color:var(--ink-3);font-size:12px;overflow:hidden;
+.ckname{flex:1;color:var(--ink-3);font-size:var(--fs-sm);overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
-.ckcr{color:var(--ink-3);font-size:12px;min-width:24px;text-align:right}
-.ckrow select{width:auto;min-width:78px;padding:2px 5px;font-size:12.5px}
+.ckcr{color:var(--ink-3);font-size:var(--fs-sm);min-width:24px;text-align:right}
+.ckrow select{width:auto;min-width:78px;padding:2px 6px;font-size:var(--fs-md)}
 .ckrow select:disabled{opacity:.35}
 
 /* transkript tablosu */
-.trtable{width:100%;border-collapse:collapse;font-size:13px}
-.trtable th{text-align:left;font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
+.trtable{width:100%;border-collapse:collapse;font-size:var(--fs-md)}
+.trtable th{text-align:left;font-size:var(--fs-xs);letter-spacing:var(--ls-label);text-transform:uppercase;
   color:var(--seal);font-weight:600;padding:0 8px 6px 0;
   border-bottom:1px solid var(--border-strong)}
-.trtable td{padding:5px 8px 5px 0;border-top:1px solid var(--border);vertical-align:middle}
-.trtable select{width:auto;min-width:74px;padding:3px 6px;font-size:12.5px}
+.trtable td{padding:6px 8px 6px 0;border-top:1px solid var(--border);vertical-align:middle}
+.trtable select{width:auto;min-width:74px;padding:4px 6px;font-size:var(--fs-md)}
 /* ★ Faz 48 — TABAN `.rm`in KENDİSİNDE. Faz 46'da yalnız `.trtable .rm`
    büyütülmüştü; taramada "Sayılan derslerim" bölümündeki `kaldır` düğmesi
    46×22px olarak kalmış çıktı. Aynı sınıfın üç kullanım yeri var; kural
    sınıfa yazılınca üçü de tabanın üstünde. */
 .rm{min-height:24px;display:inline-flex;align-items:center}
-.trtable .rm{color:var(--danger);font-size:12px;padding:2px 8px;
-  border:1px solid var(--border);border-radius:0;
+.trtable .rm{color:var(--danger);font-size:var(--fs-sm);padding:2px 8px;
+  border:1px solid var(--border);border-radius:var(--r);
   /* Faz 46: 46×22px'ti — WCAG 2.2 AA tabanı 24×24. */
   min-height:24px;display:inline-flex;align-items:center}
 .scroll{max-height:290px;overflow-y:auto;margin-top:10px}
-.hits{border:1px solid var(--border);border-radius:0;margin-top:6px;
+.hits{border:1px solid var(--border);border-radius:var(--r);margin-top:6px;
   max-height:190px;overflow-y:auto}
 .hit{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;
-  padding:6px 9px;font-size:13px;border-bottom:1px solid var(--border)}
+  padding:6px 10px;font-size:var(--fs-md);border-bottom:1px solid var(--border)}
 .hit:last-child{border-bottom:0}
 .hit:hover{background:var(--surface-2)}
-.hit .meta{color:var(--ink-3);font-size:11.5px}
+.hit .meta{color:var(--ink-3);font-size:var(--fs-sm)}
 
 /* Kredi eşiği kutusu */
-.gauge{display:flex;flex-wrap:wrap;gap:18px;align-items:center}
+.gauge{display:flex;flex-wrap:wrap;gap:20px;align-items:center}
 .gaugebar{flex:1;min-width:190px}
 .gaugebar .track{height:9px;background:var(--surface-2);border:1px solid var(--border);
-  border-radius:0;overflow:hidden}
+  border-radius:var(--r);overflow:hidden}
 .gaugebar .track i{display:block;height:100%;background:var(--seal)}
-.gaugebar .track i.ok{background:var(--anadal)}
-.gaugelabel{font-size:12.5px;color:var(--ink-2);margin-top:6px}
-.summary{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:13px;
+/* ★ Faz 56 — DURUM rengi `--ok`: sağlanıyor (✓), tamam, kaydedildi, programda.
+   v1'de bunlar doğrudan `--anadal` yazıyordu — rol (hangi program) ile durum
+   (sağlandı mı) aynı adı taşıyordu. Bugün aynı ton; ayrışırsa tek satır. */
+.gaugebar .track i.ok{background:var(--ok)}
+.gaugelabel{font-size:var(--fs-md);color:var(--ink-2);margin-top:6px}
+.summary{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:var(--fs-md);
   color:var(--ink-2);margin-top:2px}
 .summary .over{color:var(--danger);font-weight:600}
+/* ★★ FAZ 56 — haftalık programın özeti (bağlam sütununun tepesi). */
+.prgyan #schedSummary{flex-direction:column;align-items:stretch;gap:6px;margin:0}
+.yukust{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;color:var(--ink-2)}
+.yuksayi{font-size:var(--fs-3xl);font-weight:600;color:var(--ink);
+  letter-spacing:var(--ls-tight);line-height:var(--lh-none)}
+.yuk{height:6px;background:var(--surface-2);border:1px solid var(--border);overflow:hidden}
+.yuk>i{display:block;height:100%;background:var(--seal)}
+.yuk.asti>i{background:var(--danger)}
+.ozetsatir{color:var(--ink-2)}
+.ozetdolu{font-size:var(--fs-sm);line-height:var(--lh-normal);color:var(--ink)}
+.ozetdolu .yerdurum{margin:0 4px 0 0}
+.ozetnot{color:var(--ink-3)}
+.ozetlejant{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:var(--fs-sm);
+  padding-top:6px;border-top:1px solid var(--border)}
+.ozetpuan{font-size:var(--fs-sm);color:var(--ink-3)}
+.ozetpuan b{color:var(--ink-2)}
 .dot{display:inline-flex;align-items:center;gap:6px}
-.dot i{width:9px;height:9px;border-radius:0;display:block}
+.dot i{width:9px;height:9px;border-radius:var(--r);display:block}
 .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px}
-.toolbar .hint{font-size:12px;color:var(--ink-3)}
+.toolbar .hint{font-size:var(--fs-sm);color:var(--ink-3)}
 
 .gridwrap{overflow-x:auto}
 /* Dar ekran düzeni (yapılacaklar 4.1). Izgara 660px'in altına inemiyor;
@@ -2078,10 +2072,10 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
    burada AYRICA hesaplanıp işaretleniyor. */
 .daylist{display:none;grid-template-columns:1fr;gap:14px}
 .daylist section{display:flex;flex-direction:column;gap:6px}
-.daylist h3{font-size:10.5px;letter-spacing:.16em;color:var(--seal);
+.daylist h3{font-size:var(--fs-xs);letter-spacing:var(--ls-eyebrow);color:var(--seal);
   padding-bottom:6px;border-bottom:2px solid var(--border-strong)}
 .daylist .row{display:flex;justify-content:space-between;gap:10px;align-items:baseline;
-  width:100%;text-align:left;padding:11px 12px;font-size:13.5px;
+  width:100%;text-align:left;padding:12px 12px;font-size:var(--fs-lg);
   color:var(--accent-ink);--tonhedef:var(--soft);--tonoran:0%;
   border-left:5px solid color-mix(in oklab, var(--accent),
     var(--tonhedef) calc(var(--tonoran) / 2));
@@ -2089,13 +2083,30 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
 .daylist .row[data-role="ANADAL"]{--accent:var(--anadal);--soft:var(--anadal-soft);--accent-ink:var(--anadal-ink)}
 .daylist .row[data-role="CAP"]{--accent:var(--cap);--soft:var(--cap-soft);--accent-ink:var(--cap-ink)}
 .daylist .row[data-role="YANDAL"]{--accent:var(--yandal);--soft:var(--yandal-soft);--accent-ink:var(--yandal-ink)}
-.daylist .row small{color:var(--ink-2);font-size:11.5px;display:block}
+.daylist .row small{color:inherit;font-size:var(--fs-sm);display:block}
 .daylist .row.clash{border-left-color:var(--danger);
   box-shadow:inset 0 0 0 1px var(--danger)}
-.daylist .none{color:var(--ink-3);font-size:12.5px;padding:6px 0}
-.daylist .warn{color:var(--danger);font-weight:600;font-size:11px;
-  letter-spacing:.06em;text-transform:uppercase;
-  font-family:"Chivo",Helvetica,Arial,sans-serif}
+.daylist .none{color:var(--ink-3);font-size:var(--fs-md);padding:6px 0}
+.daylist .warn{color:var(--danger);font-weight:600;font-size:var(--fs-xs);
+  letter-spacing:var(--ls-caps);text-transform:uppercase;
+  font-family:var(--font-display)}
+/* ★★ FAZ 56 — meşgul saat telefon listesinde de (ızgaradakiyle aynı tarama:
+   bir DERS değil, veri renklerini kullanmıyor). */
+.daylist .row.mesgul{color:var(--ink-2);border-left-color:var(--border-strong);
+  background:repeating-linear-gradient(135deg,var(--surface-2) 0 5px,
+    transparent 5px 10px)}
+.daylist .row.mesgul.clash{border-left-color:var(--danger)}
+/* ★★ FAZ 56 — seçili şubenin yeri (dolu / son N). Rozet KENDİ zemininde
+   (`surface`): blok rolün tonlu zemininde duruyor ve ton merdiveni yalnız
+   `-ink` yazısını ölçüyor — danger/warn o zeminlerde ölçülmedi. Zemin
+   verince çift ölçülen bir çift oluyor (`tools/kontrast_olcumu.py`). */
+.yerdurum{display:inline-block;margin-left:4px;padding:2px 4px;
+  font-family:var(--font-display);font-size:var(--fs-xs);font-weight:700;
+  letter-spacing:var(--ls-caps);text-transform:uppercase;line-height:var(--lh-none);
+  white-space:nowrap;vertical-align:1px;border:1px solid currentColor;
+  background:var(--surface)}
+.yerdurum.dolu{color:var(--danger)}
+.yerdurum.az{color:var(--warn)}
 @media (max-width:700px){
   .gridwrap{display:none}
   /* ⚠️ Izgara gizliyken saat kırpma düğmesi de gizlenmeli: telefonda
@@ -2103,9 +2114,9 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
      (Faz 39'da eklerken atlandı, mobil turda görüldü.) */
   .gridaralik{display:none}
   .daylist{display:grid}
-  .wrap{padding:20px 14px 60px;gap:22px}
-  h1{font-size:23px}
-  .pad{padding:15px 14px}
+  .wrap{padding:20px 14px 56px;gap:24px}
+  h1{font-size:var(--fs-2xl)}
+  .pad{padding:16px 14px}
   .panels{gap:12px}
   /* Dokunma hedefleri: 44px kuralı.
      ⚠️ Kural "44" diyordu ama değer 40'tı (Faz 39). Faz 50 telefon turunda
@@ -2144,7 +2155,7 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
      kural (satır ~2450) kaynakta daha sonra geliyor ve aynı özgüllükte
      olduğu için bunu eziyordu. Ölçüldü (Faz 50, 390px): hesaplanan
      `min-height` 24px, yani bu satır da iki fazdır ölüydü. */
-  .tier li span.dispre{min-height:32px;padding:0 9px;
+  .tier li span.dispre{min-height:32px;padding:0 10px;
     display:inline-flex;align-items:center}
   .tiers{gap:8px}
   /* Aday tablosu 6 sütunla telefona sığmıyordu; kutusunun içinde yana
@@ -2153,8 +2164,8 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
      AKTS karar için kritik değil. Satıra dokununca hepsi diyalogda. */
   #cands th:nth-child(3),#cands td:nth-child(3),
   #cands th:nth-child(5),#cands td:nth-child(5){display:none}
-  table.list{font-size:13px}
-  table.list td{padding:11px 8px 11px 0}
+  table.list{font-size:var(--fs-md)}
+  table.list td{padding:12px 8px 12px 0}
   /* ★★ FAZ 50 — ADAY TABLOSU TELEFONDA KART (kullanıcı: "telefonda
      kullanılması biraz zor").
      Ölçüldü (390px): dört sütun kalsa bile ders sütununa ~160px düşüyordu;
@@ -2176,14 +2187,14 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
     gap:2px 10px;align-items:baseline;padding:12px 0;
     border-bottom:1px solid var(--border)}
   #cands tr[data-course]>td{padding:0;border:0}
-  #cands td.score{grid-column:2;grid-row:1;text-align:right;font-size:15px;
+  #cands td.score{grid-column:2;grid-row:1;text-align:right;font-size:var(--fs-base);
     font-weight:700;color:var(--ink)}
-  #cands td.score::after{content:" puan";font-size:10px;font-weight:600;
-    letter-spacing:.06em;color:var(--ink-3)}
+  #cands td.score::after{content:" puan";font-size:var(--fs-xs);font-weight:600;
+    letter-spacing:var(--ls-caps);color:var(--ink-3)}
   #cands tr[data-course]>td:nth-child(2){grid-column:1;grid-row:1}
   #cands tr[data-course]>td:nth-child(4){grid-column:1;grid-row:2}
   #cands tr[data-course]>td:nth-child(4)::after{content:" " attr(data-e);
-    color:var(--ink-3);font-size:11.5px}
+    color:var(--ink-3);font-size:var(--fs-sm)}
   #cands tr[data-course]>td:nth-child(6){grid-column:2;grid-row:2;
     justify-self:end;white-space:nowrap}
   #cands .why{margin-top:2px}
@@ -2194,9 +2205,9 @@ table.grid{border-collapse:collapse;width:100%;min-width:660px;table-layout:fixe
 /* Izgara kırpma düğmesi (Faz 39) — ızgaranın hemen altında, sessiz. */
 .gridaralik{margin-top:6px}
 .gridaralik:empty{display:none}
-table.grid th{font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+table.grid th{font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-eyebrow);text-transform:uppercase;
   color:var(--seal);padding:0 0 8px;text-align:left;border-bottom:3px solid var(--seal);
-  font-family:"Chivo",Helvetica,Arial,sans-serif}
+  font-family:var(--font-display)}
 table.grid th:first-child{width:58px}
 /* ★★ FAZ 46 — YARIM SAAT SATIRI 19px → 28px.
    Ölçüm (17.09.2026): boş hücreler 235×19px'ti; WCAG 2.2 AA (2.5.8 Target
@@ -2207,13 +2218,13 @@ table.grid th:first-child{width:58px}
 table.grid td{height:28px;padding:0 2px;vertical-align:top}
 table.grid tr.hr>td{border-top:1px solid var(--border-strong);opacity:1}
 table.grid tr.half>td{border-top:1px dotted var(--border)}
-table.grid td.hour{border:0!important;color:var(--ink-3);font-size:11.5px;padding-top:2px}
+table.grid td.hour{border:0!important;color:var(--ink-3);font-size:var(--fs-sm);padding-top:2px}
 /* ⚠️ Boş hücrenin TIKLANABİLİR olduğu, üstüne gelmeden de görünmeli:
    ölçümde hücrenin hiçbir görsel işareti yoktu, yalnız hover vardı.
    İşaret sönük ve hücrenin köşesinde — ızgaranın okunmasını bozmuyor. */
 table.grid td.free{cursor:pointer;position:relative}
 table.grid td.free::after{content:"+";position:absolute;left:4px;top:1px;
-  font-size:12px;line-height:1;color:var(--ink-3);opacity:.45}
+  font-size:var(--fs-sm);line-height:var(--lh-none);color:var(--ink-3);opacity:.45}
 table.grid td.free:hover{background:var(--seal-soft);
   box-shadow:inset 0 0 0 1px var(--border-strong)}
 table.grid td.free:hover::after{opacity:1;color:var(--seal)}
@@ -2232,7 +2243,7 @@ table.grid td.free:hover::after{opacity:1;color:var(--seal)}
    iki ders aynı tona düşebilir. O yüzden kod HER BLOKTA yazılı ve aynı
    dersin bütün saatleri `.esder` ile ayrıca işaretlenebiliyor — renk tek
    işaret değil (renk körlüğü). */
-.blk{border-radius:0;padding:4px 7px;font-size:12px;line-height:1.3;height:100%;
+.blk{border-radius:var(--r);padding:4px 8px;font-size:var(--fs-sm);line-height:var(--lh-snug);height:100%;
   cursor:pointer;color:var(--accent-ink);overflow:hidden;
   /* Varsayılan = TON YOK: hedef `--soft`, oran 0 → iki karışım da kimlik.
      Ton verilen blokta bu iki jeton satır içinde değişiyor. */
@@ -2264,14 +2275,14 @@ table.grid td.free:hover::after{opacity:1;color:var(--seal)}
     var(--tonhedef) var(--tonoran));
   box-shadow:inset 0 0 0 1px var(--border)}
 .blk.online::after{content:"⌂";position:absolute;right:5px;top:3px;
-  font-size:10px;opacity:.75}
+  font-size:var(--fs-xs);opacity:.75}
 .blk{position:relative}
 /* Ders adı — dar hücrede kesiliyor; tam adı `title` taşıyor. */
 /* ★ FAZ 40 — aynı dersin bütün saatleri. İşaret RENK DEĞİL: çerçeve.
    Tonla yarışmıyor, renk körlüğünde de okunuyor, ve `.clash`ın kırmızı
    çerçevesinin üstüne binmiyor (o `border-left` + inset gölge kullanıyor). */
 .blk.esder,.daylist .row.esder{outline:2px solid var(--ink);outline-offset:-2px}
-.blk.esder{z-index:1}
+.blk.esder{z-index:var(--z-lift)}
 /* ★★ FAZ 45 — SAATE KİLİTLİ ders.
    İşaret yine RENK DEĞİL (renk programı, ton dersi söylüyor; üçüncü bir
    anlamı renge yüklemek üçünü birden okunmaz yapardı). Kilit iki şeyle
@@ -2287,16 +2298,22 @@ table.grid td.free:hover::after{opacity:1;color:var(--seal)}
 .note.kilit{margin-top:10px;border-left:3px solid var(--ink);padding-left:10px}
 .note.kilit.tutmuyor{border-left-color:var(--danger)}
 .note.kilit .kilitsatir{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.note.kilit .kilitsatir button{font-size:12px}
+.note.kilit .kilitsatir button{font-size:var(--fs-sm)}
 /* Faz 53 — ders penceresinde saat aralığına kilit. Basılı olan KALIN ÇERÇEVE
    ile (renk değil; zorlanmış renk kipinde de görünsün — Faz 51 dersi). */
 .kilitgrup{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
-.kilitgrupad{font-size:12.5px;color:var(--ink-2)}
+.kilitgrupad{font-size:var(--fs-md);color:var(--ink-2)}
 .kilitaralik[aria-pressed="true"]{border:2px solid var(--ink);color:var(--ink);
   font-weight:600}
 .kilitaralik:disabled{opacity:.55;cursor:not-allowed}
 .kilitsay{color:var(--ink-3);font-weight:400}
-.blkad{display:block;font-size:10.5px;line-height:1.25;opacity:.85;
+/* ★★ FAZ 56 — BLOK İÇİ YAZI YALNIZ `-ink`, TAM GÜÇTE. v1 tasarım sistemi bu
+   kuralı yazmıştı ("ad için opaklık, saat için ink-2 verme"), kod almamıştı.
+   Ton merdiveniyle ölçüldü (en kötü basamak): ad `-ink` %85 opaklıkta
+   **3.80:1**, saat · yer · CRN satırı `ink-2` ile **3.09:1** — taban 4.5.
+   CRN kayıt günü elle yazılan sayı. Tam `-ink` 4.67:1. Hiyerarşi artık
+   boy ve ağırlıkta; renkte değil. */
+.blkad{display:block;font-size:var(--fs-xs);line-height:var(--lh-snug);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
 .daylist .row.online{border-left-style:dashed}
 /* Ders konulamayacak saat — okul dışı iş. Taralı, çünkü bir DERS değil:
@@ -2304,39 +2321,39 @@ table.grid td.free:hover::after{opacity:1;color:var(--seal)}
 .blk.mesgul{--accent:var(--ink-3);border-left-color:var(--border-strong);
   background:repeating-linear-gradient(135deg,var(--surface-2) 0 5px,
     transparent 5px 10px);color:var(--ink-2);cursor:pointer}
-.blk.mesgul b{font-weight:600;letter-spacing:.02em}
+.blk.mesgul b{font-weight:600;letter-spacing:var(--ls-wide)}
 table.grid td.busycell{background:repeating-linear-gradient(135deg,
   var(--surface-2) 0 5px,transparent 5px 10px)}
 .blk b{display:block;font-weight:600}
-.blk small{color:var(--ink-2);font-size:11px}
-.empty{color:var(--ink-3);font-size:12px;padding:24px 0;text-align:center}
+.blk small{color:inherit;font-size:var(--fs-xs)}
+.empty{color:var(--ink-3);font-size:var(--fs-sm);padding:24px 0;text-align:center}
 
-table.list{width:100%;border-collapse:collapse;font-size:13.5px}
-table.list th{text-align:left;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+table.list{width:100%;border-collapse:collapse;font-size:var(--fs-lg)}
+table.list th{text-align:left;font-size:var(--fs-xs);letter-spacing:var(--ls-eyebrow);text-transform:uppercase;
   color:var(--seal);font-weight:700;padding:0 10px 8px 0;
-  border-bottom:3px solid var(--seal);font-family:"Chivo",Helvetica,Arial,sans-serif}
-table.list td{padding:9px 10px 9px 0;border-top:1px solid var(--border);vertical-align:top}
+  border-bottom:3px solid var(--seal);font-family:var(--font-display)}
+table.list td{padding:10px 10px 10px 0;border-top:1px solid var(--border);vertical-align:top}
 table.list tr:hover td{background:var(--surface-2)}
-.tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:0;
-  letter-spacing:.08em;text-transform:uppercase;
-  font-family:"Chivo",Helvetica,Arial,sans-serif}
+.tag{font-size:var(--fs-xs);font-weight:700;padding:2px 8px;border-radius:var(--r);
+  letter-spacing:var(--ls-caps);text-transform:uppercase;
+  font-family:var(--font-display)}
 .tag.ANADAL{background:var(--anadal-soft);color:var(--anadal-ink)}
 .tag.CAP{background:var(--cap-soft);color:var(--cap-ink)}
 .tag.YANDAL{background:var(--yandal-soft);color:var(--yandal-ink)}
 /* CRN'den yüklenen, planlarında olmayan ders — nötr renk, çünkü
    hangi programa saydığını biz bilmiyoruz. */
 .tag.PLAN_DISI{background:var(--surface-2);color:var(--ink-3)}
-.why{color:var(--ink-3);font-size:12px;margin-top:3px}
+.why{color:var(--ink-3);font-size:var(--fs-sm);margin-top:4px}
 .score{font-weight:600}
 
-.chipline{display:flex;align-items:center;gap:9px;margin:16px 0 8px}
+.chipline{display:flex;align-items:center;gap:10px;margin:16px 0 8px}
 /* ★ `inline-block` + `nowrap` (UX 27.08.2026): rozet dar mobil ekranda
    ORTASINDAN bölünüyordu ("ÖNŞART / BİLGİSİ YOK") ve kenarlık kırık bir
    kutu çiziyordu. Rozet tek parça; sığmazsa bütün olarak alt satıra iner.
    `margin-bottom` sarınca üst üste binmesin diye. */
-.chip{display:inline-block;white-space:nowrap;font-size:10.5px;font-weight:600;
-  padding:3px 9px;border-radius:0;margin-bottom:3px;
-  letter-spacing:.05em;text-transform:uppercase;border:1px solid currentColor}
+.chip{display:inline-block;white-space:nowrap;font-size:var(--fs-xs);font-weight:600;
+  padding:4px 10px;border-radius:var(--r);margin-bottom:4px;
+  letter-spacing:var(--ls-wide);text-transform:uppercase;border:1px solid currentColor}
 /* ★★ FAZ 51 — `title` DOKUNMATİKTE GÖRÜNMEZ.
    Ölçüldü (390px, on bir görünüm): görünür 102 `title`ın 82'si tıklanamayan
    bir öğedeydi, yani telefonda o metne ULAŞILAMIYORDU. Bunların 24'ü
@@ -2357,50 +2374,50 @@ table.list tr:hover td{background:var(--surface-2)}
 /* Denkliği açık gereken dersler (kullanıcı isteği 27.08.2026). */
 .denkrow{padding:10px 0;border-top:1px solid var(--border)}
 .denkrow:first-child{border-top:0}
-.denkhedef{font-size:13px;color:var(--ink-2);margin-bottom:6px;
+.denkhedef{font-size:var(--fs-md);color:var(--ink-2);margin-bottom:6px;
   display:flex;flex-wrap:wrap;gap:6px;align-items:baseline}
-.denkhedef .denkad{color:var(--ink-3);font-size:12px}
-.denkok{color:var(--ink-3);font-size:12px}
+.denkhedef .denkad{color:var(--ink-3);font-size:var(--fs-sm)}
+.denkok{color:var(--ink-3);font-size:var(--fs-sm)}
 .denkkaynak{border:1px solid var(--border);background:var(--surface);
   padding:8px 10px;margin-top:6px;cursor:pointer}
 .denkkaynak:hover{background:var(--surface-2)}
 .denkkaynak.bilgi{cursor:default}
 .denkkaynak.bilgi:hover{background:var(--surface)}
-.denkkaynak .denkad{color:var(--ink-3);font-size:12px;margin-left:6px}
-.denkkaynak .denkmeta{color:var(--ink-3);font-size:11.5px;margin-top:2px}
-.denknot{font-size:11.5px;color:var(--ink-3);margin-top:6px}
+.denkkaynak .denkad{color:var(--ink-3);font-size:var(--fs-sm);margin-left:6px}
+.denkkaynak .denkmeta{color:var(--ink-3);font-size:var(--fs-sm);margin-top:2px}
+.denknot{font-size:var(--fs-sm);color:var(--ink-3);margin-top:6px}
 .chip.supply{color:var(--danger)}
 .chip.prereq{color:var(--warn)}
 .chip.credit{color:var(--seal)}
 .chip.unknown{color:var(--ink-3)}
 .chip.edited{color:var(--cap)}
 .blocklist{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px}
-.blockitem{font-size:12.5px;color:var(--ink-2);padding:7px 10px;border-radius:0;
+.blockitem{font-size:var(--fs-md);color:var(--ink-2);padding:8px 10px;border-radius:var(--r);
   background:var(--surface-2);border:1px solid var(--border)}
 .blockitem b{color:var(--ink);font-weight:600}
 /* Kontenjan nöbeti rozeti (Faz 39). Eskiden 6 bildirimlik SATIR İÇİ stil
    olarak engelli HER dersin yanında tekrar ediyordu — 11 kez. Sınıfa
    taşındı; durumu artık `aria-pressed` söylüyor (ekran okuyucu "izle"
    düğmesinin basılı olduğunu duymuyordu). */
-.watchmini{margin-left:6px;font-size:10.5px;letter-spacing:.05em;
+.watchmini{margin-left:6px;font-size:var(--fs-xs);letter-spacing:var(--ls-wide);
   text-transform:uppercase;border:1px solid currentColor;padding:1px 8px;
   color:var(--ink-3);
   /* Faz 46: 38×21px'ti — WCAG 2.2 AA tabanı 24×24. */
   min-height:24px;min-width:24px;display:inline-flex;align-items:center;
   justify-content:center}
 .watchmini[aria-pressed="true"]{color:var(--cap)}
-.note{font-size:12.5px;color:var(--ink-2);background:var(--surface-2);
-  border-radius:0;padding:11px 14px;border-left:3px solid var(--warn)}
+.note{font-size:var(--fs-md);color:var(--ink-2);background:var(--surface-2);
+  border-radius:var(--r);padding:12px 14px;border-left:3px solid var(--warn)}
 
 .opt{display:flex;justify-content:space-between;gap:10px;align-items:baseline;width:100%;
-  text-align:left;padding:8px 10px;border-radius:0;border:1px solid var(--border);
-  background:var(--surface);font-size:13px}
+  text-align:left;padding:8px 10px;border-radius:var(--r);border:1px solid var(--border);
+  background:var(--surface);font-size:var(--fs-md)}
 .opt:hover{background:var(--surface-2)}
-.opt .meta{color:var(--ink-3);font-size:11.5px}
+.opt .meta{color:var(--ink-3);font-size:var(--fs-sm)}
 /* Öğretim üyesi — şube seçerken bakılan iki şeyden biri (öbürü saat). */
-.hoca{color:var(--ink-2);font-size:11px;letter-spacing:.02em}
+.hoca{color:var(--ink-2);font-size:var(--fs-xs);letter-spacing:var(--ls-wide)}
 /* Kontenjan doluluk çubuğu. Sayı okumak yerine bakılabilsin. */
-.cap{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-size:12px}
+.cap{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;font-size:var(--fs-sm)}
 .capbar{display:inline-block;width:44px;height:6px;background:var(--surface-2);
   border:1px solid var(--border);overflow:hidden}
 .capbar>i{display:block;height:100%;background:var(--ink-3)}
@@ -2411,11 +2428,11 @@ table.list tr:hover td{background:var(--surface-2)}
 /* Çevrimiçi şube — kampüse gitmiyor, kampüs değişimi de saymıyoruz. */
 .chip.online{color:var(--yandal);border-color:var(--yandal)}
 /* "Bunu alırsan şunlar açılır" — sayı değil, isim. */
-.opens{color:var(--ink-3);font-size:11.5px}
+.opens{color:var(--ink-3);font-size:var(--fs-sm)}
 /* Plan dışı kredi — yüke sayılır, şart doldurmaz. İkisini birden söylüyor. */
 .planout{color:var(--warn)}
 /* Verinin yaşı — kontenjan sayıları buna ait. Bayatladıysa göze girsin. */
-.veriyasi{font-size:12px;color:var(--ink-3);margin-top:2px}
+.veriyasi{font-size:var(--fs-sm);color:var(--ink-3);margin-top:2px}
 .veriyasi.stale{color:var(--warn);font-weight:600}
 .veriyasi .sitenot{margin-left:.6em;font-weight:400}
 /* Bozuk ayar dosyası — sayfa açılıyor ama sessiz kalmıyor. */
@@ -2425,33 +2442,33 @@ table.list tr:hover td{background:var(--surface-2)}
 .note.ayarhata.yumusak{border-left-color:var(--warn)}
 /* Yapıştırma önizlemesi — üç sayı ayrı okunsun. */
 .ozetler{display:flex;flex-wrap:wrap;gap:8px}
-.ozet{font-size:12px;padding:3px 9px;border:1px solid var(--border);
+.ozet{font-size:var(--fs-sm);padding:4px 10px;border:1px solid var(--border);
   color:var(--ink-2)}
-.ozet.ok{border-color:var(--anadal);color:var(--anadal)}
+.ozet.ok{border-color:var(--ok);color:var(--ok)}
 .ozet.uyari{border-color:var(--warn);color:var(--warn)}
 /* Satır içi uyarı yazısı (katalogda olmayan ders, planı olmayan program). */
 .meta .uyari,td .uyari,.ckname .uyari{color:var(--warn)}
 .ozet.kotu{border-color:var(--danger);color:var(--danger)}
 /* Puan kırılımı — "neden bu puan". Eksi katkı da aynı görsel dilde. */
 .puan{margin-top:10px;border-top:1px solid var(--border);padding-top:8px}
-.puan>summary{cursor:pointer;font-size:12.5px;color:var(--seal)}
+.puan>summary{cursor:pointer;font-size:var(--fs-md);color:var(--seal)}
 .puanliste{display:flex;flex-direction:column;gap:4px;margin-top:8px}
 .puansatir{display:grid;grid-template-columns:1fr 90px 46px;gap:8px;
-  align-items:center;font-size:12px}
+  align-items:center;font-size:var(--fs-sm)}
 .puansatir .ad{color:var(--ink-2)}
 .puansatir .bar{height:7px;background:var(--surface-2);border:1px solid var(--border)}
 .puansatir .bar>i{display:block;height:100%;background:var(--seal)}
 .puansatir.eksi .bar>i{background:var(--warn)}
 .puansatir .deger{text-align:right;color:var(--ink-2);font-variant-numeric:tabular-nums}
 .puansatir.eksi .deger{color:var(--warn)}
-.puantoplam{margin-top:8px;font-size:11.5px;color:var(--ink-3);line-height:1.6}
+.puantoplam{margin-top:8px;font-size:var(--fs-sm);color:var(--ink-3);line-height:var(--lh-body)}
 /* Faz 38 — not dağılımı sütun grafiği (kütüphane yok).
    ★ Faz 38b: varsayılan 9 KOVA. 15 ince sütun dağılımın şeklini
    kaybettiriyordu ("+ lar yüzünden kötü gözüküyor"). Etiketler artık
    yatay — 9 kova sığıyor; "artıları ayır" 15'e çıkarınca dikey oluyor. */
 .ndgrafik{display:grid;grid-template-columns:repeat(9,1fr);gap:6px;
   align-items:end;height:104px;margin:10px 0 8px}
-.ndgrafik.genis{grid-template-columns:repeat(15,1fr);gap:3px}
+.ndgrafik.genis{grid-template-columns:repeat(15,1fr);gap:4px}
 /* ★★ FAZ 50 — SÜTUN ÜÇ SATIRLIK IZGARA (eskiden esnek kutuydu).
    Ölçüldü: esnek kutuda üç öğe (sayı 10px + çubuk %100 + etiket) kabı
    TAŞIYOR, tarayıcı da hepsini büzüyordu — büzülme miktarı çubuğun boyuna
@@ -2461,11 +2478,11 @@ table.list tr:hover td{background:var(--surface-2)}
    etiket. Birinci ve üçüncü satır bütün sütunlarda aynı yükseklikte
    olduğu için taban ortak ve yüzdeler aynı alana göre. */
 .ndsut{display:grid;grid-template-rows:auto minmax(0,1fr) auto;
-  justify-items:center;height:100%;gap:3px;min-width:0}
+  justify-items:center;height:100%;gap:4px;min-width:0}
 .ndsut>i{align-self:end}
-.ndsut>b{font-size:10px;font-weight:600;color:var(--ink-3);line-height:1;
+.ndsut>b{font-size:var(--fs-xs);font-weight:600;color:var(--ink-3);line-height:var(--lh-none);
   font-variant-numeric:tabular-nums}
-.ndsut>i{display:block;width:100%;background:var(--seal);border-radius:2px 2px 0 0}
+.ndsut>i{display:block;width:100%;background:var(--seal);border-radius:var(--r)}
 .ndsut>i.kotu{background:var(--warn)}
 /* ★★ FAZ 50 — ETİKET SATIRI SABİT YÜKSEKLİKTE (kullanıcı 18.09.2026:
    *"+lar yüzünden barların tabanları aynı seviyede olmuyor"*).
@@ -2473,12 +2490,12 @@ table.list tr:hover td{background:var(--surface-2)}
    fark. Sebep: sütun alttan hizalı (`justify-content:flex-end`) ve DİKEY
    yazılan etiket karakter sayısıyla büyüyor — "BA+" 17px, "AA" 12px. Uzun
    etiket çubuğu yukarı itiyordu. Etiket kutusu sabitlenince taban ortak. */
-.ndsut>span{font-size:10px;color:var(--ink-2);line-height:1;white-space:nowrap;
+.ndsut>span{font-size:var(--fs-xs);color:var(--ink-2);line-height:var(--lh-none);white-space:nowrap;
   height:12px;display:flex;align-items:flex-start;justify-content:center}
-.ndgrafik.genis .ndsut>b{font-size:8.5px}
+.ndgrafik.genis .ndsut>b{font-size:var(--fs-2xs)}
 /* Dar ekranda 15 etiket yan yana sığmıyor (ölçüm: 390px'te sütun 17.7px,
    yatay "BA+" 17px — bitişik), o yüzden dikey. Kutu yine SABİT. */
-.ndgrafik.genis .ndsut>span{font-size:8.5px;writing-mode:vertical-rl;
+.ndgrafik.genis .ndsut>span{font-size:var(--fs-2xs);writing-mode:vertical-rl;
   transform:rotate(180deg);height:20px;align-items:center}
 /* ⚠️ Yer varsa dikey yazı YOK: ölçüldü, 560px'ten sonra sütun ≥26px ve
    yatay etiket 17px — sığıyor. Döndürülmüş 8.5px yazı okunmuyor. */
@@ -2486,51 +2503,51 @@ table.list tr:hover td{background:var(--surface-2)}
   .ndgrafik.genis .ndsut>span{writing-mode:horizontal-tb;transform:none;
     height:12px;align-items:flex-start}
 }
-.ndozet{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--ink-2);
+.ndozet{display:flex;flex-wrap:wrap;gap:10px;font-size:var(--fs-sm);color:var(--ink-2);
   align-items:center}
 /* Dönem seçici — OBS'nin kendi sayfasında da var. */
 .ndsekme{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
-.ndtab{font:inherit;font-size:11.5px;padding:3px 8px;cursor:pointer;
+.ndtab{font:inherit;font-size:var(--fs-sm);padding:4px 8px;cursor:pointer;
   background:var(--surface-2);border:1px solid var(--border);color:var(--ink-2)}
-.ndtab>span{color:var(--ink-3);font-size:10.5px}
+.ndtab>span{color:var(--ink-3);font-size:var(--fs-xs)}
 .ndtab.sec{background:var(--seal-soft);border-color:var(--seal);color:var(--ink)}
 .ndtab:active{transform:translateY(1px)}
 @media (prefers-reduced-motion:reduce){.ndtab:active{transform:none}}
 /* Yarıyıl uyuşmazlığı — sessiz kalınmayacak kadar önemli. */
-.ndmevsim{margin-top:8px;padding:7px 9px;font-size:12px;line-height:1.5;
+.ndmevsim{margin-top:8px;padding:8px 10px;font-size:var(--fs-sm);line-height:var(--lh-normal);
   background:var(--warn-soft);color:var(--warn-ink);
   border-left:3px solid var(--warn)}
 /* Tercihin programa etkisi. */
-.tercihnot{font-size:12px}
-.tercihnot.ok{color:var(--anadal)}
+.tercihnot{font-size:var(--fs-sm)}
+.tercihnot.ok{color:var(--ok)}
 .tercihnot.uymaz{color:var(--warn)}
 /* Yan yana karşılaştırma tablosu. */
-table.cmp{border-collapse:collapse;width:100%;font-size:12.5px}
-table.cmp th,table.cmp td{border:1px solid var(--border);padding:6px 9px;
+table.cmp{border-collapse:collapse;width:100%;font-size:var(--fs-md)}
+table.cmp th,table.cmp td{border:1px solid var(--border);padding:6px 10px;
   text-align:left;vertical-align:top}
-table.cmp thead th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+table.cmp thead th{font-size:var(--fs-xs);letter-spacing:var(--ls-caps);text-transform:uppercase;
   color:var(--ink-3)}
 table.cmp tbody th{color:var(--ink-2);font-weight:600;white-space:nowrap}
 table.cmp .secili{background:var(--seal-soft)}
-table.cmp .meta{font-size:11px;color:var(--ink-3)}
+table.cmp .meta{font-size:var(--fs-xs);color:var(--ink-3)}
 table.cmp .meta.eksi{color:var(--warn)}
-table.cmp .meta.arti{color:var(--anadal)}
+table.cmp .meta.arti{color:var(--ok)}
 /* Arz uyarısı — planındaki ders bu dönem alınamıyorsa, ÜSTTE. */
 .note.arz{margin-top:10px;border-left:3px solid var(--warn);padding-left:10px}
-.note.arz .meta{color:var(--ink-3);font-size:12px}
+.note.arz .meta{color:var(--ink-3);font-size:var(--fs-sm)}
 /* Kayıt öncesi kontrol — üç durumlu (✓ / ✗ / — bakılamaz). */
-.checks{display:flex;flex-direction:column;gap:5px;margin-top:6px}
-.check{display:flex;gap:8px;align-items:baseline;font-size:13px}
+.checks{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.check{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-md)}
 .check .mark{width:14px;text-align:center;font-weight:700}
-.check.ok .mark{color:var(--anadal)}
+.check.ok .mark{color:var(--ok)}
 .check.bad .mark{color:var(--danger)}
 .check.unknown .mark{color:var(--ink-3)}
-.check .meta{color:var(--ink-3);font-size:12px}
+.check .meta{color:var(--ink-3);font-size:var(--fs-sm)}
 /* Yedek plan satırı — çakışan / uyan / dolu ayrı okunsun. */
-.yedek{display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;font-size:12.5px;
-  padding:3px 0;border-bottom:1px solid var(--border)}
+.yedek{display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;font-size:var(--fs-md);
+  padding:4px 0;border-bottom:1px solid var(--border)}
 .yedek:last-child{border-bottom:0}
-.yedek.uyar>b{color:var(--anadal)}
+.yedek.uyar>b{color:var(--ok)}
 .yedek.carpisir{color:var(--ink-3)}
 .yedek.dolu{color:var(--ink-3);text-decoration:line-through}
 .optlist{display:flex;flex-direction:column;gap:6px;margin-top:10px;
@@ -2542,13 +2559,13 @@ table.cmp .meta.arti{color:var(--anadal)}
    uzun plan yatay kaydırma istiyordu ve kademe sırası okunmuyordu; aşağı
    akınca sıra doğal olarak okunuyor ve aralara nefes payı sığıyor.
    Bağlantı çizgileri sahnenin İÇİNDE kalmaya devam ediyor. */
-.tierstage{position:relative;display:flex;flex-direction:column;gap:38px}
+.tierstage{position:relative;display:flex;flex-direction:column;gap:40px}
 /* ★ Çizgiler kutuların ÜSTÜNDE (z-index:2 > .tier'in 1'i). Altında kalınca
    birden çok kademe atlayan ya da sarmış satıra giden bağlar kutuların
    arkasında kayboluyordu — "bağlar tam bağlanmıyor" (kullanıcı 27.08.2026).
    Kılıf (zemin renginde) kutunun üstünden geçerken de çizgiyi okunur tutuyor,
    pointer-events:none olduğu için tıklama yine kutulara geçiyor. */
-.tierlinks{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:2}
+.tierlinks{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:var(--z-links)}
 /* ★ Çizgi tasarımı (27.08.2026). Eski hâlde çizgiler dururken NEREDEYSE
    GÖRÜNMEZDİ (opacity .55, kenarlık rengi) ve yapı ancak tıklayınca ortaya
    çıkıyordu. İki iyileştirme:
@@ -2558,28 +2575,28 @@ table.cmp .meta.arti{color:var(--anadal)}
 .tierlinks path.casing{fill:none;stroke:var(--ground);stroke-width:5;
   stroke-linecap:round}
 .tierlinks path.line{fill:none;stroke:var(--seal);stroke-width:1.6;opacity:.55;
-  stroke-linecap:round;transition:opacity .12s,stroke .12s,stroke-width .12s}
+  stroke-linecap:round;transition:opacity var(--dur-fast),stroke var(--dur-fast),stroke-width var(--dur-fast)}
 .tierstage.focus .tierlinks path.line{opacity:.08}
 .tierstage.focus .tierlinks path.line.on{stroke:var(--cap);stroke-width:2.6;opacity:1}
-.tier{position:relative;z-index:1}
-.tier > h3{font-size:10.5px;color:var(--seal);font-weight:700;margin-bottom:10px;
-  letter-spacing:.16em;text-transform:uppercase;
-  font-family:"Chivo",Helvetica,Arial,sans-serif;
+.tier{position:relative;z-index:var(--z-lift)}
+.tier > h3{font-size:var(--fs-xs);color:var(--seal);font-weight:700;margin-bottom:10px;
+  letter-spacing:var(--ls-eyebrow);text-transform:uppercase;
+  font-family:var(--font-display);
   padding-bottom:6px;border-bottom:2px solid var(--border-strong)}
 .tier ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
-.tier li{font-size:12px;padding:7px 10px;border-radius:0;background:var(--surface-2);
+.tier li{font-size:var(--fs-sm);padding:8px 10px;border-radius:var(--r);background:var(--surface-2);
   border:1px solid var(--border);border-left:3px solid var(--border-strong);
-  display:flex;flex-direction:column;gap:3px;cursor:pointer;width:196px;
-  transition:opacity .12s,box-shadow .12s}
-.tier li:hover{box-shadow:0 2px 10px -4px rgba(0,0,0,.5)}
+  display:flex;flex-direction:column;gap:4px;cursor:pointer;width:196px;
+  transition:opacity var(--dur-fast),box-shadow var(--dur-fast)}
+.tier li:hover{box-shadow:var(--shadow-lift)}
 .tier li .top{display:flex;justify-content:space-between;gap:6px;align-items:baseline}
 /* Plan İÇİ önşart — çizginin temsil ettiği bağ. "önce:" ile okunuyor. */
-.tier li .dep{font-size:10.5px;line-height:1.35;color:var(--ink-2)}
+.tier li .dep{font-size:var(--fs-xs);line-height:var(--lh-snug);color:var(--ink-2)}
 .tier li .dep b{color:var(--ink);font-weight:600}
 /* Plan DIŞI önşart artık KOMPAKT rozet — eskiden 2-3 satır metin her kutuyu
    şişiriyordu (mobilde iyice). Tam liste ipucunda. */
-.tier li .dispre{font-size:10px;color:var(--ink-3);border:1px solid var(--border);
-  padding:0 7px;align-self:flex-start;border-radius:var(--r);cursor:pointer;
+.tier li .dispre{font-size:var(--fs-xs);color:var(--ink-3);border:1px solid var(--border);
+  padding:0 8px;align-self:flex-start;border-radius:var(--r);cursor:pointer;
   user-select:none;
   /* Faz 46: 72×18px'ti — WCAG 2.2 AA tabanı 24×24. */
   min-height:24px;display:inline-flex;align-items:center}
@@ -2588,10 +2605,10 @@ table.cmp .meta.arti{color:var(--anadal)}
   background:var(--seal-soft)}
 /* Rozet açılınca kodlar burada — mobilde de erişilir olsun diye SADECE ipucu
    değil (title tooltip dokunmatikte yok). */
-.tier li .disout{font-size:10px;color:var(--ink-2);line-height:1.4;
-  border-top:1px dashed var(--border);padding-top:3px}
+.tier li .disout{font-size:var(--fs-xs);color:var(--ink-2);line-height:var(--lh-snug);
+  border-top:1px dashed var(--border);padding-top:4px}
 .tier li .disout .mono{color:var(--ink)}
-.tier li[data-s="DONE"]{opacity:.5;border-left-color:var(--anadal)}
+.tier li[data-s="DONE"]{opacity:.5;border-left-color:var(--ok)}
 .tier li[data-s="DONE"] .top{text-decoration:line-through}
 /* Alınabilir = önşartların tamamı sağlanmış, BU DÖNEM alınabilir. */
 .tier li[data-s="READY"]{background:var(--cap-soft);color:var(--cap-ink);font-weight:600;
@@ -2601,18 +2618,18 @@ table.cmp .meta.arti{color:var(--anadal)}
 .tier li.root{outline:2px solid var(--cap);outline-offset:2px}
 /* Kademe efsanesi — renklerin ne anlama geldiği. */
 .tierlegend{display:flex;flex-wrap:wrap;gap:14px;margin:2px 0 16px;
-  font-size:11.5px;color:var(--ink-2)}
+  font-size:var(--fs-sm);color:var(--ink-2)}
 .tierlegend span{display:inline-flex;align-items:center;gap:6px}
 .tierlegend i{width:22px;height:12px;border:1px solid var(--border);
   border-left:3px solid var(--border-strong);display:inline-block}
 .tierlegend i.rdy{background:var(--cap-soft);border-color:var(--cap);border-left-color:var(--cap)}
-.tierlegend i.done{border-left-color:var(--anadal);opacity:.6}
+.tierlegend i.done{border-left-color:var(--ok);opacity:.6}
 .tierlegend i.line{width:22px;height:0;border:0;border-top:2px solid var(--seal);opacity:.7}
-.tierfoot{margin-top:10px;font-size:11.5px;color:var(--ink-3);line-height:1.6}
-.tiergroup + .tiergroup{margin-top:26px;padding-top:22px;
+.tierfoot{margin-top:10px;font-size:var(--fs-sm);color:var(--ink-3);line-height:var(--lh-body)}
+.tiergroup + .tiergroup{margin-top:24px;padding-top:24px;
   border-top:1px dashed var(--border-strong)}
-.tiergroup > h3{font-size:13px;margin-bottom:12px;display:flex;gap:8px;align-items:center}
-.tiergroup > h3 .tag{font-size:10px}
+.tiergroup > h3{font-size:var(--fs-md);margin-bottom:12px;display:flex;gap:8px;align-items:center}
+.tiergroup > h3 .tag{font-size:var(--fs-xs)}
 
 /* Bölüm çubuğu — yapışkan, tek satır, dar ekranda yana kayıyor. */
 /* ⚠️ `var(--bg)` diye bir jeton YOK — doğrusu `--ground`. Yanlış ad
@@ -2623,12 +2640,12 @@ table.cmp .meta.arti{color:var(--anadal)}
    Artık görünüm değiştiriyor ve sayfa tek görünüm uzunluğunda.
    ⚠️ Ölçüde değişen tek şey konum DEĞİL, ANLAM: bu yüzden `aria-current`
    "page" (bulunduğun görünüm), eskiden "true" (kaydırılan bölüm) idi. */
-.govde{display:grid;grid-template-columns:216px minmax(0,1fr);gap:26px;
+.govde{display:grid;grid-template-columns:216px minmax(0,1fr);gap:24px;
   align-items:start}
 .ray{position:sticky;top:18px;display:flex;flex-direction:column;gap:2px;
   border-right:1px solid var(--border);padding-right:10px}
-.ray a{font-size:13.5px;letter-spacing:.01em;
-  font-family:"Chivo",Helvetica,Arial,sans-serif;font-weight:700;
+.ray a{font-size:var(--fs-lg);letter-spacing:var(--ls-wide);
+  font-family:var(--font-display);font-weight:700;
   color:var(--ink-2);text-decoration:none;padding:0 10px;
   border-left:3px solid transparent;
   /* ★ Faz 46: dokunma hedefi 40 → 44px (WCAG 2.2 AA tabanı 24, dokunmatik
@@ -2637,17 +2654,17 @@ table.cmp .meta.arti{color:var(--anadal)}
 .ray a:hover{color:var(--ink);background:var(--surface-2)}
 .ray a[aria-current="page"]{color:var(--seal);border-left-color:var(--seal);
   background:var(--seal-soft)}
-.ray .raysayi{margin-left:auto;font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:11.5px;font-weight:400;color:var(--ink-3)}
+.ray .raysayi{margin-left:auto;font-family:var(--font-mono);
+  font-size:var(--fs-sm);font-weight:400;color:var(--ink-3)}
 .ray .raysayi:empty{display:none}
 .ray .rayad.kisa{display:none}
 .raydaha,.raykesme{display:none}
-.ray .raybaslik{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10.5px;
-  letter-spacing:.16em;color:var(--ink-3);padding:14px 10px 6px;text-transform:uppercase}
+.ray .raybaslik{font-family:var(--font-mono);font-size:var(--fs-xs);
+  letter-spacing:var(--ls-eyebrow);color:var(--ink-3);padding:14px 10px 6px;text-transform:uppercase}
 .ray .raybaslik:first-child{padding-top:0}
 .ray:empty{display:none}
 .govde:has(.ray:empty){grid-template-columns:minmax(0,1fr)}
-.icerik{display:flex;flex-direction:column;gap:30px;min-width:0}
+.icerik{display:flex;flex-direction:column;gap:32px;min-width:0}
 /* ★ Telefon: ray ALT SEKME ÇUBUĞU olur. Ölçüm: 390px'te 10 çapanın 3'ü
    görünüyordu ve haftalık program 4 ekran aşağıdaydı. Alt çubuk hem her
    zaman görünür hem başparmak menzilinde. Birincil 4 sekme yazılı,
@@ -2655,13 +2672,13 @@ table.cmp .meta.arti{color:var(--anadal)}
    sekme demekti. */
 @media (max-width:700px){
   .govde{grid-template-columns:minmax(0,1fr);gap:0}
-  .ray{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:40;
+  .ray{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:var(--z-nav);
     flex-direction:row;gap:0;padding:0;border-right:0;
     border-top:1px solid var(--border);background:var(--surface);
-    box-shadow:0 -6px 14px -8px rgba(0,0,0,.55)}
+    box-shadow:var(--shadow-sticky)}
   .ray a{flex:1 1 0;min-width:0;min-height:56px;padding:0 4px;
     flex-direction:column;justify-content:center;gap:2px;
-    font-size:10.5px;letter-spacing:.02em;text-align:center;
+    font-size:var(--fs-xs);letter-spacing:var(--ls-wide);text-align:center;
     border-left:0;border-top:3px solid transparent}
   .ray a[aria-current="page"]{border-left-color:transparent;
     border-top-color:var(--seal)}
@@ -2679,7 +2696,7 @@ table.cmp .meta.arti{color:var(--anadal)}
      geçince işe yarıyor.
      ⚠️ Bilgi kaybolmuyor — sekmeye basınca beliriyor, ve `title` her
      sekmede tam metni taşıyor. */
-  .tab{flex:1 1 auto;min-width:0;padding:8px 9px;font-size:11px;
+  .tab{flex:1 1 auto;min-width:0;padding:8px 10px;font-size:var(--fs-xs);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tab:not([aria-selected="true"]) .tabfark{display:none}
   /* ★ FAZ 50 — "Karşılaştır" kendi satırını İSTEMİYOR artık: kredi sayısı
@@ -2706,9 +2723,9 @@ table.cmp .meta.arti{color:var(--anadal)}
   .prgbaslik .tabs{margin-left:0;flex:1 1 100%}
   /* Üst çubuk: ad ve Tema aynı satırda, durum satırları küçük. */
   body:not(.kurulum) header{gap:4px 10px;padding-bottom:8px}
-  body:not(.kurulum) header h1{font-size:18px}
-  body:not(.kurulum) header .eyebrow{flex:1 1 100%;order:3;font-size:9.5px}
-  body:not(.kurulum) header .sub{flex:1 1 100%;order:4;font-size:11.5px}
+  body:not(.kurulum) header h1{font-size:var(--fs-xl)}
+  body:not(.kurulum) header .eyebrow{flex:1 1 100%;order:3;font-size:var(--fs-xs)}
+  body:not(.kurulum) header .sub{flex:1 1 100%;order:4;font-size:var(--fs-sm)}
   body:not(.kurulum) header #theme{order:2;min-height:44px;padding:0 12px}
   .veriyasi{gap:2px 6px}
   /* Dördü çubukta, gerisi "Daha" altında. */
@@ -2716,8 +2733,8 @@ table.cmp .meta.arti{color:var(--anadal)}
   .raydaha{display:flex;flex:1 1 0;min-width:0;min-height:56px;padding:0 4px;
     flex-direction:column;align-items:center;justify-content:center;
     background:transparent;border:0;border-top:3px solid transparent;
-    font-family:"Chivo",Helvetica,Arial,sans-serif;font-weight:700;
-    font-size:10.5px;letter-spacing:.02em;color:var(--ink-2);cursor:pointer}
+    font-family:var(--font-display);font-weight:700;
+    font-size:var(--fs-xs);letter-spacing:var(--ls-wide);color:var(--ink-2);cursor:pointer}
   .raydaha[aria-expanded="true"]{color:var(--seal);border-top-color:var(--seal);
     background:var(--seal-soft)}
   /* ⚠️ `wrap-reverse` + `order` ŞART. Düz `wrap` ile alt sekmeler DOM
@@ -2731,7 +2748,7 @@ table.cmp .meta.arti{color:var(--anadal)}
   .ray[data-acik] a[data-alt]{display:flex;flex:0 0 33.333%;order:2;
     border-bottom:1px solid var(--border)}
   /* Alt çubuk içeriğin son satırını yemesin. */
-  .wrap{padding-bottom:78px}
+  .wrap{padding-bottom:80px}
 }
 /* ⚠️ Etkin olmayan görünüm KAPALI ama DOM'da: `hidden` (veri yok) ile
    karıştırılmasın diye ayrı öznitelik. İkisini tek bayrağa bindirmek,
@@ -2766,9 +2783,9 @@ body.kurulum .govde{grid-template-columns:minmax(0,1fr)}
 
 /* Karşılama (ilk ziyaret). */
 .hero{border-top:6px solid var(--seal)}
-.hero h2{font-size:22px;margin:6px 0 8px}
-.hero .lead{font-size:14px;color:var(--ink-2);line-height:1.65;max-width:62ch}
-.steps{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+.hero h2{font-size:var(--fs-2xl);margin:6px 0 8px}
+.hero .lead{font-size:var(--fs-lg);color:var(--ink-2);line-height:var(--lh-body);max-width:62ch}
+.steps{display:flex;flex-direction:column;gap:10px;margin-top:20px}
 .step{display:flex;gap:14px;align-items:flex-start;padding:12px 14px;
   background:var(--surface-2);border:1px solid var(--border)}
 /* ★ Faz 54: bitmiş ve kapalı adım OPAKLIKLA soldurulmuyor. `opacity:.5`
@@ -2777,15 +2794,15 @@ body.kurulum .govde{grid-template-columns:minmax(0,1fr)}
    renk ve kenarla: soluk başlık, kesik kenar, kilit simgesi. */
 .step.done .body b{color:var(--ink-2)}
 .step .no{flex:0 0 26px;height:26px;display:grid;place-items:center;
-  background:var(--seal-soft);color:var(--seal);font-weight:700;font-size:12px;
-  font-family:"Chivo",Helvetica,Arial,sans-serif}
-.step.done .no{background:var(--anadal-soft);color:var(--anadal)}
+  background:var(--seal-soft);color:var(--seal);font-weight:700;font-size:var(--fs-sm);
+  font-family:var(--font-display)}
+.step.done .no{background:var(--ok-soft);color:var(--ok)}
 .step .body{flex:1;min-width:0}
-.step .body b{display:block;font-size:13.5px}
-.step .body span{display:block;font-size:12px;color:var(--ink-3)}
-.step .body .why{margin-top:3px;color:var(--ink-2);font-style:italic}
+.step .body b{display:block;font-size:var(--fs-lg)}
+.step .body span{display:block;font-size:var(--fs-sm);color:var(--ink-3)}
+.step .body .why{margin-top:4px;color:var(--ink-2);font-style:italic}
 .step button{flex:0 0 auto}
-.step .sure{flex:0 0 auto;font-size:11px;color:var(--ink-3);white-space:nowrap;
+.step .sure{flex:0 0 auto;font-size:var(--fs-xs);color:var(--ink-3);white-space:nowrap;
   min-width:62px;text-align:right}
 /* ★ Sırası gelmemiş adım KAPALI: tıklanınca çıkmaza düşen bir düğme,
    olmayan bir düğmeden kötü. */
@@ -2797,18 +2814,18 @@ body.kurulum .govde{grid-template-columns:minmax(0,1fr)}
 .step.simdi{border-color:var(--seal);background:var(--seal-soft)}
 /* ★ TEK birincil eylem. Yedi düğme arasından seçtirmek, "nasıl yapacağımı
    anlayamıyorum" hissinin ana kaynağıydı. */
-.heroCta{display:flex;align-items:center;gap:12px;margin-top:18px;flex-wrap:wrap}
-.heroCta .meta{font-size:12px;color:var(--ink-3)}
-.heroSkip{margin-left:auto;font-size:13px}
-.heroDismiss{font-size:12px;color:var(--ink-3)}
-.ghost.big{font-size:14px;padding:11px 20px;letter-spacing:.04em}
+.heroCta{display:flex;align-items:center;gap:12px;margin-top:20px;flex-wrap:wrap}
+.heroCta .meta{font-size:var(--fs-sm);color:var(--ink-3)}
+.heroSkip{margin-left:auto;font-size:var(--fs-md)}
+.heroDismiss{font-size:var(--fs-sm);color:var(--ink-3)}
+.ghost.big{font-size:var(--fs-lg);padding:12px 20px;letter-spacing:var(--ls-wide)}
 /* Zorunlu adım ile isteğe bağlı iyileştirmeleri AYIRAN çizgi. */
-.stepsplit{margin:18px 0 8px;font-size:11px;letter-spacing:.11em;
+.stepsplit{margin:20px 0 8px;font-size:var(--fs-xs);letter-spacing:var(--ls-label);
   text-transform:uppercase;color:var(--ink-3);display:flex;align-items:center;gap:10px}
 .stepsplit::after{content:"";flex:1;height:1px;background:var(--border)}
-.herofoot{margin-top:16px;font-size:12px;color:var(--ink-3);line-height:1.7}
+.herofoot{margin-top:16px;font-size:var(--fs-sm);color:var(--ink-3);line-height:var(--lh-loose)}
 /* "Şimdi ne yapabilirsin" — bir kerelik, kapatılabilir. */
-.note.sonraki{border-left:3px solid var(--anadal);padding:10px 12px;margin:14px 0}
+.note.sonraki{border-left:3px solid var(--ok);padding:10px 12px;margin:14px 0}
 .sonrakiliste{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .sonrakiliste .kapat{margin-left:auto;color:var(--ink-3)}
 
@@ -2817,7 +2834,7 @@ body.kurulum .govde{grid-template-columns:minmax(0,1fr)}
   align-items:flex-end;margin-bottom:12px}
 .savedgrid{display:flex;flex-wrap:wrap;gap:8px}
 .savedcard{background:var(--surface-2);border:1px solid var(--border);
-  --accent:var(--anadal);padding:8px 11px;min-width:184px;flex:1 1 184px;
+  --accent:var(--anadal);padding:8px 12px;min-width:184px;flex:1 1 184px;
   --tonhedef:var(--accent);--tonoran:0%;
   border-left:4px solid color-mix(in oklab, var(--accent),
     var(--tonhedef) var(--tonoran))}
@@ -2828,17 +2845,17 @@ body.kurulum .govde{grid-template-columns:minmax(0,1fr)}
    ve saat tek satırda, kartın dışına taşarak. Ad DEĞİŞTİ; renk aynı. */
 .savedcard.ikinci{--accent:var(--cap)}
 .savedcard .crn{float:right;color:var(--ink-3)}
-.savedcard .when{font-size:11.5px;color:var(--ink-3);margin-top:3px}
-.savedcard .miss{font-size:11.5px;color:var(--warn)}
-.savedtotals{margin-top:12px;font-size:12.5px;color:var(--ink-2)}
+.savedcard .when{font-size:var(--fs-sm);color:var(--ink-3);margin-top:4px}
+.savedcard .miss{font-size:var(--fs-sm);color:var(--warn)}
+.savedtotals{margin-top:12px;font-size:var(--fs-md);color:var(--ink-2)}
 
 /* Başvuru bölümünün KISA hâli — ayrıntı pencerede. */
 .basvuruline{display:flex;flex-direction:column;gap:8px;margin-top:12px}
 .basvuruitem{display:flex;align-items:center;gap:12px;padding:10px 12px;
   background:var(--surface-2);border:1px solid var(--border)}
-.basvuruitem .mark{font-size:16px;font-weight:700;line-height:1}
+.basvuruitem .mark{font-size:var(--fs-base);font-weight:700;line-height:var(--lh-none)}
 .basvuruitem .what{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.basvuruitem .why{font-size:11.5px;color:var(--ink-3)}
+.basvuruitem .why{font-size:var(--fs-sm);color:var(--ink-3)}
 .basvuruitem button{flex:0 0 auto;white-space:nowrap}
 @media (max-width:560px){
   .basvuruitem{flex-wrap:wrap}
@@ -2871,9 +2888,9 @@ dialog{border:1px solid var(--border-strong);border-top:6px solid var(--seal);
 dialog.wide{max-width:880px}
 dialog.wide .pad{max-height:min(84vh,760px);overflow-y:auto}
 dialog::backdrop{background:var(--scrim)}
-dialog .pad{padding:22px 24px}
-footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);padding-top:14px;
-  line-height:1.7}
+dialog .pad{padding:24px 24px}
+footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal);padding-top:14px;
+  line-height:var(--lh-loose)}
 /* ★ Faz 27 — YAZDIRMA (yapılacaklar §3.2).
    Kayıt günü ekran yerine kâğıda bakan çok: ızgara + CRN listesi tek sayfa.
    ⚠️ Yazdırılan sayfa, ekranın bir fotoğrafı değil: düğmeler, süzgeçler,
@@ -2907,12 +2924,12 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
   .blk[data-role="PLAN_DISI"]::after,.daylist .row[data-role="PLAN_DISI"]::after{
     content:" · plan dışı"}
   .blk[data-role]::after,.daylist .row[data-role]::after{
-    font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+    font-size:var(--fs-xs);letter-spacing:var(--ls-caps);text-transform:uppercase;
     white-space:nowrap}
   .blk[data-role]{border:1px solid CanvasText}
   /* 2. ÇUBUKLAR: dolu kısım sistem vurgusu, kanal kenarlıkla belli. */
-  .capbar,.meter,.gaugebar .track{border:1px solid CanvasText;background:Canvas}
-  .capbar>i,.meter i,.gaugebar .track i{background:Highlight}
+  .capbar,.meter,.gaugebar .track,.yuk{border:1px solid CanvasText;background:Canvas}
+  .capbar>i,.meter i,.gaugebar .track i,.yuk>i{background:Highlight}
   /* Taralı "bu dönem planlanan" dilim: tarama da düzleşiyor, ayrımı
      kesikli kenarla koruyoruz. */
   .meter i.plan{background:Canvas;border-right:2px dashed CanvasText;opacity:1}
@@ -2935,25 +2952,14 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
 
 @media print{
   @page{margin:12mm}
-  html,body{background:#fff;color:#000}
+  html,body{background:var(--ground);color:var(--kagit-murekkep)}
   /* ★★ FAZ 48 — KÂĞIT HER ZAMAN GÜNDÜZ PALETİ (taramada ölçüldü).
      Gece şemasındayken yazdırınca `--ink-3` kâğıda **açık gri** çıkıyordu:
      saat sütunu (08:00, 09:00…) rgb(132,142,161), özet satırı
      rgb(154,165,184) — beyaz kâğıtta ~2,6:1, yani okunmuyor. Kart zemini de
      rgb(22,27,36) kalıyordu (tarayıcı zemin basmayı açarsa siyah blok).
      ⚠️ Yeni palet UYDURULMADI: birebir açık tema jetonları. */
-  :root{
-    --ground:#FFFFFF; --surface:#FFFFFF; --surface-2:#F0F2F6;
-    --border:#D4D9E2; --border-strong:#141821;
-    --ink:#0D1017; --ink-2:#4B5462; --ink-3:#5F6878;
-    --seal:#3B4E9E; --seal-soft:#E7EAF7;
-    --seal-hover:#2F3F8E; --scrim:rgba(8,16,26,.5);
-    --anadal:#0A6B58; --anadal-soft:#D6EBE5; --anadal-ink:#074A3D;
-    --cap:#8A5210; --cap-soft:#F6E7D2; --cap-ink:#633B08;
-    --yandal:#1F5C77; --yandal-soft:#DCECF4; --yandal-ink:#154457;
-    --danger:#C02D18; --warn:#7A5709;
-    --warn-soft:#FCF1DB; --warn-ink:#6B4A05;
-    --shadow:none}
+  __JETONLAR_KAGIT__
   /* Boş hücrenin "+" işareti bir DAVET; kâğıtta tıklanacak bir şey yok. */
   #grid td.free::after{content:"" !important}
   header,#secnav,#setupbar,#hero,#sonraki,.toolbar,.candbar,.modes,
@@ -2990,9 +2996,10 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
      1340/1720px kilidi kâğıtta 1464 ile 1280 arasında gidip geliyordu. */
   .wrap{max-width:none !important;padding:0 !important}
   #grid{width:100%}
-  #grid td,#grid th{border-color:#999}
-  .blk{border:1px solid #666;background:#fff !important;color:#000 !important}
-  .blk .mono{color:#000}
+  #grid td,#grid th{border-color:var(--kagit-cizgi)}
+  .blk{border:1px solid var(--kagit-blok);background:var(--ground) !important;
+    color:var(--kagit-murekkep) !important}
+  .blk .mono{color:var(--kagit-murekkep)}
   /* ★ CRN listesi kâğıtta ASIL İŞ — ızgaranın altına basılıyor.
      Ekranda pencerede duruyor; yazdırırken pencere açık olmayabilir. */
   #printCrn{display:block !important}
@@ -3000,14 +3007,18 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
 }
 #printCrn{display:none}
 #printCrn table{width:100%;border-collapse:collapse;font-size:11pt}
-#printCrn th,#printCrn td{border:1px solid #999;padding:4px 6px;text-align:left}
+#printCrn th,#printCrn td{border:1px solid var(--kagit-cizgi);padding:4px 6px;text-align:left}
 
 @media (prefers-reduced-motion:no-preference){
-  .blk,.tab,.ghost,.opt{transition:background .12s ease,color .12s ease}
+  .blk,.tab,.ghost,.opt{transition:background var(--dur-fast) ease,color var(--dur-fast) ease}
 }
 </style>
 </head>
 <body>
+<!-- ★ FAZ 56 — İÇERİĞE ATLA. Faz 51 `<main>` yer işaretini ekledi ama klavye
+     kullanıcısı hâlâ her görünüm değişiminde üst çubuktaki ve raydaki
+     ~13 durağı geçmek zorundaydı. Yalnız odaklanınca görünüyor. -->
+<a class="atla" href="#icerik">İçeriğe atla</a>
 <div class="wrap">
 <header>
   <div class="masthead">
@@ -3139,7 +3150,7 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
       <button class="ghost" id="icsBtn">Takvime aktar</button>
       <button class="ghost" id="shareBtn">Bağlantı</button>
       <button class="ghost" id="crnLoad">CRN'den yükle</button>
-      <span id="savedMark" class="chip" style="color:var(--anadal)" hidden></span>
+      <span id="savedMark" class="chip" style="color:var(--ok)" hidden></span>
     </div>
   </aside>
   </div><!-- /prgduzen -->
@@ -3158,7 +3169,7 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
 <section class="card pad" id="suggestSection" hidden>
   <div class="sechead"><div class="eyebrow">Denklik</div><div class="rule"></div></div>
   <h2>Bunu zaten almış olabilirsin</h2>
-  <div class="summary">Transkriptindeki dersler ile planlarının <b>dolmamış</b>
+  <div class="aciklama">Transkriptindeki dersler ile planlarının <b>dolmamış</b>
     slotları arasında ad eşleşmesi arandı. Uygulamak senin onayınla —
     yanlış bir denklik, tamamlamadığın bir şartı tamamlanmış gösterirdi.</div>
   <div id="suggestBody" style="margin-top:12px"></div>
@@ -3170,7 +3181,7 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
 <section class="card pad" id="denklikSection" hidden>
   <div class="sechead"><div class="eyebrow">Denklik</div><div class="rule"></div></div>
   <h2>Denkliği bu dönem açık</h2>
-  <div class="summary">Almam gereken bir dersin <b>denkliği</b> bu dönem
+  <div class="aciklama">Almam gereken bir dersin <b>denkliği</b> bu dönem
     açıksa burada. O açık dersi alırsan gereken ders sayılır — çoğu zaman
     <b>başka bölümden</b> bir ders, <b>dilekçeyle</b> saydırılır. Kaynak:
     OBS'nin ilan ettiği resmî denklikler + kendi beyanların. Saydırma için
@@ -3191,7 +3202,7 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
 <section class="card pad" id="candSection">
   <div class="sechead"><div class="eyebrow">Sıralama</div><div class="rule"></div></div>
   <h2>Aday dersler</h2>
-  <div class="summary">Puan; kritik yol, kaç dersi açtığı, zorunluluk, kontenjan
+  <div class="aciklama">Puan; kritik yol, kaç dersi açtığı, zorunluluk, kontenjan
     ve kademeden hesaplanır. Satıra tıklayıp programa ekleyebilirsin.</div>
   <!-- ★ 24.08.2026 — liste ilk 30 ile kesiliyordu ve arama yoktu: aklındaki
        dersi arayan kişi onu bulamıyor, "bu araç benim dersimi bilmiyor"
@@ -3241,7 +3252,7 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
 
 <dialog id="basvuruDlg" class="wide"><div class="pad">
   <h2 id="basvuruDlgTitle" style="margin-bottom:4px">ÇAP planları</h2>
-  <div class="summary">Yönergedeki şartlar senin durumunla karşılaştırılıyor.
+  <div class="aciklama">Yönergedeki şartlar senin durumunla karşılaştırılıyor.
     Karar mercii bölümün — bu ekran hazırlık içindir.</div>
   <div class="tabs" id="basvuruTabs" role="tablist" style="margin-top:12px"></div>
   <div id="basvuruBody"></div>
@@ -3253,7 +3264,7 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
 <section class="card pad" id="tierSection">
   <div class="sechead"><div class="eyebrow">Önşart zinciri</div><div class="rule"></div></div>
   <h2 id="tierTitle">Kademeler</h2>
-  <div class="summary">Her kademe en az bir dönem. Kademe sayısı, ikinci programı
+  <div class="aciklama">Her kademe en az bir dönem. Kademe sayısı, ikinci programı
     bitirebileceğin en kısa süredir. <b>Çizgiler önşart bağıdır</b> — bir dersin
     üstüne gelince yalnız o dersin zinciri belirir, tıklarsan kilitlenir
     (ikinci tıkta çözülür).</div>
@@ -3386,8 +3397,12 @@ const donemYazi = () => DATA.termLabel || DATA.term || "";
 /* ★ C3 — YER. Sunucu ilan edilmemiş binayı artık BOŞ gönderiyor
    (eskiden "belirsiz" yazıyordu ve bir bina adı sanılıyordu; ölçüldü:
    3630 buluşmanın 1542'si böyle). Kod tek başına da bir yer değil —
-   tam ad ipucunda. */
-const yerYazi = (kod) => kod ? kod : "yer yok";
+   tam ad ipucunda.
+   ★ Faz 56 — "yer yok" DEĞİL: kayıt gününde CRN'nin yanındaki "yer yok"
+   KONTENJAN DOLU diye okunuyordu (ızgarada "15:30–18:29 yer yok · 22305").
+   Kontenjanın dili "dolu / N boş"; derslik ilan edilmediyse bu yazıyor.
+   Terminal (`recommend._building_label`) aynı sözü kullanıyor. */
+const yerYazi = (kod) => kod ? kod : "yer bildirilmedi";
 const yerBaslik = (kod) => {
   if(!kod) return "OBS'de yer bildirilmemiş";
   const ad = (DATA.buildings || {})[kod];
@@ -3471,6 +3486,14 @@ function renderHeader(){
 /** Statik site mi (tarayıcıda Python)? Tazeleme yok, veri tarayıcıda. */
 function siteMi(){
   return LIVE && DATA.canRefresh === false;
+}
+/* ★ Faz 56 — anlık görüntü damgası ISO olarak geliyordu ve "Ne değişti"
+   onu olduğu gibi basıyordu: "2026-09-22T17:00:45 → 2026-09-23T17:00:45".
+   Aracın her yerde kullandığı biçim `22.09.2026 17:00`. Çözülemeyen damga
+   OLDUĞU GİBİ kalıyor — uydurma bir tarih ham damgadan kötü. */
+function tarihYaz(ham){
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(String(ham || ""));
+  return m ? `${m[3]}.${m[2]}.${m[1]} ${m[4]}:${m[5]}` : String(ham || "");
 }
 function veriTarihi(){
   const A = DATA.dataAge;
@@ -3583,7 +3606,7 @@ function renderAyarHatasi(){
   const yer = (u) => u.tablo ? `[${esc(u.tablo)}]` : "ilk tablo başlığından önce";
   el.innerHTML = `<b>Ayar dosyanda okunmayan ${uyari.length === 1 ? "bir satır"
       : uyari.length + " satır"} var.</b>
-    <ul style="margin:6px 0 0;padding-left:18px">${uyari.map(u => `<li>
+    <ul style="margin:6px 0 0;padding-left:20px">${uyari.map(u => `<li>
       <span class="mono">${esc(u.anahtar)}</span> ${yer(u)} altında — ${u.golge
         ? `araç <span class="mono">[student]</span>'taki değeri kullanıyor, bu
            satır <b>yalnız yanıltıcı bir kopya</b>`
@@ -4218,7 +4241,7 @@ function tercihDialog(){
     <label class="field"><span>Boş kalmasını istediğim günler</span>
       <div class="terms" id="fGun">
         ${TERCIH_GUN.map(([v, l]) => `<button data-v="${v}"
-          aria-pressed="${gunler.has(v)}" style="width:auto;padding:7px 12px"
+          aria-pressed="${gunler.has(v)}" style="width:auto;padding:8px 12px"
           >${l}</button>`).join("")}
       </div>
       <span class="hint">Beşini birden seçemezsin.</span></label>
@@ -4285,7 +4308,7 @@ function termDialog(){
       alttan = önceki dönemlerden kalanlar.</p>
     <label class="field"><span>Dönem</span>
       <div class="terms" id="fTerm">
-        <button data-t="0" aria-pressed="${!cur}" style="width:auto;padding:7px 12px"
+        <button data-t="0" aria-pressed="${!cur}" style="width:auto;padding:8px 12px"
           >otomatik</button>
         ${[1,2,3,4,5,6,7,8].map(n =>
           `<button data-t="${n}" aria-pressed="${cur === n}">${n}</button>`).join("")}
@@ -4305,7 +4328,7 @@ function termDialog(){
       </span></label>
     <label class="field" style="margin-top:14px"><span>ÇAP'a başladığın yarıyıl</span>
       <div class="terms" id="fCap">
-        <button data-t="0" aria-pressed="${!capCur}" style="width:auto;padding:7px 12px"
+        <button data-t="0" aria-pressed="${!capCur}" style="width:auto;padding:8px 12px"
           >bilmiyorum</button>
         <button data-t="3" aria-pressed="${capCur === 3}">3</button>
         <button data-t="5" aria-pressed="${capCur === 5}">5</button>
@@ -4456,7 +4479,7 @@ function checklistDialog(){
           <b>1. dönemdesin</b> — geçmiş dönemin yok, bu liste boş başlıyor.
           Yaz okulu ya da muafiyetle aldığın ders varsa tikle.</div>` : "")}
     <div class="chipline"><span class="chip">tik at</span>
-      <span style="color:var(--ink-3);font-size:12px" id="ckCount"></span>
+      <span style="color:var(--ink-3);font-size:var(--fs-sm)" id="ckCount"></span>
       <button class="ghost" id="ckAllTerm" style="margin-left:auto"
         >Bu döneme kadarki zorunluları işaretle</button></div>
     <div class="scroll" style="max-height:420px">${body}</div>`, () => {
@@ -4553,7 +4576,7 @@ function courseDialogSetup(){
     const yok = (r) => !r.name && r.credits === null && r.credits !== 0;
     $("#trBody").innerHTML = rows.length ? rows.map((r, i) => `<tr>
         <td><b class="mono">${esc(r.course)}</b>
-          <div class="meta" style="color:var(--ink-3);font-size:11.5px">${
+          <div class="meta" style="color:var(--ink-3);font-size:var(--fs-sm)">${
             yok(r) ? `<span class="uyari">bu ders katalogda yok</span>`
                    : esc((r.name || "").slice(0, 44))}</div></td>
         <td>${gradeSelect(r, i)}</td>
@@ -4613,7 +4636,7 @@ function courseDialogSetup(){
     </div>
 
     ${(SETUP.backups || []).length ? `<details class="field">
-      <summary style="cursor:pointer;font-size:13px;color:var(--seal)"
+      <summary style="cursor:pointer;font-size:var(--fs-md);color:var(--seal)"
         >Yedekten geri yükle (${SETUP.backups.length})</summary>
       <div class="hint" style="margin:6px 0">Her silici kayıttan önce yedek
         alınıyor. Geri yükleme de yedeklenir — yanlış yedeği seçersen ikinci
@@ -4795,11 +4818,11 @@ function renderFloor(){
       <div class="gaugebar" style="max-width:230px">
         <div class="track"><i class="${ok ? "ok" : ""}"
           style="width:${Math.min(100, F.min ? kredi / F.min * 100 : 0)}%"></i></div>
-        <div class="gaugelabel"><b class="mono" style="font-size:15px">${kredi}</b>
+        <div class="gaugelabel"><b class="mono" style="font-size:var(--fs-base)">${kredi}</b>
           / ${F.min} kredi ${F.verified ? "" : "<b>⚠</b>"}
           <span style="color:var(--ink-3)">— ${esc(LBL)} tarafından</span></div>
       </div>
-      <div style="flex:2;min-width:250px;font-size:12.5px;color:var(--ink-2)">
+      <div style="flex:2;min-width:250px;font-size:var(--fs-md);color:var(--ink-2)">
         <b>İkinci anadaldan yarıyıl tabanı.</b>
         ÇAP'a <b>${F.startTerm}.</b> yarıyılda başladığın için her dönem
         en az <b class="mono">${F.min}</b> kredilik dersi ikinci anadaldan
@@ -4820,7 +4843,7 @@ function renderFloor(){
           style="margin:0 4px 0 0">${esc(c)}</span>`).join("")}
         gerekiyor${R.deadline ? `, son tarih: <b>${esc(R.deadline)}</b>` : ""}.
         ${indirimYeterMi
-          ? `<b style="color:var(--anadal)">İndirim onaylanırsa şu anki
+          ? `<b style="color:var(--ok)">İndirim onaylanırsa şu anki
              seçimin yeterli olur.</b>`
           : `İndirim onaylansa bile ${+(R.min - kredi).toFixed(1)} kredi
              daha gerekir.`}</div>` : ""}
@@ -4836,7 +4859,7 @@ function renderLoad(){
     <div class="gauge" style="margin-bottom:12px">
       <div class="gaugebar" style="max-width:230px">
         <div class="gaugelabel" style="margin-top:0">
-          <b class="mono" style="font-size:15px">${L.min ? L.min + "–" : "en çok "}${L.max}</b>
+          <b class="mono" style="font-size:var(--fs-base)">${L.min ? L.min + "–" : "en çok "}${L.max}</b>
           kredi ${L.verified ? "" : "<b>⚠</b>"}</div>
         <div class="gaugelabel" style="color:var(--ink-3)">
           ${L.noTranscript
@@ -4852,7 +4875,7 @@ function renderLoad(){
                  "çağrı": "bu çalıştırmaya özel"}[L.limitSource] || "şu an ayarlı") + ":")}
           <b class="mono">${L.declared || "—"}</b></div>
       </div>
-      <div style="flex:2;min-width:250px;font-size:12.5px;color:var(--ink-2)">
+      <div style="flex:2;min-width:250px;font-size:var(--fs-md);color:var(--ink-2)">
         ${L.noTranscript ? `<div class="note" style="margin-bottom:8px">
           <b>GNO bilinmiyor.</b> Aşağıdaki gerekçelerde geçen “GNO 0.00”
           hesaplanmış bir değer <b>değil</b> — geçtiğin dersleri girmedin.
@@ -4892,7 +4915,7 @@ function renderGpa(){
   const STAGE = {basvuru: "Başvuru", devam: "Devam", mezuniyet: "Mezuniyet"};
   const style = t => t.ok === null
     ? "background:transparent;color:var(--ink-3);border-color:var(--border-strong)"
-    : t.ok ? "background:var(--anadal-soft);color:var(--anadal)"
+    : t.ok ? "background:var(--ok-soft);color:var(--ok)"
            : "background:transparent;color:var(--danger);border-color:currentColor";
   const mark = t => t.ok === null ? "—" : (t.ok ? "✓" : "✗");
   const groups = Object.keys(STAGE).filter(k => g.thresholds.some(t => t.kind === k));
@@ -4909,11 +4932,11 @@ function renderGpa(){
       ${esc(t.label)} ≥ ${t.min.toFixed(2)}
       ${mark(t)}${t.verified ? "" : " ⚠"}${t.tolerance ? " ¹" : ""}</span>`;
   const chips = groups.map(k => `
-    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:7px">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px">
       <span class="eyebrow" style="min-width:74px">${STAGE[k]}</span>
       ${g.thresholds.filter(t => t.kind === k).map(chipOf).join("")}
     </div>`).join("") + (loose.length ? `
-    <div class="cats" style="margin-top:7px">${loose.map(chipOf).join("")}</div>` : "");
+    <div class="cats" style="margin-top:8px">${loose.map(chipOf).join("")}</div>` : "");
   const unverified = g.thresholds.filter(t => !t.verified).length;
   const tolerated = g.thresholds.filter(t => t.tolerance);
   const pending = g.thresholds.filter(t => t.ok === null);
@@ -4922,11 +4945,11 @@ function renderGpa(){
          border-bottom:1px solid var(--border)">
       <div class="gaugebar" style="max-width:230px">
         <div class="track"><i style="width:${Math.min(100, g.value / 4 * 100)}%"></i></div>
-        <div class="gaugelabel"><b class="mono" style="font-size:15px">${g.value.toFixed(2)}</b>
+        <div class="gaugelabel"><b class="mono" style="font-size:var(--fs-base)">${g.value.toFixed(2)}</b>
           / 4.00 · <span class="mono">${g.counted}</span> ders,
           <span class="mono">${g.credits}</span> kredi</div>
       </div>
-      <div style="flex:2;min-width:250px;font-size:12.5px;color:var(--ink-2)">
+      <div style="flex:2;min-width:250px;font-size:var(--fs-md);color:var(--ink-2)">
         <b>GNO (tahmini)</b> — transkriptinden hesaplandı, <b>OBS'nin resmi
         GNO'su değil</b>. Kesin değer için OBS'ye bak.
         <div class="cats" style="margin-top:8px">${chips}</div>
@@ -5082,10 +5105,11 @@ function renderChanges(){
     $("#changeBody").innerHTML = "";
     return;
   }
-  $("#changeWhen").textContent = `${c.since} → ${c.until} · yalnız seni ilgilendiren dersler`;
+  $("#changeWhen").textContent =
+    `${tarihYaz(c.since)} → ${tarihYaz(c.until)} · yalnız seni ilgilendiren dersler`;
   const group = (title, cls, items, line) => items.length ? `
     <div class="chipline"><span class="chip ${cls}">${title}</span>
-      <span style="color:var(--ink-3);font-size:12.5px">${items.length}</span></div>
+      <span style="color:var(--ink-3);font-size:var(--fs-md)">${items.length}</span></div>
     <div class="blocklist">${items.slice(0, 24).map(i =>
       `<div class="blockitem"><b class="mono">${esc(i.course)}</b> ${line(i)}</div>`
     ).join("")}</div>` : "";
@@ -5108,7 +5132,7 @@ function appliedHTML(){
   const eq = DATA.equivalences || [];
   if(!eq.length) return "";
   return `<div class="chipline"><span class="chip unknown">uygulanmış beyan</span>
-      <span style="color:var(--ink-3);font-size:12.5px">${eq.length}</span></div>
+      <span style="color:var(--ink-3);font-size:var(--fs-md)">${eq.length}</span></div>
     <div class="blocklist">${eq.map(e => `
       <div class="blockitem" style="display:flex;justify-content:space-between;gap:8px">
         <span><b class="mono">${e.sources.map(esc).join(" + ")}</b>
@@ -5149,7 +5173,7 @@ function renderSuggestions(){
     if(!group.length) return;
     const [label, cls] = LABEL[level];
     html += `<div class="chipline"><span class="chip ${cls}">${label}</span>
-      <span style="color:var(--ink-3);font-size:12.5px">${group.length}</span></div>
+      <span style="color:var(--ink-3);font-size:var(--fs-md)">${group.length}</span></div>
       <div class="optlist" style="max-height:none">${group.map(i => `
         <div class="opt" style="cursor:default">
           <span><b class="mono">${esc(i.source)}</b>
@@ -5778,7 +5802,7 @@ function crnDialog(){
             <td><b class="mono">${esc(p.sec.crn)}</b></td>
             <td><b class="mono">${esc(p.cand.course)}</b>
               <span class="tag ${p.cand.role === "ANADAL" ? "ANADAL" : "CAP"}"
-                style="margin-left:5px">${esc(p.cand.role)}</span></td>
+                style="margin-left:6px">${esc(p.cand.role)}</span></td>
             <td class="meta mono">${p.sec.meetings.length
               ? p.sec.meetings.map(m => `${DAYS[m.day-1]} ${hhmm(m.start)}`).join(", ")
               : "saat ilan edilmemiş"}</td>
@@ -5791,7 +5815,7 @@ function crnDialog(){
       /* Seçtiğin şubelerden biri doluysa yedek plan AÇIK gelsin — o an
          gerçekten lazım olan şey odur. */
       list.some(p => !p.sec.free) ? " open" : ""}>
-      <summary style="cursor:pointer;font-size:13px;color:var(--seal)"
+      <summary style="cursor:pointer;font-size:var(--fs-md);color:var(--seal)"
         >Yedek plan — seçtiğin şube dolarsa</summary>
       <div class="scroll" style="max-height:240px">
         <table class="trtable"><tbody>${alts.map(a => `<tr>
@@ -5889,9 +5913,9 @@ function catalogCreditHtml(info){
   return `<div class="note" style="margin-top:6px">
     Katalog bu <b>${c.blocked.length}</b> ders için ayrıca kredi koşulu ilan etmiş;
     şu an <b>tutmuyorsun</b>, o yüzden önerilere girmiyorlar:
-    <ul style="margin:5px 0 0 18px;padding:0">${rows}${
+    <ul style="margin:6px 0 0 20px;padding:0">${rows}${
       fazla > 0 ? `<li>… ve ${fazla} ders daha</li>` : ""}</ul>
-    <div style="margin-top:5px;color:var(--ink-3)">
+    <div style="margin-top:6px;color:var(--ink-3)">
       Kaynak: ${esc(c.source)}${c.verified ? ""
         : " · ⚠ bu alanın adı kaynakta “Sınıf Kısıtı”; kredi tabanı olarak"
           + " okumak bizim yorumumuz. Kapatmak için"
@@ -5917,9 +5941,9 @@ function renderCredits(){
           ${r.ok ? "· <b>şart sağlandı</b>"
                  : `· <b class="mono">${r.missing}</b> kredi eksik`}</div>
       </div>
-      <div style="flex:2;min-width:240px;font-size:12.5px;color:var(--ink-2)">
+      <div style="flex:2;min-width:240px;font-size:var(--fs-md);color:var(--ink-2)">
         <b>${esc(r.name)}</b> — ${esc(r.note)}
-        ${r.holding && r.holding.length ? `<div style="margin-top:5px;color:var(--ink-3)">
+        ${r.holding && r.holding.length ? `<div style="margin-top:6px;color:var(--ink-3)">
           Şu an tuttuğu dersler: <span class="mono">${r.holding.map(esc).join(", ")}</span>
           — önerilere girmiyorlar.</div>` : ""}
       </div>
@@ -6507,19 +6531,36 @@ function renderDayList(){
   picks().forEach(p => p.sec.meetings.forEach(m => {
     (byDay[m.day] = byDay[m.day] || []).push({p, m});
   }));
+  /* ★★ FAZ 56 — MEŞGUL SAATLER TELEFONDA DA. Izgara onları çiziyordu, bu
+     liste çizmiyordu: vitrin verisinde cuma 13:30–17:30 "staj" masaüstünde
+     taralı bir bloktu, telefonda cuma "boş" yazıyordu. Aynı veri iki
+     biçimde iki farklı şey söylüyordu — bu depoda ölçülmüş bir hata sınıfı.
+     Meşgul saatle kesişen ders ÇAKIŞMA sayılıyor (elle eklenen ders oraya
+     düşebilir; ızgarada o hücreyi ders örtüyor, burada ikisi de görünüyor). */
+  (DATA.busy || []).filter(b => b.ok).forEach(b => {
+    (byDay[b.day] = byDay[b.day] || []).push({busy: b, m: {start: b.start, end: b.end}});
+  });
   let out = "";
   for(let d=1; d<=5; d++){
     const items = (byDay[d] || []).sort((a,b) => a.m.start - b.m.start);
-    // Çakışma: aynı gündeki her çift için aralık kesişimi.
+    // Çakışma: aynı gündeki her çift için aralık kesişimi. İki meşgul
+    // saatin kesişmesi bir ders çakışması değil — en az biri ders olmalı.
     const clash = new Set();
     for(let i=0;i<items.length;i++) for(let j=i+1;j<items.length;j++){
+      if(items[i].busy && items[j].busy) continue;
       if(items[i].m.start < items[j].m.end && items[j].m.start < items[i].m.end){
         clash.add(i); clash.add(j);
       }
     }
     out += `<section><h3>${DAYS[d-1]}</h3>`;
-    out += items.length ? items.map((it,i) =>
-      `<button class="row${clash.has(i) ? " clash" : ""}${
+    out += items.length ? items.map((it,i) => it.busy
+      ? `<button class="row mesgul${clash.has(i) ? " clash" : ""}"
+           data-busy="${esc(it.busy.raw)}" title="Kaldırmak için dokun">
+           <span><b>${esc(it.busy.label || "meşgul")}</b>
+             <small class="mono">${hhmm(it.m.start)}–${hhmm(it.m.end)} · ders konmaz</small></span>
+           ${clash.has(i) ? '<span class="warn">çakışıyor</span>' : ""}
+         </button>`
+      : `<button class="row${clash.has(i) ? " clash" : ""}${
          it.p.sec.online ? " online" : ""}${
          kilitliMi(it.p.cand.course, it.p.sec.crn) ? " kilit" : ""}"
          data-role="${it.p.cand.role}"
@@ -6536,15 +6577,17 @@ function renderDayList(){
              ${it.p.sec.online ? "çevrimiçi ⌂"
                : `<span title="${esc(yerBaslik(it.m.building))}">${
                     esc(yerYazi(it.m.building))}</span>`}
-             · ${esc(it.p.sec.crn)}</small></span>
+             · ${esc(it.p.sec.crn)}${yerDurumu(it.p.sec)}</small></span>
          ${clash.has(i) ? '<span class="warn">çakışıyor</span>' : ""}
        </button>`).join("")
       : `<div class="none">boş</div>`;
     out += `</section>`;
   }
   box.innerHTML = out;
-  box.querySelectorAll(".row").forEach(el =>
+  box.querySelectorAll(".row[data-course]").forEach(el =>
     bind(el, () => courseDialog(el.dataset.course)));
+  box.querySelectorAll(".row[data-busy]").forEach(el =>
+    bind(el, () => busyDialog(null, null, el.dataset.busy)));
 }
 
 function render(){
@@ -6570,17 +6613,45 @@ function render(){
      düşünüyor. Sessiz kalmak, farkı hataya çeviriyordu. */
   const disKredi = picks().filter(p => p.cand.role === "PLAN_DISI")
     .reduce((a, p) => a + (p.cand.credits || 0), 0);
+  /* ★★ FAZ 56 — ÖZET BİR SATIR YIĞINI DEĞİL.
+     Eski hâli 240px'lik sütunda yedi parçalı bir esnek satırdı ve sarınca
+     "sınır 22 kredi puan 792.5" gibi birbirine yapışık okunuyordu; asıl
+     soru ("sınıra ne kadar yakınım") bir hesap istiyordu. Şimdi:
+       · yük ve sınır TEK bakışta — büyük sayı + ölçek (aşınca kırmızı VE
+         "aşıldı" yazıyor; renk tek işaret değil),
+       · DOLU şube varsa adıyla (ızgaradaki rozetin özeti),
+       · lejant her ikinci programın KENDİ renginde. ⚠️ Eskiden nokta
+         `var(--cap)`e sabitti: yandal öğrencisi amber bir "yandal" noktası
+         görüyordu, blokları ise mavi.
+       · "puan" ne olduğunu söylüyor (dokununca açıklama — Faz 51). */
+  const oran = DATA.maxLoad ? Math.min(1, t.load / DATA.maxLoad) : 0;
+  const ikincil = DATA.unitLabel === "kredi"
+    ? `${t.ects} AKTS` : `${t.credits} kredi`;
+  const doluSube = picks().filter(p => p.sec.capacity &&
+    Math.max(0, typeof p.sec.free === "number" ? p.sec.free
+      : p.sec.capacity - (p.sec.enrolled || 0)) === 0);
   $("#schedSummary").innerHTML = `
-    <span class="dot"><i style="background:var(--anadal)"></i>anadal</span>
-    ${SECONDS().length ? `<span class="dot"><i style="background:var(--cap)"></i>${
-      esc(LBL)}</span>` : ""}
-    <span>${t.n} ders</span>
-    <span class="mono${over ? " over" : ""}">${t.credits} kredi · ${t.ects} AKTS</span>
-    ${disKredi ? `<span class="planout">bunun <b class="mono">${disKredi}</b>
-      kredisi <b>plan dışı</b> — yüke sayılır, şart doldurmaz</span>` : ""}
-    <span>sınır <b class="mono">${DATA.maxLoad} ${DATA.unitLabel}</b>${
-      over ? ' <span class="over">aşıldı</span>' : ""}</span>
-    <span>puan <b class="mono">${t.score}</b></span>
+    <div class="yukust"><b class="mono yuksayi${over ? " over" : ""}">${t.load}</b>
+      <span>${DATA.maxLoad ? `/ <span class="mono">${DATA.maxLoad}</span> ` : ""}${
+        esc(DATA.unitLabel)}</span>${over ? ' <span class="over">aşıldı</span>' : ""}</div>
+    ${DATA.maxLoad ? `<div class="yuk${over ? " asti" : ""}" role="img"
+      aria-label="dönem yükü ${t.load} / ${DATA.maxLoad} ${esc(DATA.unitLabel)}${
+        over ? " — sınır aşıldı" : ""}"><i style="width:${(oran * 100).toFixed(0)}%"></i></div>` : ""}
+    <div class="ozetsatir">${t.n} ders · <span class="mono">${ikincil}</span></div>
+    ${disKredi ? `<div class="planout">bunun <b class="mono">${disKredi}</b>
+      kredisi <b>plan dışı</b> — yüke sayılır, şart doldurmaz</div>` : ""}
+    ${doluSube.length ? `<div class="ozetdolu"><span class="yerdurum dolu">dolu</span>
+      ${doluSube.map(p => `<b class="mono">${esc(p.cand.course)}</b>`).join(", ")}
+      <span class="ozetnot">— başka şubeye bak ya da kontenjanı izle</span></div>` : ""}
+    <div class="ozetlejant">
+      <span class="dot"><i style="background:var(--anadal)"></i>anadal</span>
+      ${SECONDS().map(x => `<span class="dot"><i style="background:var(--${
+        x.role === "YANDAL" ? "yandal" : "cap"})"></i>${esc(x.label)}</span>`).join("")}
+    </div>
+    <div class="ozetpuan"><span class="aciklamali" title="Programdaki derslerin
+      puanlarının toplamı: kritik yol, açtığı dersler, zorunluluk ve kontenjan.
+      Öneriler bu sayıya göre sıralanıyor; tek başına bir not değil.">öneri
+      puanı</span> <b class="mono">${t.score}</b></div>
     ${tercihNotu()}`;
   $("#editState").hidden = !edited();
   $("#reset").hidden = !edited();
@@ -6686,7 +6757,7 @@ function render(){
           ${c.p.cand.name ? `<span class="blkad">${esc(c.p.cand.name)}</span>` : ""}
           <small class="mono">${hhmm(c.m.start)}–${hhmm(c.m.end)}
             ${c.p.sec.online ? "çevrimiçi" : esc(yerYazi(c.m.building))}
-            · ${esc(c.p.sec.crn)}</small></div></td>`;
+            · ${esc(c.p.sec.crn)}${yerDurumu(c.p.sec)}</small></div></td>`;
     }
     html += `</tr>`;
   }
@@ -7338,8 +7409,8 @@ function courseDialog(course){
     <div class="eyebrow">${cand.role === "ANADAL" ? "Anadal dersi" : LBL + " dersi"}${
       cand.pool ? " · havuz: " + esc(cand.pool) : ""}</div>
     <h2 class="mono">${esc(cand.course)}</h2>
-    <div style="color:var(--ink-2);font-size:13px;margin:2px 0 6px">${esc(cand.name)}</div>
-    <div class="meta" style="color:var(--ink-3);font-size:12px">
+    <div style="color:var(--ink-2);font-size:var(--fs-md);margin:2px 0 6px">${esc(cand.name)}</div>
+    <div class="meta" style="color:var(--ink-3);font-size:var(--fs-sm)">
       ${cand.credits} kredi · ${cand.ects} AKTS
       ${cand.reasons.length ? "<br>" + cand.reasons.map(esc).join("; ") : ""}</div>
     ${disKip ? `<div class="why" style="margin-top:8px">Bu ders
@@ -7351,9 +7422,9 @@ function courseDialog(course){
     ${puanKirilimi(cand)}
     ${notDagilimi(cand)}
     ${fits.length ? `<div class="chipline"><span class="chip">başka şube</span>
-      <span style="color:var(--ink-3);font-size:12px">${fits.length} seçenek</span></div>
+      <span style="color:var(--ink-3);font-size:var(--fs-sm)">${fits.length} seçenek</span></div>
       <div class="optlist">${fits.map(s => optionRow(cand, s, "")).join("")}</div>` : ""}
-    ${busy ? `<div style="color:var(--ink-3);font-size:12px;margin-top:10px">
+    ${busy ? `<div style="color:var(--ink-3);font-size:var(--fs-sm);margin-top:10px">
       ${busy} şube daha var ama programınla çakışıyor.</div>` : ""}
     <div class="chipline"><span class="chip unknown">yerine başka ders</span></div>
     <div class="optlist">${swaps.join("") ||
@@ -7521,7 +7592,7 @@ function slotDialog(day, min){
   const varTakas = nearX.length + restX.length;
   const grup = (baslik, cls, liste) => liste.length
     ? `<div class="chipline"><span class="chip ${cls}">${baslik}</span>
-         <span style="color:var(--ink-3);font-size:12px">${liste.length} ders</span></div>
+         <span style="color:var(--ink-3);font-size:var(--fs-sm)">${liste.length} ders</span></div>
        <div class="optlist">${liste.slice(0, 12).map(r => r[1]).join("")}</div>` : "";
   openDialog(`
     <div class="eyebrow">Boş saat</div>
@@ -7564,7 +7635,7 @@ function busyDialog(day, min, remove){
     openDialog(`
       <div class="eyebrow">Kapalı saat</div>
       <h2>${esc(b.label || "meşgul")}</h2>
-      <div class="meta" style="color:var(--ink-2);font-size:13px;margin:4px 0 14px">
+      <div class="meta" style="color:var(--ink-2);font-size:var(--fs-md);margin:4px 0 14px">
         ${b.ok ? `${DAYS[b.day-1]} ${hhmm(b.start)}–${hhmm(b.end)}`
                : `<span class="mono">${esc(remove)}</span> — okunamadı`}
       </div>
@@ -7589,7 +7660,7 @@ function busyDialog(day, min, remove){
     <label class="field"><span>Gün</span>
       <div class="terms" id="fGun">
         ${DAYS.map((d, i) => `<button data-d="${i+1}"
-          aria-pressed="${i+1 === day}" style="width:auto;padding:7px 12px"
+          aria-pressed="${i+1 === day}" style="width:auto;padding:8px 12px"
           >${d}</button>`).join("")}
       </div></label>
     <label class="field" style="margin-top:12px"><span>Saat</span>
@@ -7695,6 +7766,26 @@ function doluluk(sections){
       <span class="mono capsub">${sections.length} şube</span></span>`;
 }
 
+/* ★★ FAZ 56 — SEÇİLİ ŞUBENİN YERİ IZGARADA.
+   Aday listesi doluluğu gösteriyordu (`doluluk`), ama programın kendisi —
+   kayıt gününe götürülen ızgara — göstermiyordu: vitrin verisinde önerilen
+   programın bir şubesi 70/70 DOLUYDU ve blokta hiçbir işaret yoktu. Kayıt
+   gününde ilk düşülen yer burası.
+   ⚠️ Eşik `doluluk` ile AYNI (0 → dolu, ≤3 → son N): aynı şube iki yerde
+   iki farklı durumda görünmesin. Boş olan şubede işaret YOK — ızgara
+   gürültüsü ancak dikkat gerektiren şeyi söylemeli. İşaret yalnız renk
+   değil: sözcük + çerçeve (zorlanmış renk kipinde de okunuyor). */
+function yerDurumu(sec){
+  const cap = (sec && sec.capacity) || 0;
+  if(!cap) return "";
+  const bos = Math.max(0, typeof sec.free === "number"
+    ? sec.free : cap - (sec.enrolled || 0));
+  const not = `${veriTarihi()} itibarıyla — güncel doluluk OBS'de`;
+  if(bos === 0) return ` <span class="yerdurum dolu" title="Kontenjan dolu · ${esc(not)}">dolu</span>`;
+  if(bos <= 3) return ` <span class="yerdurum az" title="${bos} yer kaldı · ${esc(not)}">son ${bos}</span>`;
+  return "";
+}
+
 /* ★ "119 dersin önşartı" sayısı ikna edici değil; hangi dersler olduğu
    ikna edici. `opens` = SENİN planındaki, HENÜZ GEÇMEDİĞİN dersler. */
 function acilanNot(c){
@@ -7738,7 +7829,7 @@ function renderCandidates(){
         title="${inPlan ? "programında" : "programa ekle"}">
       <td class="mono score">${c.score}</td>
       <td><b class="mono">${esc(c.course)}</b>
-        ${inPlan ? `<span class="chip" style="margin-left:6px;color:var(--anadal)">programda</span>` : ""}
+        ${inPlan ? `<span class="chip" style="margin-left:6px;color:var(--ok)">programda</span>` : ""}
         ${c.critical ? `<span class="chip supply" style="margin-left:6px">kritik yol</span>` : ""}
         ${c.prereqUnknown ? `<span class="chip unknown"
           style="margin-left:6px" title="Önşart metni var ama okunamadı — danışmanına sor">önşart okunamadı</span>`
@@ -7853,7 +7944,7 @@ function addDialog(course){
   openDialog(`
     <div class="eyebrow">Programa ekle</div>
     <h2 class="mono">${esc(cand.course)}</h2>
-    <div style="color:var(--ink-2);font-size:13px;margin:2px 0 6px">${esc(cand.name)}</div>
+    <div style="color:var(--ink-2);font-size:var(--fs-md);margin:2px 0 6px">${esc(cand.name)}</div>
     ${pool ? `<div class="note" style="margin-top:8px">Aynı havuzdan
       <b class="mono">${esc(pool.cand.course)}</b> seçili — bunu eklersen o çıkar.</div>` : ""}
     <div class="optlist">${rows.map(r => r[1]).join("")}</div>`);
@@ -7924,7 +8015,7 @@ function renderHero(){
         <span>${s.detail}</span>
         <span class="why">${s.why}</span></span>
       ${s.done
-        ? `<span class="chip" style="color:var(--anadal)">tamam</span>`
+        ? `<span class="chip" style="color:var(--ok)">tamam</span>`
         : (LIVE && s !== sonraki
             ? `<button class="ghost" data-act="${s.action}"
                  ${kilitli ? "disabled title='Önce bölümünü seç'" : ""}
@@ -8191,6 +8282,19 @@ function renderSecNav(){
   gorunumAc(GORUNUM || acik[0][0]);
 }
 
+/* ★ Faz 56 — "İçeriğe atla" odağı `<main>`e TAŞIYOR; adres çubuğuna `#icerik`
+   yazmıyor (paylaşılan bağlantı `#crn=` taşıyor, onu kirletmesin). */
+(() => {
+  const atla = document.querySelector(".atla");
+  if(atla) atla.addEventListener("click", ev => {
+    ev.preventDefault();
+    const m = $("#icerik");
+    if(!m) return;
+    m.tabIndex = -1;
+    m.focus();
+  });
+})();
+
 /* ★★ Sayfa içi bölüm bağlantıları da GÖRÜNÜM AÇAR (Faz 46).
    Metin içinde "Darboğaz bölümünde ayrıntı" gibi bağlantılar var; eskiden
    o bölüme kaydırıyorlardı. Görünüm kipinde kaydırmak hiçbir şey yapmaz —
@@ -8257,7 +8361,7 @@ function renderBasvuru(){
     const sayi = s.planTypeAvailable === false ? "OBS'de plan yayınlanmamış"
       : s.optionCount ? `${s.optionCount} program açık` : "sana açık plan yok";
     return `<div class="basvuruitem">
-      <span class="mark" style="color:${iyi ? "var(--anadal)" : "var(--danger)"}"
+      <span class="mark" style="color:${iyi ? "var(--ok)" : "var(--danger)"}"
         >${iyi ? "✓" : "✗"}</span>
       <span class="what"><b>${lbl}</b><span class="why">${esc(durum)} · ${esc(sayi)}</span></span>
       <button class="ghost" data-k="${k}">${btn}</button></div>`;
@@ -8293,7 +8397,7 @@ function renderBasvuruBody(){
 
   const mark = c => c.ok === null ? "—" : (c.ok ? "✓" : "✗");
   const color = c => c.ok === null ? "var(--ink-3)"
-    : (c.ok ? "var(--anadal)" : "var(--danger)");
+    : (c.ok ? "var(--ok)" : "var(--danger)");
   const checks = s.checks.map(c => `
     <div class="blockitem" style="border-left:5px solid ${color(c)}">
       <b style="color:${color(c)}">${mark(c)}</b> ${esc(c.label)}
@@ -8305,9 +8409,9 @@ function renderBasvuruBody(){
     ? `<b style="color:var(--danger)">Bilinen şartlardan en az biri
        şu an sağlanmıyor.</b>`
     : s.unknownCount
-      ? `<b style="color:var(--anadal)">Bakılabilen şartlar tamam.</b>
+      ? `<b style="color:var(--ok)">Bakılabilen şartlar tamam.</b>
          ${s.unknownCount} şart bu araçtan doğrulanamıyor — yukarıda “—” ile işaretli.`
-      : `<b style="color:var(--anadal)">Bakılabilen tüm şartlar sağlanıyor.</b>`;
+      : `<b style="color:var(--ok)">Bakılabilen tüm şartlar sağlanıyor.</b>`;
 
   /* ⚠️ Kalan KREDİ sütunu YOK ve bu bilinçli (22.08.2026).
      Kullanıcı sayının yanlış çıktığını bildirdi; iki sebebi vardı — kendi
@@ -8320,7 +8424,7 @@ function renderBasvuruBody(){
       <td>${esc(o.name)}<div class="why">${esc(o.iteration || o.planTitle)}</div></td>
       <td class="mono">${o.slotsTotal}</td>
       <td class="mono">${o.alreadyCount
-        ? `<b style="color:var(--anadal)">${o.alreadyCount}</b>` : "0"}
+        ? `<b style="color:var(--ok)">${o.alreadyCount}</b>` : "0"}
         ${o.alreadyCount ? `<div class="why mono">${o.already.slice(0,4).map(esc).join(", ")}${
           o.alreadyCount > 4 ? " …" : ""}</div>` : ""}</td></tr>`).join("");
 
@@ -8376,7 +8480,7 @@ let bhtml = "";
   const items = groups[k]; if(!items) return;
   const [label, cls] = LABELS[k];
   bhtml += `<div class="chipline"><span class="chip ${cls}">${label}</span>
-    <span style="color:var(--ink-3);font-size:12.5px">${items.length} ders</span></div>
+    <span style="color:var(--ink-3);font-size:var(--fs-md)">${items.length} ders</span></div>
     <div class="blocklist">${items.map(b => {
       /* ★ Yalnız ARZ sorunlu derste izleme düğmesi var: "açılmamış" ya da
          "programa kapalı" ders sonradan açılabilir, kontenjan değişebilir.
@@ -8398,7 +8502,7 @@ let bhtml = "";
 });
 const supply = (groups.ACILMAMIS||[]).length + (groups.PROGRAMA_KAPALI||[]).length;
 if(supply > (groups.ONSART||[]).length){
-  bhtml += `<div class="note" style="margin-top:18px">Engelin çoğu önşart değil,
+  bhtml += `<div class="note" style="margin-top:20px">Engelin çoğu önşart değil,
     <b>arz</b>: ders açılmıyor ya da şubeler başka programlara ayrılmış. Bölümle
     veya danışmanla konuşmak, sıralamayı iyileştirmekten daha çok işe yarar.</div>`;
 }

@@ -34,7 +34,9 @@ import pytest
 from itucap import ui as UI
 
 KAYNAK = pathlib.Path(UI.__file__).read_text(encoding="utf-8")
-CSS = re.search(r"<style>(.*?)</style>", KAYNAK, re.S).group(1)
+# ⚠️ Faz 56: palet blokları şablonda değil `tasarim.py`de; CSS ÜRETİLEN
+# sayfadan okunuyor (kullanıcının aldığı CSS). Kurallar birebir aynı.
+CSS = re.search(r"<style>(.*?)</style>", UI.render({}), re.S).group(1)
 YAZDIRMA = re.search(r"@media print\{(.*?)\n\}", CSS, re.S).group(1)
 
 
@@ -157,13 +159,16 @@ def test_KAGIT_HEP_gunduz_paleti():
     değişirse kâğıt da değişmeli."""
     acik, kagit = _PALET["acik"], _PALET["kagit"]
     assert kagit, "yazdırma bloğunda palet yok"
-    # `--shadow` bilerek farklı: kâğıtta gölge yok.
+    # `--shadow*` bilerek farklı: kâğıtta gölge yok. `--kagit-*` yalnız
+    # kâğıtta var (Faz 56: eskiden `#999`/`#666` diye satır içindeydi).
+    golge = {k for k in kagit if k.startswith("--shadow")}
+    ek = {k for k in kagit if k.startswith("--kagit-")}
     fark = {k: (acik.get(k), v) for k, v in kagit.items()
-            if k != "--shadow" and acik.get(k) != v}
+            if k not in golge | ek and acik.get(k) != v}
     assert not fark, f"kâğıt paleti açık şemadan sapmış: {fark}"
-    eksik = set(acik) - set(kagit) - {"--shadow"}
+    eksik = set(acik) - set(kagit)
     assert not eksik, f"kâğıtta gece değerinde kalan jeton: {eksik}"
-    assert kagit["--shadow"] == "none"
+    assert golge and all(kagit[k] == "none" for k in golge), golge
     # Boş hücrenin "+" daveti kâğıtta anlamsız.
     assert '#grid td.free::after{content:"" !important}' in _kod(YAZDIRMA)
 
@@ -178,7 +183,8 @@ def test_UC_ACIK_PALET_ayni():
     assert medya == acik, {k: (acik.get(k), v) for k, v in medya.items()
                            if acik.get(k) != v} or \
         f"jeton sayısı farklı: {len(medya)} / {len(acik)}"
-    assert set(kagit) == set(acik)          # değerler bir üstteki testte
+    # değerler bir üstteki testte; `--kagit-*` yalnız kâğıtta (Faz 56).
+    assert {k for k in kagit if not k.startswith("--kagit-")} == set(acik)
     for ad, d in (("medya", medya), ("acik", acik), ("kagit", kagit)):
         assert len(d) >= 25, f"{ad} paletinde jeton eksilmiş: {len(d)}"
 

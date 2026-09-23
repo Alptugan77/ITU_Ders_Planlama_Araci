@@ -208,7 +208,9 @@ def test_LEJANT_IZGARANIN_ALTINDA():
 
 def test_AD_YAZISI_buyudu():
     kural = re.search(r"body:not\(\.kurulum\) header h1\{([^}]*)\}", CSS).group(1)
-    m = re.search(r"font-size:(\d+)px", kural.replace(" ", ""))
+    # Faz 56: boy bir ölçek jetonu (`--fs-3xl`); iddia DEĞER üstünde.
+    from itucap import tasarim as T
+    m = re.search(r"font-size:(\d+)px", T.coz(kural).replace(" ", ""))
     assert m and int(m.group(1)) >= 24, kural
 
 

@@ -186,15 +186,24 @@ def test_bina_adi_sozlugu_kodu_ad_diye_vermiyor(tmp_path):
 def test_arayuz_yeri_olmayani_SOYLUYOR():
     src = open(UI.__file__.replace(".pyc", ".py"), encoding="utf-8").read()
     assert "OBS'de yer bildirilmemiş" in src
-    assert '"yer yok"' in src
+    # Faz 56: "yer yok" kayıt gününde "kontenjan dolu" diye okunuyordu.
+    # Yorumlar sökülüyor: değişikliği anlatan yorum eski sözü anıyor.
+    import re
+    kod = re.sub(r"/\*.*?\*/", " ", src, flags=re.S)
+    assert '"yer bildirilmedi"' in kod
+    assert '"yer yok"' not in kod
 
 
 def test_terminal_ve_arayuz_AYNI_sozu_kullaniyor():
     """★ Aynı şeye iki ad vermek (arayüzde "yer yok", terminalde "belirsiz")
-    bu projenin klasik hatası. Tek söz: "yer yok"."""
+    bu projenin klasik hatası. Tek söz.
+
+    ⚠️ Faz 56: söz "yer yok"tan "yer bildirilmedi"ye döndü — iki tarafta
+    BİRLİKTE. Kayıt aracında CRN'nin yanındaki "yer yok" KONTENJAN DOLU diye
+    okunuyordu; kontenjanın kendi dili "dolu / N boş"."""
     from itucap import recommend as REC
-    assert REC._building_label("undeclared") == "yer yok"
-    assert REC._building_label("-") == "yer yok"
+    assert REC._building_label("undeclared") == "yer bildirilmedi"
+    assert REC._building_label("-") == "yer bildirilmedi"
     assert REC._building_label(" TMB ") == "TMB"
 
 

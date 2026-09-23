@@ -1,6 +1,6 @@
 # Yapılacaklar
 
-Faz 1–55 bitti (1219 test). Depo GitHub'a hazır. Bu liste **sonrası** için:
+Faz 1–56 bitti (1238 test). Depo GitHub'a hazır. Bu liste **sonrası** için:
 ne kaldı, neden önemli, ne kadar iş, neye bağlı.
 
 ⚠️ **Yayınlanan site hâlâ eski.** Yayın hattı (`git push` → Actions → pages)
@@ -366,6 +366,31 @@ her maddeden önce gelen tek iş.
 > Geri alma deneyi: 6/6 kırmızı.
 > ➜ Ayrıntı: `docs/faz55-pencere.md`
 >
+> **Faz 56'da kapananlar (23.09.2026 — tasarım sistemi v2):** kullanıcı:
+> *"Extract the design system from this codebase and make a new design
+> system. improve every aspect of this site and make it more usable and
+> useful."* Çıkarım (`tools/tasarim_envanteri.py`): v1 sistemi "9 yazı boyu,
+> 2px ızgarası" diyordu, kodda **21** yazı boyu (8.5px'e kadar), **14** harf
+> aralığı, **55** dolgu değeri, **51** hex ve **dört elle kopyalanmış palet**
+> vardı (iki kez ayrışmıştı). ★★ Palet ve ölçekler artık **tek kaynakta**
+> (`src/itucap/tasarim.py`), dört blok üretiliyor; kontrast ve ton araçları
+> aynı kaynağı okuyor ✅ · yazı 10 basamak (taban 11px), harf aralığı 6,
+> aile 3 jeton; `--denetle` ölçek dışını yakalıyor ve testte ✅ ·
+> `color-scheme` (gece temasında onay kutusu bembeyazdı) ✅ · denetim
+> kenarı cetvelden ayrıldı (`border-control`, 3:1 ölçüldü) ✅ · h2 15→18px ✅
+> Gerçekçi uydurma öğrenciyle (`tools/vitrin.py`) gezildi: ★★ telefonda
+> meşgul saatler çizilmiyordu (cuma "boş" diyordu) ✅ · ★★ önerilen
+> programın şubesi 70/70 doluydu, ızgarada işaret yoktu → **DOLU / SON N**
+> rozeti ✅ · özet: yük/sınır ölçeği, lejant yandalda amber çıkıyordu ✅ ·
+> "yer yok" → "yer bildirilmedi" (kontenjan dolu diye okunuyordu) ✅ ·
+> "Ne değişti" okunur tarih ✅ · İçeriğe atla ✅ · ★★ v1 sisteminin yazdığı
+> dört kural kodda yoktu: ızgara bloğunda CRN satırı **3.09:1**, ders adı
+> **3.80:1** (taban 4.5) → tam `-ink` 4.67 ✅ · `--seal-hover` hiç
+> kullanılmıyordu ✅ · bölüm açıklamaları esnek satırda kırılıyordu ✅ ·
+> durum rengi `--ok` rol renginden ayrıldı ✅
+> Geri alma deneyi: 11/11 kırmızı. Renk değerleri bilerek DEĞİŞMEDİ.
+> ➜ Ayrıntı ve ölçümler: `docs/faz56-tasarim-sistemi-v2.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
@@ -534,7 +559,7 @@ yalnız **arz sorunlu** derste var — önşarta takılan ders nöbetle çözül
 ## 4.4 ~~Yayın~~ · ✅ **Faz 14'te kapandı** — statik site
 
 Motor **JS'e çevrilmedi**, Python tarayıcıya taşındı (Pyodide). Tek kod
-tabanı, 1219 testin tamamı web sürümünü de kapsıyor, iki sürüm ayrışamaz.
+tabanı, 1238 testin tamamı web sürümünü de kapsıyor, iki sürüm ayrışamaz.
 
 ```bash
 make site ARGS=node_modules/pyodide     # yerelde kur ve dene
@@ -579,7 +604,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 1219 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 1238 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` ✅ çalıştırıldı (katalogda 1081 ÇAP + 134 yandal planı).
   Dönemde bir kez yeter; program değiştirmeyi düşünmüyorsan gerekmez.

@@ -4,8 +4,9 @@
 Tasarım sistemi bir taban koyuyor: *"Yazı her temada, düştüğü her zeminde
 ≥4.5:1; denetim kenarı ve odak halkası ≥3:1."* Bu araç o tabanı ÖLÇÜYOR.
 
-Paleti **`ui.py`'den okuyor** — elle kopyalanmış bir liste değil; bir jeton
-değişince ölçüm de değişir. Çiftler aşağıda BEYAN edilmiş: hangi yazının
+Paleti **`itucap.tasarim`dan okuyor** (Faz 56'dan beri CSS de oradan
+üretiliyor) — elle kopyalanmış bir liste değil; bir jeton değişince ölçüm
+de değişir. Çiftler aşağıda BEYAN edilmiş: hangi yazının
 hangi zemine düştüğü koddan çıkarılamaz, o yüzden burada yazılı ve her satır
 nerede kullanıldığını söylüyor.
 
@@ -49,14 +50,26 @@ CIFTLER = [
     ("danger", "ground",    YAZI_TABANI, "çakışma, kredi aşımı"),
     ("danger", "surface-2", YAZI_TABANI, "uyarı kutusunda hata"),
     ("warn",   "ground",    YAZI_TABANI, "bayat veri uyarısı"),
+    # Faz 56 — şubenin yeri rozeti (ızgara bloğunda, kendi zemininde).
+    ("danger", "surface",   YAZI_TABANI, "\"dolu\" rozeti"),
+    ("warn",   "surface",   YAZI_TABANI, "\"son N\" rozeti"),
     ("warn-ink", "warn-soft", YAZI_TABANI, "uyarı kutusu yazısı"),
     ("anadal-ink", "anadal-soft", YAZI_TABANI, "anadal bloğu yazısı"),
     ("cap-ink",    "cap-soft",    YAZI_TABANI, "ÇAP bloğu yazısı"),
+    # Faz 56 — çevrimiçi blok dolgusuz: rolün mürekkebi zeminin üstünde.
+    ("anadal-ink", "ground", YAZI_TABANI, "çevrimiçi anadal bloğu"),
+    ("cap-ink",    "ground", YAZI_TABANI, "çevrimiçi ÇAP bloğu"),
+    ("yandal-ink", "ground", YAZI_TABANI, "çevrimiçi yandal bloğu"),
     ("yandal-ink", "yandal-soft", YAZI_TABANI, "yandal bloğu yazısı"),
     ("ground", "seal",      YAZI_TABANI, "seçili sekmede yazı (ters)"),
     # Kenar ve halka — 3:1
     ("border-strong", "ground",  KENAR_TABANI, "cetvel, tablo çizgisi"),
     ("border-strong", "surface", KENAR_TABANI, "kart kenarı"),
+    # Faz 56 — denetim kenarı cetvelden ayrıldı; düştüğü dört yüzeyde ölçülür.
+    ("border-control", "ground",    KENAR_TABANI, "düğme kenarı"),
+    ("border-control", "surface",   KENAR_TABANI, "kart içi düğme/alan kenarı"),
+    ("border-control", "surface-2", KENAR_TABANI, "not kutusunda düğme"),
+    ("border-control", "seal-soft", KENAR_TABANI, "üzerine gelinen düğme"),
     ("seal",   "ground",    KENAR_TABANI, "odak halkası"),
     ("anadal", "ground",    KENAR_TABANI, "anadal şeridi"),
     ("cap",    "ground",    KENAR_TABANI, "ÇAP şeridi"),
@@ -65,20 +78,20 @@ CIFTLER = [
 
 
 def palet() -> dict[str, dict[str, str]]:
-    """`ui.py`'nin `:root` (gece) ve `[data-theme="light"]` (gündüz) blokları."""
-    css = re.search(r"<style>(.*?)</style>", UI.read_text(encoding="utf-8"),
-                    re.S).group(1)
-    css = re.sub(r"/\*.*?\*/", " ", css, flags=re.S)
+    """Gece ve gündüz paleti — `itucap.tasarim`dan (Faz 56).
 
-    def blok(desen: str) -> dict[str, str]:
-        m = re.search(desen + r"\{(.*?)\n\}", css, re.S)
-        if not m:
-            raise SystemExit(f"palet bloğu bulunamadı: {desen}")
-        return {k.lstrip("-"): v for k, v in
-                re.findall(r"--([a-z0-9-]+)\s*:\s*(#[0-9A-Fa-f]{6})", m.group(1))}
+    ★ Faz 43'te `ui.py`'nin `<style>` bloğundan düzenli ifadeyle okunuyordu;
+    Faz 56'da palet tek kaynağa taşındı ve CSS ondan üretiliyor. Araç artık
+    CSS'in KAYNAĞINI okuyor, kopyasını değil.
+    """
+    sys.path.insert(0, str(KOK / "src"))
+    from itucap import tasarim as T
 
-    return {"gece": blok(r":root"),
-            "gündüz": blok(r':root\[data-theme="light"\]')}
+    def blok(tema: str) -> dict[str, str]:
+        return {k: v for k, v in T.palet(tema).items()
+                if re.fullmatch(r"#[0-9A-Fa-f]{6}", v)}
+
+    return {"gece": blok("gece"), "gündüz": blok("gunduz")}
 
 
 def olc(P: dict | None = None) -> list[tuple]:
