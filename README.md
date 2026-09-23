@@ -43,7 +43,8 @@ ders hangisine sayılıyor, hangi önşart açık, bu dönem hangi kombinasyon
 * **Darboğaz raporu** — bir ders neden alınamıyor: önşart mı, kontenjan mı,
   programa kapalı mı, kredi eşiği mi.
 * **Okunur haftalık program** — renk hangi programdan olduğunu (anadal /
-  ÇAP / yandal), ton hangi ders olduğunu söylüyor. ⚠️ Ton merdiveni ölçüyle
+  ÇAP / yandal), ton hangi ders olduğunu söylüyor; seçtiğin şube doluysa
+  ya da son birkaç yeri kaldıysa blokta **DOLU / SON N** yazıyor. ⚠️ Ton merdiveni ölçüyle
   seçildi: yazı kontrastı iki temada da WCAG AA'nın (4.5) üstünde, 9 tondan
   sonrası tekrar ediyor ve bunu ekranda **yazıyor**.
 
@@ -65,6 +66,15 @@ gerçek bir zarar. O yüzden baştan beri tek bir kural işliyor:
 
 Hesaplanan GNO bir **tahmindir**, OBS'nin resmi ortalaması değildir; arayüz
 bunu her yerde yazar.
+
+## Tasarım sistemi
+
+Arayüzün jetonları (renk, yazı, aralık, katman, hareket) tek bir yerde:
+`src/itucap/tasarim.py`. Sayfanın gece/gündüz/kâğıt paletleri oradan
+**üretiliyor**; kontrast ve ton ölçüm araçları da aynı kaynağı okuyor.
+`python tools/tasarim_envanteri.py --denetle` elle yazılan CSS'te ölçek dışı
+bir değer (ör. `font-size:12.5px`, `#ff0000`) kalmadığını denetliyor — test
+paketinin parçası. Gerekçe ve ölçümler: `docs/faz56-tasarim-sistemi-v2.md`.
 
 ## Gizlilik
 
@@ -189,10 +199,14 @@ src/itucap/
   watch.py      kontenjan nöbeti
   plans.py      plan çözümleme (tarama bağımlılığı YOK — web için şart)
   ui.py         tek dosyalık HTML arayüz üretici
+  tasarim.py    tasarım sistemi v2: palet ve ölçeklerin TEK kaynağı
   server.py     State + yönlendirme; iki taşıyıcı da bunu kullanır
 tools/
   site_kur.py            statik site üretici (katalogu budar + temizler)
   gizlilik_denetimi.py   kişisel veri sızıntısı denetimi
+  tasarim_envanteri.py   CSS envanteri + ölçek denetimi (--denetle, --jetonlar)
+  kontrast_olcumu.py     palet kontrastı (64 çift, iki tema)
+  vitrin.py              gerçekçi UYDURMA öğrenciyle arayüzü aç / ekran görüntüsü
 web/app.js               tarayıcı çalıştırıcısı (Pyodide + IndexedDB)
 ```
 
@@ -216,7 +230,7 @@ uygulanıyor; kaynak dosya değişmediği için hiçbir beyan kaybolmuyor.
 ## Test
 
 ```bash
-make test        # 1219 test + gizlilik denetimi
+make test        # 1234 test + gizlilik denetimi
 ```
 
 Gizlilik denetimi (`tools/gizlilik_denetimi.py`) dosya adına **değil

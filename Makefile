@@ -2,7 +2,7 @@ PY ?= python3
 VENV := .venv
 BIN := $(VENV)/bin
 
-.PHONY: help setup refresh offline app watch watch-kur watch-kaldir watch-durum changes notdagilimi suggest all-plans plans kesif plan-info programs basvuru site gizlilik status verify sequence student transcript progress recommend ui test prereq-report clean
+.PHONY: help setup refresh offline app watch watch-kur watch-kaldir watch-durum changes notdagilimi suggest all-plans plans kesif plan-info programs basvuru site gizlilik vitrin tasarim status verify sequence student transcript progress recommend ui test prereq-report clean
 
 help:
 	@echo "make setup     - sanal ortam + bağımlılıklar"
@@ -34,6 +34,8 @@ help:
 	@echo "make basvuru  - hangi ÇAP/yandal programlarına başvurabilirim"
 	@echo "make site     - GitHub Pages için statik site kur"
 	@echo "make gizlilik - depoya kişisel veri sızmış mı"
+	@echo "make vitrin   - uydurma bir öğrenciyle arayüzü aç (ARGS=\"--ekran DIZIN\")"
+	@echo "make tasarim  - tasarım envanteri (ARGS=--denetle: ölçek dışı değer var mı)"
 
 setup:
 	$(PY) -m venv $(VENV)
@@ -88,6 +90,14 @@ site:
 
 gizlilik:
 	$(BIN)/python tools/gizlilik_denetimi.py
+
+# Faz 56 — gerçekçi ama UYDURMA bir öğrenci; tasarım turları onunla ölçülüyor.
+vitrin:
+	$(BIN)/python tools/vitrin.py $(ARGS)
+
+# Faz 56 — tasarım sistemi: envanter / ölçek denetimi / tokens.json.
+tasarim:
+	$(BIN)/python tools/tasarim_envanteri.py $(ARGS)
 
 basvuru:
 	$(BIN)/python -m itucap.pipeline basvuru $(ARGS)
