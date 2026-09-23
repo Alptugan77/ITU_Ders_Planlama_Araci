@@ -103,8 +103,6 @@ with sync_playwright() as p:
     acik = "() => document.querySelector('dialog[open]') ? document.querySelector('dialog[open]').id : '-'"
     ray = pg.eval_on_selector('a[data-gorunum="candSection"]',
         "e => { const r = e.getBoundingClientRect(); return [r.x + r.width/2, r.y + r.height/2]; }")
-    aaa = pg.eval_on_selector('#grid .blk[data-course="AAA 101E"]',
-        "e => { const r = e.getBoundingClientRect(); return [r.x + 8, r.y + 8]; }")
     # 1) Perdede raydaki bağlantının üstüne tıkla → kapanır VE oraya gider.
     pg.evaluate("() => courseDialog('AAA 101E')"); pg.wait_for_timeout(300)
     print("ACIK1:" + pg.evaluate(acik))
@@ -112,6 +110,14 @@ with sync_playwright() as p:
     print("RAY:" + pg.evaluate(acik) + "|" + pg.evaluate("() => document.documentElement.dataset.gorunum"))
     # 2) Izgaradaki BAŞKA dersin üstüne tıkla → o dersin penceresi açılır.
     pg.evaluate("() => gorunumAc('schedSection')"); pg.wait_for_timeout(300)
+    # ⚠️ Faz 56: hedef blok 1000px'lik pencerede y≈988'deydi — kenara 12px.
+    # Tasarım sistemi v2 üst çubuğu ve karşılama kartını 13px uzatınca blok
+    # ekranın DIŞINA düştü ve tıklama hiçbir şeye gitmedi. Test DAVRANIŞI
+    # ölçüyor, yerleşimi değil: blok önce görünür yere getiriliyor.
+    pg.eval_on_selector('#grid .blk[data-course="AAA 101E"]',
+        "e => e.scrollIntoView({block: 'center'})"); pg.wait_for_timeout(200)
+    aaa = pg.eval_on_selector('#grid .blk[data-course="AAA 101E"]',
+        "e => { const r = e.getBoundingClientRect(); return [r.x + 8, r.y + 8]; }")
     pg.evaluate("() => courseDialog('BBB 102E')"); pg.wait_for_timeout(300)
     kutu = pg.eval_on_selector("#detail", "e => { const r = e.getBoundingClientRect(); return [r.left, r.right]; }")
     print("HEDEF_DISARIDA:" + str(not (kutu[0] <= aaa[0] <= kutu[1])))

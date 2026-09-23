@@ -2,8 +2,8 @@
 """Ders tonu merdivenini ÖLÇ (Faz 40).
 
 `ui.py`'deki ton merdiveni tahminle değil ölçüyle seçildi. Bu araç o ölçümü
-tekrar üretiyor: paleti **`ui.py`'den okuyor** (elle kopyalanmış bir kopya
-değil — palet değişirse ölçüm de değişsin), `color-mix(in oklab, …)`'i
+tekrar üretiyor: paleti **`itucap.tasarim`dan okuyor** (Faz 56'dan beri CSS
+de oradan üretiliyor — palet değişirse ölçüm de değişsin), `color-mix(in oklab, …)`'i
 Python'da aynı şekilde hesaplıyor ve her basamak için üç sayıya bakıyor:
 
   1. yazı kontrastı (WCAG)          — taban 4.5 (AA)
@@ -40,22 +40,20 @@ ROLLER = {"ANADAL": "anadal", "CAP": "cap", "YANDAL": "yandal"}
 
 # ------------------------------------------------------------ palet okuma
 def palet() -> dict[str, dict[str, str]]:
-    """ui.py'den gece ve gündüz paletini oku.
+    """Gece ve gündüz paleti — `itucap.tasarim`dan (Faz 56).
 
-    Gece `:root{…}`, gündüz `:root[data-theme="light"]{…}` bloğunda.
-    (Medya sorgulu üçüncü blok gündüzün aynısı — Faz 38b'de eşitlendi.)
+    ★ Eskiden `ui.py`'nin `<style>` bloğu düzenli ifadeyle okunuyordu. Faz
+    56'da palet tek kaynağa taşındı (`src/itucap/tasarim.py`) ve CSS ondan
+    ÜRETİLİYOR; araç da aynı sözlüğü okuyor — üç okuyucu, tek kaynak.
     """
-    kaynak = UI.read_text(encoding="utf-8")
-    css = re.search(r"<style>(.*?)</style>", kaynak, re.S).group(1)
-    css = re.sub(r"/\*.*?\*/", " ", css, flags=re.S)
+    sys.path.insert(0, str(UI.parents[1]))
+    from itucap import tasarim as T
 
-    def blok(desen: str) -> dict[str, str]:
-        m = re.search(desen + r"\{(.*?)\n\}", css, re.S)
-        if not m:
-            raise SystemExit(f"palet bloğu bulunamadı: {desen}")
-        return dict(re.findall(r"(--[a-z0-9-]+)\s*:\s*(#[0-9A-Fa-f]{6})", m.group(1)))
+    def blok(tema: str) -> dict[str, str]:
+        return {f"--{k}": v for k, v in T.palet(tema).items()
+                if re.fullmatch(r"#[0-9A-Fa-f]{6}", v)}
 
-    return {"gece": blok(r":root"), "gündüz": blok(r':root\[data-theme="light"\]')}
+    return {"gece": blok("gece"), "gündüz": blok("gunduz")}
 
 
 # ------------------------------------------------------------------ renk

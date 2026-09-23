@@ -1002,7 +1002,10 @@ _YER_YOK = {"", "-", "--", "undeclared", "tba", "tbd"}
 
 
 def _building_label(code: str | None) -> str:
-    return "yer yok" if (code or "").strip().lower() in _YER_YOK else (code or "").strip()
+    # ★ Faz 56: "yer yok" → "yer bildirilmedi". Kayıt aracında CRN'nin yanında
+    # "yer yok" KONTENJAN DOLU diye okunuyordu; oysa anlamı "derslik ilan
+    # edilmemiş". Arayüzle AYNI söz (Faz 28'in kuralı) — ikisi birlikte değişti.
+    return "yer bildirilmedi" if (code or "").strip().lower() in _YER_YOK else (code or "").strip()
 
 
 def format_candidates(cands: list[Candidate], top: int = 12) -> str:

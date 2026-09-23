@@ -152,8 +152,9 @@ def test_ZORLANMIS_RENK_cubuklari_geri_getiriyor():
     """★★ Doluluk ve ilerleme çubuklarının DOLU kısmı ile kanalı aynı
     renge düşüyordu — çubuk tamamen görünmez oluyordu."""
     duz = ZORLANMIS
-    assert ".capbar,.meter,.gaugebar .track{border:1px solid CanvasText" in duz
-    assert ".capbar>i,.meter i,.gaugebar .track i{background:Highlight}" in duz
+    # Faz 56: haftalık programın yük ölçeği (`.yuk`) da aynı sınıftan bir çubuk.
+    assert ".capbar,.meter,.gaugebar .track,.yuk{border:1px solid CanvasText" in duz
+    assert ".capbar>i,.meter i,.gaugebar .track i,.yuk>i{background:Highlight}" in duz
 
 
 def test_ZORLANMIS_RENK_secili_durumu_CERCEVEYLE():

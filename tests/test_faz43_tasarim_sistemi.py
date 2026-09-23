@@ -33,7 +33,10 @@ KAYNAK = pathlib.Path(UI.__file__).read_text(encoding="utf-8")
 TOOLS = pathlib.Path(UI.__file__).resolve().parents[2] / "tools"
 sys.path.insert(0, str(TOOLS))
 
-_CSS = re.search(r"<style>(.*?)</style>", KAYNAK, re.S).group(1)
+# ⚠️ Faz 56: palet artık şablonda ELLE yazılı değil — `tasarim.py`den
+# ÜRETİLİYOR (`__JETONLAR__`). Bloklar o yüzden KAYNAKTAN değil, ÜRETİLEN
+# sayfadan okunuyor: test kullanıcının aldığı CSS'e bakıyor.
+_CSS = re.search(r"<style>(.*?)</style>", UI.render({}), re.S).group(1)
 
 
 def _palet(desen: str) -> dict:
@@ -172,13 +175,24 @@ def test_yeni_jetonlar_HER_PALETTE_var():
     kırılır, adını bu dosyaya yazmak gerekmeden.
 
     Tek beklenen fark `--r` (köşe yarıçapı): temaya göre değişmiyor, gece
-    bloğunda bir kez tanımlanıp her yerde geçerli."""
-    gece = set(PALETLER["gece"]) - {"--r"}
+    bloğunda bir kez tanımlanıp her yerde geçerli.
+
+    ⚠️ Faz 56: gece bloğu artık temadan bağımsız ÖLÇEKLERİ (`--fs-*`,
+    `--sp-*` …) ve anlamsal takma adları da taşıyor; onlar bir kez
+    tanımlanıyor, tema bloklarına girmiyor. Karşılaştırılan küme o yüzden
+    PALET jetonları: `tasarim.palet()`in anahtarları. Kâğıdın fazlası yalnız
+    `--kagit-*` olabilir."""
+    from itucap import tasarim as T
+
+    palet = {"--" + k for k in T.palet("gece")}
+    assert palet == {"--" + k for k in T.palet("gunduz")}, "iki tema ayrı jeton taşıyor"
+    assert palet <= set(PALETLER["gece"]), f"gece eksik: {sorted(palet - set(PALETLER['gece']))}"
     for ad in ("medya-gündüz", "açık-gündüz", "kâğıt"):
         d = set(PALETLER[ad])
-        assert d == gece, (f"{ad} paleti sapmış — eksik: {sorted(gece - d)} "
-                           f"fazla: {sorted(d - gece)}")
-    assert len(gece) >= 25, f"palet küçülmüş: {len(gece)}"
+        fazla = {j for j in d - palet if not j.startswith("--kagit-")}
+        assert palet <= d and not fazla, (
+            f"{ad} paleti sapmış — eksik: {sorted(palet - d)} fazla: {sorted(fazla)}")
+    assert len(palet) >= 25, f"palet küçülmüş: {len(palet)}"
     assert "dialog::backdrop{background:var(--scrim)}" in KAYNAK
 
 
