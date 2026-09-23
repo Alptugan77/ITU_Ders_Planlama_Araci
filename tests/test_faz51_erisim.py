@@ -112,7 +112,9 @@ def test_CANLI_BOLGE_acilista_kuruluyor():
     giriyordu; ekran okuyucular önceden tanımadıkları bölgenin hazır
     metnini çoğunlukla okumuyor. Yani bütün kısa bildirimler sessizdi."""
     assert "function bildirimBolgesi(" in KAYNAK
-    boot = re.search(r"function boot\(\)\{(.*?)\n\}", KAYNAK, re.S).group(1)
+    # ⚠️ Faz 53: `boot(onceki)` — ilk açılış ile durum değişikliği ayrıldı;
+    # desen parametreye izin veriyor, kontrol aynı.
+    boot = re.search(r"function boot\((?:\w+)?\)\{(.*?)\n\}", KAYNAK, re.S).group(1)
     assert "bildirimBolgesi()" in boot, "canlı bölge açılışta kurulmuyor"
 
 

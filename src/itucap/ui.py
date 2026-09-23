@@ -176,21 +176,45 @@ def _busy_info(declared) -> list[dict]:
     return out
 
 
-def _kilit_ayikla(declared) -> dict[str, str]:
-    """`["GEO 315E@13601"]` → `{"GEO 315E": "13601"}` (Faz 45).
+def _kilit_satirlari(declared) -> list[dict]:
+    """Ayardaki `kilitli` satırlarını OLDUĞU GİBİ çözer — bozukları da.
 
-    Biçimi bozuk satır ATLANIYOR ama sessizce değil: `_kilit_bilgisi` aynı
-    listeyi ayrıca tarayıp arayüze "bu satır okunamadı" diye taşıyor. Motor
-    okuyamadığı bir kilidi uygulayamaz; kullanıcıya uygulanmış gibi
-    göstermek Faz 44'ün hatası olurdu.
+    Her satır: `{"satir", "course", "deger", "tur"}`; `tur` ∈ `"sube"` (CRN,
+    Faz 45) · `"aralik"` (`SS:DD-SS:DD`, Faz 53) · `"bozuk"`.
+
+    ★ Aynı derse iki satır varsa (elle yazılmış) motor SONUNCUSUNU uyguluyor
+    (sözlük); öncekiler `"golge"` olarak işaretleniyor ki arayüz "bu satır
+    uygulanmıyor" diyebilsin.
     """
-    out: dict[str, str] = {}
+    out: list[dict] = []
     for raw in declared or ():
-        ders, _, crn = str(raw).partition("@")
-        ders, crn = ders.strip().upper(), crn.strip()
-        if ders and crn:
-            out[ders] = crn
+        satir = str(raw).strip()
+        if not satir:
+            continue
+        ders, _, deger = satir.partition("@")
+        ders, deger = ders.strip().upper(), deger.strip()
+        tur = REC.kilit_bicimi(deger) if ders else "bozuk"
+        if tur == "aralik":
+            deger = REC.aralik_yazi(*REC.kilit_araligi(deger))
+        out.append({"satir": satir, "course": ders, "deger": deger, "tur": tur})
+    son = {s["course"]: i for i, s in enumerate(out) if s["tur"] != "bozuk"}
+    for i, s in enumerate(out):
+        if s["tur"] != "bozuk" and son[s["course"]] != i:
+            s["tur"] = "golge"
     return out
+
+
+def _kilit_ayikla(declared) -> dict[str, str]:
+    """`["GEO 315E@13601", "BLG 351E@00:00-12:30"]` →
+    `{"GEO 315E": "13601", "BLG 351E": "00:00-12:30"}` — motorun gördüğü.
+
+    Biçimi bozuk satır motora GİRMİYOR ama sessizce de düşmüyor:
+    `_kilit_bilgisi` onu arayüze "okunamadı" diye taşıyor. ⚠️ Faz 53'e kadar
+    bu docstring aynı şeyi söylüyordu ama `_kilit_bilgisi` yalnız BU
+    sözlüğü okuyordu — bozuk satır hiçbir yerde görünmüyordu.
+    """
+    return {s["course"]: s["deger"] for s in _kilit_satirlari(declared)
+            if s["tur"] in ("sube", "aralik")}
 
 
 def _kilit_bilgisi(declared, havuz: dict) -> list[dict]:
@@ -202,17 +226,39 @@ def _kilit_bilgisi(declared, havuz: dict) -> list[dict]:
     havuzdan çıktığında) çıkıyor. O satırı listeden düşürmek en kolayı
     olurdu ama kullanıcı "dersim kilitliydi, saati neden kaydı?" diye
     sorardı. Kilit duruyor, yanında neden tutmadığı yazıyor.
+
+    ★ Faz 53 — aralık kilidinde `ok`, dersin o aralığa BÜTÜNÜYLE uyan en az
+    bir şubesi olması; `uyan` o şubelerin listesi (arayüz sayısını yazıyor).
     """
     out = []
-    for ders, crn in _kilit_ayikla(declared).items():
+    for s in _kilit_satirlari(declared):
+        ders, deger, tur = s["course"], s["deger"], s["tur"]
+        kayit = {"course": ders, "satir": s["satir"], "tur": tur, "crn": "",
+                 "aralik": "", "ok": False, "neden": "", "meetings": [],
+                 "uyan": []}
+        if tur in ("bozuk", "golge"):
+            # Motor bu satırı UYGULAMIYOR — arayüz bunu söylemek zorunda.
+            kayit["neden"] = "bicim" if tur == "bozuk" else "golge"
+            out.append(kayit)
+            continue
         subeler = havuz.get(ders) or {}
-        out.append({"course": ders, "crn": crn, "ok": crn in subeler,
-                    "meetings": subeler.get(crn) or [],
-                    # Ders havuzda ama CRN yok → "şube kapandı"; ders de yok →
-                    # "bu ders artık aday değil". İkisi farklı cümle.
-                    "neden": ("" if crn in subeler
-                              else ("sube" if subeler else "ders"))})
-    return sorted(out, key=lambda x: x["course"])
+        if tur == "aralik":
+            lo, hi = REC.kilit_araligi(deger)
+            uyan = sorted(crn for crn, ms in subeler.items()
+                          if ms and all(lo <= m["start"] and m["end"] <= hi
+                                        for m in ms))
+            kayit.update(aralik=deger, lo=lo, hi=hi, uyan=uyan, ok=bool(uyan),
+                         # Ders havuzda ama aralığa uyan şubesi yok → ayrı cümle.
+                         neden="" if uyan else ("aralik" if subeler else "ders"))
+        else:
+            kayit.update(crn=deger, ok=deger in subeler,
+                         meetings=subeler.get(deger) or [],
+                         # Ders havuzda ama CRN yok → "şube kapandı"; ders de
+                         # yok → "bu ders artık aday değil". İkisi farklı cümle.
+                         neden=("" if deger in subeler
+                                else ("sube" if subeler else "ders")))
+        out.append(kayit)
+    return sorted(out, key=lambda x: (x["course"], x["tur"] == "golge"))
 
 
 def _basvuru_info(con: sqlite3.Connection, ucon: sqlite3.Connection,
@@ -910,6 +956,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         # ★ Faz 25/D1 — bozuk ayar dosyası. Sessizce varsayılana düşmek,
         # kullanıcıya başka bir bölümün raporunu doğru sandırırdı.
         "settingsError": settings.load_error,
+        # ★ Faz 53 — okunan tabloların dışında kalan ayar satırları.
+        "settingsWarnings": settings.load_uyarilari,
         "term": settings.term,
         # ★ B3 — başlıkta ham `202610` yazıyordu. Çözülemezse BOŞ; arayüz
         # o zaman ham kodu yazmaya devam ediyor, isim UYDURMUYOR.
@@ -1864,6 +1912,15 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .setupbar .who{font-size:13px;color:var(--ink-2);margin-right:auto}
 .setupbar .who b{color:var(--ink);font-weight:600}
 .setupbar .ro{font-size:12px;color:var(--ink-3)}
+/* Faz 54 — sitede verinin yedeği: kendi satırında, çubuğun altında. */
+.setupbar .verikutusu{flex-basis:100%;margin-top:8px;padding:12px 14px;
+  border:1px solid var(--border);border-left:3px solid var(--seal);
+  background:var(--surface);font-size:13.5px;line-height:1.55;color:var(--ink-2)}
+.verikutusu b{color:var(--ink)}
+.veridugmeler{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.verikalici,.veriyedek{margin-top:8px;font-size:13px}
+.veriyedek:empty{display:none}
+.heroyedek{margin-top:8px}
 /* Kısa bildirim — kip pencere DEĞİL: sayfayı kilitlemiyor. */
 .bildirim{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(12px);
   background:var(--seal);color:var(--ground);padding:9px 16px;border-radius:var(--r);
@@ -2080,6 +2137,8 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
      özgül. Bu dosyadaki üçüncü "ölü kural" tuzağı (Faz 50). */
   summary,.ipucu>summary,.arzdetay>summary{min-height:32px}
   .tickbox{min-height:44px}
+  /* Faz 54: arama kutusu telefonda 38px'ti — yazmaya başlamak için dokunulan ilk yer. */
+  #candQ{min-height:44px}
   .tickbox input[type="checkbox"]{width:22px;height:22px}
   /* ⚠️ `span.` niteliği ŞART — `.watchmini` ile aynı hastalık: temel
      kural (satır ~2450) kaynakta daha sonra geliyor ve aynı özgüllükte
@@ -2229,6 +2288,14 @@ table.grid td.free:hover::after{opacity:1;color:var(--seal)}
 .note.kilit.tutmuyor{border-left-color:var(--danger)}
 .note.kilit .kilitsatir{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .note.kilit .kilitsatir button{font-size:12px}
+/* Faz 53 — ders penceresinde saat aralığına kilit. Basılı olan KALIN ÇERÇEVE
+   ile (renk değil; zorlanmış renk kipinde de görünsün — Faz 51 dersi). */
+.kilitgrup{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.kilitgrupad{font-size:12.5px;color:var(--ink-2)}
+.kilitaralik[aria-pressed="true"]{border:2px solid var(--ink);color:var(--ink);
+  font-weight:600}
+.kilitaralik:disabled{opacity:.55;cursor:not-allowed}
+.kilitsay{color:var(--ink-3);font-weight:400}
 .blkad{display:block;font-size:10.5px;line-height:1.25;opacity:.85;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
 .daylist .row.online{border-left-style:dashed}
@@ -2350,9 +2417,12 @@ table.list tr:hover td{background:var(--surface-2)}
 /* Verinin yaşı — kontenjan sayıları buna ait. Bayatladıysa göze girsin. */
 .veriyasi{font-size:12px;color:var(--ink-3);margin-top:2px}
 .veriyasi.stale{color:var(--warn);font-weight:600}
+.veriyasi .sitenot{margin-left:.6em;font-weight:400}
 /* Bozuk ayar dosyası — sayfa açılıyor ama sessiz kalmıyor. */
 .note.ayarhata{border-left:3px solid var(--danger);padding-left:10px;
   margin:14px 0}
+/* Faz 53: dosya okunuyor ama bir satır yanlış tabloda — hata değil, uyarı. */
+.note.ayarhata.yumusak{border-left-color:var(--warn)}
 /* Yapıştırma önizlemesi — üç sayı ayrı okunsun. */
 .ozetler{display:flex;flex-wrap:wrap;gap:8px}
 .ozet{font-size:12px;padding:3px 9px;border:1px solid var(--border);
@@ -2701,7 +2771,11 @@ body.kurulum .govde{grid-template-columns:minmax(0,1fr)}
 .steps{display:flex;flex-direction:column;gap:10px;margin-top:18px}
 .step{display:flex;gap:14px;align-items:flex-start;padding:12px 14px;
   background:var(--surface-2);border:1px solid var(--border)}
-.step.done{opacity:.55}
+/* ★ Faz 54: bitmiş ve kapalı adım OPAKLIKLA soldurulmuyor. `opacity:.5`
+   açıklamaları 2,0–3,5:1'e düşürüyordu (taban 4,5) — oysa kapalı adımın
+   metni yeni gelen kişiye SIRADA ne olduğunu anlatan tek yer. Durum artık
+   renk ve kenarla: soluk başlık, kesik kenar, kilit simgesi. */
+.step.done .body b{color:var(--ink-2)}
 .step .no{flex:0 0 26px;height:26px;display:grid;place-items:center;
   background:var(--seal-soft);color:var(--seal);font-weight:700;font-size:12px;
   font-family:"Chivo",Helvetica,Arial,sans-serif}
@@ -2715,7 +2789,9 @@ body.kurulum .govde{grid-template-columns:minmax(0,1fr)}
   min-width:62px;text-align:right}
 /* ★ Sırası gelmemiş adım KAPALI: tıklanınca çıkmaza düşen bir düğme,
    olmayan bir düğmeden kötü. */
-.step.kilit{opacity:.5}
+.step.kilit{border-style:dashed;background:transparent}
+.step.kilit .body b{color:var(--ink-2)}
+.step.kilit .body .why{color:var(--ink-3)}
 .step.kilit button{cursor:not-allowed}
 /* Sıradaki adım göze girsin — büyük düğme onun. */
 .step.simdi{border-color:var(--seal);background:var(--seal-soft)}
@@ -3196,7 +3272,7 @@ footer{color:var(--ink-3);font-size:12px;border-top:3px solid var(--seal);paddin
 
 <footer>
   Bu araç bilgilendirme amaçlıdır; ders kayıt kararların için danışmanına ve OBS'ye danış.
-  Veriler <span id="gen" class="mono"></span> itibarıyladır.
+  Şube ve kontenjan verisi <span id="gen" class="mono"></span> itibarıyla.
   <!-- ★ "Bu dosya notlarını içerir" YALNIZ gerçekten içeriyorsa yazılıyor:
        transkript girmemiş kişiye söylenince, girmediği bir veriyi sızdırdığını
        sanıyor. Uyarı her yerde tekrarlanınca da okunmaz oluyor. -->
@@ -3346,9 +3422,12 @@ function renderHeader(){
   /* ★ C6 — başlık artık anadalı da kapsıyor. */
   $("#blockTitle").textContent = "Bu dersleri neden alamıyorsun";
   $("#tierTitle").textContent = ikili ? "Kademeler" : `${LBL} kademeleri`;
-  $("#gen").textContent = DATA.generatedAt;
-  $("#gizlilik").textContent = (DATA.load && DATA.load.noTranscript)
-    ? "" : "Bu dosya notlarını içerir — paylaşma.";
+  $("#gen").textContent = veriTarihi();
+  /* ★ Faz 54: sitede "bu dosya" YOK — notlar tarayıcıda. Yanlış yeri
+     söylemek, neyin nerede durduğunu (ve neyin kaybolabileceğini) gizler. */
+  $("#gizlilik").textContent = (DATA.load && DATA.load.noTranscript) ? ""
+    : siteMi() ? "Notların yalnız bu tarayıcıda — tarayıcı verisini silersen gider; yedeğini al (Ayar)."
+    : "Bu dosya notlarını içerir — paylaşma.";
   renderVeriYasi();
   renderAyarHatasi();
   /* ★ Transkript yokken GNO da yok; "dönem yükü sınırı 35 kredi" o zaman
@@ -3382,6 +3461,21 @@ function renderHeader(){
    ★ "0/240" üç gün önceki veriyse yanıltıcı. Alt bilgide bir kez yazmak
    yetmiyordu; kontenjana bakılan HER yerde tarih var (doluluk çubuğunun
    `title`'ı, kayıt kontrolü) ve veri bayatladıysa üstte uyarı çıkıyor. */
+/** ★★ FAZ 54 — Kontenjanın AİT OLDUĞU an: son tazeleme. Dört yer (alt bilgi,
+    doluluk çubuğu, kayıt kontrolü, arz notu) `generatedAt`ı — sayfanın
+    ÜRETİLDİĞİ anı — yazıyordu. Sitede sayfa her açılışta tarayıcıda
+    üretiliyor: 23 gün önceki kontenjan "bugün 20:56 itibarıyla" görünüyordu,
+    aynı sayfanın başı "23 gün önce tazelendi" derken. Faz 25/D3 bunu tepede
+    düzeltmişti; bu dört yer eski damgada kalmıştı (doluluk çubuğunun yorumu
+    bile "yaşsız bir gerçek gibi durmasın" diyordu). */
+/** Statik site mi (tarayıcıda Python)? Tazeleme yok, veri tarayıcıda. */
+function siteMi(){
+  return LIVE && DATA.canRefresh === false;
+}
+function veriTarihi(){
+  const A = DATA.dataAge;
+  return A && A.raw ? A.raw : "tarihi bilinmeyen bir tazeleme";
+}
 function veriYasiMetni(){
   const A = DATA.dataAge;
   if(!A) return "veri tazeleme tarihi bilinmiyor";
@@ -3445,8 +3539,13 @@ function renderVeriYasi(){
      cevabı veren düğme. */
   /* ⚠️ Metin ve düğme AYRI parça (Faz 46): tek metin düğümü içine gömülü
      bir düğme dar ekranda cümlenin ortasında kalıyordu. */
+  /* ★ Faz 54: sitede tazeleme YOK (katalog siteyle yayınlanıyor). Eskiden
+     düğme duruyordu ve basınca "bu ortamda yapılamıyor" diyordu — hiç
+     çalışmayacak bir düğme. Yerine neden eski olduğu yazıyor. */
   el.innerHTML = `<span class="veriyazi">${esc(veriYasiMetni())}</span>`
-    + (LIVE ? `<button class="ghost mini" id="veriTazele">tazele</button>` : "")
+    + (siteMi() ? `<span class="veriyazi sitenot">Site dönem başında güncelleniyor —
+         güncel kontenjan OBS'de.</span>`
+       : LIVE ? `<button class="ghost mini" id="veriTazele">tazele</button>` : "")
     + gecmisDonemUyarisi();
   el.classList.toggle("stale", !!(DATA.dataAge && DATA.dataAge.stale));
   const b = $("#veriTazele");
@@ -3465,12 +3564,33 @@ function renderAyarHatasi(){
   const el = $("#ayarHatasi");
   if(!el) return;
   const hata = DATA.settingsError;
-  el.hidden = !hata;
-  if(!hata) return;
-  el.innerHTML = `<b>Ayar dosyan okunamadı — varsayılanlarla açıldı.</b>
-    <div class="mono" style="margin-top:4px">${esc(hata)}</div>
-    <div style="margin-top:6px">Seçtiğin bölüm ve dönem <b>kullanılmıyor</b>.
-      Dosyayı düzelt ya da aşağıdan yeniden seç.</div>`;
+  const uyari = DATA.settingsWarnings || [];
+  el.hidden = !hata && !uyari.length;
+  el.classList.toggle("yumusak", !hata && uyari.length > 0);
+  if(hata){
+    el.innerHTML = `<b>Ayar dosyan okunamadı — varsayılanlarla açıldı.</b>
+      <div class="mono" style="margin-top:4px">${esc(hata)}</div>
+      <div style="margin-top:6px">Seçtiğin bölüm ve dönem <b>kullanılmıyor</b>.
+        Dosyayı düzelt ya da aşağıdan yeniden seç.</div>`;
+    return;
+  }
+  if(!uyari.length) return;
+  /* ★★ FAZ 53 — dosya OKUNUYOR ama bazı satırlar yanlış tabloda duruyor ve
+     hiçbir şey yapmıyor. Kullanıcının kendi dosyasında ölçüldü:
+     `cap_baslangic_yariyili` `[regulation]` altındaydı — yorum "3 ya da 5
+     yaz" diyor, yazılsa yarıyıl tabanı UYGULANMIYOR ve kimse söylemiyordu.
+     Fatal değil (sayfa doğru çalışıyor), o yüzden kırmızı değil. */
+  const yer = (u) => u.tablo ? `[${esc(u.tablo)}]` : "ilk tablo başlığından önce";
+  el.innerHTML = `<b>Ayar dosyanda okunmayan ${uyari.length === 1 ? "bir satır"
+      : uyari.length + " satır"} var.</b>
+    <ul style="margin:6px 0 0;padding-left:18px">${uyari.map(u => `<li>
+      <span class="mono">${esc(u.anahtar)}</span> ${yer(u)} altında — ${u.golge
+        ? `araç <span class="mono">[student]</span>'taki değeri kullanıyor, bu
+           satır <b>yalnız yanıltıcı bir kopya</b>`
+        : `araç onu <b>okumuyor</b>, varsayılan değer geçerli`}.</li>`).join("")}</ul>
+    <div style="margin-top:6px">Düzeltmek için bu satırları
+      <span class="mono">config/settings.toml</span> içinde
+      <span class="mono">[student]</span> başlığının altına taşı (ya da sil).</div>`;
 }
 
 $("#theme").addEventListener("click", () => {
@@ -3538,8 +3658,25 @@ function hataBildir(btn, err){
   return mesaj;
 }
 
-/** Sunucudan gelen yeni durumu uygula — sayfa yenilenmeden. */
-function applyState(next){
+/** Sunucudan gelen yeni durumu uygula — sayfa yenilenmeden.
+
+    ★★ FAZ 53 — `boot()` İLK AÇILIŞ İÇİN yazılmıştı ve her durum
+    değişikliğinde baştan koşuyordu: kip 0'a dönüyor, KAYDEDİLEN PROGRAM
+    yeniden yükleniyor, paylaşılan bağlantı (#crn=…) yeniden uygulanıyordu.
+    Ölçüldü (gerçek veri): tam kipte (tüm adaylar) bir dersi kilitleyen kullanıcı
+    "5. dönem + alttan"a atılıyor, ızgarada kilitli öneri değil kaydettiği
+    eski program duruyor ve şerit "bu kipte bağlamıyor · ekranda CRN 10123"
+    diyordu — kilit çalışıyordu ama ekran bozuk gösteriyordu.
+
+    Artık kip KORUNUYOR (anahtarıyla). Öneriyi değiştiren işlerden sonra
+    (kilit, meşgul saat, tavan, ayar) o kipin 1. önerisi gösteriliyor;
+    öneriyi değiştirmeyen işlerde (`koru`: izleme, kaydetme) ızgara ve sekme
+    olduğu gibi kalıyor. Kaydedilen programı açılışta yüklemek ve bağlantıyı
+    uygulamak yalnız İLK açılışın işi. */
+function applyState(next, secenek){
+  const onceki = {kip: (MODES[mode] || {}).key, active, sel: sel.slice(),
+                  koru: !!(secenek && secenek.koru),
+                  varsayilan: !!(secenek && secenek.varsayilanKip)};
   Object.assign(DATA, next);
   LIVE = !!DATA.live;
   SETUP = DATA.setup || null;
@@ -3547,8 +3684,15 @@ function applyState(next){
   MODES.push(...((DATA.modes && DATA.modes.length) ? DATA.modes
     : [{key:"all", label:"__AD_KISA__", note:"",
         candidates: DATA.candidates, schedules: DATA.schedules}]));
-  boot();
+  /* ⚠️⚠️ FAZ 54 — Sitede İLK durum da buradan geliyor: kabuk boş veriyle
+     çiziliyor, `boot()` hiç koşmuyor, sitenin kancası doğrudan bu işlev.
+     Faz 53 bunu "durum değişikliği" sandı: boş kabuğun tek kipi ("all")
+     korunuyor, kaydedilen program YÜKLENMİYOR ve paylaşılan bağlantı
+     (#crn=…) HİÇ UYGULANMIYORDU. İlk kez koşan boot, ilk açılıştır. */
+  boot(_acildi ? onceki : undefined);
 }
+/** `boot()` en az bir kez tamamlandı mı (Faz 54 — bkz. applyState). */
+let _acildi = false;
 
 function setupBar(){
   const s = SETUP;
@@ -3577,11 +3721,111 @@ function setupBar(){
        <button class="ghost" disabled>Dönem</button>
        <button class="ghost" disabled>Plandan işaretle</button>
        <button class="ghost" disabled>Geçtiğin dersler</button>
-       <button class="ghost" disabled>Tercihler</button>`}`;
+       <button class="ghost" disabled>Tercihler</button>`}
+    ${veriKutusu()}`;
   $("#setupbar").querySelectorAll("[data-setup]").forEach(b =>
     b.addEventListener("click", () => ({program: programDialog, donem: termDialog,
                                         plan: checklistDialog, tercih: tercihDialog,
                                         dersler: courseDialogSetup})[b.dataset.setup]()));
+  wireVeriKutusu();
+}
+
+/* ★★ FAZ 54 — SİTEDE VERİNİN YEDEĞİ. Transkript, bölüm, kilitler YALNIZ bu
+   tarayıcının deposunda. Tarayıcı verisini silmek, başka cihaza geçmek ya
+   da Safari'nin 7 gün girilmeyen sitenin deposunu temizlemesi hepsini
+   götürüyordu ve geri almanın yolu yoktu. Yedek bir dosya; indirmek ve
+   yüklemek tamamen tarayıcıda. Yerel uygulamada (`make app`) veri zaten
+   `data/` altında ve yedekleniyor — orada bu kutu yok. */
+function veriKutusu(){
+  if(!siteMi() || !window.__ITUCAP_YEDEK__) return "";
+  const n = SETUP ? SETUP.transcript.length : 0;
+  return `<div class="verikutusu" id="veriKutusu">
+    <b>Verin yalnız bu tarayıcıda.</b> Bölümün, ${n ? `<b>${n}</b> dersin` : "derslerin"},
+    kilitlerin ve kaydettiğin program bu tarayıcının deposunda — hiçbir sunucuya
+    gitmiyor. Tarayıcı verisini silersen, başka cihaza geçersen ya da tarayıcı
+    yer açmak için temizlerse <b>gider</b>.
+    <div class="veridugmeler">
+      <button class="ghost" id="yedekIndir">Yedeğini indir</button>
+      <button class="ghost" id="yedekSec">Yedekten yükle…</button>
+    </div>
+    <div class="verikalici" id="veriKalici"></div>
+    <div class="veriyedek" id="veriYedek" role="status" aria-live="polite"></div>
+  </div>`;
+}
+
+/** Yedek dosyasını seç → doğrula → NE OLACAĞINI söyle → onaylanırsa yükle.
+    İki yerden çağrılıyor: Ayar'daki veri kutusu ve (yeni cihazda) ilk kart. */
+function yedekDosyaSec(durum){
+  const Y = window.__ITUCAP_YEDEK__;
+  if(!Y || !durum) return;
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "application/json,.json"; inp.hidden = true;
+  document.body.appendChild(inp);
+  inp.addEventListener("change", async () => {
+    const dosya = inp.files[0];
+    inp.remove();
+    if(!dosya) return;
+    let sonuc;
+    try{ sonuc = await Y.oku(dosya); }
+    catch(e){
+      durum.innerHTML = `<span style="color:var(--danger)">Yüklenmedi: ${esc(e.message)}.</span>`;
+      return;
+    }
+    /* ⚠️ Uygulamadan ÖNCE ne olacağı söyleniyor: yedek şimdiki verinin
+       YERİNE geçiyor. Önce şimdikini indirmek tek tık. */
+    const O = sonuc.ozet, simdi = SETUP ? SETUP.transcript.length : 0;
+    durum.innerHTML = `<b>Bu yedek şimdiki verinin yerine geçecek.</b>
+      Yedek: ${esc((O.tarih || "").slice(0, 10))} · ${esc(O.anadal || "bölüm yok")} ·
+      <b>${Number(O.ders) || 0}</b> ders. Şimdi: ${esc((SETUP && SETUP.anadalProgram) || "bölüm yok")} ·
+      <b>${simdi}</b> ders.
+      <div class="veridugmeler">
+        ${simdi || (SETUP && SETUP.anadalProgram)
+          ? `<button class="ghost" data-yedek="once">Önce şimdikini indir</button>` : ""}
+        <button class="ghost primary" data-yedek="uygula">Yedeği yükle</button>
+        <button class="ghost" data-yedek="vazgec">Vazgeç</button></div>`;
+    const b = (k) => durum.querySelector(`[data-yedek="${k}"]`);
+    if(b("once")) b("once").addEventListener("click", () => Y.indir());
+    b("vazgec").addEventListener("click", () => { durum.textContent = ""; });
+    b("uygula").addEventListener("click", async () => {
+      b("uygula").disabled = true; b("uygula").textContent = "yükleniyor…";
+      try{ await Y.uygula(sonuc.yedek); }
+      catch(e){ hataBildir(b("uygula"), e); }
+    });
+  });
+  inp.click();
+}
+
+async function wireVeriKutusu(){
+  const Y = window.__ITUCAP_YEDEK__;
+  if(!$("#veriKutusu") || !Y) return;
+  const durum = $("#veriYedek");
+  $("#yedekIndir").addEventListener("click", async () => {
+    try{
+      const n = await Y.indir();
+      durum.textContent = `İndirildi (${n} dosya). Dosyayı güvenli bir yere koy —
+        içinde notların var.`;
+    }catch(e){ hataBildir($("#yedekIndir"), e); }
+  });
+  $("#yedekSec").addEventListener("click", () => yedekDosyaSec(durum));
+  /* Kalıcı depolama: tarayıcı SORULMADAN temizleyebilir mi? Soru tarayıcıya
+     yalnız DÜĞMEYLE gidiyor — Firefox izin penceresi açıyor, habersiz
+     açılması şaşırtırdı. */
+  const k = $("#veriKalici");
+  const yaz = (v) => {
+    k.innerHTML = v === true
+      ? "✓ Tarayıcı bu siteye <b>kalıcı depolama</b> verdi: yer açmak için verini silmez."
+      : v === false
+        ? `⚠️ Tarayıcı yer açmak için bu sitenin verisini <b>silebilir</b>.
+           <button class="ghost mini" id="kaliciIste">Kalıcı saklamasını iste</button>`
+        : "Bu tarayıcı kalıcı depolamayı desteklemiyor — yedeğini al.";
+    const b = $("#kaliciIste");
+    if(b) b.addEventListener("click", async () => {
+      const r = await Y.kaliciIste();
+      yaz(r);
+      if(r === false) say2("tarayıcı kabul etmedi — yedeğini indir");
+    });
+  };
+  try{ yaz(await Y.kalici()); }catch(e){ yaz(null); }
 }
 
 /** Kaç tercih etkin — çubukta rozet olarak. Sıfırsa rozet YOK: "0" yazmak
@@ -3595,6 +3839,7 @@ function tercihSayisi(){
 }
 
 function openSetup(html, wire){
+  SETUP_KIRLI = false;                 /* Faz 55 — bkz. pencereDisinaTiklama */
   $("#setupBody").innerHTML = html + `
     <div class="dlgactions">
       <span class="msg" id="setupMsg"></span>
@@ -3646,7 +3891,11 @@ function dugmeMesgul(btn, metin){
 const bekleBoyansin = () => new Promise(r =>
   requestAnimationFrame(() => requestAnimationFrame(r)));
 
-async function save(fn){
+/* ★ Faz 54: `secenek` applyState'e gidiyor. Kurulum işleri (program, dönem,
+   transkript) DURUMU değiştiriyor: varsayılan kipe dönülüyor — dönem ilk kez
+   seçilince "N. dönem + alttan" kipi açılmalı (ilk kartın sözü bu). Tercih ve
+   meşgul saat yalnız öneriyi değiştiriyor: kip korunuyor. */
+async function save(fn, secenek = {varsayilanKip: true}){
   const btn = $("#setupSave");
   const geri = dugmeMesgul(btn, "Kaydediliyor…");
   say("kaydediliyor…");
@@ -3663,7 +3912,7 @@ async function save(fn){
                     + `pencereyi kapatma`);
   }, 1000);
   try{
-    applyState(await fn());
+    applyState(await fn(), secenek);
     say("kaydedildi ✓");
     setTimeout(() => $("#setup").close(), 550);
   }catch(err){
@@ -3760,7 +4009,7 @@ function programDialog(){
             ((s.secondChoice || {})[k] || {}).program)}</select></label>
         <label class="field"><span>${KIND_LABEL[k]} planı</span>
           <select id="fPlan-${k}"></select>
-          <span class="hint">Planı boş bırakırsan en güncel OBS planı seçilir.</span></label>
+          <span class="hint" id="fPlanNot-${k}">Planı boş bırakırsan en güncel OBS planı seçilir.</span></label>
       </div>`).join("")}
     <details class="adv"${ozelKod ? " open" : ""}>
       <summary>Gelişmiş</summary>
@@ -3786,15 +4035,46 @@ function programDialog(){
           Virgülle ayır.</span></label>
     </details>`, () => {
     let kind = s.secondKind;
+    /* ★★ FAZ 54 — PLANIN KİMİN İÇİN OLDUĞU YAZIYOR. ÇAP planları (anadal,
+       hedef) çiftine tanımlı: BLG'nin 38 planının biri Harita, biri İnşaat
+       öğrencisi için. Liste hepsini tek yığın halinde, "en güncel" önde
+       veriyordu; hangisinin SENİN planın olduğu yazmıyordu. Motor otomatik
+       seçimde anadala uyanı arıyor (`plans.ikinci_plan`) — pencere de aynı
+       ayrımı gösteriyor. Anadal değişince liste de değişiyor. */
+    /* `normalize.base_program_code` ile AYNI kural (testte karşılaştırılıyor):
+       "HTAE" → "HTA". Plan bağları bazen dilsiz koda yazılı. */
+    const tabanKod = (c) => (c && c.length > 2 && c.endsWith("E")) ? c.slice(0, -1) : c;
+    const planUygunMu = (p, an) => {
+      const h = (p.hosts || "").split(" ");
+      return !!an && (h.includes(an) || h.includes(tabanKod(an)));
+    };
     const fillPlans = (k) => {
       const code = $("#fProg-" + k).value;
+      const an = $("#fAnadal").value;
       const secili = ((s.secondChoice || {})[k] || {}).planId;
       const list = s.plans.filter(p => p.plan_type === k && p.program_code === code);
-      $("#fPlan-" + k).innerHTML = `<option value="">otomatik (en güncel)</option>` +
-        list.map(p => `<option value="${p.id}"${p.id === secili ? " selected" : ""}
-          >${p.id} · ${p.slots} slot · ${esc((p.title || "").slice(0, 54))}</option>`).join("");
+      const uygun = list.filter(p => planUygunMu(p, an));
+      const diger = list.filter(p => !planUygunMu(p, an));
+      const secenek = (p) => `<option value="${p.id}"${p.id === secili ? " selected" : ""}
+          >${p.id} · ${p.slots} slot · ${esc((p.title || "").slice(0, 54))}</option>`;
+      const grup = (ad, ps) => ps.length
+        ? `<optgroup label="${esc(ad)}">${ps.map(secenek).join("")}</optgroup>` : "";
+      $("#fPlan-" + k).innerHTML =
+        `<option value="">${an && uygun.length ? `otomatik — ${esc(an)} için en güncel`
+                                                 : "otomatik (en güncel)"}</option>`
+        + (an ? grup(`${an} öğrencileri için (${uygun.length})`, uygun)
+                + grup(`başka bölümlerin planları (${diger.length})`, diger)
+              : list.map(secenek).join(""));
       if(!list.length) $("#fPlan-" + k).innerHTML +=
         `<option disabled>bu bölümde ${KIND_LABEL[k]} planı yok</option>`;
+      const not = $("#fPlanNot-" + k);
+      if(not) not.innerHTML = !code || !list.length ? "Planı boş bırakırsan en güncel OBS planı seçilir."
+        : !an ? "Önce anadalını seç — planlar anadala göre ayrılıyor."
+        : uygun.length ? `<b>${uygun.length}</b> plan ${esc(an)} öğrencileri için ilan edilmiş;
+            boş bırakırsan en günceli seçilir.`
+        : `⚠️ Bu bölümün ${KIND_LABEL[k]} planlarının hiçbiri ${esc(an)} için ilan
+            edilmemiş. Otomatik seçim en güncel planı alır — <b>senin planın
+            olmayabilir</b>, OBS'den doğrula.`;
     };
     /* ★★ Türetilen kodlar CANLI: kullanıcı bölümü değiştirince rozetler
        anında değişiyor. Kaydedilmiş değeri göstermek, "otomatik" sözünü
@@ -3865,8 +4145,12 @@ function programDialog(){
       }));
     ["cap","yandal"].forEach(k =>
       $("#fProg-" + k).addEventListener("change", () => { fillPlans(k); cizKodlar(); }));
-    /* Anadal değişince de rozetler değişmeli — türetmenin ilk kaynağı o. */
-    $("#fAnadal").addEventListener("change", cizKodlar);
+    /* Anadal değişince de rozetler değişmeli — türetmenin ilk kaynağı o.
+       Faz 54: plan listeleri de (hangi plan kimin için). */
+    $("#fAnadal").addEventListener("change", () => {
+      kindsOf(kind).forEach(k => fillPlans(k));
+      cizKodlar();
+    });
     $("#fCodes").addEventListener("input", cizKodlar);
     sync();
     $("#setupSave").addEventListener("click", () => {
@@ -3984,7 +4268,7 @@ function tercihDialog(){
         cevrimici: $("#fOnline").checked,
         istenenHocalar: ayir("#fHocaVar"),
         istenmeyenHocalar: ayir("#fHocaYok"),
-      }));
+      }), {});                        // kip korunur (Faz 54)
     });
   });
 }
@@ -5035,11 +5319,12 @@ function wirePicks(){
     const geri = dugmeMesgul(btn, "Kaydediliyor…");
     await bekleBoyansin();          // ★ halka boyansın (Pyodide blokluyor)
     try{
-      // ★ applyState boot() çağırıyor, o da resetTo(0) yapıyor. Seçimi
-      //   sunucudan gelen KAYITLI programla yeniden kuracağız, o yüzden
-      //   önce kaydet, sonra durumu tazele. (Başarıda sayfa yeniden
+      // ★ Önce kaydet, sonra durumu tazele. (Başarıda sayfa yeniden
       //   kuruluyor, düğme zaten yenileniyor; geri() yalnız hata yolunda.)
-      applyState(await api("/api/picks", {picks: sel}));
+      // ★ Faz 53: `koru` — kip ve ızgara OLDUĞU GİBİ kalıyor. Eskiden
+      //   applyState kip 0'a dönüp kaydedileni yeniden yüklüyordu; başka
+      //   kipte kaydeden kişi kendini öbür kipte buluyordu.
+      applyState(await api("/api/picks", {picks: sel}), {koru: true});
     }catch(err){
       geri(); hataBildir(btn, err);
     }
@@ -5427,7 +5712,8 @@ function kayitKontrol(){
   const doluOlan = ps.filter(p => !p.sec.free).map(p => p.cand.course);
   ekle(!doluOlan.length, "Kontenjan",
        doluOlan.length ? "dolu: " + doluOlan.join(", ")
-                       : `${ps.length} şubede yer var (${esc(DATA.generatedAt)})`);
+                       : `${ps.length} şubede yer var (${esc(veriTarihi())} verisiyle —
+                          kayıtta OBS'deki güncel sayıya bak)`);
 
   // 4) Yarıyıl tabanı — YALNIZ ÇAP varsa ve başlangıç yarıyılı beyan edilmişse.
   // ⚠️ Beyan yoksa "tamam" değil, "bakılamıyor": yönerge tabanı başlangıç
@@ -5780,7 +6066,7 @@ const TUM_CAND = () => Object.fromEntries((DATA.candidates || []).map(c => [c.co
    yapmazdı. */
 const candOf = (course) => CAND[course] || TUM_CAND()[course];
 
-function useMode(i){
+function useMode(i, secenek){
   mode = i;
   /* ⚠️ Kip değişince geri yığını TEMİZLENİYOR: her kipin KENDİ aday havuzu
      var, öbür kipin seçimini geri yüklemek ızgarada olmayan bir dersi
@@ -5790,7 +6076,9 @@ function useMode(i){
   active = 0;
   renderModes();
   resetTo(0);
-  if(i === 0) startFromSaved();     // kaydedilmiş program varsa onu göster
+  // Kaydedilmiş program varsa onu göster — kullanıcı kipe TIKLAYINCA ya da
+  // ilk açılışta; bir ayar değişikliğinden sonra değil (Faz 53).
+  if(i === 0 && !(secenek && secenek.kayitli === false)) startFromSaved();
 }
 function renderModes(){
   $("#modes").innerHTML = MODES.length < 2 ? "" : MODES.map((m,i) =>
@@ -5850,7 +6138,7 @@ function renderArzUyarisi(){
         ${satir(acilmamis, "şu ana kadar ilan edilmemiş")}
         ${satir(kapali, "şubeleri başka programlara ayrılmış")}
         <div style="margin-top:6px" class="meta">Veri
-          <span class="mono">${esc(DATA.generatedAt)}</span> itibarıyla —
+          <span class="mono">${esc(veriTarihi())}</span> itibarıyla —
           dönem başında ilanlar kademeli yayınlanıyor.
           <a href="#blockSection" id="arzDetay">Darboğaz bölümünde ayrıntı</a>.</div>
       </div>
@@ -6068,10 +6356,11 @@ function oneriYok(){
     >öneri üretilemedi — <b>${kl.length} kilit yüzünden</b></span>`;
 }
 
-/** Bu kipte GERÇEKTEN bağlayan kilitler (aday havuzunda olanlar). */
+/** Bu kipte GERÇEKTEN bağlayan kilitler (aday havuzunda olanlar). ⚠️ Okunamayan
+    ve gölgede kalan satırlar motora girmiyor — bağlayan sayılmaz (Faz 53). */
 function kilitliBuKipte(){
   const havuz = new Set((M().candidates || []).map(c => c.course));
-  return (DATA.locked || []).filter(l => havuz.has(l.course));
+  return Object.values(kilitler()).filter(l => havuz.has(l.course));
 }
 
 const GUNAD = ["Pzt", "Sal", "Çar", "Per", "Cum"];
@@ -6238,7 +6527,9 @@ function renderDayList(){
          style="${tonStil(it.p.cand.course, it.p.cand.role)}">
          <span><b class="mono">${esc(it.p.cand.course)}</b>
            ${kilitliMi(it.p.cand.course, it.p.sec.crn)
-             ? `<span class="kilitim" style="position:static;display:inline-block;
+             ? `<span class="kilitim" role="img"
+                  aria-label="${esc(kilitBaslik(it.p.cand.course))}"
+                  style="position:static;display:inline-block;
                   vertical-align:-1px;margin-left:4px">${KILIT_SVG}</span>` : ""}
            ${it.p.cand.name ? `<span class="blkad">${esc(it.p.cand.name)}</span>` : ""}
            <small class="mono">${hhmm(it.m.start)}–${hhmm(it.m.end)}
@@ -6388,7 +6679,7 @@ function render(){
           title="${esc([c.p.cand.course, c.p.cand.name, c.p.sec.instructor,
                         "CRN " + c.p.sec.crn,
                         c.p.sec.online ? "çevrimiçi" : yerBaslik(c.m.building),
-                        kld ? "saate kilitli" : ""]
+                        kld ? kilitBaslik(c.p.cand.course) : ""]
                        .filter(Boolean).join(" · "))}">
           ${kld ? `<span class="kilitim">${KILIT_SVG}</span>` : ""}
           <b class="mono">${esc(c.p.cand.course)}</b>
@@ -6482,22 +6773,61 @@ const KILIT_SVG = `<svg viewBox="0 0 12 12" fill="none" aria-hidden="true"
     stroke-width="1.3" stroke-linecap="round"/><rect x="2.1" y="5.2" width="7.8"
     height="5.6" rx="1.1" fill="currentColor"/></svg>`;
 
+/** Motorun UYGULADIĞI kilitler (ders → kilit). Okunamayan ya da aynı derse
+    ikinci kez yazılmış satırlar burada yok — onlar yalnız şeritte, "uygulanmıyor"
+    diye görünüyor. */
 function kilitler(){
   const m = {};
-  (DATA.locked || []).forEach(l => { m[l.course] = l; });
+  (DATA.locked || []).forEach(l => {
+    if(l.tur === "sube" || l.tur === "aralik") m[l.course] = l;
+  });
   return m;
 }
-/** Bu ders (istenirse: bu şube) saate kilitli mi? */
+/* ★★ FAZ 53 — SAAT ARALIĞINA KİLİT. 12:30 veriden seçildi (motor:
+   `KILIT_ONAYAR`): hiçbir ders 12:00'de başlamıyor, sabah dersleri en geç
+   12:29'da bitiyor, öğleden sonrakiler 12:30'da başlıyor. */
+const OGLE = 12 * 60 + 30;
+const KILIT_ARALIKLARI = [
+  {aralik: "00:00-12:30", lo: 0, hi: OGLE, ad: "sabah", yonelme: "sabaha",
+   dugme: "Sabah olsun", aciklama: "12:30'dan önce biten şube"},
+  {aralik: "12:30-24:00", lo: OGLE, hi: 1440, ad: "öğleden sonra",
+   yonelme: "öğleden sonraya", dugme: "Öğleden sonra olsun",
+   aciklama: "12:30'da ya da sonra başlayan şube"},
+];
+/** Şubenin BÜTÜN saatleri aralıkta mı? Saati ilan edilmemiş şube UYMAZ
+    (motordaki `araliga_uyar` ile aynı tanım). */
+function araligaUyar(sec, lo, hi){
+  const ms = (sec && sec.meetings) || [];
+  return ms.length > 0 && ms.every(m => lo <= m.start && m.end <= hi);
+}
+/** Kilidin kısa adı — rozet, ızgara başlığı ve not aynı sözü kullansın. */
+function kilitEtiketi(l){
+  if(l.tur !== "aralik") return "CRN " + l.crn;
+  const on = KILIT_ARALIKLARI.find(k => k.lo === l.lo && k.hi === l.hi);
+  return on ? on.ad : `${hhmm(l.lo)}–${hhmm(l.hi)} arası`;
+}
+/** "…'e kilitli" için yönelme hâli: sabaha · öğleden sonraya · 10:30–15:30 arasına. */
+function kilitYonelme(l){
+  if(l.tur !== "aralik") return "CRN " + l.crn + " şubesine";
+  const on = KILIT_ARALIKLARI.find(k => k.lo === l.lo && k.hi === l.hi);
+  return on ? on.yonelme : `${hhmm(l.lo)}–${hhmm(l.hi)} arasına`;
+}
+/** Bu ders (istenirse: bu şube) kilidi KARŞILIYOR mu? Aralık kilidinde şube
+    serbest; ekrandaki şube aralığa uyuyorsa kilitli sayılır. */
 function kilitliMi(course, crn){
   const l = kilitler()[course];
-  return !!l && (crn === undefined || l.crn === crn);
+  if(!l) return false;
+  if(crn === undefined) return true;
+  if(l.tur === "aralik") return araligaUyar(sectionOf(course, crn), l.lo, l.hi);
+  return l.crn === crn;
 }
-/** Kilidi aç/kapat. `crn` boşsa AÇMA demek (sunucu uçu öyle okuyor). */
-async function kilitYaz(course, crn, btn){
+/** Kilidi aç/kapat. `crn` ve `aralik` boşsa AÇMA demek (sunucu uçu öyle
+    okuyor); aynı kilit yeniden gönderilirse de açılıyor. */
+async function kilitYaz(course, crn, btn, aralik){
   const eski = btn ? btn.innerHTML : "";
   if(btn){ btn.disabled = true; btn.textContent = "…"; }
   try{
-    applyState(await api("/api/kilit", {course, crn: crn || ""}));
+    applyState(await api("/api/kilit", {course, crn: crn || "", aralik: aralik || ""}));
     const d = $("#detail");
     if(d && d.open) d.close();
   }catch(err){
@@ -6513,10 +6843,36 @@ function kilitButonu(course, crn){
   /* Statik tek dosyada (`make ui`) yazacak bir yer yok; sahte bir düğme
      göstermek kaydetmediğini gizlemek olurdu (bkz. `watchButton`). */
   if(!DATA.live) return "";
-  const on = kilitliMi(course, crn);
+  /* ⚠️ Yalnız ŞUBE kilidi "açık" sayılıyor: ders öğleden sonraya kilitliyken
+     bu düğme "Kilidi aç" deseydi, basan kişi hangi kilidi açtığını bilmezdi. */
+  const l = kilitler()[course];
+  const on = !!l && l.tur !== "aralik" && l.crn === crn;
   return `<button class="ghost" id="kilitBtn" data-course="${esc(course)}"
-    data-crn="${esc(crn)}" style="${on ? "color:var(--ink);border-color:var(--ink)" : ""}"
+    data-crn="${esc(crn)}" aria-pressed="${on}"
+    style="${on ? "color:var(--ink);border-color:var(--ink)" : ""}"
     >${on ? "Kilidi aç" : "Bu saate kilitle"}</button>`;
+}
+
+/* ★★ FAZ 53 — "Bu ders SABAH olsun, şubesi fark etmez" (yapılacaklar 2.4).
+   Faz 45'te tek yol bir şube seçip ona kilitlemekti; ölçüldü, o yol
+   aralıktaki öbür şubeleri motordan saklıyordu ve 139 denemenin 22'sinde
+   hiç program çıkmıyordu. Her düğme o aralığa BÜTÜNÜYLE uyan şube sayısını
+   yazıyor — sıfırsa düğme kapalı ve nedeni yazılı (bilinmeyen saatli şube
+   sayılmıyor, "sabah" diye iddia edilemez). */
+function kilitAralikSatiri(cand){
+  if(!DATA.live) return "";
+  const l = kilitler()[cand.course];
+  const dugmeler = KILIT_ARALIKLARI.map(k => {
+    const n = cand.sections.filter(s => araligaUyar(s, k.lo, k.hi)).length;
+    const on = !!l && l.tur === "aralik" && l.lo === k.lo && l.hi === k.hi;
+    return `<button class="ghost kilitaralik" data-aralik="${k.aralik}"
+      data-course="${esc(cand.course)}" aria-pressed="${on}"
+      ${n || on ? "" : `disabled title="${esc(k.aciklama)} yok"`}
+      >${on ? `${k.ad[0].toLocaleUpperCase("tr") + k.ad.slice(1)} kilidini aç`
+             : k.dugme}<span class="kilitsay"> · ${n ? `${n} şube` : "şubesi yok"}</span></button>`;
+  }).join("");
+  return `<div class="kilitgrup" role="group" aria-label="Saat aralığına kilitle">
+    <span class="kilitgrupad">Şube fark etmez, saat önemliyse:</span>${dugmeler}</div>`;
 }
 
 /* `disKip`: ders AKTİF kipin havuzunda değil. `oneren`: onu havuzunda tutan
@@ -6534,6 +6890,14 @@ function kilitNotu(course, crn, disKip, oneren){
       oneren >= 0 ? ` Kilitlersen <b>${esc(MODES[oneren].label)}</b> kipinin
       önerilerinde bu şube sabit tutulur.` : ""}</div>`;
   const l = kilitler()[course];
+  if(l && l.tur === "aralik")
+    return `<div class="why" style="margin-top:8px"><b>${esc(ilkBuyuk(kilitYonelme(l)))}
+      kilitli</b>: öneriler bu dersi o saatlere uyan ${l.uyan.length} şubeden
+      birinde tutuyor, <b>şubeyi motor seçiyor</b>.${
+      kilitliMi(course, crn) ? "" : ` ⚠️ Ekranda duran
+      <span class="mono">CRN ${esc(crn)}</span> bu aralığın <b>dışında</b> —
+      elle değiştirdiysen öneriye dönünce kilit yine uygulanır.`}
+      "Bu saate kilitle" dersen aralık kilidi <b>bu şubeye</b> dönüşür.</div>`;
   if(l && l.crn !== crn)
     return `<div class="why" style="margin-top:8px">Bu ders
       <span class="mono">CRN ${esc(l.crn)}</span> şubesine kilitli; ekranda
@@ -6544,14 +6908,36 @@ function kilitNotu(course, crn, disKip, oneren){
       bu dersi <b>bu şubede</b> tutup <b>etrafında</b> kuruluyor.</div>`;
   return `<div class="why" style="margin-top:8px">Kilitlersen motor bu dersi
     <b>bu şubede</b> tutar ve programın kalanını etrafında kurar. Kilitlemezsen
-    ders programda kalabilir ama <b>şubesi (dolayısıyla saati) kayabilir</b>.</div>`;
+    ders programda kalabilir ama <b>şubesi (dolayısıyla saati) kayabilir</b>.
+    Şube değil yalnız saat önemliyse <b>sabaha</b> ya da <b>öğleden sonraya</b>
+    kilitle — motor o saatlerdeki bütün şubeleri dener.</div>`;
+}
+
+/** Izgara/gün listesi için: "sabaha kilitli" · "CRN 13601 şubesine kilitli".
+    ⚠️ Telefon satırında simge `aria-hidden`dı; ekran okuyucu kilidi hiç
+    duymuyordu (Faz 53'te fark edildi) — artık bu metin simgenin adı. */
+function kilitBaslik(course){
+  const l = kilitler()[course];
+  return l ? kilitYonelme(l) + " kilitli" : "";
+}
+
+function ilkBuyuk(s){
+  return s ? s[0].toLocaleUpperCase("tr") + s.slice(1) : s;
 }
 
 function wireKilit(){
   const b = $("#kilitBtn");
-  if(b) b.addEventListener("click", () =>
-    kilitYaz(b.dataset.course,
-             kilitliMi(b.dataset.course, b.dataset.crn) ? "" : b.dataset.crn, b));
+  /* ⚠️ Şube düğmesi yalnız ŞUBE kilidini açar; ders bir aralığa kilitliyken
+     basmak, aralık kilidini BU ŞUBEYE çevirir (sunucu: bir derste tek kilit). */
+  if(b) b.addEventListener("click", () => {
+    const l = kilitler()[b.dataset.course];
+    const acik = !!l && l.tur !== "aralik" && l.crn === b.dataset.crn;
+    kilitYaz(b.dataset.course, acik ? "" : b.dataset.crn, b);
+  });
+  document.querySelectorAll("#detail .kilitaralik").forEach(d =>
+    d.addEventListener("click", () =>
+      /* Aynı aralık yeniden gönderilince sunucu kilidi AÇIYOR. */
+      kilitYaz(d.dataset.course, "", d, d.dataset.aralik)));
 }
 
 /** Izgaranın üstündeki şerit: hangi dersler kilitli, biri tutmuyorsa neden. */
@@ -6561,25 +6947,37 @@ function renderKilitNot(){
   const list = DATA.locked || [];
   if(!list.length){ el.hidden = true; return; }
   el.hidden = false;
+  /* ★ Faz 53: motorun UYGULADIĞI kilitler ile uygulamadığı satırlar ayrı.
+     Elle yazılıp okunamayan (`"BLG 351E@8.30-12.30"`) ya da aynı derse
+     ikinci kez yazılmış satır motora GİRMİYOR — ve bu söyleniyor. Faz 45'te
+     `_kilit_ayikla` onları atlıyordu, docstring "arayüz söylüyor" diyordu
+     ama hiçbir yerde görünmüyorlardı. */
+  const uygulanan = list.filter(l => l.tur === "sube" || l.tur === "aralik");
+  const okunmayan = list.filter(l => l.tur === "bozuk" || l.tur === "golge");
+  const ad = (l) => `<span class="mono">${esc(l.course)}</span>`;
+  const satirAd = (l) => `<span class="mono">${esc(l.satir)}</span>`;
   /* ★ Sunucusuz tek dosyada (`make ui`) kilit YİNE UYGULANIYOR — ayardan
      okunuyor — ama açılamıyor. Düğmeleri göstermek yerine bunu yazıyoruz;
      tıklanınca hiçbir şey yapmayan bir düğme, kaydetmediğini gizlerdi. */
   if(!DATA.live){
-    el.innerHTML = `<b>${list.length} ders saate kilitli</b>
-      (${list.map(l => `<span class="mono">${esc(l.course)}</span>`).join(", ")}).
-      Öneriler bunların etrafında kuruldu. Kilidi açmak için
+    el.innerHTML = `<b>${uygulanan.length} ders saate kilitli</b>
+      (${uygulanan.map(l => `${ad(l)} · ${esc(kilitEtiketi(l))}`).join(", ")}).
+      Öneriler bunların etrafında kuruldu.${okunmayan.length ? ` ⚠️
+      ${okunmayan.length} kilit satırı <b>uygulanmıyor</b>
+      (${okunmayan.map(satirAd).join(", ")}).` : ""} Kilidi açmak için
       <span class="mono">make app</span> ile aç ya da
       <span class="mono">settings.toml</span> içindeki
       <span class="mono">kilitli</span> satırını düzenle.`;
     return;
   }
-  const kirik = list.filter(l => !l.ok);
-  el.classList.toggle("tutmuyor",
-    kirik.length > 0 || (!(M().schedules || []).length && !!kilitliBuKipte().length));
-  const ad = (l) => `<span class="mono">${esc(l.course)}</span>`;
-  const rozet = list.map(l => `<button class="ghost mini" data-ac="${esc(l.course)}"
-      title="kilidi aç">${esc(l.course)} · CRN ${esc(l.crn)}${
-      l.ok ? "" : " ✗"} ✕</button>`).join("");
+  const kirik = uygulanan.filter(l => !l.ok);
+  el.classList.toggle("tutmuyor", kirik.length > 0 || okunmayan.length > 0 ||
+    (!(M().schedules || []).length && !!kilitliBuKipte().length));
+  const rozet = uygulanan.map(l => `<button class="ghost mini" data-ac="${esc(l.course)}"
+      title="kilidi aç">${esc(l.course)} · ${esc(kilitEtiketi(l))}${
+      l.ok ? "" : " ✗"} ✕</button>`).join("") +
+    okunmayan.map(l => `<button class="ghost mini" data-satir="${esc(l.satir)}"
+      title="bu satırı sil">${esc(l.satir)} ✗ ✕</button>`).join("");
   /* ⚠️ TUTMAYAN kilit gizlenmiyor. Dönem/şube değişince CRN kaybolabiliyor;
      satırı sessizce düşürseydik kullanıcı "kilitlemiştim, saati neden
      kaydı?" diye sorardı — ya da daha kötüsü, hiç sormazdı. */
@@ -6587,42 +6985,54 @@ function renderKilitNot(){
      şubesini elle değiştirmek kilidi TAŞIMIYOR (ayara sessizce yazmak
      istemiyoruz). O zaman ızgarada kilit rozeti de çıkmıyor ve kullanıcı
      kilidin düştüğünü sanabilir. Ayrışmayı burada söyleyip taşımayı tek
-     düğmeye indiriyoruz. */
-  const kayan = list.map(l => {
+     düğmeye indiriyoruz. Aralık kilidinde ayrışma = ekrandaki şube
+     aralığın DIŞINDA (Faz 53). */
+  const kayan = uygulanan.map(l => {
     const s = sel.find(x => x.course === l.course);
-    return (s && s.crn !== l.crn) ? {l, crn: s.crn} : null;
+    return (s && !kilitliMi(l.course, s.crn)) ? {l, crn: s.crn} : null;
   }).filter(Boolean);
   /* ★★ SONUÇ BOŞSA SEBEBİ BURADA YAZILI. Kilit sert kısıt: iki kilit
      çakışırsa ya da kilitli şube meşgul saate denk gelirse motor hiçbir
      program kuramıyor. Sekme şeridinde yalnız kısa sebep var; hangi
-     kilitlerin bağladığı ve nasıl açılacağı burada. */
+     kilitlerin bağladığı ve nasıl açılacağı burada.
+     ⚠️ Faz 53'e kadar bu cümle BAZEN YANLIŞTI: düşük puanlı tek bir derse
+     kilit (ör. ALM 102) motoru bütçe tükenene kadar ölü dallarda
+     dolaştırıyor ve hiç program çıkmıyordu — tek kilit, hiç meşgul saat
+     yokken "birbiriyle çakışıyor" deniyordu. Motor artık kilitli dersi
+     önce yerleştiriyor; boş sonuç gerçekten bir çakışma demek. */
   const bagli = kilitliBuKipte();
   /* Kilit duruyor ve şubesi açık (`ok`), ama ders BU kipin havuzunda yok. */
-  const kapsamDisi = list.filter(l => l.ok && !bagli.includes(l));
+  const kapsamDisi = uygulanan.filter(l => l.ok && !bagli.includes(l));
   const kipAdi = (course) => {
     const i = MODES.findIndex(m => (m.candidates || []).some(c => c.course === course));
     return i >= 0 ? MODES[i].label : "";
   };
   const bosSonuc = !(M().schedules || []).length;
-  el.innerHTML = `<b>${list.length} ders saate kilitli.</b>
+  const neden = (l) => l.neden === "sube" ? `CRN ${esc(l.crn)} bu kipte açık değil`
+    : l.neden === "aralik" ? `bu dersin <b>${esc(kilitEtiketi(l))}</b> saatlerine
+        bütünüyle uyan şubesi yok`
+    : "bu ders artık aday listesinde yok";
+  el.innerHTML = `${uygulanan.length ? `<b>${uygulanan.length} ders saate kilitli.</b>` : ""}
     ${/* ⚠️ Giriş cümlesi KOŞULLU: kilitlerin hepsi bu kipin havuzu dışındaysa
           "etrafında kuruluyor" demek düpedüz yanlış olurdu — motor onları bu
           kipte hiç görmüyor (Faz 49). */ ""}
-    ${bagli.length ? `Öneriler ${bagli.length < list.length
+    ${!uygulanan.length ? "" : bagli.length ? `Öneriler ${bagli.length < uygulanan.length
         ? `bu kipte bağlayan <b>${bagli.length}</b> dersin`
-        : "bu derslerin"} şubesini sabit tutup <b>etrafında</b> kuruluyor.`
+        : "bu derslerin"} saatini sabit tutup <b>etrafında</b> kuruluyor.`
       : `<b>Bu kipte hiçbiri bağlamıyor.</b>`}
     ${bosSonuc && bagli.length ? `<div style="margin-top:6px;color:var(--danger)">
       <b>Bu kipte hiçbir program kurulamadı</b> — bu kipte bağlayan
-      ${bagli.length} kilit (${bagli.map(l =>
-        `<span class="mono">${esc(l.course)}</span>`).join(", ")})
+      ${bagli.length} kilit (${bagli.map(ad).join(", ")})
       birbiriyle ya da meşgul saatinle çakışıyor. Aşağıdan birini aç.
       </div>` : ""}
     ${kirik.length ? `<div style="margin-top:6px;color:var(--danger)">
-      ${kirik.map(l => `${ad(l)} kilidi <b>tutmuyor</b> — ${
-        l.neden === "sube"
-          ? `CRN ${esc(l.crn)} bu kipte açık değil`
-          : "bu ders artık aday listesinde yok"}.`).join("<br>")}
+      ${kirik.map(l => `${ad(l)} kilidi <b>tutmuyor</b> — ${neden(l)}.`).join("<br>")}
+      </div>` : ""}
+    ${okunmayan.length ? `<div style="margin-top:6px;color:var(--danger)">
+      ${okunmayan.map(l => `${satirAd(l)} <b>uygulanmıyor</b> — ${l.tur === "golge"
+        ? `aynı derse sonra yazılan kilit geçerli`
+        : `okunamadı; biçim <span class="mono">DERS@CRN</span> ya da
+           <span class="mono">DERS@SS:DD-SS:DD</span>`}.`).join("<br>")}
       </div>` : ""}
     ${/* ★★ FAZ 49 — KAPSAM DIŞI KİLİT. Motor kilidi yalnız o kipin
           havuzundaki derse bağlıyor; kilitli üst dönem dersi "5. dönem +
@@ -6638,15 +7048,23 @@ function renderKilitNot(){
       </div>` : ""}
     ${kayan.length ? `<div style="margin-top:6px">
       ${kayan.map(k => `${ad(k.l)} ekranda <span class="mono">CRN ${esc(k.crn)}</span>,
-        kilit <span class="mono">CRN ${esc(k.l.crn)}</span> —
+        kilit <span class="mono">${esc(kilitEtiketi(k.l))}</span>${k.l.tur === "aralik"
+          ? " — ekrandaki şube bu saatlerin dışında" : ""} —
         <button class="ghost mini" data-tasi="${esc(k.l.course)}"
-          data-crn="${esc(k.crn)}">kilidi buraya taşı</button>`).join("<br>")}
+          data-crn="${esc(k.crn)}">${k.l.tur === "aralik"
+            ? "kilidi bu şubeye çevir" : "kilidi buraya taşı"}</button>`).join("<br>")}
       </div>` : ""}
     <div class="kilitsatir">${rozet}
       ${list.length > 1 ? `<button class="ghost mini" id="kilitHepsi"
         >hepsini aç</button>` : ""}</div>`;
   el.querySelectorAll("[data-ac]").forEach(b =>
     b.addEventListener("click", () => kilitYaz(b.dataset.ac, "", b)));
+  el.querySelectorAll("[data-satir]").forEach(b =>
+    b.addEventListener("click", async () => {
+      b.disabled = true;
+      try{ applyState(await api("/api/kilit", {satir: b.dataset.satir})); }
+      catch(e){ hataBildir(b, e); }
+    }));
   el.querySelectorAll("[data-tasi]").forEach(b =>
     b.addEventListener("click", () => kilitYaz(b.dataset.tasi, b.dataset.crn, b)));
   const h = $("#kilitHepsi");
@@ -6654,10 +7072,12 @@ function renderKilitNot(){
     h.disabled = true; h.textContent = "…";
     /* ★ Her çağrı TAM DURUMU döndürüyor (`dispatch` snapshot ekliyor);
        sonuncusunu uygulamak yeter. Ayrı bir "durumu tazele" uçu POST
-       kabul etmiyor — oraya gitmek sessiz bir hata olurdu. */
+       kabul etmiyor — oraya gitmek sessiz bir hata olurdu.
+       ⚠️ Faz 53: her satır KENDİSİYLE siliniyor — okunamayan satırın ders
+       kodu bile olmayabilir (`"@123"`), ders koduyla silmek onu bırakırdı. */
     let son = null;
     for(const l of list){
-      try{ son = await api("/api/kilit", {course: l.course, crn: ""}); }
+      try{ son = await api("/api/kilit", {satir: l.satir}); }
       catch(e){ hataBildir(h, e); return; }
     }
     if(son) applyState(son);
@@ -6943,6 +7363,7 @@ function courseDialog(course){
       ${kilitButonu(cand.course, cur.crn)}
       ${watchButton(cand.course)}
     </div>
+    ${kilitAralikSatiri(cand)}
     ${kilitNotu(cand.course, cur.crn, disKip, onerenKip)}
     ${watchNote(cand.course)}`);
   const rm = $("#removeCourse");
@@ -6977,7 +7398,8 @@ function watchNote(course){
   if(list.has(course))
     return `<div class="why" style="margin-top:8px">İzlenenler:
       <span class="mono">${[...list].map(esc).join(", ")}</span>.
-      <span class="mono">make watch</span> çalışınca bunlar taranır.</div>`;
+      <span class="mono">make watch</span> çalışınca bunlar taranır
+      (arka planda: <span class="mono">make watch-kur</span>).</div>`;
   if(list.size === 0)
     return `<div class="why" style="margin-top:8px">Şu an izleme listesi <b>boş</b>,
       yani <b>nöbet planındaki tüm açık dersleri</b> tarıyor — her turda bir şey
@@ -6994,7 +7416,7 @@ function wireWatch(){
     b.disabled = true; b.textContent = "…";
     try{
       const r = await api("/api/watch", {course: b.dataset.course});
-      applyState(r);
+      applyState(r, {koru: true});
       $("#detail").close();
     }catch(err){ hataBildir(b, err); }
   });
@@ -7193,7 +7615,7 @@ function busyDialog(day, min, remove){
       };
       save(() => api("/api/mesgul", {
         day: gun, start: toMin($("#fBas").value), end: toMin($("#fBit").value),
-        label: $("#fAd").value}));
+        label: $("#fAd").value}), {});   // kip korunur (Faz 54)
     });
   });
 }
@@ -7267,7 +7689,7 @@ function doluluk(sections){
     title="Kontenjan ilan edilmemiş">${sections.length} şube · kontenjan yok</span>`;
   const oran = Math.min(1, dolu / cap);
   const sinif = bos === 0 ? "full" : (bos <= 3 ? "tight" : "");
-  return `<span class="cap ${sinif}" title="${esc(DATA.generatedAt)} itibarıyla">
+  return `<span class="cap ${sinif}" title="${esc(veriTarihi())} itibarıyla — güncel doluluk OBS'de">
       <span class="capbar"><i style="width:${(oran * 100).toFixed(0)}%"></i></span>
       <span class="mono">${bos === 0 ? "dolu" : bos + " boş"}</span>
       <span class="mono capsub">${sections.length} şube</span></span>`;
@@ -7553,9 +7975,19 @@ function renderHero(){
       <b class="mono">${O.lessonCount}</b> açık şube var.
       ${LIVE ? "" : `Bu <b>salt okunur</b> bir kopya —
         düzenlemek için <span class="mono">make app</span>.`}
-      <div style="margin-top:6px">Girdiğin hiçbir şey sunucuya gitmiyor;
-        veri tarayıcında kalıyor.</div>
+      <div style="margin-top:6px">${siteMi()
+        ? "Girdiğin hiçbir şey sunucuya gitmiyor; veri tarayıcında kalıyor."
+        : "Girdiğin her şey bu bilgisayarda kalıyor (<span class=\"mono\">data/</span>)."}</div>
+      ${/* ★ Faz 54: YENİ CİHAZDA yedekten devam — Ayar görünümü kurulum
+            bitmeden gizli, yedeği yüklemenin tek yolu burası. */ ""}
+      ${siteMi() && window.__ITUCAP_YEDEK__ ? `<div class="heroyedek">Başka bir
+        tarayıcıda çalıştıysan:
+        <button class="ghost mini" id="heroYedek">yedeğinden devam et…</button>
+        <div class="veriyedek" id="heroYedekDurum" role="status" aria-live="polite"></div>
+      </div>` : ""}
     </div>`;
+  const hy = box.querySelector("#heroYedek");
+  if(hy) hy.addEventListener("click", () => yedekDosyaSec(box.querySelector("#heroYedekDurum")));
   box.querySelectorAll("[data-act]").forEach(b =>
     b.addEventListener("click", () => (ACT[b.dataset.act] || (() => {}))()));
   const kapat = box.querySelector("[data-kapat]");
@@ -7979,7 +8411,7 @@ $("#blockers").innerHTML = bhtml || `<div class="empty">Engel yok.</div>`;
 $("#blockers").querySelectorAll(".watchmini").forEach(b =>
   b.addEventListener("click", async () => {
     b.disabled = true; b.textContent = "…";
-    try{ applyState(await api("/api/watch", {course: b.dataset.course})); }
+    try{ applyState(await api("/api/watch", {course: b.dataset.course}), {koru: true}); }
     catch(err){ b.disabled = false; b.textContent = "hata"; }
   }));
 $("#blockSection").hidden = !DATA.blockers.length;
@@ -8188,7 +8620,8 @@ addEventListener("resize", () => requestAnimationFrame(drawTierLinks));
 
 /* ★ Tek giriş noktası. Sunucudan yeni durum gelince (program/dönem/transkript
    değişti) sayfa yenilenmeden buradan yeniden çiziliyor. */
-function boot(){
+/** `onceki` yoksa İLK açılış; varsa `applyState`ten geliyor (Faz 53). */
+function boot(onceki){
   bildirimBolgesi();      /* canlı bölge ÖNCE var olsun (Faz 51) */
   setupBar();
   renderHeader();
@@ -8206,13 +8639,99 @@ function boot(){
   renderSonraki();
   renderBasvuru();
   renderTiers();
-  useMode(0);
+  if(!onceki){
+    useMode(0);
+  }else{
+    /* Faz 53: kip anahtarıyla korunuyor; yoksa (program değişti, dönem
+       kipi kalktı) ilk kipe düşülüyor. Kaydedilen program YÜKLENMİYOR. */
+    /* Faz 54: kurulum işlerinden sonra VARSAYILAN kip (dönem ilk kez
+       seçilince dönemlik kip açılsın — ilk kartın verdiği söz). */
+    const i = onceki.varsayilan ? -1 : MODES.findIndex(m => m.key === onceki.kip);
+    useMode(i >= 0 ? i : 0, {kayitli: false});
+    if(i >= 0 && onceki.koru) seciliGeriKoy(onceki);
+  }
   renderSaved();      // useMode'dan SONRA: MODES aday havuzu kurulmuş olmalı
   renderSecNav();     // en sona: hangi bölümlerin açık olduğu ancak burada belli
   // ★ Paylaşılan bağlantı (#crn=…) EN SON: kaydedilen programı da eziyor,
-  // çünkü kullanıcı o bağlantıya bilerek tıkladı.
-  baglantidanYukle();
+  // çünkü kullanıcı o bağlantıya bilerek tıkladı. ⚠️ Yalnız İLK açılışta —
+  // yoksa her ayar değişikliği bağlantının programını yeniden yüklerdi.
+  if(!onceki) baglantidanYukle();
+  _acildi = true;
 }
+
+/** `koru`: öneriyi değiştirmeyen bir işten sonra (izleme, kaydetme) sekme
+    ve ızgara OLDUĞU GİBİ kalsın. Seçimdeki bir ders artık çözülemiyorsa
+    (havuzdan çıktı) seçimi zorla tutmuyoruz — öneriye dönülüyor. */
+function seciliGeriKoy(onceki){
+  if(onceki.active < (M().schedules || []).length) active = onceki.active;
+  const hepsi = onceki.sel.length && onceki.sel.every(x => sectionOf(x.course, x.crn));
+  if(hepsi){ sel = onceki.sel.map(x => ({course: x.course, crn: x.crn})); render(); }
+  else resetTo(active);
+}
+/* ★★ FAZ 55 — PENCERENİN DIŞINA TIKLAYINCA KAPANSIN (kullanıcı 23.09.2026:
+   *"sitenin üzerine açılan sekmelerde arka tarafa yani normal arayüze
+   tıklayınca oraya geçip açılan kısım kapansın"*).
+
+   Üç pencere de (`detail`, `setup`, `basvuruDlg`) kipli `<dialog>`: arka
+   plan tıklamayı yutuyordu, kapatmanın tek yolu "Kapat" ya da Esc idi.
+   Artık perdeye tıklamak pencereyi kapatıyor VE tıklama altındaki yere
+   geçiyor — raydaki "Alabileceğim dersler"e tıklayan oraya gidiyor,
+   ızgaradaki başka derse tıklayan onun penceresini açıyor.
+
+   ⚠️ Üç tuzak, üçü de ölçüldü:
+   · Pencere İÇİNDE başlayıp DIŞINDA biten sürükleme (kutudaki metni
+     seçerken) de bir "click" üretiyor ve hedefi pencerenin kendisi. Yalnız
+     `pointerdown` da dışarıda olduysa kapanıyor.
+   · Pencerenin kenarı (üstteki 6px şerit) da hedefi pencere olan bir
+     tıklama; koordinat kutunun İÇİNDEYSE kapanmıyor.
+   · KAYDEDİLMEMİŞ değişiklik varken (kurulum penceresi: program, dönem,
+     transkript, tercih…) dışarıya tıklamak işi SESSİZCE silmiyor: pencere
+     açık kalıyor ve ne yapılacağı yazıyor. Bir kez daha dışarıya tıklamak
+     artık bilerek bırakmak demek. */
+let SETUP_KIRLI = false;
+(function pencereDisinaTiklama(){
+  const kb = $("#setupBody");
+  if(kb){
+    kb.addEventListener("input", () => { SETUP_KIRLI = true; });
+    kb.addEventListener("change", () => { SETUP_KIRLI = true; });
+    kb.addEventListener("click", (e) => {
+      const b = e.target.closest && e.target.closest("button");
+      if(b && !b.matches("[data-close], #setupSave")) SETUP_KIRLI = true;
+    });
+  }
+  const disarida = (d, e) => {
+    const r = d.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right
+        || e.clientY < r.top || e.clientY > r.bottom;
+  };
+  let basla = null, uyarildi = false;
+  document.querySelectorAll("dialog").forEach(d => {
+    d.addEventListener("close", () => { uyarildi = false; });
+    d.addEventListener("pointerdown", (e) => {
+      basla = (e.target === d && disarida(d, e)) ? d : null;
+    });
+    d.addEventListener("click", (e) => {
+      const gecerli = basla === d && e.target === d && disarida(d, e);
+      basla = null;
+      if(!gecerli) return;
+      if(d.id === "setup" && SETUP_KIRLI && !uyarildi){
+        uyarildi = true;
+        say("Kaydedilmemiş değişiklik var — saklamak için Kaydet. "
+            + "Bırakmak için dışarıya bir kez daha tıkla ya da Kapat.", true);
+        return;
+      }
+      d.close();
+      /* Tıklama altındaki yere geçsin. Kapandıktan SONRA bakılıyor: açıkken
+         noktadaki öğe perde. */
+      const alt = document.elementFromPoint(e.clientX, e.clientY);
+      if(!alt || alt.closest("dialog[open]")) return;
+      if(alt.matches("input, textarea, select")) alt.focus();
+      alt.dispatchEvent(new MouseEvent("click", {bubbles: true, cancelable: true,
+        view: window, clientX: e.clientX, clientY: e.clientY}));
+    });
+  });
+})();
+
 boot();
 </script>
 </body>

@@ -389,5 +389,10 @@ def test_arayuz_turetilenleri_CANLI_ciziyor():
     src = open(UI.__file__.replace(".pyc", ".py"), encoding="utf-8").read()
     assert "const turetilenKodlar = " in src
     assert 'id="fTuretilen"' in src
-    assert '$("#fAnadal").addEventListener("change", cizKodlar)' in src
+    # ⚠️ Faz 54: anadal değişince plan listeleri de yenileniyor (hangi plan
+    # kimin için); dinleyici artık bir kapanış, `cizKodlar`ı yine çağırıyor.
+    import re as _re
+    m = _re.search(r'\$\("#fAnadal"\)\.addEventListener\("change", \(\) => \{(.*?)\}\);',
+                   src, _re.S)
+    assert m and "cizKodlar();" in m.group(1)
     assert "Ekstra program kodları" in src

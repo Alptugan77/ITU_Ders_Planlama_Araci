@@ -189,7 +189,10 @@ def test_not_yokken_gizlilik_uyarisi_YAZILMIYOR(dbs):
     uyarı da okunmaz oluyor."""
     html = UI.render(_bos(dbs))
     assert '<span id="gizlilik"></span>' in html
-    assert "DATA.load.noTranscript)\n    ? \"\" : \"Bu dosya notlarını içerir" in html
+    # ⚠️ Faz 54'te yeniden yazıldı: cümle artık ortama göre (sitede "bu
+    # dosya" yok, notlar tarayıcıda). Kontrolün anlamı aynı: not yoksa BOŞ.
+    assert "DATA.load.noTranscript) ? \"\"" in html
+    assert "\"Bu dosya notlarını içerir — paylaşma.\"" in html
 
 
 def test_notlar_VARKEN_uyari_geri_geliyor(dbs):

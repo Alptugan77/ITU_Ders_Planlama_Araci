@@ -2,7 +2,7 @@ PY ?= python3
 VENV := .venv
 BIN := $(VENV)/bin
 
-.PHONY: help setup refresh offline app watch changes notdagilimi suggest all-plans plans kesif plan-info programs basvuru site gizlilik status verify sequence student transcript progress recommend ui test prereq-report clean
+.PHONY: help setup refresh offline app watch watch-kur watch-kaldir watch-durum changes notdagilimi suggest all-plans plans kesif plan-info programs basvuru site gizlilik status verify sequence student transcript progress recommend ui test prereq-report clean
 
 help:
 	@echo "make setup     - sanal ortam + bağımlılıklar"
@@ -16,6 +16,7 @@ help:
 	@echo "make notdagilimi - geçmiş dönemlerin harf notu dağılımı (ARGS=\"--hepsi\")"
 	@echo "make suggest   - aday denklikler (aldığın ders = plandaki ders)"
 	@echo "make watch     - kontenjan nöbeti: yer açılınca bildirim (Ctrl+C ile dur)"
+	@echo "make watch-kur - nöbeti ARKA PLANDA kur (macOS; watch-durum / watch-kaldir)"
 	@echo "make all-plans - HER programın ÇAP/yandal planını çek (yavaş)"
 	@echo ""
 	@echo "make student            - kaydı kur + transkript şablonu üret"
@@ -99,6 +100,17 @@ plans:
 
 watch:
 	$(BIN)/python -m itucap.pipeline watch $(ARGS)
+
+# Faz 53 — nöbeti ARKA PLANDA (macOS launchd): terminal gerekmez, oturum
+# açılınca kendiliğinden başlar.
+watch-kur:
+	$(BIN)/python -m itucap.pipeline nobet kur $(ARGS)
+
+watch-kaldir:
+	$(BIN)/python -m itucap.pipeline nobet kaldir
+
+watch-durum:
+	$(BIN)/python -m itucap.pipeline nobet durum
 
 changes:
 	$(BIN)/python -m itucap.pipeline changes $(ARGS)

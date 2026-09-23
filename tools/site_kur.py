@@ -80,6 +80,31 @@ SCHEMA = ["schema.sql", "schema_user.sql"]
 CONFIG = ["kurallar.toml", "katalog-duzeltmeleri.toml"]
 
 
+def _gereken_planlar(con: sqlite3.Connection) -> set[int]:
+    """Her (anadal × ÇAP/yandal programı) çifti için yerel aracın "otomatik"
+    seçeceği plan — `plans.ikinci_plan`in KENDİSİYLE hesaplanıyor ki site ile
+    yerel araç ayrışamasın (17 bin çağrı, ~1 sn)."""
+    sys.path.insert(0, str(ROOT / "src"))
+    from itucap import plans as PL
+
+    eski, con.row_factory = con.row_factory, sqlite3.Row
+    try:
+        anadallar = [r[0] for r in con.execute(
+            "SELECT DISTINCT program_code FROM plan WHERE plan_type='lisans'")]
+        out: set[int] = set()
+        for tip in ("cap", "yandal"):
+            hedefler = [r[0] for r in con.execute(
+                "SELECT DISTINCT program_code FROM plan WHERE plan_type=?", (tip,))]
+            for h in hedefler:
+                for a in anadallar:
+                    p = PL.ikinci_plan(con, h, tip, a)
+                    if p is not None:
+                        out.add(p)
+        return out
+    finally:
+        con.row_factory = eski
+
+
 def prune(src: Path, dst: Path) -> dict:
     """Katalogdan tarayıcıya gerekmeyeni atar.
 
@@ -116,6 +141,15 @@ def prune(src: Path, dst: Path) -> dict:
         return (1 if "Sonras" in it else 0, int(m.group(1)) if m else 0, pid > 0, pid)
 
     keep = {max(items, key=rank)[0] for items in groups.values()}
+    # ★★ FAZ 54 — otomatik seçimin İHTİYAÇ DUYDUĞU planlar da kalıyor.
+    # Çift başına "yürürlükteki iterasyon" yetmiyor: aynı çiftin YENİ
+    # iterasyonunun bağlı programlar listesi bazen bir anadalı DÜŞÜRÜYOR
+    # (ör. `TUMMUH_MAD` 2023: ELE yok, 2018: ELE var). Yeni olanı tutup eskiyi
+    # atınca o anadalın öğrencisi sitede başka bölümün planına düşüyordu —
+    # yerel araçla site FARKLI plan seçiyordu (ölçüm: bu düzeltme olmadan
+    # 5437 çiftin 272'si). Yerelin seçeceği her planı tutmak, ikisini
+    # birebir aynı yapıyor.
+    keep |= _gereken_planlar(con)
     con.executemany("DELETE FROM plan WHERE id=?",
                     [(r[0],) for r in rows if r[0] not in keep])
     con.execute("DELETE FROM plan_slot WHERE plan_id NOT IN (SELECT id FROM plan)")
@@ -125,12 +159,26 @@ def prune(src: Path, dst: Path) -> dict:
 
     # Tarama geçmişi ve kalite raporları tarayıcıda kullanılmıyor.
     for t in ("lesson_snapshot", "snapshot_run", "ingest_run", "quality_finding",
-              "prereq_unparsed", "prereq_repair", "obs_program_ref",
-              "plan_host_program"):
+              "prereq_unparsed", "prereq_repair", "obs_program_ref"):
         try:
             con.execute(f"DELETE FROM {t}")
         except sqlite3.OperationalError:
             pass
+    # ★★★ FAZ 54 — `plan_host_program` SİLİNİYORDU, ama motor onu KULLANIYOR.
+    #
+    # `plans.ikinci_plan` "otomatik" ÇAP/yandal planını öğrencinin ANADALINA
+    # uygun planlar arasından seçiyor (ilk kullanıcı incelemesi A3) ve bunu
+    # bu tablodan okuyor. Tablo boşken süzgeç hiçbir şey bulamıyor, kural
+    # gereği süzmeden devam ediyor ve EN YENİ planı seçiyordu — hangi bölüm
+    # için olursa olsun. Ölçüldü (23.09.2026): anadalına uygun planı olan
+    # 5437 (anadal × ikinci program) çiftinin **1802'sinde (%33)** site başka
+    # bölümün planını seçiyordu; HTAE + BLG → `ROS_BLG` (doğrusu `TUMMUH_BLG`).
+    # A3 düzeltmesi yerelde çalışıyor, yayınlanan sitede HİÇ çalışmamıştı.
+    # Yalnız kalan planların satırları tutuluyor (~5,5 bin satır).
+    try:
+        con.execute("DELETE FROM plan_host_program WHERE plan_id NOT IN (SELECT id FROM plan)")
+    except sqlite3.OperationalError:
+        pass
 
     # ★★ KİŞİSEL VERİ — `reference.sqlite3` "herkese açık katalog" diye
     # tasarlandı ama `declared.apply()` kullanıcının KENDİ denklik beyanlarını
@@ -265,7 +313,7 @@ def build(pyodide_dir: Path | None = None) -> Path:
     print(f"✅ {SITE}")
     print(f"   katalog {raw/1e6:.1f} MB → gzip {gz/1e6:.1f} MB · "
           f"{stats['ders']} ders · {stats['sube']} şube · dönem {stats['donem']}")
-    print(f"   plan {stats['plan']} (yalnız yürürlükteki iterasyon)")
+    print(f"   plan {stats['plan']} (yürürlükteki iterasyon + otomatik seçimin gerektirdikleri)")
     print(f"   not dağılımı {stats.get('notdagilimi', 0)} ders "
           f"(`make notdagilimi` ile artar; katalog boyutunu büyütür)")
     print(f"   dene: python -m http.server -d {SITE} 8000")

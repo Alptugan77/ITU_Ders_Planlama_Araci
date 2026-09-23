@@ -93,9 +93,13 @@ def test_geri_yigini_SINIRLI(dbs):
 
 def test_kip_degisince_yigin_TEMIZLENIYOR(dbs):
     """⚠️ Her kipin KENDİ aday havuzu var; öbür kipin seçimini geri yüklemek
-    ızgarada olmayan bir dersi göstermeye çalışırdı."""
+    ızgarada olmayan bir dersi göstermeye çalışırdı.
+
+    ⚠️ Faz 53'te yeniden yazıldı: `useMode` ikinci bir parametre aldı
+    (`{kayitli: false}` — durum değişikliğinden sonra kaydedilen program
+    yeniden yüklenmesin); imza deseni ona göre gevşetildi, kontrol aynı."""
     html = UI.render(_collect(dbs))
-    govde = re.search(r"function useMode\(i\)\{(.*?)\n\}", html, re.S).group(1)
+    govde = re.search(r"function useMode\(i(?:, \w+)?\)\{(.*?)\n\}", html, re.S).group(1)
     assert "GERI.length = 0" in govde
 
 

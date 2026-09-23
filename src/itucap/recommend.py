@@ -22,7 +22,9 @@ SERT KISITLAR (puanlanmaz, eler):
 """
 from __future__ import annotations
 
+import re
 import sqlite3
+from itertools import islice
 from dataclasses import dataclass, field
 from typing import Iterable, Mapping
 
@@ -687,6 +689,75 @@ class Schedule:
         return not self.floor_gaps(floors)
 
 
+# ★★ FAZ 53 — SAAT ARALIĞINA KİLİT (yapılacaklar 2.4).
+#
+# Faz 45'in kilidi ŞUBEYE bağlıydı: "bu ders TAM BU SAATTE". Kullanıcının
+# asıl sık istediği daha gevşek: "bu ders SABAH olsun, şubesi fark etmez".
+# Bugüne kadar tek yolu bir şube seçip ona kilitlemekti — yani motorun o
+# aralıktaki ÖBÜR şubeleri denemesini de engellemek.
+#
+# Aynı ayar satırı, iki biçim: `"DERS@CRN"` (Faz 45) ya da
+# `"DERS@SS:DD-SS:DD"`. Değer bir aralıksa motor dersi yine programda tutar
+# (kilit sert), ama yalnız BÜTÜN saatleri o aralıkta kalan şubeleri dener.
+KILIT_ARALIK_DESENI = re.compile(r"^\s*(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})\s*$")
+# Veriden seçildi (21.09.2026, 3630 buluşma): hiçbir ders 12:00'de başlamıyor;
+# sabah dersleri en geç 12:29'da bitiyor (763 buluşma), öğleden sonrakiler
+# 12:30'da başlıyor (178). Saatli 3089 şubenin 1283'ü tamamen sabah,
+# 1412'si tamamen öğleden sonra; 394'ü iki yana taşıyor ve İKİSİNE DE uymaz.
+OGLE = 12 * 60 + 30
+KILIT_ONAYAR = {"sabah": (0, OGLE), "ogleden_sonra": (OGLE, 24 * 60)}
+
+
+def kilit_araligi(deger: str) -> tuple[int, int] | None:
+    """`"08:30-12:30"` → `(510, 750)`. Değer aralık değilse (CRN ise) ya da
+    bozuksa `None` — ikisini ayırmak çağıranın işi (`kilit_bicimi`)."""
+    m = KILIT_ARALIK_DESENI.match(str(deger or ""))
+    if not m:
+        return None
+    sa, da, sb, db = (int(x) for x in m.groups())
+    if da > 59 or db > 59:
+        return None
+    a, b = sa * 60 + da, sb * 60 + db
+    return (a, b) if 0 <= a < b <= 24 * 60 else None
+
+
+def aralik_yazi(lo: int, hi: int) -> str:
+    """`(510, 750)` → `"08:30-12:30"` — ayara yazılan tek biçim."""
+    return f"{lo // 60:02d}:{lo % 60:02d}-{hi // 60:02d}:{hi % 60:02d}"
+
+
+def kilit_bicimi(deger: str) -> str:
+    """`"sube"` (CRN) · `"aralik"` · `"bozuk"`.
+
+    ⚠️ Bozuk değer CRN SAYILMAZ. Sayılsaydı `"8.30-12.30"` gibi bir yazım
+    hatası hiçbir şubeyle eşleşmez, ders zorunlu kalır ve BÜTÜN ÖNERİLER
+    boşalırdı — kullanıcı da "CRN 8.30-12.30 açık değil" gibi anlamsız bir
+    cümle okurdu. Bozuk satır motora hiç girmiyor; arayüz onu ayrıca
+    "okunamadı" diye gösteriyor."""
+    deger = str(deger or "").strip()
+    if kilit_araligi(deger):
+        return "aralik"
+    return "sube" if deger.isdigit() else "bozuk"
+
+
+def araliga_uyar(section: Section, lo: int, hi: int) -> bool:
+    """Şubenin BÜTÜN saatleri `[lo, hi]` içinde mi?
+
+    ⚠️ Saati ilan edilmemiş şube UYMAZ. "Sabah olsun" diyen kullanıcıya
+    saati bilinmeyen şubeyi vermek, bilinmeyeni biliniyor gibi göstermek
+    olurdu (verideki 3417 şubenin 328'inin saati yok)."""
+    return bool(section.meetings) and all(
+        lo <= m.start and m.end <= hi for m in section.meetings)
+
+
+def kilide_uyar(section: Section, deger: str) -> bool:
+    """Bu şube bu kilidi karşılıyor mu (iki biçim için de)."""
+    aralik = kilit_araligi(deger)
+    if aralik:
+        return araliga_uyar(section, *aralik)
+    return section.crn == str(deger).strip()
+
+
 SECTION_BRANCHES = 3      # bir ders için denenecek alternatif şube sayısı
 SEARCH_BUDGET = 300_000   # emniyet supabı: arama düğümü üst sınırı
 POOL_FACTOR = 60          # kaç aday program toplanıp sıralanacak (limit × bu)
@@ -721,7 +792,10 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
     # "kilitledim ama değişti" derdi. Sert olduğu için kilitler birbiriyle
     # çakıştığında SONUÇ BOŞ çıkıyor — arayüz bunu "kilit yüzünden" diye
     # söylemek zorunda, yoksa "çakışmasız kombinasyon yok" sanılır.
-    locked = {str(k).upper(): str(v) for k, v in (locked or {}).items()}
+    # ⚠️ Faz 53: BOZUK değer motora girmiyor (bkz. `kilit_bicimi`) — girseydi
+    # hiçbir şubeyle eşleşmeyip bütün önerileri boşaltırdı.
+    locked = {str(k).upper(): str(v).strip() for k, v in (locked or {}).items()
+              if kilit_bicimi(v) != "bozuk"}
     # ⚠️ Kilit yalnız BU HAVUZDA olan derse bağlanır. Sebebi ölçülmüş bir
     # tuzak: arayüzün iki kipi (DEPAR / "N. dönem + alttan") AYRI aday
     # havuzları kuruyor. `all` kipinde kilitlenen üst dönem dersi, dönemlik
@@ -733,6 +807,22 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
     havuzda = {c.course for c in cands}
     locked = {k: v for k, v in locked.items() if k in havuzda}
     pinned |= set(locked)
+    # ★★ FAZ 53 — KİLİTLİ/ZORUNLU DERS ARAMADA ÖNE ALINIYOR (ölçüm 21.09.2026).
+    #
+    # Adaylar puana göre sıralı ve arama derinlik öncelikli: kilitli ders
+    # düşük puanlıysa (ör. ALM 102, ATA 121) SONLARDA kalıyordu. Motor önce
+    # yüksek puanlı dersleri yerleştiriyor, kilitli derse gelince onun saati
+    # dolu çıkıyor ve dal ölüyordu — bütçe (SEARCH_BUDGET) bu ölü dallarda
+    # tükeniyordu. Gerçek veride 139 tek şube kilidi (Faz 45'in tek yolu)
+    # denendi: **22'si HİÇ PROGRAM ÜRETMEDİ** — `ALM 102`nin iki şubesi de
+    # "öneri üretilemedi" verdi. Arayüz bunu "kilitler birbiriyle ya da
+    # meşgul saatinle çakışıyor" diye açıklıyordu: tek kilit ve hiç meşgul
+    # saat yokken. Öne alınınca 22'nin 22'si program üretti; o kilitlerde
+    # arama ~1,5 sn → ~0,15 sn.
+    # ⚠️ Kilit/zorunlu YOKSA sıra DEĞİŞMİYOR — bütün kilitsiz sonuçlar
+    # birebir aynı (testte tutuluyor).
+    if pinned:
+        cands = sorted(cands, key=lambda c: c.course not in pinned)   # kararlı
     fixed = list(fixed)
     results: list[Schedule] = []
     seen: set[tuple[str, ...]] = set()
@@ -747,6 +837,12 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
     pool_size = max(limit, limit * POOL_FACTOR)
     # Aday indeksi → denenecek şubeler, sıralı. Bkz. `search` içindeki not.
     _sira: dict[int, list[Section]] = {}
+    # Aralık kilitli derslerin indeksleri: orada aralığa uyan BÜTÜN şubeler
+    # deneniyor ve her dal havuzdan/bütçeden adil pay alıyor (bkz. `search`).
+    _aralik_idx: set[int] = set()
+    # Sonuç tavanı ve bütçe tabanı YIĞINLARI.
+    ust = [pool_size]
+    taban = [0]
 
     def blocking_cost(section: Section, index: int) -> float:
         """Bu şube seçilirse, GERİYE KALAN adaylardan kaçının puanı yanar?
@@ -776,7 +872,7 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
         return {p.candidate.slot_id for p in chosen if p.candidate.slot_id}
 
     def search(index: int, chosen: list[Pick], load: float) -> None:
-        if len(results) >= pool_size or budget[0] <= 0:
+        if len(results) >= ust[-1] or budget[0] <= taban[-1]:
             return
         budget[0] -= 1
         if index >= len(cands):
@@ -792,7 +888,6 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
         # aynı ITB havuzu için HUK 217 + HUK 218'i birlikte öneriyordu (20.08.2026).
         pool_taken = bool(cand.slot_id) and cand.slot_id in slots_used(chosen)
         if not pool_taken and load + cand.load <= max_load:
-            tried = 0
             # Önce en az değer yakan şube; eşitlikte en boş olan (kontenjan riski).
             # Saati ilan edilmemiş şube hiçbir şeyle çakışmadığı için ileriye
             # bakış maliyeti 0 çıkıyor ve metriği kandırıyor. Belirsizlik avantaj
@@ -827,18 +922,41 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
                                  key=lambda s: (not s.meetings, _sube_maliyeti(s),
                                                 -s.free, s.crn))
                 # Kilitliyse tek şube denenir — "saate kilit" tam olarak bu.
+                # ★ Faz 53: aralık kilidinde o aralığa uyan BÜTÜN şubeler
+                # denenir (sıra yine aynı ölçüyle) — şube motora kalıyor,
+                # saat kullanıcının.
                 if cand.course in locked:
-                    ordered = [s for s in ordered if s.crn == locked[cand.course]]
+                    ordered = [s for s in ordered
+                               if kilide_uyar(s, locked[cand.course])]
+                    if kilit_bicimi(locked[cand.course]) == "aralik":
+                        _aralik_idx.add(index)
                 _sira[index] = ordered
-            for section in ordered:
-                if not fits(section, chosen):
-                    continue
+            # ★★ FAZ 53 — ARALIK KİLİDİNDE ADİL PAY (ölçüm 21.09.2026).
+            # Aralıktaki şubelerin yalnız 3'ünü denemek YETMİYOR, hepsini
+            # denemek de yetmiyor: ilk şubenin alt ağacı havuzu (`pool_size`)
+            # tek başına dolduruyordu, ötekilere sıra gelmiyordu. Ölçüldü: 26
+            # durumun 5'inde aralık kilidi, aralıktaki bir şubeye TEK kilitten
+            # daha kötü program verdi (ATA 122 öğleden sonra 1161,1 → 1088,6).
+            # Her şube dalı, kalan havuzun ve kalan bütçenin kalan dal sayısına
+            # bölünmüş payını alıyor (kullanmadığı pay sonrakine geçiyor):
+            # 26 durumun 26'sında aralık kilidi en iyi tek şube kilidine
+            # yetişti ya da geçti, süre medyanı 0,18 sn.
+            paylas = index in _aralik_idx
+            uyanlar = (s for s in ordered if fits(s, chosen))
+            # Öbür derslerde `fits` eskisi gibi TEMBEL (sınıra varınca durur).
+            denenecek = (list(uyanlar) if paylas
+                         else islice(uyanlar, SECTION_BRANCHES))
+            for j, section in enumerate(denenecek):
+                if paylas:
+                    kalan = len(denenecek) - j
+                    ust.append(min(ust[-1], len(results)
+                                   + max(1, (ust[-1] - len(results)) // kalan)))
+                    taban.append(budget[0] - max(1, (budget[0] - taban[-1]) // kalan))
                 chosen.append(Pick(cand, section))
                 search(index + 1, chosen, load + cand.load)
                 chosen.pop()
-                tried += 1
-                if tried >= SECTION_BRANCHES:
-                    break
+                if paylas:
+                    ust.pop(); taban.pop()
         if not must:
             search(index + 1, chosen, load)
 

@@ -787,6 +787,17 @@ def cmd_watch(args) -> int:
                      kayit=args.kayit)
 
 
+def cmd_nobet(args) -> int:
+    """FAZ 53 — nöbeti arka planda (macOS launchd) kur / kaldır / durum."""
+    from . import nobet_servisi as NS
+
+    if args.eylem == "kur":
+        return NS.kur(every=args.every, only_good=args.only_good)
+    if args.eylem == "kaldir":
+        return NS.kaldir()
+    return NS.durum()
+
+
 def cmd_plan_info(args) -> int:
     """Tek bir planın ham durumu — 'bu plan neden boş' sorusu için."""
     con = db.reference_db()
@@ -1092,6 +1103,15 @@ def main(argv=None) -> int:
     w.add_argument("--kayit", action="store_true",
                    help="kayıt günü kipi: 1 dk aralık, 2 saat sonra durur")
     w.set_defaults(func=cmd_watch)
+
+    # ★ Faz 53 — arka plan nöbeti (yapılacaklar 4.2). `--kayit` BİLEREK yok:
+    # 1 dk'lık kip arka planda unutulup günlerce dönmemeli.
+    nb = sub.add_parser("nobet", help="nöbeti arka planda çalıştır (macOS launchd)")
+    nb.add_argument("eylem", choices=["kur", "kaldir", "durum"])
+    nb.add_argument("--every", type=int, default=600, help="saniye (en az 300)")
+    nb.add_argument("--only-good", action="store_true",
+                    help="yalnız FIRSAT bildir (yer açıldı / ders açıldı)")
+    nb.set_defaults(func=cmd_nobet)
 
     nd = sub.add_parser("notdagilimi",
                         help="ders not dağılımlarını OBS'den çek (Faz 38)")

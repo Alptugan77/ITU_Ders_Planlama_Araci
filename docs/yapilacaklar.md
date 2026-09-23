@@ -1,10 +1,10 @@
 # Yapılacaklar
 
-Faz 1–52 bitti (1167 test). Depo GitHub'a hazır. Bu liste **sonrası** için:
+Faz 1–55 bitti (1219 test). Depo GitHub'a hazır. Bu liste **sonrası** için:
 ne kaldı, neden önemli, ne kadar iş, neye bağlı.
 
 ⚠️ **Yayınlanan site hâlâ eski.** Yayın hattı (`git push` → Actions → pages)
-çalıştırılmadan Faz 28–52'nin hiçbiri kullanıcıya ulaşmıyor. Bu, listedeki
+çalıştırılmadan Faz 28–55'ün hiçbiri kullanıcıya ulaşmıyor. Bu, listedeki
 her maddeden önce gelen tek iş.
 
 > **Faz 10'da kapananlar:** CRN listesi ✅ · programı kaydet ✅ · denklik
@@ -313,6 +313,59 @@ her maddeden önce gelen tek iş.
 > 28 durumun 28'i kendi sebebiyle kırmızı.
 > ➜ Ayrıntı ve ölçümler: `docs/faz52-yukleme.md`
 >
+> **Faz 53'te kapananlar (21.09.2026 — listeden 2.4 ve 4.2):** kullanıcı:
+> *"onun dışında yapılacak güncellemeleri ve geliştirmeleri uygulayabilirsin
+> uygunca"*. ★ **Saat aralığına kilit** (2.4): "bu ders sabah olsun, şubesi
+> fark etmez" — ders penceresinde iki düğme, yanında o saatlere uyan şube
+> sayısı; sınır veriden (12:30), saati ilan edilmemiş şube uymuyor ✅
+> Ölçüldü: 26 durumun **26'sında** aralık kilidi, aralıktaki şubelere tek tek
+> kilitlemenin en iyisine yetişti (yalnız 3 şube denendiğinde 16/26; ilk
+> şubenin alt ağacı havuzu dolduruyordu → her şube dalına **adil pay**) ·
+> ★ **Nöbet arka planda** (4.2): `make watch-kur` / `watch-durum` /
+> `watch-kaldir`, macOS Kullanıcı Aracısı ✅ (gerçek Mac'te denendi) ·
+> ★★ **Faz 45'in hatası**: 139 tek şube kilidinin **22'si hiç program
+> üretmiyordu** ve ekran suçu "çakışan kilitlere" atıyordu (tek kilit, hiç
+> meşgul saat yokken) — kilitli ders aramada önce yerleşiyor, 22/22 ✅ ·
+> ★★ **Kilitten sonra ekran yanlıştı**: her durum değişikliğinde ilk açılış
+> kodu koşuyordu — kip 0'a atılma, ızgarada kaydedilen eski program,
+> paylaşılan bağlantının yeniden yüklenmesi; kip artık adıyla korunuyor,
+> izleme/kaydetme ızgarayı sıfırlamıyor ✅ · okunamayan kilit satırı hiçbir
+> yerde görünmüyordu (belge "görünüyor" diyordu) ve CRN sayılıp bütün
+> önerileri boşaltabilirdi ✅ · ★ **senin dosyanda** `cap_baslangic_yariyili`
+> ve `mesgul` `[regulation]` altındaydı: yazılsa okunmuyordu → tepede
+> söyleniyor ✅ · telefonda kilit ekran okuyucuya söylenmiyordu ✅
+> Geri alma deneyi: 26/26 kendi sebebiyle kırmızı; iki eksik bekçi yazıldı.
+> ➜ Ayrıntı ve ölçümler: `docs/faz53-aralik-kilidi.md`
+>
+> **Faz 54'te kapananlar (23.09.2026 — site ziyaretçi gözüyle):** kullanıcı:
+> *"siteyi gözden geçirip ux ve ui konusunda geliştirip eklenicek şeyleri
+> ekler misin"*. Yayınlanan site yeni bir ziyaretçi olarak baştan sona
+> gezildi. ★★★ **Site ÇAP/yandal planını başka bölümden seçiyordu**: kurulum
+> `plan_host_program`ı siliyordu, motorun "anadalına uygun plan" süzgeci
+> (A3) sitede hiç çalışmamıştı — 5437 çiftin **1802'si (%33)** başka bölümün
+> planına düşüyordu (HTAE + BLG → ROS_BLG); artık **17 653 çiftin 0'ında**
+> site yerelden farklı ✅ · pencere planları "senin bölümün için / başka
+> bölümlerin" diye ayırıyor ✅ · ★★ **Faz 53'ün sitede kırdığı şey**: ilk
+> açılışta kaydedilen program yüklenmiyor, paylaşılan bağlantı
+> uygulanmıyordu ✅ · ★★ 23 gün önceki kontenjan "bugün itibarıyla"
+> yazılıyordu (4 yer) ✅ · ★★ **sitede verinin yedeği**: indir / yükle
+> (yeni cihazda ilk karttan) / kalıcı depolama ✅ · dönem seçilince dönemlik
+> kip açılıyor ✅ · sitede ölü "tazele" düğmesi ve yanlış "bu dosya" cümlesi
+> kalktı ✅ · ilk kartta kapalı adımlar 2,0–3,5:1 → okunur ✅ · telefonda
+> arama kutusu 44px ✅
+> Geri alma deneyi: 15/15 kırmızı, sekizi GERÇEK sitede (Pyodide).
+> ➜ Ayrıntı ve ölçümler: `docs/faz54-site-incelemesi.md`
+>
+> **Faz 55'te kapananlar (23.09.2026):** kullanıcı: *"sitenin üzerine
+> açılan sekmelerde arka tarafa yani normal arayüze tıklayınca oraya geçip
+> açılan kısım kapansın"*. Üç pencere (ders, kurulum, başvuru planları)
+> artık dışarı tıklanınca kapanıyor ve tıklama **altındaki yere geçiyor**
+> (raydaki görünüm, ızgaradaki başka ders) ✅ · sürükleme ve pencere kenarı
+> yanlışlıkla kapatmıyor ✅ · kurulumda kaydedilmemiş değişiklik varsa ilk
+> dış tıklama işi silmiyor, uyarıyor ✅ · telefonda da çalışıyor ✅
+> Geri alma deneyi: 6/6 kırmızı.
+> ➜ Ayrıntı: `docs/faz55-pencere.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
@@ -329,23 +382,25 @@ Zorluk: **S** birkaç saat · **M** bir gün · **L** birkaç gün.
 
 ## 1. Şimdi sıradakiler
 
-### 1.0 Gerçekten açık olan ne — 18.09.2026
+### 1.0 Gerçekten açık olan ne — 21.09.2026
 
 Bu bölümün çoğu kapandı. Açık kalanlar, sırayla:
 
 | # | iş | kimde | zorluk |
 |---|---|---|---|
-| 0 | **Yayın** — `git push`, Actions "pages". Faz 28–52 kullanıcıya ancak böyle ulaşıyor | **sende** | S |
+| 0 | **Yayın** — `git push`, Actions "pages". Faz 28–55 kullanıcıya ancak böyle ulaşıyor | **sende** | S |
+| 0 | `config/settings.toml`: `[regulation]` altına düşmüş iki satırı (`cap_baslangic_yariyili`, `mesgul`) `[student]`a taşı — araç okumuyor (Faz 53) | **sende** | S |
 | 0 | `make notdagilimi` — not dağılımı 176 dersten öteye geçsin | **sende** | S |
 | 1.2 | Denklik keşfini genişlet (çoklu kaynak; resmi tablo boş) | — | M |
 | 2.1 | Çok dönemli plan | — | L |
 | 2.3 | Yaz okulu | — | M |
-| 2.4 | Saate kilit → saat ARALIĞINA kilit | — | S |
 | 3 | 1545 karşılıksız havuz seçeneği · 13 boş havuz | — | M · S |
-| 4.2 | Nöbeti `launchd` ile arka planda çalıştırma | — | S |
 
-⚠️ Sıfır numaralı iki iş kod işi değil, **çalıştırma** işi: depoda her şey
+⚠️ Sıfır numaralı işler kod işi değil, **çalıştırma** işi: depoda her şey
 hazır, çalıştırılmadıkça hiçbiri kimseye görünmüyor.
+
+✅ Faz 53'te kapandı: 2.4 (saat aralığına kilit) · 4.2 (nöbeti arka planda
+çalıştırma).
 
 ### 1.1 ~~Kalan iki GNO eşiğini doğrula~~ · ✅ **Faz 12'de kapandı**
 22.08.2026'da ÇAP/Yandal Yönergesi ve Yönetmelik MADDE 20/31 okundu. İki
@@ -430,11 +485,12 @@ tıkanıklık çözücü. Şu an dönem kavramı Güz/Bahar varsayıyor.
 **Ne:** `term` kodunda yaz dönemini tanı, kredi tavanını ayrı al, "bunu yazda
 alırsan şu zincir bir dönem kısalır" analizi.
 
-### 2.4 Saate kilit — sonraki adım · S
-✅ Faz 45 tek dersi şubesine kilitliyor. Kalan: **saat aralığına** kilit
-("Salı öğleden sonra boş kalsın" değil — o meşgul saat; "bu ders sabah
-olsun, şubesi fark etmez"). Bugün bunun tek yolu ders penceresinden şube
-seçmek.
+### 2.4 ~~Saate kilit — sonraki adım~~ · ✅ **Faz 53'te kapandı**
+Ders penceresinde "Sabah olsun" / "Öğleden sonra olsun": ders o saatlerde
+kalıyor, şubeyi motor seçiyor. Sınır (12:30) veriden; ayar biçimi
+`"DERS@SS:DD-SS:DD"`, elle başka aralık da yazılabiliyor. Ölçüldü: 26
+durumun 26'sında aralık kilidi, aralıktaki şubelere tek tek kilitlemenin
+en iyisine yetişiyor ya da geçiyor. ➜ `docs/faz53-aralik-kilidi.md`
 
 ---
 
@@ -463,9 +519,11 @@ her biri motorun bir köşesini kör bırakıyor.
 iki sütun düşürüyor. ★ Listenin çakışmayı göstermeme zayıflığı çözüldü:
 kesişen dersler ayrıca hesaplanıp kırmızıyla işaretleniyor.
 
-### 4.2 Nöbeti arka planda çalıştırma · S
-`make watch` bir terminal penceresi işgal ediyor. macOS `launchd` ile arka
-planda çalışan bir servis, bilgisayar açıldığında kendiliğinden başlar.
+### 4.2 ~~Nöbeti arka planda çalıştırma~~ · ✅ **Faz 53'te kapandı**
+`make watch-kur` / `watch-durum` / `watch-kaldir` — macOS Kullanıcı Aracısı
+(launchd). Çökünce en fazla 5 dakikada bir yeniden başlıyor; kayıt günü
+kipi arka planda bilerek yok. ✅ Gerçek Mac'te denendi (23.09.2026):
+kur → çalışıyor (pid) → kaldır.
 
 ### 4.3 ~~Nöbeti arayüzden yönetme~~ · ✅ **Faz 12'de kapandı**
 Ders diyaloğunda "Kontenjanı izle", darboğaz raporunda kısa "izle". Düğme
@@ -476,7 +534,7 @@ yalnız **arz sorunlu** derste var — önşarta takılan ders nöbetle çözül
 ## 4.4 ~~Yayın~~ · ✅ **Faz 14'te kapandı** — statik site
 
 Motor **JS'e çevrilmedi**, Python tarayıcıya taşındı (Pyodide). Tek kod
-tabanı, 1167 testin tamamı web sürümünü de kapsıyor, iki sürüm ayrışamaz.
+tabanı, 1219 testin tamamı web sürümünü de kapsıyor, iki sürüm ayrışamaz.
 
 ```bash
 make site ARGS=node_modules/pyodide     # yerelde kur ve dene
@@ -521,14 +579,16 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 1167 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 1219 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` ✅ çalıştırıldı (katalogda 1081 ÇAP + 134 yandal planı).
   Dönemde bir kez yeter; program değiştirmeyi düşünmüyorsan gerekmez.
 * `make notdagilimi` **senin makinende çalıştırılacak** — not dağılımı şu an
   176 ders için var, komut bunu genişletiyor (katalog boyutunu da büyütür).
 * `make watch` kayıt haftasında açık bırakılacak şey; `watch_courses` ile
-  birkaç derse daraltmadan kullanma, bildirim gürültüye döner.
+  birkaç derse daraltmadan kullanma, bildirim gürültüye döner. macOS'ta
+  `make watch-kur` onu arka planda çalıştırıyor — kayıt dönemi bitince
+  `make watch-kaldir` (OBS'ye düzenli istek atıyor).
 * `config/` altındaki üç dosya elle düzenlenebilir ve **yorumları korunur**:
   `settings.toml` (kim/hangi program/hangi dönem), `kurallar.toml` (mevzuat
   eşikleri), `denklikler.toml` (elle denklik ve muafiyet beyanı).

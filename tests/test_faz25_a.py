@@ -87,10 +87,16 @@ def test_doluluk_kontenjan_YOKKEN_oran_UYDURMUYOR(dbs):
 
 def test_doluluk_TARIH_yaziyor(dbs):
     """⚠️ Kontenjan tazeleme anına ait. Yaşsız bir gerçek gibi göstermek,
-    üç gün önceki "boş"u bugünün "boş"u sandırırdı."""
+    üç gün önceki "boş"u bugünün "boş"u sandırırdı.
+
+    ⚠️⚠️ FAZ 54'TE YENİDEN YAZILDI: bu test `DATA.generatedAt`ı İSTİYORDU —
+    yani yanlış damgayı kilitliyordu. `generatedAt` sayfanın ÜRETİLDİĞİ an;
+    sitede her açılışta "şimdi". 23 gün önceki kontenjan "bugün 20:56
+    itibarıyla" görünüyordu. Doğrusu son tazeleme (`veriTarihi()`)."""
     html = UI.render(_collect(dbs))
     govde = re.search(r"function doluluk\(sections\)\{(.*?)\n\}", html, re.S).group(1)
-    assert "DATA.generatedAt" in govde
+    assert "veriTarihi()" in govde
+    assert "generatedAt" not in govde
 
 
 # ------------------------------------------------------ A3. önşart zinciri

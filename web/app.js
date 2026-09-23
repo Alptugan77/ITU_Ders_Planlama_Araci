@@ -290,6 +290,16 @@ async function idbYaz(anahtar, deger){
   });
 }
 
+async function idbSil(anahtar){
+  const db = await idb();
+  return new Promise((ok, hata) => {
+    const t = db.transaction(DEPO, "readwrite");
+    t.objectStore(DEPO).delete(anahtar);
+    t.oncomplete = () => ok();
+    t.onerror = () => hata(t.error);
+  });
+}
+
 /* --------------------------------------------------------------- yükleme */
 async function dosyaYaz(py, hedef, yol, ikili = false){
   const res = await fetch(yol);
@@ -437,6 +447,23 @@ def _durum():
     import json
     return json.dumps(_state.snapshot(), ensure_ascii=False)
 
+def _yedek_ozet(db_yolu, ayar_metni):
+    """Yedek dosyasının İÇİNİ doğrula ve özetle — uygulamadan önce (Faz 54)."""
+    import json, sqlite3, tomllib
+    out = {"ders": None, "anadal": None, "hata": ""}
+    try:
+        c = sqlite3.connect(db_yolu)
+        out["ders"] = c.execute("SELECT COUNT(*) FROM earned_course").fetchone()[0]
+        c.close()
+    except Exception as exc:
+        out["hata"] = f"veritabanı okunamadı ({exc})"
+    if ayar_metni:
+        try:
+            out["anadal"] = tomllib.loads(ayar_metni).get("student", {}).get("anadal_program") or ""
+        except Exception as exc:
+            out["hata"] = (out["hata"] + " · " if out["hata"] else "") + f"ayar dosyası okunamadı ({exc})"
+    return json.dumps(out, ensure_ascii=False)
+
 def _cagir(path, govde):
     """Arayüzün api() çağrısı — HTTP yok, doğrudan State.dispatch.
     Sunucudakiyle AYNI yönlendirme; iki sürüm ayrışamaz."""
@@ -460,6 +487,81 @@ def _cagir(path, govde):
     if(cevap.error) throw new Error(cevap.error);
     await kullaniciKaydet(py);           // her yazmadan sonra kalıcı yap
     return cevap;
+  };
+
+  /* ★★ FAZ 54 — YEDEK. Sitede transkriptin, bölümün ve kilitlerin YALNIZ bu
+     tarayıcının deposunda (IndexedDB). Tarayıcı verisi silinince, başka
+     cihaza geçince ya da Safari 7 gün ziyaret edilmeyen sitenin deposunu
+     temizleyince HEPSİ gidiyordu ve geri almanın yolu yoktu. Yedek bir JSON
+     dosyası: indirmek ve yüklemek tamamen tarayıcıda, hiçbir yere gitmiyor.
+     ⚠️ Yüklemede YALNIZ bilinen üç dosya yazılıyor (yol listeden), SQLite
+     başlığı ve TOML Python'da doğrulanıyor — uygulanmadan önce özet
+     gösteriliyor. */
+  const yedekOzet = py.globals.get("_yedek_ozet");
+  const b64 = (u8) => {
+    let s = ""; for(let i = 0; i < u8.length; i += 0x8000)
+      s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return btoa(s);
+  };
+  const b64ten = (t) => Uint8Array.from(atob(t), c => c.charCodeAt(0));
+  window.__ITUCAP_YEDEK__ = {
+    async indir(){
+      const dosyalar = {};
+      for(const yol of KULLANICI_DOSYALARI){
+        const v = await idbOku(yol);
+        if(v == null) continue;
+        dosyalar[yol] = typeof v === "string" ? {metin: v} : {b64: b64(new Uint8Array(v))};
+      }
+      const yedek = {tur: "itucap-yedek", surum: 1,
+                     tarih: new Date().toISOString(), dosyalar};
+      const blob = new Blob([JSON.stringify(yedek)], {type: "application/json"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `itucap-yedek-${yedek.tarih.slice(0, 10)}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      return Object.keys(dosyalar).length;
+    },
+    /** Dosyayı OKU ve DOĞRULA; yazma. `{yedek, ozet}` ya da hata fırlatır. */
+    async oku(dosya){
+      let yedek;
+      try{ yedek = JSON.parse(await dosya.text()); }
+      catch(e){ throw new Error("bu bir itucap yedeği değil (JSON okunamadı)"); }
+      if(!yedek || yedek.tur !== "itucap-yedek" || yedek.surum !== 1 || !yedek.dosyalar)
+        throw new Error("bu bir itucap yedeği değil");
+      const bilinmeyen = Object.keys(yedek.dosyalar).filter(y => !KULLANICI_DOSYALARI.includes(y));
+      if(bilinmeyen.length) throw new Error("yedekte beklenmeyen dosya var: " + bilinmeyen.join(", "));
+      const db = yedek.dosyalar["/app/data/user.sqlite3"];
+      if(!db || !db.b64) throw new Error("yedekte transkript veritabanı yok");
+      const bayt = b64ten(db.b64);
+      if(new TextDecoder().decode(bayt.subarray(0, 15)) !== "SQLite format 3")
+        throw new Error("yedekteki veritabanı bozuk");
+      py.FS.writeFile("/tmp/yedek-kontrol.sqlite3", bayt);
+      const ayar = yedek.dosyalar["/app/config/settings.toml"];
+      const ozet = JSON.parse(yedekOzet("/tmp/yedek-kontrol.sqlite3",
+                                        (ayar && ayar.metin) || ""));
+      if(ozet.hata) throw new Error(ozet.hata);
+      return {yedek, ozet: {...ozet, tarih: yedek.tarih}};
+    },
+    /** Doğrulanmış yedeği depoya yaz ve sayfayı yeniden aç. */
+    async uygula(yedek){
+      /* ⚠️ Yedekte OLMAYAN dosya depodan SİLİNİYOR: yoksa yedeğin
+         transkripti ile şimdiki denklik beyanları karışırdı. */
+      for(const yol of KULLANICI_DOSYALARI){
+        const d = yedek.dosyalar[yol];
+        if(d) await idbYaz(yol, d.metin != null ? d.metin : b64ten(d.b64));
+        else await idbSil(yol);
+      }
+      location.reload();
+    },
+    async kalici(){
+      return navigator.storage && navigator.storage.persisted
+        ? await navigator.storage.persisted() : null;
+    },
+    async kaliciIste(){
+      return navigator.storage && navigator.storage.persist
+        ? await navigator.storage.persist() : null;
+    },
   };
 
   const durum = py.globals.get("_durum");

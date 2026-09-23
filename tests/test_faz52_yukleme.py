@@ -282,6 +282,10 @@ def test_TARAYICIDA_cubuk_GERCEK_BAYTI_izliyor(sunucu):
         cdp.send("Network.emulateNetworkConditions", {"offline": False, "latency": 20,
                  "downloadThroughput": 450_000, "uploadThroughput": 450_000})
         pg.goto(url, wait_until="commit")
+        # ⚠️ "commit" yanıtın BAŞINDA dönüyor; belge henüz ayrıştırılmamış
+        # olabilir. Tam pakette bir kez böyle oldu: ilk örnekte çubuk "yok"
+        # sanıldı, döngü hemen bitti ("IZ is not defined"). Önce yükleyici.
+        pg.wait_for_selector("#yukCubuk", state="attached", timeout=30000)
         ornek, hesap, erken_yuz, uyari = [], [], False, False
         for _ in range(240):
             r = pg.evaluate("""() => { const c = document.getElementById("yukCubuk");

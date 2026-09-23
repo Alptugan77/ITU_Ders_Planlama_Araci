@@ -107,18 +107,23 @@ def test_KILIT_bu_kipte_BAGLAMAZ_diyor():
 
 def test_SERIT_hepsi_kapsam_disiysa_yanlis_soylemiyor():
     """⚠️ Şerit "öneriler bu derslerin etrafında kuruluyor" diyordu; kilitli
-    ders bu kipin havuzunda değilse bu düpedüz yanlış."""
+    ders bu kipin havuzunda değilse bu düpedüz yanlış.
+
+    ⚠️ FAZ 53'TE YENİDEN YAZILDI: şerit artık motorun UYGULADIĞI kilitleri
+    (`uygulanan`) okunamayan/gölgede kalan satırlardan ayırıyor; kapsam dışı
+    hesabı `list` değil `uygulanan` üzerinden, giriş cümlesi de "hiç
+    uygulanan kilit yoksa" koşulunun arkasında. Kontrolün anlamı aynı."""
     govde = _fn("renderKilitNot")
     # ⚠️ `"kapsamDisi" in govde` YETMEZ: değişkeni `kapsamDisiYOK` diye
     # yeniden adlandıran deneme bu kontrolü geçti (alt dizge). Tanımın
     # kendisini arıyoruz.
-    assert re.search(r"const kapsamDisi = list\.filter\(", govde), \
+    assert re.search(r"const kapsamDisi = uygulanan\.filter\(l => l\.ok && !bagli", govde), \
         "kapsam dışı kilitler hesaplanmıyor"
     assert "bu kipte bağlamıyor" in govde
     assert "Bu kipte hiçbiri bağlamıyor" in govde
     # Giriş cümlesi KOŞULLU: bağlayan kilit yoksa "etrafında kuruluyor"
     # denmiyor.
-    assert re.search(r"\$\{bagli\.length \?", govde), "giriş cümlesi koşulsuz"
+    assert re.search(r": bagli\.length \? `Öneriler", govde), "giriş cümlesi koşulsuz"
 
 
 # =================================================== 2. aynı SINIF

@@ -33,7 +33,9 @@ ders hangisine sayılıyor, hangi önşart açık, bu dönem hangi kombinasyon
 * **"Başvurabilir miyim"** — hangi ÇAP/yandal programlarına başvurabilirsin,
   hangisinde kaç dersin zaten sayılıyor.
 * **Kontenjan nöbeti** — `make watch` ile izlediğin derste yer açılınca
-  bildirim.
+  bildirim. macOS'ta `make watch-kur` onu **arka planda** çalıştırıyor:
+  terminal gerekmiyor, oturum açılınca kendiliğinden başlıyor
+  (`make watch-durum`, `make watch-kaldir`).
 * **Geçmiş dönem not dağılımı** — İTÜ'nün her dönem yayınladığı harf notu
   dağılımı (`make notdagilimi`). ⚠️ Dağılım TÜRKÇE VE İNGİLİZCE kodu
   birlikte kapsıyor (kaynak öyle yayınlıyor), geçmiş bir döneme ait ve
@@ -71,6 +73,10 @@ bunu her yerde yazar.
   telemetri yok. Pyodide **ve yazı tipleri** CDN'den değil siteden
   geliyor — açılışta üçüncü bir tarafa haber verilmiyor. Ölçülüyor:
   üretilen HTML'de tek bir dış kaynak bile geçemiyor (test).
+  ⚠️ Bunun bedeli: veri **yalnız o tarayıcıda**. Tarayıcı verisini silersen
+  ya da cihaz değiştirirsen gider — Ayar görünümündeki **Yedeğini indir**
+  bir JSON dosyası veriyor, yeni cihazda ilk karttan "yedeğinden devam et"
+  ile geri yükleniyor (ikisi de tamamen tarayıcıda).
 * Yerel sürümde notların yalnız `data/user.sqlite3` dosyasında; `data/`
   klasörünün tamamı **`.gitignore`da**.
 * Ders kataloğu (`data/reference.sqlite3`) herkese açık veri, ayrı dosyada.
@@ -144,6 +150,7 @@ make progress                 # ilerleme paneli
 make changes                  # son iki tazeleme arasında ne değişti
 make notdagilimi              # geçmiş dönemlerin harf notu dağılımı
 make watch                    # kontenjan nöbeti (kayıt haftası)
+make watch-kur                # aynı nöbet ARKA PLANDA (macOS; watch-durum / watch-kaldir)
 make status                   # veritabanı özeti
 make test                     # test paketi
 ```
@@ -209,7 +216,7 @@ uygulanıyor; kaynak dosya değişmediği için hiçbir beyan kaybolmuyor.
 ## Test
 
 ```bash
-make test        # 1167 test + gizlilik denetimi
+make test        # 1219 test + gizlilik denetimi
 ```
 
 Gizlilik denetimi (`tools/gizlilik_denetimi.py`) dosya adına **değil

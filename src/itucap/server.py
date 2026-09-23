@@ -223,7 +223,9 @@ class State:
             return self.toggle_watch(str(b.get("course") or ""))
         if path == "/api/kilit":
             return self.toggle_lock(str(b.get("course") or ""),
-                                    str(b.get("crn") or ""))
+                                    str(b.get("crn") or ""),
+                                    aralik=str(b.get("aralik") or ""),
+                                    satir=str(b.get("satir") or ""))
         if path == "/api/mesgul":
             return self.save_busy(b.get("day") or 0, b.get("start") or 0,
                                   b.get("end") or 0, str(b.get("label") or ""),
@@ -311,10 +313,16 @@ class State:
                    FROM plan p LEFT JOIN program pr ON pr.code = p.program_code
                    WHERE p.program_code IS NOT NULL
                    ORDER BY p.program_code""")],
+            # ★ Faz 54: `hosts` — planın geçerli olduğu anadal programları.
+            # Pencere planları "bölümüne uygun" / "başka bölümlerin" diye
+            # ayırıyor; eskiden 38 BLG ÇAP planı tek listedeydi ve hangisinin
+            # senin olduğu yazmıyordu.
             "plans": [dict(r) for r in self.con.execute(
                 """SELECT id, program_code, plan_type, host_program_code,
                           title, source,
-                          (SELECT COUNT(*) FROM plan_slot WHERE plan_id=plan.id) AS slots
+                          (SELECT COUNT(*) FROM plan_slot WHERE plan_id=plan.id) AS slots,
+                          (SELECT group_concat(program_code, ' ') FROM plan_host_program
+                            WHERE plan_id=plan.id) AS hosts
                    FROM plan ORDER BY plan_type, program_code, id DESC""")],
             "transcript": self.transcript(),
             "checklist": self.plan_checklist(),
@@ -1083,8 +1091,19 @@ class State:
         config.update_settings({"watch_courses": current})
         return {"watching": current, "on": code in current}
 
-    def toggle_lock(self, course: str, crn: str = "") -> dict:
+    def toggle_lock(self, course: str, crn: str = "", *, aralik: str = "",
+                    satir: str = "") -> dict:
         """Bir dersi BULUNDUĞU ŞUBEYE (dolayısıyla saate) kilitler/açar.
+
+        ★★ Faz 53 — `aralik` verilirse (`"00:00-12:30"`) ders bir ŞUBEYE değil
+        bir SAAT ARALIĞINA kilitlenir: "bu ders sabah olsun, şubesi fark
+        etmez". Bir derste yine TEK kilit — şube kilidi ile aralık kilidi
+        birbirinin yerine geçer ve düşen `replaced` ile söylenir.
+
+        `satir`: ayar dosyasındaki bir satırı OLDUĞU GİBİ siler. Elle yazılıp
+        okunamayan satır (ör. `"BLG 351E@8.30-12.30"`) arayüzde "okunamadı"
+        diye görünüyor; ders kodu bile çözülemeyebildiği için (`"@123"`) onu
+        kaldırmanın tek güvenilir yolu satırın kendisi.
 
         ★★ Faz 45 — kullanıcı isteği 17.09.2026: *"dersleri saate kitleme ve
         önerilerin onun etrafında şekillenmesi"*.
@@ -1099,28 +1118,56 @@ class State:
         eskisini AÇIKÇA değiştiriyoruz ve arayüze hangisinin düştüğünü
         döndürüyoruz.
         """
+        from . import recommend as REC
         from .normalize import normalize_course_code
 
+        settings = config.Settings.load()
+        current = [str(x).strip() for x in (settings.kilitli or []) if str(x).strip()]
+        if satir:
+            # Olmayan satırı silmek hata değil (aynı satır iki kez yazılmışsa
+            # ilk silişte ikisi de gidiyor; "hepsini aç" ikinciye gelince
+            # durmasın). Dönen durum gerçeği gösteriyor.
+            kalan = [x for x in current if x != satir.strip()]
+            if len(kalan) != len(current):
+                config.update_settings({"kilitli": kalan})
+            return {"locked": kalan, "on": False, "course": "", "crn": ""}
         code = normalize_course_code(course or "")
         if not code:
             raise ValueError("ders kodu gerekli")
         crn = str(crn or "").strip()
-        settings = config.Settings.load()
-        current = [str(x).strip() for x in (settings.kilitli or []) if str(x).strip()]
+        if aralik:
+            # ⚠️ Okunamayan aralık YAZILMIYOR: ayara bozuk satır koymak, motorun
+            # uygulamadığı bir kilidi "kilitli" diye göstermek olurdu.
+            ab = REC.kilit_araligi(aralik)
+            if not ab:
+                raise ValueError(f"saat aralığı okunamadı: {aralik} "
+                                 "(biçim SS:DD-SS:DD, ör. 08:30-12:30)")
+            deger = REC.aralik_yazi(*ab)
+        else:
+            deger = crn
         # Aynı dersin eski kilidi — hem "aç" hem "şube değiştir" için gerek.
-        eski = next((x for x in current
-                     if x.split("@", 1)[0].strip().upper() == code), "")
-        kalan = [x for x in current if x != eski] if eski else list(current)
-        if not crn or (eski and eski.split("@", 1)[-1].strip() == crn):
-            # CRN verilmediyse ya da zaten kilitli olan şube ise → AÇ.
-            config.update_settings({"kilitli": sorted(kalan)})
-            return {"locked": sorted(kalan), "on": False, "course": code,
-                    "crn": eski.split("@", 1)[-1].strip() if eski else ""}
-        yeni = sorted({*kalan, f"{code}@{crn}"})
+        # ⚠️ Faz 53: elle yazılmış dosyada aynı derse İKİ satır olabilir;
+        # motor SONUNCUSUNU uyguluyor. "Geçerli kilit" o; açarken ya da
+        # değiştirirken dersin BÜTÜN satırları gidiyor — yoksa silinen
+        # satırın yerine gölgedeki eski satır sessizce geçerli olurdu.
+        dersin = [x for x in current if x.split("@", 1)[0].strip().upper() == code]
+        eski = dersin[-1] if dersin else ""
+        eski_deger = eski.split("@", 1)[-1].strip() if eski else ""
+        kalan = [x for x in current if x not in dersin]
+        if not deger or (eski and eski_deger == deger):
+            # Değer verilmediyse ya da zaten o kilit varsa → AÇ.
+            config.update_settings({"kilitli": kalan})
+            return {"locked": kalan, "on": False, "course": code,
+                    "crn": eski_deger}
+        # ⚠️ SIRA KORUNUYOR (Faz 45 sıralıyordu): aynı derse iki satır varsa
+        # motor sonuncusunu uyguluyor; sıralamak, dokunulmayan bir dersin
+        # geçerli kilidini sessizce değiştirebilirdi. Yeni kilit sona.
+        yeni = list(dict.fromkeys([*kalan, f"{code}@{deger}"]))
         config.update_settings({"kilitli": yeni})
-        return {"locked": yeni, "on": True, "course": code, "crn": crn,
+        return {"locked": yeni, "on": True, "course": code,
+                "crn": "" if aralik else crn, "aralik": deger if aralik else "",
                 # Arayüz "GEO 315E artık 13601 yerine 13602'ye kilitli" diyebilsin.
-                "replaced": eski.split("@", 1)[-1].strip() if eski else ""}
+                "replaced": eski_deger}
 
     def _reenroll(self) -> None:
         """Program değişince öğrenci kaydını yeni planlara bağla.

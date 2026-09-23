@@ -155,6 +155,34 @@ def donem_adi(kod: str) -> str:
     return f"{int(yil) - 1}-{yil} {ad}"
 
 
+# Dosyadan OKUNMAYAN, yalnız yükleme sonucunu taşıyan alanlar.
+_IC_ALANLAR = {"load_error", "load_uyarilari"}
+
+
+def _yanlis_yerdekiler(raw: dict, known: set[str], merged: dict) -> list[dict]:
+    """Okunan tabloların DIŞINDA duran ayar anahtarları (Faz 53).
+
+    `[regulation]` gibi bir tablonun altına ya da ilk tablo başlığından
+    ÖNCEYE yazılmış `donem`, `mesgul`, `cap_baslangic_yariyili`… TOML için
+    geçerli, bizim için görünmez. `golge=True`: aynı anahtar `[student]`da
+    da var — geçerli olan o, bu satır yalnız yanıltıcı bir kopya.
+    """
+    out = []
+    for tablo, icerik in raw.items():
+        if tablo in ("student", "scraper"):
+            continue
+        if isinstance(icerik, dict):
+            anahtarlar = [k for k in icerik if k in known]
+        elif tablo in known:
+            # Tablo başlığından önce yazılmış düz anahtar (`donem = 5` en üstte).
+            anahtarlar, tablo = [tablo], ""
+        else:
+            continue
+        for k in anahtarlar:
+            out.append({"anahtar": k, "tablo": tablo, "golge": k in merged})
+    return out
+
+
 @dataclass
 class Settings:
     # ★★ VARSAYILAN BOŞ (23.08.2026). Eskiden "HTAE"/"BLG" yazıyordu —
@@ -273,6 +301,16 @@ class Settings:
     # açılıyor) ve hatayı `load_error` alanında TAŞIYORUZ; arayüz bunu
     # tepede yazmak zorunda.
     load_error: str = ""
+    # ★★ FAZ 53 — YANLIŞ TABLODA DURAN AYAR SESSİZCE YOK SAYILIYORDU.
+    #
+    # `load` yalnız `[student]` ve `[scraper]`ı okuyor. Kullanıcının kendi
+    # dosyasında (Mac, 21.09.2026) `cap_baslangic_yariyili` ve `mesgul`
+    # satırları dosyanın SONUNA, yani `[regulation]` tablosunun altına
+    # düşmüştü: yorum "3 ya da 5 yaz" diyor, yazılsa HİÇBİR ŞEY olmuyor —
+    # yarıyıl kredi tabanı uygulanmıyor ve araç bunu söylemiyordu.
+    # Satırı başka tablodan okumak da doğru değil (hangisi geçerli?); ne
+    # olduğunu ve nereye taşınacağını söylüyoruz.
+    load_uyarilari: list[dict] = field(default_factory=list)
 
     @classmethod
     def load(cls, path: Path | None = None) -> "Settings":
@@ -288,8 +326,9 @@ class Settings:
         merged: dict = {}
         for section in ("student", "scraper"):
             merged.update(raw.get(section, {}))
-        known = {f for f in cls.__dataclass_fields__}
+        known = {f for f in cls.__dataclass_fields__} - _IC_ALANLAR
         obj = cls(**{k: v for k, v in merged.items() if k in known})
+        obj.load_uyarilari = _yanlis_yerdekiler(raw, known, merged)
         # ★ `second_kind` dosyada YAZMIYORSA program kodlarından çıkarılıyor.
         # Varsayılanı düz "yok" bırakmak, `cap_program = "BLG"` yazmış ama
         # `second_kind` yazmamış bir kullanıcının ÇAP'ını sessizce yok

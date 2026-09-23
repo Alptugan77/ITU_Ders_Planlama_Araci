@@ -61,6 +61,13 @@ cap_baslangic_yariyili = 0
 # Arayüzden de eklenebilir: ızgarada boş hücreye tıkla → "Bu saati derse kapat".
 mesgul = []
 
+# ★ Dersi KİLİTLE — öneriler onun etrafında kurulur. İki biçim:
+#   "DERS@CRN"            → tam o şube (dolayısıyla o saat):  "GEO 315E@13601"
+#   "DERS@SS:DD-SS:DD"    → o saatlerdeki HERHANGİ bir şube:  "ATA 121@12:30-24:00"
+# Arayüzden: ızgarada derse tıkla → "Bu saate kilitle" ya da "Sabah olsun" /
+# "Öğleden sonra olsun". Okunamayan satır UYGULANMAZ ve arayüz bunu söyler.
+kilitli = []
+
 [scraper]
 request_delay_s = 1.0        # OBS'yi yorma: istekler arası en az 1 sn
 # ⚠️ SADECE ASCII — HTTP başlıklarında Türkçe karakter olamaz.

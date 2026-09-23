@@ -248,9 +248,13 @@ def test_beyansiz_taban_IDDIA_edilmiyor(dbs):
 
 
 def test_kontenjan_kontrolu_TARIH_yaziyor(dbs):
+    """⚠️ FAZ 54'TE YENİDEN YAZILDI: eskiden `DATA.generatedAt` istiyordu —
+    sayfanın üretildiği an, kontenjanın ait olduğu an DEĞİL. Sitede 23 gün
+    önceki "yer var" bugünün tarihiyle yazılıyordu."""
     html = UI.render(_collect(dbs))
     govde = re.search(r"function kayitKontrol\(\)\{(.*?)\n\}", html, re.S).group(1)
-    assert "DATA.generatedAt" in govde
+    assert "veriTarihi()" in govde
+    assert "generatedAt" not in govde
 
 
 # ================================================== C2. kayıt günü nöbeti

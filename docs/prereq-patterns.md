@@ -3,40 +3,40 @@
 Faz 2 parser'ının karşılaması gereken girdi uzayı. Otomatik üretildi —
 elle düzenleme, `make prereq-report` ile yenile.
 
-- Önşartı olan ders sayısı: **4630**
-- Benzersiz kalıp sayısı: **282**
+- Önşartı olan ders sayısı: **4643**
+- Benzersiz kalıp sayısı: **281**
 
 ## En sık kalıplar
 
 | # | Frekans | Kalıp (<C>=ders kodu, <G>=not) |
 |---|---------|--------------------------------|
 | 1 | 1098 | `<C> MIN <G>` |
-| 2 | 932 | `(<C> MIN DD OR <C> MIN <G>)` |
-| 3 | 651 | `(<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)` |
-| 4 | 366 | `(<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)` |
+| 2 | 930 | `(<C> MIN DD OR <C> MIN <G>)` |
+| 3 | 661 | `(<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)` |
+| 4 | 368 | `(<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)` |
 | 5 | 107 | `(<C> MIN CC OR <C> MIN <G>)` |
-| 6 | 99 | `(<C> MIN DD OR <C> MIN <G>) AND (<C> MIN DD OR <C> MIN <G>)` |
-| 7 | 93 | `(<C> MIN DD OR <C> MIN <G>) OR <C> MIN <G>` |
+| 6 | 97 | `(<C> MIN DD OR <C> MIN <G>) AND (<C> MIN DD OR <C> MIN <G>)` |
+| 7 | 92 | `(<C> MIN DD OR <C> MIN <G>) OR <C> MIN <G>` |
 | 8 | 84 | `<C> MIN CC OR <C> MIN <G>` |
-| 9 | 76 | `(<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)` |
+| 9 | 77 | `(<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)` |
 | 10 | 61 | `<C> MIN DD OR <C> MIN <G>` |
 | 11 | 46 | `(<C> MIN BB OR <C> MIN <G>)` |
 | 12 | 42 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)) AND ((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>))` |
-| 13 | 38 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>))` |
-| 14 | 33 | `<C> MIN DD OR (<C> MIN DD OR <C> MIN <G>)` |
-| 15 | 32 | `(<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR <C> MIN <G>` |
-| 16 | 32 | `(<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)` |
-| 17 | 31 | `(<C> MIN DD OR <C> MIN <G>) AND ((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>))` |
+| 13 | 36 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>))` |
+| 14 | 34 | `(<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR <C> MIN <G>` |
+| 15 | 33 | `(<C> MIN DD OR <C> MIN <G>) AND ((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>))` |
+| 16 | 33 | `<C> MIN DD OR (<C> MIN DD OR <C> MIN <G>)` |
+| 17 | 32 | `(<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)` |
 | 18 | 25 | `<C> MIN DD OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)` |
 | 19 | 25 | `(<C> MIN CC OR <C> MIN <G>) OR <C> MIN <G>` |
-| 20 | 22 | `(<C> MIN DD OR <C> MIN DD OR <C> MIN <G>)` |
-| 21 | 22 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)) AND ((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>))` |
-| 22 | 20 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)) AND (<C> MIN DD OR <C> MIN <G>)` |
-| 23 | 20 | `(<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR ((<C> MIN DD OR <C> MIN <G>) AND (<C> MIN DD OR <C> MIN <G>))` |
-| 24 | 20 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>))` |
+| 20 | 23 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)) AND ((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>))` |
+| 21 | 22 | `(<C> MIN DD OR <C> MIN DD OR <C> MIN <G>)` |
+| 22 | 20 | `(<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR ((<C> MIN DD OR <C> MIN <G>) AND (<C> MIN DD OR <C> MIN <G>))` |
+| 23 | 20 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>))` |
+| 24 | 19 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)) AND (<C> MIN DD OR <C> MIN <G>)` |
 | 25 | 17 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)) AND ((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>))` |
 | 26 | 17 | `(<C> MIN DD OR <C> MIN <G>) AND (<C> MIN DD OR <C> MIN <G>) AND (<C> MIN DD OR <C> MIN <G>)` |
-| 27 | 15 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)) AND ((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (` |
+| 27 | 16 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)) AND ((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (` |
 | 28 | 15 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>))` |
 | 29 | 12 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)) AND ((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (` |
 | 30 | 10 | `<C> MIN DDve <C> MIN <G>` |
@@ -66,20 +66,20 @@ elle düzenleme, `make prereq-report` ile yenile.
 | 54 | 5 | `(<C> MIN BL OR <C> MIN BL)` |
 | 55 | 5 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)) AND ((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (` |
 | 56 | 5 | `(<C> MIN DD OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>))` |
-| 57 | 5 | `(<C> MIN DD OR <C> MIN <G>) OR <C> MIN DD OR (<C> MIN DD OR <C> MIN <G>) OR <C> MIN DD OR <C> MIN DD OR (<C> MIN DD OR <C> MIN <G>) OR <C> MIN DD OR <C> MIN DD ` |
-| 58 | 4 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)) AND ((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)) AND ((<C> MIN DD OR <C> MIN <G>) O` |
-| 59 | 4 | `<C> MIN DDve (<C> MIN DD OR <C> MIN <G>) AND (<C> MIN DD OR <C> MIN <G>) AND (<C> MIN DD OR <C> MIN <G>) AND (<C> MIN DD OR <C> MIN <G>) AND (<C> MIN DD OR <C> ` |
-| 60 | 4 | `(<C> MIN FF OR <C> MIN <G>) OR (<C> MIN FF OR <C> MIN <G>) OR (<C> MIN FF OR <C> MIN <G>) OR (<C> MIN FF OR <C> MIN <G>)` |
+| 57 | 5 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>))` |
+| 58 | 5 | `(<C> MIN DD OR <C> MIN <G>) OR <C> MIN DD OR (<C> MIN DD OR <C> MIN <G>) OR <C> MIN DD OR <C> MIN DD OR (<C> MIN DD OR <C> MIN <G>) OR <C> MIN DD OR <C> MIN DD ` |
+| 59 | 4 | `((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)) AND ((<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)) AND ((<C> MIN DD OR <C> MIN <G>) O` |
+| 60 | 4 | `<C> MIN DDve (<C> MIN DD OR <C> MIN <G>) AND (<C> MIN DD OR <C> MIN <G>) AND (<C> MIN DD OR <C> MIN <G>) AND (<C> MIN DD OR <C> MIN <G>) AND (<C> MIN DD OR <C> ` |
 
 ## Bağlaç / anahtar kelime frekansları
 
 | Token | Frekans |
 |-------|---------|
-| `min` | 19669 |
-| `dd` | 9107 |
-| `ddveya` | 8927 |
-| `veya` | 4275 |
-| `ve` | 1430 |
+| `min` | 19748 |
+| `dd` | 9147 |
+| `ddveya` | 8966 |
+| `veya` | 4304 |
+| `ve` | 1427 |
 | `cc` | 1042 |
 | `ccveya` | 227 |
 | `ff` | 83 |
