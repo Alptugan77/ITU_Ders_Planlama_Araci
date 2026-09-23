@@ -247,6 +247,18 @@ HAREKET: list[tuple[str, str, str]] = [
     ("ease", "cubic-bezier(.2,.7,.3,1)", "Tek yumuşatma eğrisi."),
 ]
 
+# Opaklık — bir DURUMU söyler, yazıyı taban altına indirmek için kullanılmaz
+# (Faz 54: kapalı adımın açıklaması .5'te 2,0–3,5:1'e düşüyordu; Faz 56:
+# blok adı .85'te 3.80:1). Değerler CSS'te yazılı; burada anlamları.
+OPAKLIK: list[tuple[str, str, str]] = [
+    ("op-disabled", ".45", "Devre dışı düğme (nedeni `title`'da)."),
+    ("op-done", ".5", "Tamamlanmış kademe kutusu (üstü çizili + `ok` şerit)."),
+    ("op-plan", ".72", "İlerleme ölçeğinde \"bu dönem\" taraması."),
+    ("op-link", ".55", "Kademe bağ çizgisi, dinlenmede."),
+    ("op-dim", ".22", "Kademe odağında zincir dışı kutular."),
+    ("op-link-dim", ".08", "Kademe odağında zincir dışı bağlar."),
+]
+
 YERLESIM: list[tuple[str, str, str]] = [
     ("frame", "1720px", "Çerçeve genişliği — bütün görünümlerde aynı (Faz 52)."),
     ("measure", "80ch", "Okuma ölçüsü: düz yazı ~80 karakterde kırılır."),
@@ -258,6 +270,7 @@ OLCEKLER = {
     "type": YAZI_BOYU, "leading": SATIR_ARALIGI, "tracking": HARF_ARALIGI,
     "family": AILELER, "spacing": ARALIK, "line": CIZGI, "radius": KOSE,
     "control": DENETIM, "layer": KATMAN, "motion": HAREKET, "layout": YERLESIM,
+    "opacity": OPAKLIK,
 }
 
 
@@ -372,6 +385,7 @@ def jetonlar_json() -> dict:
             ("t-eyebrow", "display", "fs-xs", "lh-none", 700, "ls-eyebrow", True),
             ("t-tab", "display", "fs-xs", "lh-none", 600, "ls-caps", True),
             ("t-button", "display", "fs-md", "lh-none", 600, "ls-wide", False),
+            ("t-tag", "display", "fs-xs", "lh-none", 700, "ls-caps", True),
         ],
         "Metin": [
             ("t-body", "sans", "fs-base", "lh-body", 400, "ls-0", False),
@@ -431,4 +445,5 @@ def jetonlar_json() -> dict:
         "border": grup(CIZGI),
         "size": grup(DENETIM + YERLESIM),
         "zIndex": grup(KATMAN),
+        "opacity": grup(OPAKLIK),
     }
