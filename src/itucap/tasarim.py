@@ -390,10 +390,12 @@ def jetonlar_json() -> dict:
     gruplar = []
     for ad, stiller in rol.items():
         gruplar.append({"name": ad, "family": stiller[0][1], "styles": [{
-            "name": s[0], "fontFamily": s[1], "fontSize": deger[s[2]],
+            "name": s[0], "family": s[1], "fontSize": deger[s[2]],
             "lineHeight": deger[s[3]], "fontWeight": s[4],
             "letterSpacing": deger[s[5]],
-            **({"textTransform": "uppercase"} if s[6] else {}),
+            "usage": (f"--{s[2]} · --{s[3]} · --{s[5]}"
+                      + (" · BÜYÜK HARF CSS'te (text-transform), metin cümle "
+                         "düzeninde yazılır" if s[6] else "")),
         } for s in stiller]})
     return {
         "name": "İTÜ DEPAR v2", "version": 2,
@@ -421,7 +423,8 @@ def jetonlar_json() -> dict:
         "spacing": grup(ARALIK),
         "radius": grup(KOSE),
         "shadow": {"tokens": [
-            {"name": a, "value": g, "usage": n} for a, g, _, n in TEMA_DIGER[1:]]},
+            {"name": a, "value": {"dark": g, "light": l}, "usage": n}
+            for a, g, l, n in TEMA_DIGER[1:]]},
         "fontSize": grup(YAZI_BOYU),
         "lineHeight": grup(SATIR_ARALIGI),
         "letterSpacing": grup(HARF_ARALIGI),

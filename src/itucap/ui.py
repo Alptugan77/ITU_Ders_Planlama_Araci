@@ -1638,6 +1638,16 @@ body{margin:0;background:var(--ground);color:var(--ink);
 /* Okuma ölçüsü: düz yazı ~80 karakterde kırılsın (çerçeve ne kadar geniş
    olursa olsun). Tablolar, ızgara ve kartlar çerçevenin tamamını kullanıyor. */
 main .summary,main .modenote,main p,main .hint{max-width:80ch}
+/* ★★ FAZ 56 — AÇIKLAMA PARAGRAFI ESNEK SATIR DEĞİL.
+   Bölüm açıklamaları `.summary` taşıyordu; o bir ESNEK sayı satırı (gap
+   14px) ve içine düz yazı konunca her `<b>` ayrı bir öğe oluyor. Vitrin
+   ekranında ölçüldü: Kademeler'de "Çizgiler önşart bağıdır" cümlenin
+   ortasında kendi satırına kırılıyordu. v1 tasarım sistemi bu kuralı
+   yazmıştı (`.aciklama`), uygulama hiç almamıştı. Esnek kutu sınıfının
+   dördüncü görülüşü (bkz. Faz 48 `summary`, Faz 50 "20KREDİ"). */
+.aciklama{font-size:var(--fs-lg);color:var(--ink-2);margin-top:2px;
+  line-height:var(--lh-body)}
+main .aciklama{max-width:80ch}
 /* Chivo, ağır ve büyük harf — Şematik'in sesi. Gövde IBM Plex Sans'ta kalıyor;
    Chivo'yu uzun metinde kullanmak gece zemininde yorucu olurdu. */
 h1,h2,h3{margin:0;text-wrap:balance;
@@ -1776,7 +1786,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 }
 /* Seçili OLMAYAN öneri sekmesi de tıklanabilir görünsün (eskiden hover yoktu). */
 .tab:not([aria-selected="true"]):hover{background:var(--seal-soft);color:var(--seal)}
-:focus-visible{outline:2px solid var(--seal);outline-offset:2px;border-radius:var(--r)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:var(--r)}
 /* Şematik: kutu değil cetvel. Kart, üstündeki kalın çizgiyle bölünüyor;
    kenarlık yalnız hafif bir hat olarak kalıyor. */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r)}
@@ -1913,7 +1923,10 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 @media(prefers-reduced-motion:reduce){.spin{animation:none;border-top-color:currentColor}}
 .ghost.primary{background:var(--seal);color:var(--ground);border-color:var(--seal);
   font-weight:600}
-.ghost.primary:hover{opacity:.9;background:var(--seal)}
+/* ★ Faz 56 — `--seal-hover` Faz 43'ten beri TANIMLIYDI ama hiç kullanılmıyordu;
+   üzerine gelme hâlâ opaklıkla yapılıyordu (zemin de soluyor). */
+.ghost.primary:hover{background:var(--seal-hover);border-color:var(--seal-hover);
+  color:var(--on-seal)}
 
 /* form öğeleri */
 .field{display:block;margin-top:12px}
@@ -1926,7 +1939,7 @@ select,input[type=text],input[type=search],textarea{
   background:var(--surface);border:1px solid var(--border-control);border-radius:var(--r)}
 textarea{font-family:var(--font-mono);font-size:var(--fs-md);min-height:130px;
   resize:vertical}
-select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-offset:1px}
+select:focus,input:focus,textarea:focus{outline:2px solid var(--focus);outline-offset:1px}
 .radios{display:flex;gap:0;border:1px solid var(--border-control);border-radius:var(--r);
   overflow:hidden}
 .radios button{flex:1;padding:8px 10px;font-size:var(--fs-md);color:var(--ink-2);
@@ -1957,7 +1970,7 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
 #cands tbody tr[data-course]{cursor:pointer}
 #cands tbody tr[data-course]:hover{background:var(--surface-2)}
 /* Klavye odağı — fare seçimi gibi görünmeli ki nerede olduğun belli olsun. */
-#cands tbody tr.odak{outline:2px solid var(--seal);outline-offset:-2px;
+#cands tbody tr.odak{outline:2px solid var(--focus);outline-offset:-2px;
   background:var(--seal-soft)}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
 /* Gelişmiş alan — ilk kurulumda kapalı. Nadir kullanılan bir metin kutusunu
@@ -2023,7 +2036,10 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
 .gaugebar .track{height:9px;background:var(--surface-2);border:1px solid var(--border);
   border-radius:var(--r);overflow:hidden}
 .gaugebar .track i{display:block;height:100%;background:var(--seal)}
-.gaugebar .track i.ok{background:var(--anadal)}
+/* ★ Faz 56 — DURUM rengi `--ok`: sağlanıyor (✓), tamam, kaydedildi, programda.
+   v1'de bunlar doğrudan `--anadal` yazıyordu — rol (hangi program) ile durum
+   (sağlandı mı) aynı adı taşıyordu. Bugün aynı ton; ayrışırsa tek satır. */
+.gaugebar .track i.ok{background:var(--ok)}
 .gaugelabel{font-size:var(--fs-md);color:var(--ink-2);margin-top:6px}
 .summary{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:var(--fs-md);
   color:var(--ink-2);margin-top:2px}
@@ -2067,7 +2083,7 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--seal);outline-of
 .daylist .row[data-role="ANADAL"]{--accent:var(--anadal);--soft:var(--anadal-soft);--accent-ink:var(--anadal-ink)}
 .daylist .row[data-role="CAP"]{--accent:var(--cap);--soft:var(--cap-soft);--accent-ink:var(--cap-ink)}
 .daylist .row[data-role="YANDAL"]{--accent:var(--yandal);--soft:var(--yandal-soft);--accent-ink:var(--yandal-ink)}
-.daylist .row small{color:var(--ink-2);font-size:var(--fs-sm);display:block}
+.daylist .row small{color:inherit;font-size:var(--fs-sm);display:block}
 .daylist .row.clash{border-left-color:var(--danger);
   box-shadow:inset 0 0 0 1px var(--danger)}
 .daylist .none{color:var(--ink-3);font-size:var(--fs-md);padding:6px 0}
@@ -2291,7 +2307,13 @@ table.grid td.free:hover::after{opacity:1;color:var(--seal)}
   font-weight:600}
 .kilitaralik:disabled{opacity:.55;cursor:not-allowed}
 .kilitsay{color:var(--ink-3);font-weight:400}
-.blkad{display:block;font-size:var(--fs-xs);line-height:var(--lh-snug);opacity:.85;
+/* ★★ FAZ 56 — BLOK İÇİ YAZI YALNIZ `-ink`, TAM GÜÇTE. v1 tasarım sistemi bu
+   kuralı yazmıştı ("ad için opaklık, saat için ink-2 verme"), kod almamıştı.
+   Ton merdiveniyle ölçüldü (en kötü basamak): ad `-ink` %85 opaklıkta
+   **3.80:1**, saat · yer · CRN satırı `ink-2` ile **3.09:1** — taban 4.5.
+   CRN kayıt günü elle yazılan sayı. Tam `-ink` 4.67:1. Hiyerarşi artık
+   boy ve ağırlıkta; renkte değil. */
+.blkad{display:block;font-size:var(--fs-xs);line-height:var(--lh-snug);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
 .daylist .row.online{border-left-style:dashed}
 /* Ders konulamayacak saat — okul dışı iş. Taralı, çünkü bir DERS değil:
@@ -2303,7 +2325,7 @@ table.grid td.free:hover::after{opacity:1;color:var(--seal)}
 table.grid td.busycell{background:repeating-linear-gradient(135deg,
   var(--surface-2) 0 5px,transparent 5px 10px)}
 .blk b{display:block;font-weight:600}
-.blk small{color:var(--ink-2);font-size:var(--fs-xs)}
+.blk small{color:inherit;font-size:var(--fs-xs)}
 .empty{color:var(--ink-3);font-size:var(--fs-sm);padding:24px 0;text-align:center}
 
 table.list{width:100%;border-collapse:collapse;font-size:var(--fs-lg)}
@@ -2422,7 +2444,7 @@ table.list tr:hover td{background:var(--surface-2)}
 .ozetler{display:flex;flex-wrap:wrap;gap:8px}
 .ozet{font-size:var(--fs-sm);padding:4px 10px;border:1px solid var(--border);
   color:var(--ink-2)}
-.ozet.ok{border-color:var(--anadal);color:var(--anadal)}
+.ozet.ok{border-color:var(--ok);color:var(--ok)}
 .ozet.uyari{border-color:var(--warn);color:var(--warn)}
 /* Satır içi uyarı yazısı (katalogda olmayan ders, planı olmayan program). */
 .meta .uyari,td .uyari,.ckname .uyari{color:var(--warn)}
@@ -2497,7 +2519,7 @@ table.list tr:hover td{background:var(--surface-2)}
   border-left:3px solid var(--warn)}
 /* Tercihin programa etkisi. */
 .tercihnot{font-size:var(--fs-sm)}
-.tercihnot.ok{color:var(--anadal)}
+.tercihnot.ok{color:var(--ok)}
 .tercihnot.uymaz{color:var(--warn)}
 /* Yan yana karşılaştırma tablosu. */
 table.cmp{border-collapse:collapse;width:100%;font-size:var(--fs-md)}
@@ -2509,7 +2531,7 @@ table.cmp tbody th{color:var(--ink-2);font-weight:600;white-space:nowrap}
 table.cmp .secili{background:var(--seal-soft)}
 table.cmp .meta{font-size:var(--fs-xs);color:var(--ink-3)}
 table.cmp .meta.eksi{color:var(--warn)}
-table.cmp .meta.arti{color:var(--anadal)}
+table.cmp .meta.arti{color:var(--ok)}
 /* Arz uyarısı — planındaki ders bu dönem alınamıyorsa, ÜSTTE. */
 .note.arz{margin-top:10px;border-left:3px solid var(--warn);padding-left:10px}
 .note.arz .meta{color:var(--ink-3);font-size:var(--fs-sm)}
@@ -2517,7 +2539,7 @@ table.cmp .meta.arti{color:var(--anadal)}
 .checks{display:flex;flex-direction:column;gap:6px;margin-top:6px}
 .check{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-md)}
 .check .mark{width:14px;text-align:center;font-weight:700}
-.check.ok .mark{color:var(--anadal)}
+.check.ok .mark{color:var(--ok)}
 .check.bad .mark{color:var(--danger)}
 .check.unknown .mark{color:var(--ink-3)}
 .check .meta{color:var(--ink-3);font-size:var(--fs-sm)}
@@ -2525,7 +2547,7 @@ table.cmp .meta.arti{color:var(--anadal)}
 .yedek{display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;font-size:var(--fs-md);
   padding:4px 0;border-bottom:1px solid var(--border)}
 .yedek:last-child{border-bottom:0}
-.yedek.uyar>b{color:var(--anadal)}
+.yedek.uyar>b{color:var(--ok)}
 .yedek.carpisir{color:var(--ink-3)}
 .yedek.dolu{color:var(--ink-3);text-decoration:line-through}
 .optlist{display:flex;flex-direction:column;gap:6px;margin-top:10px;
@@ -2586,7 +2608,7 @@ table.cmp .meta.arti{color:var(--anadal)}
 .tier li .disout{font-size:var(--fs-xs);color:var(--ink-2);line-height:var(--lh-snug);
   border-top:1px dashed var(--border);padding-top:4px}
 .tier li .disout .mono{color:var(--ink)}
-.tier li[data-s="DONE"]{opacity:.5;border-left-color:var(--anadal)}
+.tier li[data-s="DONE"]{opacity:.5;border-left-color:var(--ok)}
 .tier li[data-s="DONE"] .top{text-decoration:line-through}
 /* Alınabilir = önşartların tamamı sağlanmış, BU DÖNEM alınabilir. */
 .tier li[data-s="READY"]{background:var(--cap-soft);color:var(--cap-ink);font-weight:600;
@@ -2601,7 +2623,7 @@ table.cmp .meta.arti{color:var(--anadal)}
 .tierlegend i{width:22px;height:12px;border:1px solid var(--border);
   border-left:3px solid var(--border-strong);display:inline-block}
 .tierlegend i.rdy{background:var(--cap-soft);border-color:var(--cap);border-left-color:var(--cap)}
-.tierlegend i.done{border-left-color:var(--anadal);opacity:.6}
+.tierlegend i.done{border-left-color:var(--ok);opacity:.6}
 .tierlegend i.line{width:22px;height:0;border:0;border-top:2px solid var(--seal);opacity:.7}
 .tierfoot{margin-top:10px;font-size:var(--fs-sm);color:var(--ink-3);line-height:var(--lh-body)}
 .tiergroup + .tiergroup{margin-top:24px;padding-top:24px;
@@ -2774,7 +2796,7 @@ body.kurulum .govde{grid-template-columns:minmax(0,1fr)}
 .step .no{flex:0 0 26px;height:26px;display:grid;place-items:center;
   background:var(--seal-soft);color:var(--seal);font-weight:700;font-size:var(--fs-sm);
   font-family:var(--font-display)}
-.step.done .no{background:var(--anadal-soft);color:var(--anadal)}
+.step.done .no{background:var(--ok-soft);color:var(--ok)}
 .step .body{flex:1;min-width:0}
 .step .body b{display:block;font-size:var(--fs-lg)}
 .step .body span{display:block;font-size:var(--fs-sm);color:var(--ink-3)}
@@ -2803,7 +2825,7 @@ body.kurulum .govde{grid-template-columns:minmax(0,1fr)}
 .stepsplit::after{content:"";flex:1;height:1px;background:var(--border)}
 .herofoot{margin-top:16px;font-size:var(--fs-sm);color:var(--ink-3);line-height:var(--lh-loose)}
 /* "Şimdi ne yapabilirsin" — bir kerelik, kapatılabilir. */
-.note.sonraki{border-left:3px solid var(--anadal);padding:10px 12px;margin:14px 0}
+.note.sonraki{border-left:3px solid var(--ok);padding:10px 12px;margin:14px 0}
 .sonrakiliste{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .sonrakiliste .kapat{margin-left:auto;color:var(--ink-3)}
 
@@ -3128,7 +3150,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
       <button class="ghost" id="icsBtn">Takvime aktar</button>
       <button class="ghost" id="shareBtn">Bağlantı</button>
       <button class="ghost" id="crnLoad">CRN'den yükle</button>
-      <span id="savedMark" class="chip" style="color:var(--anadal)" hidden></span>
+      <span id="savedMark" class="chip" style="color:var(--ok)" hidden></span>
     </div>
   </aside>
   </div><!-- /prgduzen -->
@@ -3147,7 +3169,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 <section class="card pad" id="suggestSection" hidden>
   <div class="sechead"><div class="eyebrow">Denklik</div><div class="rule"></div></div>
   <h2>Bunu zaten almış olabilirsin</h2>
-  <div class="summary">Transkriptindeki dersler ile planlarının <b>dolmamış</b>
+  <div class="aciklama">Transkriptindeki dersler ile planlarının <b>dolmamış</b>
     slotları arasında ad eşleşmesi arandı. Uygulamak senin onayınla —
     yanlış bir denklik, tamamlamadığın bir şartı tamamlanmış gösterirdi.</div>
   <div id="suggestBody" style="margin-top:12px"></div>
@@ -3159,7 +3181,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 <section class="card pad" id="denklikSection" hidden>
   <div class="sechead"><div class="eyebrow">Denklik</div><div class="rule"></div></div>
   <h2>Denkliği bu dönem açık</h2>
-  <div class="summary">Almam gereken bir dersin <b>denkliği</b> bu dönem
+  <div class="aciklama">Almam gereken bir dersin <b>denkliği</b> bu dönem
     açıksa burada. O açık dersi alırsan gereken ders sayılır — çoğu zaman
     <b>başka bölümden</b> bir ders, <b>dilekçeyle</b> saydırılır. Kaynak:
     OBS'nin ilan ettiği resmî denklikler + kendi beyanların. Saydırma için
@@ -3180,7 +3202,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 <section class="card pad" id="candSection">
   <div class="sechead"><div class="eyebrow">Sıralama</div><div class="rule"></div></div>
   <h2>Aday dersler</h2>
-  <div class="summary">Puan; kritik yol, kaç dersi açtığı, zorunluluk, kontenjan
+  <div class="aciklama">Puan; kritik yol, kaç dersi açtığı, zorunluluk, kontenjan
     ve kademeden hesaplanır. Satıra tıklayıp programa ekleyebilirsin.</div>
   <!-- ★ 24.08.2026 — liste ilk 30 ile kesiliyordu ve arama yoktu: aklındaki
        dersi arayan kişi onu bulamıyor, "bu araç benim dersimi bilmiyor"
@@ -3230,7 +3252,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 
 <dialog id="basvuruDlg" class="wide"><div class="pad">
   <h2 id="basvuruDlgTitle" style="margin-bottom:4px">ÇAP planları</h2>
-  <div class="summary">Yönergedeki şartlar senin durumunla karşılaştırılıyor.
+  <div class="aciklama">Yönergedeki şartlar senin durumunla karşılaştırılıyor.
     Karar mercii bölümün — bu ekran hazırlık içindir.</div>
   <div class="tabs" id="basvuruTabs" role="tablist" style="margin-top:12px"></div>
   <div id="basvuruBody"></div>
@@ -3242,7 +3264,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 <section class="card pad" id="tierSection">
   <div class="sechead"><div class="eyebrow">Önşart zinciri</div><div class="rule"></div></div>
   <h2 id="tierTitle">Kademeler</h2>
-  <div class="summary">Her kademe en az bir dönem. Kademe sayısı, ikinci programı
+  <div class="aciklama">Her kademe en az bir dönem. Kademe sayısı, ikinci programı
     bitirebileceğin en kısa süredir. <b>Çizgiler önşart bağıdır</b> — bir dersin
     üstüne gelince yalnız o dersin zinciri belirir, tıklarsan kilitlenir
     (ikinci tıkta çözülür).</div>
@@ -4821,7 +4843,7 @@ function renderFloor(){
           style="margin:0 4px 0 0">${esc(c)}</span>`).join("")}
         gerekiyor${R.deadline ? `, son tarih: <b>${esc(R.deadline)}</b>` : ""}.
         ${indirimYeterMi
-          ? `<b style="color:var(--anadal)">İndirim onaylanırsa şu anki
+          ? `<b style="color:var(--ok)">İndirim onaylanırsa şu anki
              seçimin yeterli olur.</b>`
           : `İndirim onaylansa bile ${+(R.min - kredi).toFixed(1)} kredi
              daha gerekir.`}</div>` : ""}
@@ -4893,7 +4915,7 @@ function renderGpa(){
   const STAGE = {basvuru: "Başvuru", devam: "Devam", mezuniyet: "Mezuniyet"};
   const style = t => t.ok === null
     ? "background:transparent;color:var(--ink-3);border-color:var(--border-strong)"
-    : t.ok ? "background:var(--anadal-soft);color:var(--anadal)"
+    : t.ok ? "background:var(--ok-soft);color:var(--ok)"
            : "background:transparent;color:var(--danger);border-color:currentColor";
   const mark = t => t.ok === null ? "—" : (t.ok ? "✓" : "✗");
   const groups = Object.keys(STAGE).filter(k => g.thresholds.some(t => t.kind === k));
@@ -7807,7 +7829,7 @@ function renderCandidates(){
         title="${inPlan ? "programında" : "programa ekle"}">
       <td class="mono score">${c.score}</td>
       <td><b class="mono">${esc(c.course)}</b>
-        ${inPlan ? `<span class="chip" style="margin-left:6px;color:var(--anadal)">programda</span>` : ""}
+        ${inPlan ? `<span class="chip" style="margin-left:6px;color:var(--ok)">programda</span>` : ""}
         ${c.critical ? `<span class="chip supply" style="margin-left:6px">kritik yol</span>` : ""}
         ${c.prereqUnknown ? `<span class="chip unknown"
           style="margin-left:6px" title="Önşart metni var ama okunamadı — danışmanına sor">önşart okunamadı</span>`
@@ -7993,7 +8015,7 @@ function renderHero(){
         <span>${s.detail}</span>
         <span class="why">${s.why}</span></span>
       ${s.done
-        ? `<span class="chip" style="color:var(--anadal)">tamam</span>`
+        ? `<span class="chip" style="color:var(--ok)">tamam</span>`
         : (LIVE && s !== sonraki
             ? `<button class="ghost" data-act="${s.action}"
                  ${kilitli ? "disabled title='Önce bölümünü seç'" : ""}
@@ -8339,7 +8361,7 @@ function renderBasvuru(){
     const sayi = s.planTypeAvailable === false ? "OBS'de plan yayınlanmamış"
       : s.optionCount ? `${s.optionCount} program açık` : "sana açık plan yok";
     return `<div class="basvuruitem">
-      <span class="mark" style="color:${iyi ? "var(--anadal)" : "var(--danger)"}"
+      <span class="mark" style="color:${iyi ? "var(--ok)" : "var(--danger)"}"
         >${iyi ? "✓" : "✗"}</span>
       <span class="what"><b>${lbl}</b><span class="why">${esc(durum)} · ${esc(sayi)}</span></span>
       <button class="ghost" data-k="${k}">${btn}</button></div>`;
@@ -8375,7 +8397,7 @@ function renderBasvuruBody(){
 
   const mark = c => c.ok === null ? "—" : (c.ok ? "✓" : "✗");
   const color = c => c.ok === null ? "var(--ink-3)"
-    : (c.ok ? "var(--anadal)" : "var(--danger)");
+    : (c.ok ? "var(--ok)" : "var(--danger)");
   const checks = s.checks.map(c => `
     <div class="blockitem" style="border-left:5px solid ${color(c)}">
       <b style="color:${color(c)}">${mark(c)}</b> ${esc(c.label)}
@@ -8387,9 +8409,9 @@ function renderBasvuruBody(){
     ? `<b style="color:var(--danger)">Bilinen şartlardan en az biri
        şu an sağlanmıyor.</b>`
     : s.unknownCount
-      ? `<b style="color:var(--anadal)">Bakılabilen şartlar tamam.</b>
+      ? `<b style="color:var(--ok)">Bakılabilen şartlar tamam.</b>
          ${s.unknownCount} şart bu araçtan doğrulanamıyor — yukarıda “—” ile işaretli.`
-      : `<b style="color:var(--anadal)">Bakılabilen tüm şartlar sağlanıyor.</b>`;
+      : `<b style="color:var(--ok)">Bakılabilen tüm şartlar sağlanıyor.</b>`;
 
   /* ⚠️ Kalan KREDİ sütunu YOK ve bu bilinçli (22.08.2026).
      Kullanıcı sayının yanlış çıktığını bildirdi; iki sebebi vardı — kendi
@@ -8402,7 +8424,7 @@ function renderBasvuruBody(){
       <td>${esc(o.name)}<div class="why">${esc(o.iteration || o.planTitle)}</div></td>
       <td class="mono">${o.slotsTotal}</td>
       <td class="mono">${o.alreadyCount
-        ? `<b style="color:var(--anadal)">${o.alreadyCount}</b>` : "0"}
+        ? `<b style="color:var(--ok)">${o.alreadyCount}</b>` : "0"}
         ${o.alreadyCount ? `<div class="why mono">${o.already.slice(0,4).map(esc).join(", ")}${
           o.alreadyCount > 4 ? " …" : ""}</div>` : ""}</td></tr>`).join("");
 

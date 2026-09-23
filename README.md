@@ -205,7 +205,7 @@ tools/
   site_kur.py            statik site üretici (katalogu budar + temizler)
   gizlilik_denetimi.py   kişisel veri sızıntısı denetimi
   tasarim_envanteri.py   CSS envanteri + ölçek denetimi (--denetle, --jetonlar)
-  kontrast_olcumu.py     palet kontrastı (64 çift, iki tema)
+  kontrast_olcumu.py     palet kontrastı (70 çift, iki tema)
   vitrin.py              gerçekçi UYDURMA öğrenciyle arayüzü aç / ekran görüntüsü
 web/app.js               tarayıcı çalıştırıcısı (Pyodide + IndexedDB)
 ```
@@ -230,7 +230,7 @@ uygulanıyor; kaynak dosya değişmediği için hiçbir beyan kaybolmuyor.
 ## Test
 
 ```bash
-make test        # 1234 test + gizlilik denetimi
+make test        # 1238 test + gizlilik denetimi
 ```
 
 Gizlilik denetimi (`tools/gizlilik_denetimi.py`) dosya adına **değil

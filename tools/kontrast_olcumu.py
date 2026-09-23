@@ -56,6 +56,10 @@ CIFTLER = [
     ("warn-ink", "warn-soft", YAZI_TABANI, "uyarı kutusu yazısı"),
     ("anadal-ink", "anadal-soft", YAZI_TABANI, "anadal bloğu yazısı"),
     ("cap-ink",    "cap-soft",    YAZI_TABANI, "ÇAP bloğu yazısı"),
+    # Faz 56 — çevrimiçi blok dolgusuz: rolün mürekkebi zeminin üstünde.
+    ("anadal-ink", "ground", YAZI_TABANI, "çevrimiçi anadal bloğu"),
+    ("cap-ink",    "ground", YAZI_TABANI, "çevrimiçi ÇAP bloğu"),
+    ("yandal-ink", "ground", YAZI_TABANI, "çevrimiçi yandal bloğu"),
     ("yandal-ink", "yandal-soft", YAZI_TABANI, "yandal bloğu yazısı"),
     ("ground", "seal",      YAZI_TABANI, "seçili sekmede yazı (ters)"),
     # Kenar ve halka — 3:1

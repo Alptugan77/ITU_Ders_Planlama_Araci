@@ -152,6 +152,47 @@ def test_DENETIM_gercekten_yakaliyor():
     assert "font-size:12.5px" in bulgu and "7px" in bulgu and "#ff0000" in bulgu
 
 
+def test_TANIMLI_renk_jetonu_KULLANILIYOR():
+    """★ `--seal-hover` Faz 43'ten beri tanımlıydı ve HİÇ kullanılmıyordu:
+    birincil düğmenin üzerine gelmesi hâlâ opaklıkla yapılıyordu — tam da
+    jetonun önlemek için eklendiği şey. Tanımlı renk jetonu ölü kalamaz.
+    (Aralık/çizgi/hedef ölçekleri bilerek hariç: onlar değer olarak yazılıp
+    `--denetle` ile ölçeğe bağlanıyor.)"""
+    t0 = KAYNAK.index('_TEMPLATE = r"""')
+    sablon = KAYNAK[t0:]
+    adlar = (list(T.palet("gece")) + [a for a, _, _ in T.TAKMA_ADLAR]
+             + [a for a, _, _ in T.KAGIT_EK] + [a for a, _, _ in T.YAZI_BOYU]
+             + [a for a, _, _ in T.AILELER] + [a for a, _, _ in T.KATMAN])
+    olu = [a for a in adlar if f"var(--{a})" not in sablon]
+    assert not olu, f"tanımlı ama kullanılmayan jeton: {olu}"
+    kural = re.search(r"\.ghost\.primary:hover\{([^}]*)\}", _kod(CSS)).group(1)
+    assert "seal-hover" in kural and "opacity" not in kural, kural
+
+
+def test_BLOK_ICI_yazi_yalniz_INK():
+    """★★ Ton merdiveniyle ölçüldü (en kötü basamak): blok adı `-ink` %85
+    opaklıkta 3.80:1, saat · yer · CRN satırı `ink-2` ile 3.09:1 — taban
+    4.5. v1 sistemi kuralı yazmıştı, kod almamıştı."""
+    duz = _kod(CSS)
+    for secici in (r"\.blkad", r"\.blk small", r"\.daylist \.row small"):
+        kural = re.search(r"(?m)^" + secici + r"\{([^}]*)\}", duz).group(1)
+        assert "opacity" not in kural, (secici, kural)
+        assert "ink-2" not in kural and "ink-3" not in kural, (secici, kural)
+    import ton_merdiveni as M
+    yazi, _z, _a = M.olc(M.MERDIVEN)
+    assert yazi >= 4.5, yazi
+
+
+def test_DURUM_rengi_ROL_rengi_degil():
+    """v1'de ✓, "tamam", "programda" doğrudan `--anadal` yazıyordu: rol
+    (hangi program) ile durum (sağlandı mı) aynı adı taşıyordu."""
+    duz = _kod(CSS)
+    for secici in (r"\.check\.ok \.mark", r"\.ozet\.ok", r"\.gaugebar \.track i\.ok"):
+        kural = re.search(r"(?m)^" + secici + r"\{([^}]*)\}", duz).group(1)
+        assert "var(--ok)" in kural and "anadal" not in kural, (secici, kural)
+    assert ">programda</span>" in KAYNAK and 'color:var(--ok)">programda' in KAYNAK
+
+
 def test_yazi_TABANI_11px():
     """v1 "10.5px taban" diyordu ama kodda 8.5/9/9.5/10px vardı. v2'de akan
     metin ≥11px; 10px YALNIZ grafik ekseni ve sayaçta (`--fs-2xs`)."""
@@ -217,6 +258,18 @@ def test_YER_DURUMU_esigi_doluluk_ile_AYNI():
     assert 'bos === 0 ? "full" : (bos <= 3 ? "tight"' in dl
 
 
+def test_ACIKLAMA_esnek_satirda_DEGIL():
+    """★ Bölüm açıklamaları esnek `.summary` içindeydi: her `<b>` ayrı öğe
+    oldu ve Kademeler'de "Çizgiler önşart bağıdır" cümlenin ortasında kendi
+    satırına kırıldı. Düz yazı taşıyan `.summary` kalmamalı."""
+    t0 = KAYNAK.index('_TEMPLATE = r"""')
+    for m in re.finditer(r'<div class="summary"(?: id="[^"]*")?>([^<]*)', KAYNAK[t0:]):
+        assert not m.group(1).strip(), f"düz yazı esnek satırda: {m.group(1)[:50]!r}"
+    assert KAYNAK[t0:].count('<div class="aciklama">') >= 5
+    kural = re.search(r"(?m)^\.aciklama\{([^}]*)\}", _kod(CSS)).group(1)
+    assert "display" not in kural, "açıklama yine esnek/ızgara yapılmış"
+
+
 def test_ICERIGE_ATLA_var():
     assert '<a class="atla" href="#icerik">İçeriğe atla</a>' in KAYNAK
     assert ".atla:focus{top:var(--sp-4)}" in CSS
@@ -246,12 +299,19 @@ with sync_playwright() as p:
         .filter(e => e.querySelector('.yerdurum.dolu')).map(e => e.dataset.course).sort().join(',')"""))
     print("AZ:" + pg.evaluate("""() => [...document.querySelectorAll('#grid .blk .yerdurum.az')]
         .map(e => e.textContent.trim()).join(',')"""))
+    print("BLOK_YAZI:" + str(pg.evaluate("""() => [...document.querySelectorAll('#grid .blk:not(.mesgul)')]
+        .every(b => { const c = getComputedStyle(b).color;
+          return [...b.querySelectorAll('small, .blkad')].every(e => getComputedStyle(e).color === c
+            && getComputedStyle(e).opacity === '1'); })""")))
     print("OZET_DOLU:" + pg.evaluate("() => (document.querySelector('.ozetdolu')||{}).textContent || ''").replace("\n", " "))
     print("YUK:" + str(pg.evaluate("() => !!document.querySelector('#schedSummary .yuk[role=img]')")))
     # Yandal öğrencisi: lejant noktası yandal renginde.
     print("LEJANT:" + pg.evaluate("""() => { const e = DATA.seconds; DATA.seconds = [{kind:'yandal',
         role:'YANDAL', label:'yandal', program:'X'}]; render();
         const h = document.querySelector('.ozetlejant').innerHTML; DATA.seconds = e; render(); return h.includes('var(--yandal)') && !h.includes('var(--cap)') ? 'yandal' : h; }"""))
+    pg.evaluate("() => gorunumAc('tierSection')"); pg.wait_for_timeout(200)
+    print("ACIKLAMA:" + pg.evaluate("""() => { const d = document.querySelector('#tierSection .aciklama');
+        return d ? getComputedStyle(d).display : '-'; }"""))
     pg.evaluate("() => gorunumAc('changeSection')"); pg.wait_for_timeout(200)
     print("DEGISTI:" + pg.evaluate("() => document.querySelector('#changeWhen').textContent"))
     # İçeriğe atla: ilk Tab görünür bağlantıya, Enter odağı <main>e.
@@ -297,11 +357,13 @@ def test_UCTAN_UCA_vitrin(tmp_path):
     assert int(c["BASLIK_H"]) < 50, f"başlık/kip/sekme satırı sarmış: {c['BASLIK_H']}px"
     assert c["DOLU"] == "GEO 331E", f"dolu şube ızgarada işaretlenmedi: {c['DOLU']}"
     assert c["AZ"] == "son 2", c["AZ"]
+    assert c["BLOK_YAZI"] == "True", "blok içi yazı -ink'ten sapmış (renk ya da opaklık)"
     assert "GEO 331E" in c["OZET_DOLU"], c["OZET_DOLU"]
     assert c["YUK"] == "True"
     assert c["LEJANT"] == "yandal", f"yandal lejantı: {c['LEJANT']}"
     assert re.match(r"\d{2}\.\d{2}\.\d{4} \d{2}:\d{2} → \d{2}\.\d{2}\.\d{4} \d{2}:\d{2}",
                     c["DEGISTI"]), c["DEGISTI"]
+    assert c["ACIKLAMA"] == "block", f"Kademeler açıklaması: {c['ACIKLAMA']}"
     assert c["ATLA"] == "atla|true", c["ATLA"]
     assert c["MAIN"] == "icerik|", f"odak <main>e geçmedi ya da adres kirlendi: {c['MAIN']}"
     assert "mesgul=staj" in c["TEL_CUMA"], f"telefonda cuma: {c['TEL_CUMA']}"

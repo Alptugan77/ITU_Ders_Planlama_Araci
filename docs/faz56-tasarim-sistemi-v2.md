@@ -9,8 +9,8 @@ more usable and useful."*
 gez ve bulduğunu düzelt. Hiçbiri tahminle yapılmadı; her karar aşağıda bir
 sayıya bağlı.
 
-Testler **1215 → 1230** (+15), 4 atlandı. Geri alma deneyi: altı
-davranış düzeltmesinin **altısı** geri konunca kendi sebebiyle kırmızı.
+Testler **1215 → 1234** (+19), 4 atlandı. Geri alma deneyi: on bir
+düzeltmenin **on biri** geri konunca kendi sebebiyle kırmızı.
 
 ---
 
@@ -100,8 +100,8 @@ geçersiz kılardı. v2'nin renkte getirdiği şey **anlam**:
 | `shadow-toast/-sticky/-lift` | yüzen katman gölgeleri | üç `rgba()` satır içindeydi |
 | `kagit-*` | kâğıt çizgisi/mürekkebi | yazdırma bloğunda `#999`, `#666`, `#000` satır içindeydi |
 
-Kontrast aracı artık **64 çifti** iki temada ölçüyor (52'den; yeni
-`border-control` ×4 ve şube rozeti ×2). Hepsi tabanın üstünde. Ton
+Kontrast aracı artık **70 çifti** iki temada ölçüyor (52'den; yeni
+`border-control` ×4, şube rozeti ×2, çevrimiçi blok ×3). Hepsi tabanın üstünde. Ton
 merdiveni değişmedi: en kötü yazı 4.67, zemin ΔE 0.039.
 
 ### C. ★ `color-scheme` — gece temasında beyaz onay kutusu
@@ -213,6 +213,21 @@ değişiminde üst çubuktaki ve raydaki ~13 durağı geçiyordu. İlk Tab'da
 görünen bir bağlantı odağı `<main>`e taşıyor; adres çubuğuna `#icerik`
 yazmıyor (paylaşılan bağlantı `#crn=` taşıyor, onu kirletmesin).
 
+### L. ★★ v1 sisteminin YAZDIĞI dört kural kodda YOKTU
+
+v2 artifact'ını kurmak için v1'in bileşen kartları tek tek okundu. Dördü,
+kodun hiç almadığı bir kuralı anlatıyordu — sistem doğru, uygulama eksikti:
+
+| v1 kuralı | kodda | ölçüm |
+|---|---|---|
+| *"Bloktaki bütün yazı `-ink`: ad için opaklık, saat için `ink-2` verme"* | `.blkad{opacity:.85}`, `.blk small{color:var(--ink-2)}` | ton merdiveninin en kötü basamağında ad **3.80:1**, saat · yer · **CRN** satırı **3.09:1** (taban 4.5). CRN kayıt günü elle yazılan sayı. Düzeldi: tam `-ink`, **4.67:1** |
+| *"Birincil düğme: `seal-hover` (opaklık değil)"* | `.ghost.primary:hover{opacity:.9}` — jeton Faz 43'ten beri **tanımlı ve hiç kullanılmıyor** | düzeldi; artık "tanımlı renk jetonu ölü kalamaz" testi var |
+| *"Açıklama paragrafı `.aciklama`; `.summary` yalnız sayı satırı"* | beş bölüm açıklaması esnek `.summary` içinde | Kademeler'de **"Çizgiler önşart bağıdır"** cümlenin ortasında kendi satırına kırılıyordu (her `<b>` ayrı esnek öğe). Esnek kutu sınıfının dördüncü görülüşü |
+| rol ≠ durum | ✓, "tamam", "programda", tamamlanmış adım `--anadal` | 20 satır `--ok`/`--ok-soft`e; odak halkası `--focus`a |
+
+Kontrast aracı artık **70 çifti** ölçüyor (çevrimiçi bloğun dolgusuz
+hâli için rolün mürekkebi zeminde: ≥9.72:1).
+
 ---
 
 ## 4. Bedeli ve kendi hatalarım
@@ -234,7 +249,7 @@ gölge jetonunu ve `--kagit-*`yi tanıyor; Faz 51'in zorlanmış renk listesine
 
 ## 5. Testler
 
-`tests/test_faz56_tasarim_v2.py` (15 test):
+`tests/test_faz56_tasarim_v2.py` (19 test):
 
 | test | neyi tutuyor |
 |---|---|
@@ -252,6 +267,10 @@ gölge jetonunu ve `--kagit-*`yi tanıyor; Faz 51'in zorlanmış renk listesine
 | `test_YER_YOK_kalkti_TEK_soz` | terminal + arayüz |
 | `test_YER_DURUMU_esigi_doluluk_ile_AYNI` | iki yerde aynı eşik |
 | `test_ICERIGE_ATLA_var` | |
+| `test_ACIKLAMA_esnek_satirda_DEGIL` | düz yazı esnek satırda değil |
+| `test_TANIMLI_renk_jetonu_KULLANILIYOR` | ★ ölü jeton yok (`seal-hover`) |
+| `test_BLOK_ICI_yazi_yalniz_INK` | ★★ 3.09 / 3.80:1 geri gelmesin |
+| `test_DURUM_rengi_ROL_rengi_degil` | `--ok` ≠ `--anadal` |
 | `test_UCTAN_UCA_vitrin` | ★★ vitrin öğrencisiyle: `color-scheme` iki temada, başlık tek satır, `DOLU`/`SON 2` rozetleri, özetteki dolu şube, yandal lejantı, okunur tarih, Tab → atla → `<main>`, telefonda cuma "staj", yatay taşma yok |
 
 **Geri alma deneyi** (her biri geri konup test koşuldu):
@@ -264,6 +283,11 @@ gölge jetonunu ve `--kagit-*`yi tanıyor; Faz 51'in zorlanmış renk listesine
 | okunur tarih | 🔴 `2026-09-22T17:34:26 → …` |
 | lejant rengi | 🔴 `yandal lejantı:` |
 | atla odağı | 🔴 `odak <main>e geçmedi` |
+| Kademeler açıklaması `.summary` | 🔴 `düz yazı esnek satırda` + `Kademeler açıklaması: -` |
+| blok saat `ink-2` | 🔴 statik + tarayıcıda |
+| blok adı `opacity:.85` | 🔴 statik + tarayıcıda |
+| birincil üzerine gelme opaklık | 🔴 `tanımlı ama kullanılmayan` |
+| ✓ işareti `--anadal` | 🔴 `rol rengi` |
 
 ---
 
