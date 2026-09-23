@@ -651,6 +651,11 @@ class Schedule:
         """Aynı gün içinde kampüs değiştiren ardışık ders çifti sayısı."""
         by_day: dict[int, list[tuple[int, str | None]]] = {}
         for pick in self.picks:
+            # ★ Faz 57: çevrimiçi şube kampüste değil (`Section.campuses`
+            # bunu biliyordu, bu sayım bilmiyordu) — kayıtlı dersliği olan
+            # çevrimiçi ders var olmayan bir yolculuk ekliyordu.
+            if pick.section.online:
+                continue
             for m in pick.section.meetings:
                 by_day.setdefault(m.day, []).append((m.start, m.campus))
         changes = 0

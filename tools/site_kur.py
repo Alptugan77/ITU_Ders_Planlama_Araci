@@ -73,7 +73,7 @@ PYODIDE_VERSION = "314.0.5"
 ENGINE = ["__init__", "basvuru", "changes", "config", "db", "declared",
           "discover", "normalize", "notlar", "plans", "policy", "prereq",
           "progress", "recommend", "rules", "sequence", "server",
-          "student", "tasarim", "ui"]
+          "student", "tasarim", "ui", "yolharitasi"]
 SCHEMA = ["schema.sql", "schema_user.sql"]
 # Herkese ait yapılandırma. `settings.toml` ve `denklikler.toml` KİŞİSEL —
 # siteye girmiyor; ziyaretçininki tarayıcısında oluşuyor.

@@ -217,6 +217,13 @@ def kur(kok: Path) -> Path:
 
     (kok / "config").mkdir(parents=True, exist_ok=True)
     (kok / "data").mkdir(parents=True, exist_ok=True)
+    # ★ Mevzuat dosyaları da (Faz 57'de fark edildi): `policy` onları
+    # `config.ROOT` altından okuyor ve kök buraya çevrildiği için vitrin
+    # öğrencisinin HİÇ mevzuatı yoktu — GNO eşiği, kredi basamakları, ÇAP
+    # yarıyıl tabanı. Yayınlanan site bu iki dosyayı taşıyor; vitrin de.
+    import shutil
+    for ad in ("kurallar.toml", "katalog-duzeltmeleri.toml"):
+        shutil.copy(KOK / "config" / ad, kok / "config" / ad)
     (kok / "config" / "settings.toml").write_text(
         "[student]\n"
         'anadal_program = "HTAE"\n'
@@ -348,7 +355,7 @@ def ac(kok: Path | None = None) -> tuple[str, object]:
     return f"http://127.0.0.1:{h.server_address[1]}/", h
 
 
-GORUNUMLER = ["schedSection", "panels", "candSection", "tierSection",
+GORUNUMLER = ["schedSection", "panels", "roadmapSection", "candSection", "tierSection",
               "blockSection", "creditSection", "changeSection", "basvuruSection"]
 
 

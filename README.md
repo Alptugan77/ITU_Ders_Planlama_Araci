@@ -42,9 +42,22 @@ ders hangisine sayılıyor, hangi önşart açık, bu dönem hangi kombinasyon
   **öneri puanına girmiyor** — hangi dersin değdiği senin kararın.
 * **Darboğaz raporu** — bir ders neden alınamıyor: önşart mı, kontenjan mı,
   programa kapalı mı, kredi eşiği mi.
+* **Mezuniyet yol haritası** — kalan dersler dönem dönem: önşart sırası,
+  dönem kredi sınırın, dersin açıldığı mevsim ve ÇAP yarıyıl tabanı hesaba
+  katılıyor; her programın tahmini bitişi planındaki bitişle
+  karşılaştırılıyor ve **"bu dönem şunu alırsan N dönem erken bitersin"**
+  yazıyor. ⚠️ Bir plan, kehanet değil: varsayımları (her ders ilk denemede
+  geçilir, yaz okulu yok, gelecek dönemlerin şubesi bilinmiyor) haritanın
+  üstünde yazıyor.
+* **GNO hedefi** — eşikte kalmak (ÇAP'a devam, mezuniyet, bir üst kredi
+  bandı) için bu dönem **en az** hangi ortalama gerekiyor; tekrar aldığın
+  dersin eski notu düşülerek. Tahmin değil, gereken notun hesabı.
 * **Okunur haftalık program** — renk hangi programdan olduğunu (anadal /
   ÇAP / yandal), ton hangi ders olduğunu söylüyor; seçtiğin şube doluysa
-  ya da son birkaç yeri kaldıysa blokta **DOLU / SON N** yazıyor. ⚠️ Ton merdiveni ölçüyle
+  ya da son birkaç yeri kaldıysa blokta **DOLU / SON N** yazıyor; dolu
+  şubenin yerine boş ve çakışmayan bir şube varsa özetten **tek dokunuşla**
+  geçiliyor. Özet haftanın şeklini de yazıyor (kaç gün kampüstesin, en uzun
+  ara). ⚠️ Ton merdiveni ölçüyle
   seçildi: yazı kontrastı iki temada da WCAG AA'nın (4.5) üstünde, 9 tondan
   sonrası tekrar ediyor ve bunu ekranda **yazıyor**.
 

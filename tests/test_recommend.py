@@ -200,6 +200,21 @@ def test_campus_change_counted():
     assert schedule.campus_changes() == 1
 
 
+def test_CEVRIMICI_sube_kampus_degisimi_SAYILMIYOR():
+    """Faz 57 — `Section.campuses()` çevrimiçi şubeyi zaten dışlıyordu;
+    `campus_changes()` dışlamıyordu. Kayıtlı dersliği Maçka'da olan
+    çevrimiçi ders, Ayazağa'daki öğrenciye bir yolculuk ekliyordu."""
+    a = REC.Candidate("A 101", "", "CAP", 5, 3, 0, 0, False, True, [])
+    b = REC.Candidate("B 102", "", "CAP", 5, 3, 0, 0, False, True, [])
+    cevrimici = _section("2", "B 102", [_meeting(1, 660, 780, "MAC", "Maçka")])
+    cevrimici.method = "Virtual (Online)"
+    schedule = REC.Schedule([
+        REC.Pick(a, _section("1", "A 101", [_meeting(1, 480, 600, "INB", "Ayazağa")])),
+        REC.Pick(b, cevrimici),
+    ])
+    assert schedule.campus_changes() == 0
+
+
 def test_alternatives_exclude_conflicting_crns(dbs):
     con, ucon, sid = dbs
     cands = REC.candidates(con, ucon, sid, 10, 20, "HTAE", "BLG", {"HTAE","BLG","BLGE"}, "akts")

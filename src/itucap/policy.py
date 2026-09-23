@@ -285,6 +285,10 @@ class Gpa:
     # sayılmaları GNO şartına bağlı; şart HENÜZ DOĞRULANMADI, o yüzden motor
     # bir kural uygulamıyor — yalnız hangi dersler olduğunu söylüyor.
     conditional: list[str] = field(default_factory=list)
+    # ★ Faz 57 — yuvarlanmamış not puanı toplamı (Σ puan × kredi). GNO hedefi
+    # `value × credits`tan hesaplansaydı 2 haneli yuvarlama 100+ kredide
+    # gereken dönem ortalamasını 0.05'e kadar kaydırırdı.
+    points: float = 0.0
 
     @property
     def partial(self) -> bool:
@@ -329,7 +333,7 @@ def gpa(con: sqlite3.Connection, graded: Mapping[str, str],
     return Gpa(value, round(total_credits, 1), counted,
                sorted(no_credit), sorted(not_graded),
                sorted(unknown_grade & set(graded)),
-               sorted(conditional))
+               sorted(conditional), round(total_points, 4))
 
 
 @dataclass(frozen=True)

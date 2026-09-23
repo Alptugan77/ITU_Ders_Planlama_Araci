@@ -391,6 +391,25 @@ her maddeden önce gelen tek iş.
 > Geri alma deneyi: 11/11 kırmızı. Renk değerleri bilerek DEĞİŞMEDİ.
 > ➜ Ayrıntı ve ölçümler: `docs/faz56-tasarim-sistemi-v2.md`
 >
+> **Faz 57'de kapananlar (23.09.2026 — yol haritası):** kullanıcı: *"improve
+> and add necessary features for a program like this … and also when a
+> window opens and to close mouse is clicked out of the window just close
+> the window do not interact with background"*. Dış tıklama artık **yalnız
+> kapatıyor** — Faz 55'in arkaya geçirmesi kaldırıldı, üç güvence duruyor ✅
+> · ★★ **Mezuniyet yol haritası** (`src/itucap/yolharitasi.py`, fikirler
+> §2.1): kalan dersler dönem dönem, önşart sırası + kredi sınırı + mevsim +
+> ÇAP yarıyıl tabanı; program başına tahmini bitiş ve plandaki bitişle
+> farkı; varsayımlar planın üstünde ✅ · ★★ "bu dönem şunu alırsan": vitrinde
+> öneri 1 GEO 341E'yi dışarıda bırakıp anadalı **bir yıl** geciktiriyordu,
+> hiçbir yerde yazmıyordu ✅ · ★ GNO hedefi: eşikte kalmak için bu dönem
+> gereken ortalama, tekrar alınan dersin eski notu düşülerek ✅ · dolu
+> şubeden boş şubeye tek dokunuş ✅ · özette haftanın şekli ✅ · kampüs
+> tercihinin veri kapsamı (F.2) ✅ · çevrimiçi şube kampüs değişimi
+> sayılıyordu ✅ · vitrinin **hiç mevzuatı yoktu** ✅
+> Geri alma deneyi: 12/12 kırmızı. Benzer araçlarla karşılaştırma ve kalan
+> fikirler: `docs/fikirler.md` "Faz 57 araştırması".
+> ➜ Ayrıntı: `docs/faz57-yol-haritasi.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

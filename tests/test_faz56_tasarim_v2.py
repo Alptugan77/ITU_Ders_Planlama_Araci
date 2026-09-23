@@ -356,7 +356,11 @@ def test_UCTAN_UCA_vitrin(tmp_path):
     assert c["SEMA"] == "dark" and c["TEL_SEMA"] == "light", c
     assert int(c["BASLIK_H"]) < 50, f"başlık/kip/sekme satırı sarmış: {c['BASLIK_H']}px"
     assert c["DOLU"] == "GEO 331E", f"dolu şube ızgarada işaretlenmedi: {c['DOLU']}"
-    assert c["AZ"] == "son 2", c["AZ"]
+    # ⚠️ Faz 57: vitrin artık mevzuat dosyalarını da taşıyor; GNO'dan gelen
+    # 25 kredilik sınır açılış önerisine bir ders daha (son 1 yerli) ekledi.
+    # Ölçülen şey rozetin ÇİZİLMESİ: BLG 222E'nin şubesi "son 2" olmalı.
+    az = c["AZ"].split(",")
+    assert "son 2" in az and all(re.fullmatch(r"son [123]", x) for x in az), c["AZ"]
     assert c["BLOK_YAZI"] == "True", "blok içi yazı -ink'ten sapmış (renk ya da opaklık)"
     assert "GEO 331E" in c["OZET_DOLU"], c["OZET_DOLU"]
     assert c["YUK"] == "True"
