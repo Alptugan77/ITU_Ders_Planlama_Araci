@@ -101,9 +101,12 @@ def test_CAP_BITISI_salt_okunur_ve_KREDISIZ():
 
 def test_CAP_BITISI_girdiyi_SINIRLIYOR():
     k = KAYNAK[KAYNAK.index("def cap_bitisleri("):KAYNAK.index("def _plan_uyarisi(")]
-    assert "if not 1 <= max_load <= 60:" in k
+    # Faz 61: kredi ve ders sınırı senaryoyla ORTAK `_harita_girdisi`nde.
+    g = KAYNAK[KAYNAK.index("def _harita_girdisi("):KAYNAK.index("def yol_senaryosu(")]
+    assert "_harita_girdisi(" in k
+    assert "if not 1 <= max_load <= 60:" in g
     assert "for pid in list(plan_ids or [])[:60]:" in k
-    assert "for x in (bu_donem or [])[:20]" in k
+    assert "for x in (bu_donem or [])[:20]" in g
 
 
 # ------------------------------------------------------------------ §3.6 — tercih önizlemesi

@@ -1404,6 +1404,69 @@ def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
         return {"error": f"{type(exc).__name__}: {exc}"}
 
 
+def _harita_girdisi(con, ucon, student_id: int, settings, bu_donem, max_load) -> dict:
+    """İstek üzerine kurulan haritaların (ÇAP seçenekleri, senaryolar) ORTAK
+    girdisi ve doğrulaması — ikisi ayrışırsa aynı öğrenci için iki farklı
+    harita çıkardı."""
+    from .plans import anadal_plan
+    anadal_id = anadal_plan(con, settings)
+    term = str(settings.term or "")
+    if not anadal_id or len(term) != 6:
+        raise ValueError("anadal planı ya da dönem bilinmiyor")
+    try:
+        max_load = float(max_load)
+    except (TypeError, ValueError):
+        raise ValueError("kredi sınırı geçersiz") from None
+    if not 1 <= max_load <= 60:
+        raise ValueError("kredi sınırı geçersiz")
+    return {
+        "anadal_id": anadal_id, "term": term, "max_load": max_load,
+        "grades": S.grades(ucon, student_id),
+        "equivalences": R.load_equivalences(con, ucon=ucon),
+        "donem": int(settings.donem or 0),
+        "bu": [{"course": str(x.get("course") or ""), "credits": float(x.get("credits") or 0),
+                "slotId": 0, "role": str(x.get("role") or "")}
+               for x in (bu_donem or [])[:20] if x.get("course")],
+        "anadal": {"planId": anadal_id, "role": "ANADAL", "label": "anadal",
+                   "program": settings.anadal_program},
+    }
+
+
+def yol_senaryosu(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
+                  settings, bu_donem: list[dict], max_load, bos) -> dict:
+    """Faz 61 — yol haritası SENARYOSU: daha hafif dönem yükü ve boş dönemler.
+
+    "Çalışıyorum, dönemde en çok 18 kredi alabilirim", "3. dönem Erasmus'a
+    gidiyorum" — ikisi de bitişi değiştiriyor ve ikisi de ancak haritayı
+    YENİDEN kurarak ölçülebiliyor. Kaydedilmiyor (salt okunur
+    `/api/yolharitasi`); arayüz sonucu bugünkü haritayla karşılaştırıyor.
+    Programlar ve ÇAP tabanı `collect` ile AYNI kaynaktan (`resolve_seconds`,
+    `cap_baslangic_yariyili`).
+    """
+    from .plans import resolve_seconds
+    g = _harita_girdisi(con, ucon, student_id, settings, bu_donem, max_load)
+    try:
+        bos = sorted({int(x) for x in (bos or [])})
+    except (TypeError, ValueError):
+        raise ValueError("boş dönem geçersiz") from None
+    if any(not 1 <= x <= YH.UFUK for x in bos) or len(bos) > 6:
+        raise ValueError("boş dönem geçersiz")
+    ikinci = resolve_seconds(con, settings)
+    cap = next((x for x in ikinci if x.get("kind") == "cap" and x.get("planId")), None)
+    taban = POL.second_floor(settings.cap_baslangic_yariyili) if cap else None
+    planlar = [g["anadal"]] + [{"planId": x["planId"], "role": x["role"], "label": x["label"],
+                                "program": x["program"]} for x in ikinci if x.get("planId")]
+    h = YH.kur(con, g["grades"], planlar, term=g["term"], donem=g["donem"],
+               max_load=g["max_load"], bu_donem=g["bu"],
+               bu_donem_kaynagi="senaryo", equivalences=g["equivalences"],
+               taban=taban, bos=bos)
+    az = POL.load_max_duration()
+    h["maxDuration"] = ({"semesters": az.semesters, "verified": az.verified,
+                         "source": az.source, "note": az.note} if az else None)
+    h["scenario"] = {"maxLoad": g["max_load"], "empty": bos}
+    return h
+
+
 def cap_bitisleri(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                   settings, plan_ids: list, bu_donem: list[dict],
                   max_load: float) -> dict:
@@ -1422,26 +1485,11 @@ def cap_bitisleri(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id:
     ⚠️ Salt okunur ve istek üzerine (`/api/capbitis`): 60 programı sayfa
     açılırken kurmak statik sitede (Pyodide) saniyeler sürerdi.
     """
-    from .plans import anadal_plan
-    anadal_id = anadal_plan(con, settings)
-    term = str(settings.term or "")
-    if not anadal_id or len(term) != 6:
-        raise ValueError("anadal planı ya da dönem bilinmiyor")
-    try:
-        max_load = float(max_load)
-    except (TypeError, ValueError):
-        raise ValueError("kredi sınırı geçersiz") from None
-    if not 1 <= max_load <= 60:
-        raise ValueError("kredi sınırı geçersiz")
-    grades = S.grades(ucon, student_id)
-    equivalences = R.load_equivalences(con, ucon=ucon)
-    donem = int(settings.donem or 0)
+    g = _harita_girdisi(con, ucon, student_id, settings, bu_donem, max_load)
+    anadal_id, term, max_load = g["anadal_id"], g["term"], g["max_load"]
+    grades, equivalences, donem, bu = g["grades"], g["equivalences"], g["donem"], g["bu"]
     taban = POL.second_floor(donem + 1) if donem else None
-    bu = [{"course": str(x.get("course") or ""), "credits": float(x.get("credits") or 0),
-           "slotId": 0, "role": str(x.get("role") or "")}
-          for x in (bu_donem or [])[:20] if x.get("course")]
-    anadal = {"planId": anadal_id, "role": "ANADAL", "label": "anadal",
-              "program": settings.anadal_program}
+    anadal = g["anadal"]
 
     def kur(planlar):
         return YH.kur(con, grades, planlar, term=term, donem=donem, max_load=max_load,
@@ -2945,6 +2993,23 @@ table.cmp .meta.arti{color:var(--ok)}
 .yhdonem.yaz{border-style:dashed;border-color:var(--warn)}
 .yhyaz{margin-top:14px}
 .yhdugmeler{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+/* Faz 61 — senaryo. */
+.yhsenaryo{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-bottom:14px;
+  font-size:var(--fs-md)}
+.yhsenaryo select{width:auto}
+.yhbosetiket{color:var(--ink-3)}
+.yhseritsenaryo{border-left-color:var(--warn);margin-bottom:14px}
+.yhseritsenaryo button{margin-left:8px}
+.yhdonem.atlandi{border-style:dashed;border-color:var(--warn)}
+/* Faz 61 — danışman özeti. */
+.dozet h3{font-size:var(--fs-md);margin:14px 0 6px;letter-spacing:var(--ls-eyebrow);
+  text-transform:uppercase;color:var(--seal)}
+.dozet table{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+.dozet td,.dozet th{border-bottom:1px solid var(--border);padding:4px 6px;text-align:left;
+  vertical-align:top}
+.dozet ul{margin:4px 0 0;padding-left:20px;font-size:var(--fs-md);line-height:var(--lh-normal)}
+.dozet .dsoru li{margin-bottom:4px}
+.dozet .dnot{font-size:var(--fs-sm);color:var(--ink-3);margin-top:12px}
 .yhdonem>h3{font-size:var(--fs-xs);letter-spacing:var(--ls-eyebrow);color:var(--seal);
   padding-bottom:6px;border-bottom:2px solid var(--border-strong);display:flex;
   gap:6px;align-items:center;flex-wrap:wrap}
@@ -3349,6 +3414,9 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
      Ekranda pencerede duruyor; yazdırırken pencere açık olmayabilir. */
   #printCrn{display:block !important}
   a[href]::after{content:""}          /* URL'leri metne eklemesin */
+  /* Faz 61 — danışman özeti: yalnız özet basılıyor (kap <body>'ye taşınıyor). */
+  body.ozetbaski>*:not(#ozetBaski){display:none !important}
+  body.ozetbaski #ozetBaski{display:block !important}
 }
 #printCrn{display:none}
 #printCrn table{width:100%;border-collapse:collapse;font-size:11pt}
@@ -3385,6 +3453,8 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 
 <!-- D1: bozuk ayar dosyası. Sayfa açılıyor ama ne olduğu yazıyor. -->
 <div class="note ayarhata" id="ayarHatasi" hidden></div>
+<!-- Faz 61: danışman özetinin baskı kabı — yalnız "Yazdır"da doluyor. -->
+<div id="ozetBaski" hidden></div>
 <!-- Faz 60: çevrimdışı ya da cihazdaki kopyadan açıldı — veri canlı değil. -->
 <div class="note cevrimdisi" id="cevrimdisiNot" role="status" hidden></div>
 
@@ -3496,6 +3566,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
       <button class="ghost" id="crnBtn">Kayıt günü</button>
       <button class="ghost" id="icsBtn">Takvime aktar</button>
       <button class="ghost" id="pngBtn">Resim (PNG)</button>
+      <button class="ghost" id="danismanBtn">Danışman özeti</button>
       <button class="ghost" id="shareBtn">Bağlantı</button>
       <button class="ghost" id="crnLoad">CRN'den yükle</button>
       <span id="savedMark" class="chip" style="color:var(--ok)" hidden></span>
@@ -5223,6 +5294,14 @@ function trOnizlemeCiz(p){
    ★ İndirim OTOMATİK DEĞİL: yönerge "düşürülebilir" diyor, "düşürülür"
    demiyor. Tabanı sessizce yarıya çekmek, alınmamış bir FYK kararını
    alınmış varsaymak olurdu. Bir ÇARE olarak gösteriliyor. */
+/* Yarıyıl tabanının bu dönemki durumu — renderFloor ve danışman özeti
+   AYNI hesabı kullanıyor (Faz 61). Yalnız İKİNCİ programın kredileri. */
+function tabanDurumu(F){
+  const ikinci = picks().filter(p => p.cand.role !== "ANADAL");
+  const kredi = +ikinci.reduce((a,p) => a + (p.cand.credits || 0), 0).toFixed(1);
+  return {ikinci, kredi, ok: kredi + 1e-9 >= F.min, eksik: +(F.min - kredi).toFixed(1)};
+}
+
 function renderFloor(){
   const box = $("#floorBody");
   const F = DATA.secondFloor;
@@ -5242,11 +5321,7 @@ function renderFloor(){
     return;
   }
 
-  // Yalnız İKİNCİ programın kredileri — anadal sayılmaz.
-  const ikinci = picks().filter(p => p.cand.role !== "ANADAL");
-  const kredi = +ikinci.reduce((a,p) => a + (p.cand.credits || 0), 0).toFixed(1);
-  const ok = kredi + 1e-9 >= F.min;
-  const eksik = +(F.min - kredi).toFixed(1);
+  const {ikinci, kredi, ok, eksik} = tabanDurumu(F);
   const R = F.relief;
   const indirimYeterMi = R && kredi + 1e-9 >= R.min;
 
@@ -5929,6 +6004,8 @@ function wirePicks(){
   if(ics) ics.onclick = icsIndir;
   const png = $("#pngBtn");
   if(png) png.onclick = () => resimIndir().catch(err => hataBildir(png, err));
+  const dan = $("#danismanBtn");
+  if(dan) dan.onclick = danismanDialog;
   const pay = $("#shareBtn");
   if(pay) pay.onclick = paylasDialog;
 }
@@ -6242,6 +6319,131 @@ function icsIndir(){
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   if(saatsiz) alertLine(
     `${saatsiz} dersin saati ilan edilmemiş — takvim dosyasına GİRMEDİ.`);
+}
+
+/* ---------- ★★ FAZ 61 — DANIŞMAN ÖZETİ ----------
+   İTÜ'de ders kaydı danışman onayıyla bitiyor. Öğrenci görüşmeye ne
+   götüreceğini beş ayrı görünümden (program, kredi, yol haritası, darboğaz,
+   başvuru) kendisi topluyordu. Burada tek sayfa: durum, bu dönemin programı
+   CRN'leriyle, mevzuat kontrolleri, tahmini bitiş ve — asıl işe yarayan —
+   KENDİLİĞİNDEN ÇIKAN SORULAR: yalnız ölçülen sorunlardan (taban eksiği,
+   yük aşımı, dolu şube, gecikme, yerleşmeyen ders, tutmayan eşik…).
+   ⚠️ GNO içeriyor — resimden (Faz 58) farkı bu: danışman zaten transkripti
+   görüyor. Sayfa bunu yazıyor. Hesaplar görünümlerle AYNI yardımcılardan
+   (`tabanDurumu`, `totals`, `picks`); özet kendi hesabını yapmıyor. */
+const buyukBas = (m) => m ? m.charAt(0).toLocaleUpperCase("tr") + m.slice(1) : m;
+function danismanSorulari(){
+  const q = [], F = DATA.secondFloor, t = totals(), R = DATA.roadmap, g = DATA.gpa;
+  if(DATA.maxLoad && t.load > DATA.maxLoad)
+    q.push(`Programım <b>${t.load}</b> ${esc(DATA.unitLabel)}, sınırım ${DATA.maxLoad} —
+      hangi dersi bırakmalıyım ya da sınır artırılabilir mi?`);
+  if(F && !F.undeclared){
+    const d = tabanDurumu(F);
+    if(!d.ok) q.push(`İkinci anadaldan bu dönem <b>${d.kredi}</b> kredi alıyorum; yarıyıl
+      tabanı ${F.min} (<b>${d.eksik}</b> eksik).${F.relief ? ` Tabanın ${F.relief.min}'e
+      indirilmesi için başvurabilir miyim?` : ""}`);
+  }
+  picks().filter(p => p.sec.capacity && yerSayisi(p.sec) === 0).forEach(p =>
+    q.push(`<b class="mono">${esc(p.cand.course)}</b> şubem (CRN ${esc(p.sec.crn)}) dolu —
+      kontenjan açılabilir mi, başka şubeye mi geçmeliyim?`));
+  picks().filter(p => !p.sec.meetings.length).forEach(p =>
+    q.push(`<b class="mono">${esc(p.cand.course)}</b> dersinin saati ilan edilmemiş —
+      çakışma olup olmadığını nereden öğrenebilirim?`));
+  if(R && !R.error){
+    (R.programs || []).forEach(p => {
+      if(p.finish && p.nominal && p.finish.index > p.nominal.index)
+        q.push(`${esc(buyukBas(p.label))} tahmini bitişim <b>${esc(p.finish.label)}</b>, planımdakinden
+          ${p.finish.index - p.nominal.index} dönem geç — hangi dersleri öne almalıyım?`);
+      if(p.role === "ANADAL" && p.finishSemester && R.maxDuration
+         && p.finishSemester > R.maxDuration.semesters)
+        q.push(`Tahmini bitişim ${p.finishSemester}. yarıyıl — azami süreyi
+          (${R.maxDuration.semesters}) aşıyor. Seçeneklerim neler?`);
+    });
+    (R.takeNow || []).slice(0, 2).forEach(x =>
+      q.push(`<b class="mono">${esc(x.course)}</b> bu dönem alınırsa ${x.gains.map(gg =>
+        `${esc(gg.label)} ${gg.terms} dönem erken`).join(", ")} bitiyor${x.drop
+        ? ` (${esc(x.drop.course)} çıkarak)` : ""} — programıma eklemeli miyim?`));
+    (R.unplaced || []).forEach(u =>
+      q.push(`<b class="mono">${esc(u.course || u.pool)}</b> planlanamıyor: ${esc(u.reason)}.`));
+    const tg = (R.terms || []).filter(x => x.floorGap);
+    if(tg.length) q.push(`Yol haritasında ${tg.map(x => esc(x.label)).join(", ")} döneminde
+      ÇAP yarıyıl tabanı tutmuyor (yeterli ÇAP dersi açılmıyor) — nasıl planlamalıyım?`);
+  }
+  if(g && g.counted){
+    const icinde = new Set(SECONDS().map(x => x.kind));
+    (g.thresholds || []).filter(x => x.ok === false
+        && !(x.kind === "basvuru" && icinde.has(x.scope)))
+      .forEach(x => q.push(`${esc(x.label)} için GNO ≥ ${x.min.toFixed(2)} gerekiyor;
+        tahmini GNO'm ${g.value.toFixed(2)}.`));
+    if((g.conditional || []).length && g.conditionalRule && g.conditionalRule.ok === false)
+      q.push(`Şartlı geçtiğim ${g.conditional.length} ders var ve GNO'm 2.00'ın altında —
+        hangilerini tekrar almalıyım?`);
+  }
+  return q;
+}
+
+function danismanOzeti(){
+  const t = totals(), R = DATA.roadmap, g = DATA.gpa, F = DATA.secondFloor;
+  const ikinci = SECONDS().map(x => `${esc(x.label)} ${esc(x.program)}`).join(" · ");
+  const saat = p => p.sec.meetings.length ? p.sec.meetings.map(m =>
+    `${DAYS[m.day - 1]} ${hhmm(m.start)}–${hhmm(m.end)}`).join(", ") : "saat yok";
+  const satirlar = picks().map(p => `<tr><td class="mono"><b>${esc(p.cand.course)}</b></td>
+    <td>${esc(p.cand.name)}</td><td>${esc(p.cand.role === "PLAN_DISI" ? "plan dışı" : p.cand.role)}</td>
+    <td class="mono">${p.cand.credits}</td><td class="mono">${esc(p.sec.crn)}</td>
+    <td>${saat(p)}</td></tr>`).join("");
+  const kontrol = [];
+  if(DATA.maxLoad) kontrol.push(`Dönem yükü <b class="mono">${t.load} / ${DATA.maxLoad}</b>
+    ${esc(DATA.unitLabel)} ${t.load > DATA.maxLoad ? "— <b>aşıldı</b>" : "✓"}`);
+  if(F && !F.undeclared){
+    const d = tabanDurumu(F);
+    kontrol.push(`ÇAP yarıyıl tabanı <b class="mono">${d.kredi} / ${F.min}</b> ${d.ok ? "✓" : "— <b>eksik</b>"}`);
+  }
+  if(g && g.counted) kontrol.push(`GNO (tahmini) <b class="mono">${g.value.toFixed(2)}</b> ·
+    <span class="mono">${g.credits}</span> kredi`);
+  const bitis = R && !R.error ? (R.programs || []).map(p => `<li><b>${esc(buyukBas(p.label))}</b>:
+    ${p.finish ? `${esc(p.finish.label)}${p.finishSemester ? ` (${p.finishSemester}. yarıyıl)` : ""}`
+      : "hesaplanamadı"}${p.nominal && p.finish ? (p.finish.index > p.nominal.index
+      ? ` — planındakinden ${p.finish.index - p.nominal.index} dönem geç` : " — planındakiyle aynı") : ""}</li>`)
+    .join("") : "";
+  const sorular = danismanSorulari();
+  return `<div class="dozet">
+    <div class="eyebrow">Danışman görüşmesi · ${esc(DATA.termLabel || "")}</div>
+    <h2>Danışman özeti</h2>
+    <div class="meta">Anadal <b>${esc(DATA.anadal || "")}</b>${ikinci ? " · " + ikinci : ""}${
+      DATA.donem ? ` · <b>${DATA.donem}.</b> yarıyıl` : ""} · hazırlandı
+      ${esc(tarihYaz(new Date().toISOString()))}</div>
+    <h3>Bu dönemin programı</h3>
+    ${satirlar ? `<table><thead><tr><th>Ders</th><th>Ad</th><th>Program</th><th>Kr</th>
+      <th>CRN</th><th>Saat</th></tr></thead><tbody>${satirlar}</tbody></table>`
+      : `<div class="empty">Programda ders yok.</div>`}
+    <h3>Kontroller</h3><ul>${kontrol.map(k => `<li>${k}</li>`).join("")}</ul>
+    ${bitis ? `<h3>Tahmini bitiş</h3><ul>${bitis}</ul>` : ""}
+    <h3>Danışmana sorulacaklar</h3>
+    ${sorular.length ? `<ul class="dsoru">${sorular.map(x => `<li>${x}</li>`).join("")}</ul>`
+      : `<div class="meta">Ölçülen bir sorun yok — program kurallara uyuyor.</div>`}
+    <div class="dnot">GNO ve bitiş TAHMİNİ (transkriptinden ve yol haritasının
+      varsayımlarından). Kesin bilgi OBS'de. ⚠️ Bu sayfa GNO'nu içerir — yalnız
+      danışmanınla paylaş. __AD_TAM__ ile hazırlandı; ${esc(veriYasiMetni())}.</div>
+  </div>`;
+}
+
+function danismanDialog(){
+  const html = danismanOzeti();
+  openDialog(html + `<div style="margin-top:12px">
+    <button class="ghost primary" id="ozetYazdir">Yazdır</button></div>`);
+  $("#ozetYazdir").addEventListener("click", () => {
+    /* Baskı kuralı <body>'nin DOĞRUDAN çocuklarını gizliyor; kap bir
+       sarmalayıcının içinde kalırsa sayfa BOŞ basılıyordu (ölçüldü). */
+    const kab = $("#ozetBaski");
+    if(kab.parentElement !== document.body) document.body.appendChild(kab);
+    kab.innerHTML = html;
+    document.body.classList.add("ozetbaski");
+    $("#detail").close();
+    const bitti = () => { document.body.classList.remove("ozetbaski"); kab.innerHTML = "";
+                          removeEventListener("afterprint", bitti); };
+    addEventListener("afterprint", bitti);
+    window.print();
+  });
 }
 
 /* ---------- ★★ FAZ 58 — PROGRAMIN RESMİ (PNG) ----------
@@ -9069,6 +9271,17 @@ function renderSecNav(){
    yarıyılda biter"). Azami süre (`kurallar.toml` [azami_sure]) yalnız
    ANADAL için karşılaştırılıyor: ÇAP'ın kendi süre kuralını doğrulamadık,
    uydurmuyoruz. Doğrulanmamış sayı ⚠ ile ve kaynağıyla. */
+/* Senaryodaki bitiş, bugünkü plandakine göre (aynı rol). */
+function senaryoFarki(p, T){
+  const b = (T.programs || []).find(x => x.role === p.role);
+  const a = b && b.finish, y = p.finish;
+  if(!a || !y) return y || !a ? "" : `<div class="yhgec">bu senaryoda bitiş hesaplanamadı</div>`;
+  const d = y.index - a.index;
+  return d > 0 ? `<div class="yhgec">bugünkü plana göre <span class="mono">${d}</span> dönem geç</div>`
+    : d < 0 ? `<div class="yhzamaninda">bugünkü plana göre ${-d} dönem erken</div>`
+    : `<div class="yhzamaninda">bugünkü planla aynı</div>`;
+}
+
 function yariyilSatiri(p, md){
   if(!p.finishSemester) return "";
   const anadal = p.role === "ANADAL";
@@ -9083,11 +9296,59 @@ function yariyilSatiri(p, md){
       aşıyor — danışmanınla konuş</div>` : ""}`;
 }
 
+/* ★★ FAZ 61 — SENARYO: daha hafif dönem yükü, boş dönem (Erasmus/staj).
+   "Çalışıyorum, en çok 18 kredi", "3. dönem Erasmus" — ikisi de bitişi
+   değiştiriyor ve ikisi de ancak haritayı YENİDEN kurarak ölçülüyor
+   (`/api/yolharitasi`, salt okunur). KAYDEDİLMİYOR: senaryo açıkken şerit
+   bunu söylüyor, kartlar bugünkü plana göre farkı yazıyor. Durum yeniden
+   kurulunca (boot) senaryo kapanıyor — eski bir tabana göre fark yazmasın. */
+let YH_SENARYO = null, YH_AYAR = null;
+function yhAyar(){
+  const T = DATA.roadmap;
+  if(!YH_AYAR) YH_AYAR = {maxLoad: T.maxLoad, bos: new Set()};
+  return YH_AYAR;
+}
+async function yhSenaryoKur(){
+  const T = DATA.roadmap, A = yhAyar();
+  const kutu = $("#yhSenaryoDurum");
+  if(A.maxLoad === T.maxLoad && !A.bos.size){ YH_SENARYO = null; renderRoadmap(); return; }
+  if(kutu) kutu.textContent = "hesaplanıyor…";
+  try{
+    const r = await api("/api/yolharitasi", {bu: capBitisGirdi().bu, maxLoad: A.maxLoad,
+                                             bos: [...A.bos]});
+    YH_SENARYO = r.senaryo;
+  }catch(err){
+    YH_SENARYO = null;
+    if(kutu) kutu.textContent = "senaryo kurulamadı — " + (err.message || err);
+    return;
+  }
+  renderRoadmap();
+}
+function yhSenaryoPaneli(T){
+  if(!(LIVE || window.__ITUCAP_API__)) return "";
+  const A = yhAyar();
+  const yukler = [T.maxLoad, 21, 18, 15, 12].filter((v, i, a) =>
+    v <= T.maxLoad && a.indexOf(v) === i);
+  const donemler = (T.terms || []).filter(t => !t.current && !t.summer && t.index <= 8);
+  return `<div class="yhsenaryo" role="group" aria-label="Senaryo">
+    <span class="eyebrow">Senaryo</span>
+    <label>Dönem başına en çok <select id="yhYuk">${yukler.map(v =>
+      `<option value="${v}"${v === A.maxLoad ? " selected" : ""}>${v}${
+        v === T.maxLoad ? " (sınırın)" : ""}</option>`).join("")}</select> kredi</label>
+    <span class="yhbosetiket">Boş bırak (Erasmus, staj):</span>
+    ${donemler.map(t => `<button class="ghost mini" data-bos="${t.index}"
+      aria-pressed="${A.bos.has(t.index)}">${A.bos.has(t.index) ? "✓ " : ""}${
+        esc(t.label)}</button>`).join("")}
+    <span class="meta" id="yhSenaryoDurum" aria-live="polite"></span>
+  </div>`;
+}
+
 function renderRoadmap(){
-  const sec = $("#roadmapSection"), R = DATA.roadmap;
+  const sec = $("#roadmapSection"), T = DATA.roadmap;
   if(!sec) return;
-  sec.hidden = !R;
-  if(!R) return;
+  sec.hidden = !T;
+  if(!T) return;
+  const R = (YH_SENARYO && !T.error) ? YH_SENARYO : T;
   const body = $("#roadmapBody");
   if(R.error){
     body.innerHTML = `<div class="note ayarhata">Yol haritası kurulamadı —
@@ -9110,6 +9371,7 @@ function renderRoadmap(){
              (${esc(p.nominal.label)})</div>`
         : `<div class="yhzamaninda">planındaki bitişle aynı ✓</div>`)}
       ${yariyilSatiri(p, R.maxDuration)}
+      ${R === T ? "" : senaryoFarki(p, T)}
     </article>`;
   }).join("");
   const simdi = (R.takeNow || []).length ? `<div class="note yhsimdi">
@@ -9149,7 +9411,7 @@ function renderRoadmap(){
       bu zincir en az <b>${R.longest.length} dönem</b> sürüyor.</div>` : "";
   const donemler = `<div class="yhdonemler">${(R.terms || []).map(t => `
     <section class="yhdonem${t.current ? " simdi" : ""}${t.summer ? " yaz" : ""}${
-      t.items.length ? "" : " bos"}">
+      t.items.length ? "" : " bos"}${t.skipped ? " atlandi" : ""}">
       <h3><span>${esc(t.label)}</span>${t.current
         ? '<span class="chip credit">bu dönem</span>'
         : t.summer ? '<span class="chip">yaz okulu</span>' : ""}</h3>
@@ -9174,6 +9436,8 @@ function renderRoadmap(){
             >geçmişte ${i.alsoSeason === "10" ? "Güz'de" : "Bahar'da"} da verildi</span>` : ""}
           ${i.unparsed ? `<span class="yhad uyari">önşartı okunamadı — danışmanına sor</span>` : ""}
         </li>`).join("")}</ul>`
+        : t.skipped ? `<div class="empty">Boş bıraktın — Erasmus, staj ya da izin;
+            bu dönem İTÜ dersi yok.</div>`
         : `<div class="empty">Bu dönem yerleşen ders yok — bekleyenler bu mevsimde
             açılmıyor ya da önşartları henüz bitmiyor.</div>`}
     </section>`).join("")}</div>`;
@@ -9181,7 +9445,24 @@ function renderRoadmap(){
       <b>${R.unplaced.length} ders yerleşmedi</b> — bitiş bu yüzden hesaplanamadı:
       ${R.unplaced.map(u => `<div><b class="mono">${esc(u.course || u.pool)}</b>
         <span class="meta">${esc(u.reason)}</span></div>`).join("")}</div>` : "";
-  body.innerHTML = `<div class="yhprogramlar">${programlar}</div>${simdi}${yaz}${varsayim}${zincir}${donemler}${kalan}`;
+  const serit = R === T ? "" : `<div class="note yhseritsenaryo" role="status">
+      <b>Senaryo gösteriliyor — kaydedilmedi.</b> ${[
+        R.scenario.maxLoad !== T.maxLoad ? `dönem başına en çok <b class="mono">${
+          R.scenario.maxLoad}</b> kredi` : "",
+        R.scenario.empty.length ? `boş: ${(R.terms || []).filter(t => t.skipped)
+          .map(t => esc(t.label)).join(", ")}` : ""].filter(Boolean).join(" · ")}
+      <button class="ghost mini" id="yhSenaryoKapat">Bugünkü plana dön</button></div>`;
+  body.innerHTML = `${yhSenaryoPaneli(T)}${serit}<div class="yhprogramlar">${programlar}</div>${
+    simdi}${yaz}${varsayim}${zincir}${donemler}${kalan}`;
+  const yuk = $("#yhYuk");
+  if(yuk) yuk.addEventListener("change", () => { yhAyar().maxLoad = +yuk.value; yhSenaryoKur(); });
+  body.querySelectorAll("[data-bos]").forEach(b => b.addEventListener("click", () => {
+    const A = yhAyar(), i = +b.dataset.bos;
+    if(A.bos.has(i)) A.bos.delete(i); else A.bos.add(i);
+    yhSenaryoKur();
+  }));
+  const kapat = $("#yhSenaryoKapat");
+  if(kapat) kapat.addEventListener("click", () => { YH_AYAR = null; YH_SENARYO = null; renderRoadmap(); });
   body.querySelectorAll("[data-dene]").forEach(b => b.addEventListener("click", () => {
     gorunumAc("schedSection", true);
     /* Çıkarma önerisi: önce çıkar (geri alınabilir), sonra şube seçimi. */
@@ -9726,6 +10007,7 @@ function boot(onceki){
   renderSonraki();
   renderBasvuru();
   renderTiers();
+  YH_SENARYO = null; YH_AYAR = null;   // Faz 61 — yeni durumda eski senaryo yok
   renderRoadmap();
   cevrimdisiDurumu();       // Faz 60
   if(!onceki){

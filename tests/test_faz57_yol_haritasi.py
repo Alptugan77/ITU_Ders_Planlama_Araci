@@ -273,7 +273,7 @@ def test_GORUNUM_kayitli_ve_varsayimlar_PLANIN_USTUNDE():
     f = KAYNAK[KAYNAK.index("function renderRoadmap(){"):]
     f = f[:f.index("\n}\n")]
     son = f.rindex("body.innerHTML = `")
-    sira = f[son:f.index("\n", son)]
+    sira = f[son:f.index("`;", son)]      # Faz 61: ifade artık iki satır
     assert sira.index("${varsayim}") < sira.index("${donemler}"), \
         "varsayımlar planın altına kaydı — okunmadan geçiliyor"
     assert "Bu bir plan, kehanet değil." in f
