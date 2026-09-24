@@ -578,6 +578,11 @@ her maddeden önce gelen tek iş.
 > "zor" görünmüyor (gerçek katalogda 21 ders) ✅
 > ➜ Ayrıntı: `docs/faz86-gecme-orani-once.md`
 >
+> **Faz 87 (24.09.2026):** zorluk iki alt puanda, 10 üzerinden — geçme
+> zorluğu (%85 → 5, VF başarısız sayılır) ve yüksek not alma zorluğu
+> (ortalama 2.50 → 5); genel = %70 + %30; MAT 103 8.3 "zor" ✅
+> ➜ Ayrıntı: `docs/faz87-iki-alt-puan.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

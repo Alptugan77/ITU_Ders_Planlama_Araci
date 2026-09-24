@@ -382,11 +382,9 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
                 z = ND.zorluk(con, kod)
             except Exception:                                  # noqa: BLE001
                 z = None
-            _zk[kod] = ({"level": z["level"], "label": z["label"],
-                         "passRate": z["passRate"], "mean": z["mean"], "n": z["n"],
-                         "termLabels": z["termLabels"], "lowData": z["lowData"],
-                         "catalog": z["catalog"], "passLowerShare": z["passLowerShare"],
-                         "meanLowerShare": z["meanLowerShare"]}
+            _zk[kod] = ({k: z[k] for k in ("level", "label", "score", "passScore",
+                                             "gradeScore", "passRate", "mean", "n",
+                                             "termLabels", "lowData")}
                         if z and z.get("level") else None)
         return _zk[kod]
 

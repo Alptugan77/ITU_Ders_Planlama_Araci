@@ -1,5 +1,9 @@
 # Faz 86 — tahmini zorlukta geçme oranı ortalamanın önünde
 
+> ⚠️ **Faz 87'de değişti:** katalog yüzdeliği ve sabit tablolar kalktı; zorluk
+> artık iki alt puanda, 10 üzerinden ve VF geçme oranına başarısız olarak
+> giriyor. Güncel ölçü: `docs/faz87-iki-alt-puan.md`.
+
 Kullanıcı 24.09.2026: *"zorluk düzeyi hesaplamasında geçilme yüzdesini
 geçilme notunun üstüne koyar mısın bazen çan dağılımı yüzünden kolay dersler
 orta zorlukta veya zor diye anlaşılabilir"*.

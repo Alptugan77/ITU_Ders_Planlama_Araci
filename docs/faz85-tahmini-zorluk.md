@@ -1,8 +1,9 @@
 # Faz 85 — derslerin tahmini zorluğu
 
-> ⚠️ **Faz 86'da değişti:** kademe artık ağırlıklı olarak **geçme oranından**
-> (%70), ikincil olarak ortalamadan (%30) hesaplanıyor. Aşağıdaki "yalnız
-> ortalama" ölçüsü tarihçedir; güncel ölçü `docs/faz86-gecme-orani-once.md`.
+> ⚠️ **Faz 86–87'de değişti:** zorluk artık iki alt puanda, 10 üzerinden
+> (geçme zorluğu %70 + yüksek not alma zorluğu %30; VF geçemeyenlere sayılır).
+> Aşağıdaki "yalnız ortalama" ölçüsü tarihçedir; güncel ölçü
+> `docs/faz87-iki-alt-puan.md`.
 
 Kullanıcı 24.09.2026: *"derslerin önceki dönemlerdeki not ortalaması ve
 dağılımına göre tahmini zorluk derecelendirilmesi yapabilir misin ve bunu
