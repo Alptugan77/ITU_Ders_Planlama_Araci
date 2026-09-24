@@ -67,6 +67,8 @@ CIFTLER = [
     ("warn",   "seal-soft", YAZI_TABANI, "bu dönem kartında uyarı"),
     ("ink-3",  "seal-soft", YAZI_TABANI, "bu dönem kartında ders adı"),
     ("anadal", "surface",   YAZI_TABANI, "\"planındaki bitişle aynı ✓\" (--ok = --anadal)"),
+    # Faz 72/74 — eşik hapı (✓) ve "uyan şube" satırı: --ok = --anadal, --ok-soft = --anadal-soft.
+    ("anadal", "anadal-soft", YAZI_TABANI, "eşik hapı ✓ (not senaryosu)"),
     # Kenar ve halka — 3:1
     ("border-strong", "ground",  KENAR_TABANI, "cetvel, tablo çizgisi"),
     ("border-strong", "surface", KENAR_TABANI, "kart kenarı"),

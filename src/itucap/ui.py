@@ -1554,6 +1554,64 @@ def _harita_girdisi(con, ucon, student_id: int, settings, bu_donem, max_load) ->
     }
 
 
+def _senaryo_planlari(con, settings, g: dict) -> tuple[list[dict], object]:
+    """Senaryo haritalarının plan listesi ve ÇAP tabanı — `collect` ile AYNI
+    kaynaktan (`resolve_seconds`, `cap_baslangic_yariyili`)."""
+    from .plans import resolve_seconds
+    ikinci = resolve_seconds(con, settings)
+    cap = next((x for x in ikinci if x.get("kind") == "cap" and x.get("planId")), None)
+    taban = POL.second_floor(settings.cap_baslangic_yariyili) if cap else None
+    planlar = [g["anadal"]] + [{"planId": x["planId"], "role": x["role"], "label": x["label"],
+                                "program": x["program"]} for x in ikinci if x.get("planId")]
+    return planlar, taban
+
+
+def kalma_riski(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
+                settings, bu_donem: list[dict], max_load) -> dict:
+    """★★ Faz 75 — "Bu dersten kalırsam mezuniyetim ne kadar gecikir?"
+
+    Öğrencinin dönem boyunca en çok sorduğu şeylerden biri; cevabı ancak
+    haritayı yeniden kurarak ölçülebiliyor. Taban: bu dönemin programı
+    (`bu_donem`) geçilmiş varsayılarak kurulan harita. Her ders için: o ders
+    ÇIKARILARAK (kalınmış = hâlâ alınacak) yeniden kuruluyor; her programın
+    bitiş yarıyılı tabanla karşılaştırılıyor. Önşart zinciri, açıldığı
+    yarıyıl ve dönem kredi sınırı haritanın kendi kuralları — ayrı bir hesap
+    yok. Salt okunur; hiçbir şey kaydedilmiyor.
+
+    Bitişi bilinmeyen program (UOLP, yerleşemeyen ders) için gecikme `None`:
+    "0 dönem" demek uydurma olurdu.
+    """
+    g = _harita_girdisi(con, ucon, student_id, settings, bu_donem, max_load)
+    planlar, taban = _senaryo_planlari(con, settings, g)
+
+    def kur(bu):
+        return YH.kur(con, g["grades"], planlar, term=g["term"], donem=g["donem"],
+                      max_load=g["max_load"], bu_donem=bu, bu_donem_kaynagi="senaryo",
+                      equivalences=g["equivalences"], taban=taban)
+
+    def bitisler(h):
+        return {p["role"]: p for p in h.get("programs") or []}
+
+    taban_h = bitisler(kur(g["bu"]))
+    dersler = []
+    for x in g["bu"]:
+        h = bitisler(kur([y for y in g["bu"] if y["course"] != x["course"]]))
+        programlar = []
+        for rol, b in taban_h.items():
+            k = h.get(rol) or {}
+            once, sonra = b.get("finishSemester"), k.get("finishSemester")
+            programlar.append({
+                "role": rol, "label": b.get("label") or rol, "program": b.get("program", ""),
+                "finish": k.get("finish"), "finishSemester": sonra,
+                "delay": (sonra - once) if once is not None and sonra is not None else None,
+            })
+        dersler.append({"course": x["course"], "credits": x["credits"], "programs": programlar})
+    return {"base": [{"role": r, "label": b.get("label") or r, "program": b.get("program", ""),
+                      "finish": b.get("finish"), "finishSemester": b.get("finishSemester")}
+                     for r, b in taban_h.items()],
+            "courses": dersler, "maxLoad": g["max_load"]}
+
+
 def yol_senaryosu(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                   settings, bu_donem: list[dict], max_load, bos) -> dict:
     """Faz 61 — yol haritası SENARYOSU: daha hafif dönem yükü ve boş dönemler.
@@ -1565,7 +1623,6 @@ def yol_senaryosu(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id:
     Programlar ve ÇAP tabanı `collect` ile AYNI kaynaktan (`resolve_seconds`,
     `cap_baslangic_yariyili`).
     """
-    from .plans import resolve_seconds
     g = _harita_girdisi(con, ucon, student_id, settings, bu_donem, max_load)
     try:
         bos = sorted({int(x) for x in (bos or [])})
@@ -1573,11 +1630,7 @@ def yol_senaryosu(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id:
         raise ValueError("boş dönem geçersiz") from None
     if any(not 1 <= x <= YH.UFUK for x in bos) or len(bos) > 6:
         raise ValueError("boş dönem geçersiz")
-    ikinci = resolve_seconds(con, settings)
-    cap = next((x for x in ikinci if x.get("kind") == "cap" and x.get("planId")), None)
-    taban = POL.second_floor(settings.cap_baslangic_yariyili) if cap else None
-    planlar = [g["anadal"]] + [{"planId": x["planId"], "role": x["role"], "label": x["label"],
-                                "program": x["program"]} for x in ikinci if x.get("planId")]
+    planlar, taban = _senaryo_planlari(con, settings, g)
     h = YH.kur(con, g["grades"], planlar, term=g["term"], donem=g["donem"],
                max_load=g["max_load"], bu_donem=g["bu"],
                bu_donem_kaynagi="senaryo", equivalences=g["equivalences"],
@@ -2512,6 +2565,14 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--focus);outline-o
 .ozetdolusatir button{margin-left:4px}
 .ozetnot{color:var(--ink-3)}
 .ozettekrar{padding-top:6px;border-top:1px solid var(--border)}
+.why.uyansube{color:var(--ok)}
+.yhkalma{margin-top:14px}
+.altbaslik{display:flex;align-items:baseline;gap:8px;margin-top:16px;padding-top:12px;
+  border-top:1px solid var(--border)}
+.altsatir{padding:8px 0;border-bottom:1px solid var(--border);font-size:var(--fs-sm)}
+.altozet{color:var(--ink-2);margin-top:2px}
+.altdugmeler{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.nskalma:empty{display:none}
 .ozettekrar .ozetbaslik{font-weight:600;margin-bottom:4px}
 .ozetlejant{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:var(--fs-sm);
   padding-top:6px;border-top:1px solid var(--border)}
@@ -3650,6 +3711,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
     <div class="toolbar" id="savedActions"></div>
   </div>
   <div id="savedList"></div>
+  <div id="altList"></div>
 </section>
 
 <section class="panels" id="panels"></section>
@@ -3713,6 +3775,8 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
     <div class="toolbar">
       <span id="editState" class="chip edited" hidden>değiştirildi</span>
       <button class="ghost primary" id="savePicks" hidden>Programı kaydet</button>
+      <!-- ★ Faz 77 — Plan B, Plan C… -->
+      <button class="ghost" id="altKaydet" hidden>Alternatif olarak kaydet</button>
       <!-- D2: tek adım geri. "Öneriye dön" her şeyi siliyordu. -->
       <button class="ghost" id="undo" hidden>Geri al</button>
       <button class="ghost" id="reset" hidden>Öneriye dön</button>
@@ -3793,6 +3857,13 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
       placeholder="Ders arama — kod, ad veya öğretim üyesi (örn. MAT 103E, olasılık)">
     <div class="radios" id="candRole"></div>
     <label class="tickbox"><input type="checkbox" id="candFree"> yalnızca kontenjanı olanlar</label>
+    <!-- ★ Faz 74 — "programıma daha ne sığar?" -->
+    <label class="tickbox"><input type="checkbox" id="candFit"> yalnızca programa sığanlar</label>
+    <!-- ★ Faz 76 — sıralama yalnız GÖRÜNTÜ; öneri puanı değişmiyor. -->
+    <label class="tickbox">Sıralama <select id="candSort" aria-label="Aday dersleri sırala">
+      <option value="">öneri puanı</option>
+      <option value="ort">geçmiş not ortalaması</option>
+      <option value="bos">boş kontenjan</option></select></label>
     <!-- ★ Faz 25/B1 — planında OLMAYAN dersi de aramak/eklemek için. -->
     <button class="ghost" id="katalogBtn">Katalogda ara</button>
     <span class="candcount" id="candCount"></span>
@@ -4337,7 +4408,12 @@ function hataBildir(btn, err){
     öneriyi değiştirmeyen işlerde (`koru`: izleme, kaydetme) ızgara ve sekme
     olduğu gibi kalıyor. Kaydedilen programı açılışta yüklemek ve bağlantıyı
     uygulamak yalnız İLK açılışın işi. */
+/* Faz 75 — sunucudan her yeni durum bir sürüm; istek üzerine hesaplanan
+   önbellekler (kalma riski) buna bağlı: transkript değişince eski sonuç
+   geçersiz. `var` — kanca bu dosya yürürken de çağırabilir. */
+var DURUM_SURUMU = 0;
 function applyState(next, secenek){
+  DURUM_SURUMU++;
   const onceki = {kip: (MODES[mode] || {}).key, active, sel: sel.slice(),
                   koru: !!(secenek && secenek.koru),
                   varsayilan: !!(secenek && secenek.varsayilanKip)};
@@ -5994,6 +6070,7 @@ function renderNotSenaryo(odak){
         ${esikler ? `<div class="nsesik">${esikler}</div>` : ""}
         ${r.eksik ? `<div class="meta">${r.eksik} ders için not seçilmediğinden hesaba
           katılmamıştır.</div>` : ""}
+        <div class="nskalma" data-kalma="ns">${kalmaNsIcerik()}</div>
       </div>`;
   kutu.innerHTML = `<div class="gnohedef notsenaryo">
     <div class="gnobaslik"><b>Dönem sonu not senaryosu</b>
@@ -6021,6 +6098,7 @@ function renderNotSenaryo(odak){
       || (odak === "*" ? $("#nsHepsi") : null);
     if(hedef) hedef.focus();
   }
+  kalmaBagla(); kalmaOto();        // Faz 75 — FF seçilince kendiliğinden
   const hep = $("#nsHepsi");
   if(hep) hep.addEventListener("change", () => {
     secili.forEach(p => { if(hep.value === "temizle") delete notlar[p.cand.course];
@@ -6028,6 +6106,140 @@ function renderNotSenaryo(odak){
     localStorage_set("notSenaryo", JSON.stringify(notlar));
     renderNotSenaryo("*");
   });
+}
+
+/* ★★ FAZ 75 — KALMA RİSKİ: "bu dersten kalırsam mezuniyetim ne kadar gecikir?"
+   Cevap haritayı yeniden kurarak ölçülüyor (`/api/kalmariski`, salt okunur):
+   taban = bu dönemin PROGRAMI (ızgaradaki seçim) geçilmiş; her ders için o
+   ders çıkarılıp yeniden kuruluyor. Önşart zinciri, açıldığı yarıyıl ve kredi
+   sınırı haritanın kendi kuralları.
+   KENDİLİĞİNDEN, ama yalnız sonucun GÖRÜNDÜĞÜ yerde (`kalmaOto`): yol
+   haritası görünümü açıkken ya da not senaryosunda FF seçilmişken. Ölçüldü:
+   gerçek katalogda Pyodide'de 6 ders için 0,35 sn; ızgaradaki her
+   değişiklikte bunu ödemek gereksiz olurdu. Sonuç program, sınır ve durum
+   sürümüne bağlı; biri değişince eski sonuç gösterilmiyor. Düğme, hata ya da
+   otomatik tetik yokken elle hesaplamak için duruyor. */
+let KALMA = null;          // {anahtar, veri, hata, yukleniyor}
+function kalmaGirdi(){
+  return {bu: picks().map(p => ({course: p.cand.course, credits: p.cand.credits,
+                                 role: p.cand.role})),
+          maxLoad: (DATA.roadmap || {}).maxLoad};
+}
+function kalmaAnahtari(){
+  const g = kalmaGirdi();
+  return JSON.stringify([g.bu.map(x => x.course).sort(), g.maxLoad, DURUM_SURUMU]);
+}
+function kalmaHesaplanabilir(){
+  const R = DATA.roadmap;
+  return !!(R && !R.noTranscript && !R.error && R.maxLoad && picks().length
+            && (LIVE || window.__ITUCAP_API__));
+}
+const kalmaGuncel = () => !!(KALMA && KALMA.anahtar === kalmaAnahtari());
+async function kalmaYukle(){
+  if(!kalmaHesaplanabilir()) return;
+  const anahtar = kalmaAnahtari();
+  KALMA = {anahtar, veri: null, hata: "", yukleniyor: true};
+  kalmaCiz();
+  await bekleBoyansin();         // "hesaplanıyor…" boyansın, sonra bloklayan hesap
+  try{
+    const r = await api("/api/kalmariski", kalmaGirdi());
+    if(!KALMA || KALMA.anahtar !== anahtar) return;
+    KALMA.veri = r.kalmaRiski;
+  }catch(err){
+    if(!KALMA || KALMA.anahtar !== anahtar) return;
+    KALMA.hata = err.message || String(err);
+  }
+  KALMA.yukleniyor = false;
+  kalmaCiz();
+}
+/* Yalnız yer tutucular yeniden dolduruluyor — not senaryosunun seçim
+   kutuları yeniden çizilmesin (odak kaybolmasın). */
+function kalmaCiz(){
+  document.querySelectorAll("[data-kalma]").forEach(k => {
+    k.innerHTML = k.dataset.kalma === "ns" ? kalmaNsIcerik() : kalmaPanelIcerik();
+  });
+  kalmaBagla();
+  kalmaOto();
+}
+/* Sonuç görünür bir yerde isteniyorsa ve güncel değilse hesapla. Hata
+   alınmış anahtar için yeniden denemiyor (sonsuz döngü olmasın). */
+let KALMA_ZAMANLI = false;
+function kalmaOto(){
+  if(KALMA_ZAMANLI || !kalmaHesaplanabilir() || kalmaGuncel()) return;
+  const gor = document.documentElement.dataset.gorunum;
+  const notlar = typeof notSenaryo === "function" ? notSenaryo() : {};
+  const ffVar = picks().some(p => notlar[p.cand.course] === "FF");
+  if(!(gor === "roadmapSection" || (gor === "creditSection" && ffVar))) return;
+  KALMA_ZAMANLI = true;
+  setTimeout(() => { KALMA_ZAMANLI = false; if(!kalmaGuncel()) kalmaYukle(); }, 60);
+}
+function kalmaBagla(){
+  document.querySelectorAll("[data-kalma] [data-kalmahesap]").forEach(b => {
+    if(!b.dataset.bagli){ b.dataset.bagli = "1"; b.addEventListener("click", () => kalmaYukle()); }
+  });
+}
+/* İkinci programın gecikmesi anadal bitişini aşmıyorsa iki programın BİRLİKTE
+   tamamlandığı dönem (ikisinin en geç bitişi) değişmiyor — bunu söylemek
+   "2 dönem gecikir"in yarattığı yanlış kaygıyı gideriyor. Diplomanın ne
+   zaman verildiği yönergeye bağlı; burada yalnız dönem karşılaştırılıyor. */
+const gecikmeYazi = (p, c) => {
+  if(p.delay === null) return `${esc(p.label)} bitişi hesaplanamamaktadır`;
+  if(p.delay <= 0) return `${esc(p.label)} bitişi değişmez`;
+  const ana = (c.programs || []).find(x => x.role === "ANADAL");
+  const asmaz = p.role !== "ANADAL" && ana && ana.finishSemester !== null
+    && p.finishSemester !== null && p.finishSemester <= ana.finishSemester;
+  return `${esc(p.label)} bitişi <b>${p.delay} dönem</b> gecikir${
+    p.finish ? ` (${esc(p.finish.label)})` : ""}${asmaz
+    ? ", ancak anadal bitişini aşmadığından iki programın birlikte tamamlanacağı dönem değişmez" : ""}`;
+};
+function kalmaDugme(metin){
+  return KALMA && KALMA.yukleniyor && !kalmaGuncel() ? ""
+    : `<button class="ghost mini" data-kalmahesap="1">${metin}</button>`;
+}
+function kalmaPanelIcerik(){
+  if(!kalmaHesaplanabilir()) return "";
+  const bas = `<b>Kalma riski</b> — bu dönemin programındaki bir dersten kalınması
+    durumunda mezuniyet ne kadar gecikir?`;
+  if(!kalmaGuncel()) return `<div class="note yhkalma">${bas}
+    ${KALMA && KALMA.veri ? `<div class="meta">Program veya veriler değişmiştir.</div>` : ""}
+    <div style="margin-top:6px">${kalmaDugme(KALMA && KALMA.veri ? "Yeniden hesapla" : "Hesapla")}</div></div>`;
+  if(KALMA.yukleniyor) return `<div class="note yhkalma">${bas}
+    <div class="meta" role="status">hesaplanıyor… (her ders için yol haritası yeniden kurulmaktadır)</div></div>`;
+  if(KALMA.hata) return `<div class="note yhkalma">${bas}<div class="meta">Hesaplanamadı:
+    ${esc(KALMA.hata)}</div></div>`;
+  const V = KALMA.veri;
+  const etkili = V.courses.filter(c => c.programs.some(p => p.delay !== 0))
+    .sort((a, b) => Math.max(...b.programs.map(p => p.delay || 0))
+                  - Math.max(...a.programs.map(p => p.delay || 0)));
+  const etkisiz = V.courses.length - etkili.length;
+  return `<div class="note yhkalma">${bas}
+    ${etkili.map(c => `<div class="yhsatir"><b class="mono">${esc(c.course)}</b> —
+      ${c.programs.filter(p => p.delay !== 0).map(p => gecikmeYazi(p, c)).join("; ")}</div>`).join("")}
+    ${etkisiz ? `<div class="yhsatir">${etkili.length ? "Diğer " : ""}<b>${etkisiz}</b> dersten
+      kalınması bitişi değiştirmemektedir.</div>` : ""}
+    <div class="meta" style="margin-top:6px">Taban: programdaki ${V.courses.length} dersin
+      geçildiği varsayımı — ${V.base.map(b => `${esc(b.label)} ${b.finish
+        ? esc(b.finish.label) : "bitiş hesaplanamamaktadır"}`).join(", ")}. Kalınan ders
+      sonraki uygun döneme yerleştirilmiştir; önşart zinciri, dersin açıldığı yarıyıl ve
+      dönem kredi sınırı yol haritasındaki kurallarla hesaplanmıştır. GNO etkisi için
+      "Kredi ve not" bölümündeki not senaryosu kullanılabilir.</div></div>`;
+}
+/* Not senaryosunda FF seçilen dersler için aynı sonuç. */
+function kalmaNsIcerik(){
+  const notlar = notSenaryo();
+  const secili = new Set(picks().map(p => p.cand.course));
+  const ff = Object.keys(notlar).filter(c => notlar[c] === "FF" && secili.has(c)).sort();
+  if(!ff.length || !kalmaHesaplanabilir()) return "";
+  if(!kalmaGuncel() || KALMA.yukleniyor || KALMA.hata)
+    return `<div class="meta">FF seçilen ${ff.length} dersin mezuniyet tarihine etkisi:
+      ${KALMA && KALMA.yukleniyor && kalmaGuncel() ? "hesaplanıyor…"
+        : KALMA && KALMA.hata && kalmaGuncel() ? "hesaplanamadı — " + esc(KALMA.hata)
+        : kalmaDugme("Hesapla")}</div>`;
+  return ff.map(k => {
+    const c = KALMA.veri.courses.find(x => x.course === k);
+    return c ? `<div><b class="mono">${esc(k)}</b> dersinden kalınırsa:
+      ${c.programs.map(p => gecikmeYazi(p, c)).join("; ")}</div>` : "";
+  }).join("");
 }
 
 /* Kalan-ders satırının dayandığı şey — sayı ile birlikte yazılıyor. */
@@ -6318,8 +6530,13 @@ function renderSaved(){
   const sec = $("#savedSection");
   if(!sec) return;
   const saved = (DATA.savedPicks && DATA.savedPicks.picks) || [];
-  sec.hidden = !saved.length;
-  if(!saved.length) return;
+  sec.hidden = !saved.length && !(DATA.alternatives || []).length;
+  renderAlternatifler();                     // Faz 77
+  if(!saved.length){
+    $("#savedWhen").textContent = "Ana program kaydedilmemiştir; alternatif programlar aşağıdadır.";
+    $("#savedList").innerHTML = ""; $("#savedActions").innerHTML = "";
+    return;
+  }
 
   const when = (DATA.savedPicks.savedAt || "").replace("T", " ").slice(0, 16);
   $("#savedWhen").textContent = (when ? when + " tarihinde kaydedildi" : "kaydedildi")
@@ -6376,6 +6593,126 @@ function renderSaved(){
   });
 }
 
+/* ★★ FAZ 77 — ALTERNATİF PROGRAMLAR (Plan B, Plan C…).
+   Kayıt gününde bir şube dolunca çoğu zaman tek ders değil bütün program
+   değişiyor (çakışmalar zincirleniyor). Öğrenci birkaç TAM program
+   hazırlamak istiyor; araç yalnız bir tane saklıyordu. Ana program
+   (`savedPicks`) aynen duruyor; alternatifler adlarıyla, aynı dönem
+   anahtarıyla kullanıcı veritabanında (`saved_alt`). Her alternatifin tek
+   satırlık özeti karşılaştırma için: ders, kredi, kampüs günü, saat
+   aralığı, çakışma ve dolu şube — bunlar ELDEKİ veriyle hesaplanıyor;
+   şubesi artık bulunmayan ders "bulunamadı" diye sayılıyor. */
+const ALT_ONERI = ["Plan B", "Plan C", "Plan D", "Plan E", "Plan F", "Plan G"];
+function altOzet(liste){
+  const hits = liste.map(p => ({p, hit: findSection(p.course, p.crn)}));
+  const var_ = hits.filter(x => x.hit);
+  const kredi = +var_.reduce((a, x) => a + (x.hit.cand.credits || 0), 0).toFixed(1);
+  const gun = new Set();
+  let ilk = Infinity, son = -Infinity;
+  var_.forEach(x => {
+    if(x.hit.sec.online) return;
+    (x.hit.sec.meetings || []).forEach(m => {
+      gun.add(m.day); ilk = Math.min(ilk, m.start); son = Math.max(son, m.end);
+    });
+  });
+  const carpisan = [];
+  var_.forEach((a, i) => var_.slice(i + 1).forEach(b => {
+    if(clash(a.hit.sec, b.hit.sec)) carpisan.push(`${a.p.course} ↔ ${b.p.course}`);
+  }));
+  return {n: liste.length, kredi, eksik: hits.length - var_.length,
+          gun: [...gun].sort((a, b) => a - b), ilk, son, carpisan,
+          dolu: var_.filter(x => x.hit.sec.capacity && yerSayisi(x.hit.sec) === 0)
+                    .map(x => x.p.course)};
+}
+const programAnahtari = (liste) => liste.map(p => p.course + "@" + p.crn).sort().join("|");
+function altYukle(a){
+  const i = modeIndexFor(a.picks);
+  if(i >= 0 && i !== mode) useMode(i);
+  geriKaydet(`${a.name} yüklendi`);
+  sel = a.picks.map(p => ({course: p.course, crn: p.crn})).filter(p => sectionOf(p.course, p.crn));
+  render();
+  gorunumAc("schedSection", true);
+}
+function renderAlternatifler(){
+  const kutu = $("#altList");
+  if(!kutu) return;
+  const alts = DATA.alternatives || [];
+  if(!alts.length){ kutu.innerHTML = ""; return; }
+  const simdi = currentKey();
+  kutu.innerHTML = `<div class="altbaslik"><h3>Alternatif programlar</h3>
+      <span class="meta">${alts.length} / ${DATA.alternativesMax || alts.length}</span></div>
+    ${alts.map((a, i) => {
+      const o = altOzet(a.picks);
+      const when = (a.savedAt || "").replace("T", " ").slice(0, 16);
+      return `<div class="altsatir">
+        <div class="altad"><b>${esc(a.name)}</b>${programAnahtari(a.picks) === simdi
+          ? ` <span class="chip credit">ızgarada</span>` : ""}
+          <span class="meta">${esc(when)}</span></div>
+        <div class="altozet">${o.n} ders · <b class="mono">${o.kredi}</b> kredi${o.gun.length
+          ? ` · ${o.gun.length} gün kampüste (${o.gun.map(d => DAYS[d - 1]).join(" ")})
+             · <span class="mono">${hhmm(o.ilk)}–${hhmm(o.son)}</span>` : ""}${o.carpisan.length
+          ? ` · <span class="uyari">çakışma: ${o.carpisan.map(esc).join(", ")}</span>` : ""}${o.dolu.length
+          ? ` · <span class="uyari">dolu: ${o.dolu.map(esc).join(", ")}</span>` : ""}${o.eksik
+          ? ` · <span class="uyari">${o.eksik} şube bu dönemin verisinde bulunamadı</span>` : ""}</div>
+        <div class="altdugmeler">
+          <button class="ghost mini" data-altyukle="${i}">Programa yükle</button>
+          <button class="ghost mini" data-altcrn="${i}">CRN'ler</button>
+          ${LIVE ? `<button class="ghost mini" data-altsil="${i}">Sil</button>` : ""}</div>
+      </div>`;
+    }).join("")}`;
+  kutu.querySelectorAll("[data-altyukle]").forEach(b =>
+    b.addEventListener("click", () => altYukle(alts[+b.dataset.altyukle])));
+  kutu.querySelectorAll("[data-altcrn]").forEach(b => b.addEventListener("click", () => {
+    const a = alts[+b.dataset.altcrn];
+    openDialog(`<div class="eyebrow">Kayıt günü</div>
+      <h2 style="margin-bottom:4px">${esc(a.name)} — CRN'ler</h2>
+      <p class="modenote" style="margin:2px 0 10px">${disLink("kepler")} “Ders Kayıt
+        İşlemleri” ekranına girilecek numaralar.</p>
+      <label class="field"><span>Tümü (kopyala)</span>
+        <input type="text" class="mono" readonly value="${esc(a.picks.map(p => p.crn).join(" "))}"></label>`);
+  }));
+  /* Silme geri alınamıyor: ilk dokunuş sorar, ikincisi siler. */
+  kutu.querySelectorAll("[data-altsil]").forEach(b => b.addEventListener("click", async () => {
+    const a = alts[+b.dataset.altsil];
+    if(b.dataset.onay !== "1"){
+      b.dataset.onay = "1"; b.textContent = `“${a.name}” silinsin mi? Onaylayınız`; return;
+    }
+    const geri = dugmeMesgul(b, "Siliniyor…");
+    try{ applyState(await api("/api/alternatif/sil", {name: a.name}), {koru: true}); }
+    catch(err){ geri(); hataBildir(b, err); }
+  }));
+}
+function altKaydetDialog(){
+  if(!sel.length) return;
+  const alts = DATA.alternatives || [];
+  const adlar = alts.map(a => a.name);
+  const oneri = ALT_ONERI.find(x => !adlar.includes(x)) || "";
+  openDialog(`<div class="eyebrow">Alternatif program</div>
+    <h2 style="margin-bottom:4px">Alternatif olarak kaydet</h2>
+    <p class="modenote" style="margin:2px 0 10px">Izgaradaki program
+      (<b class="mono">${sel.length}</b> ders) adıyla saklanır; ana kaydedilen program
+      değişmez. Kayıt gününde bir şube dolduğunda alternatife tek dokunuşla geçilebilir
+      ve CRN'leri “Kayıt günü” penceresinde de listelenir. En çok
+      <b>${DATA.alternativesMax || 5}</b> alternatif kaydedilebilir.</p>
+    <label class="field"><span>Ad</span>
+      <input type="text" id="altAd" maxlength="40" value="${esc(oneri)}"></label>
+    ${adlar.length ? `<div class="hint">Kayıtlı: ${adlar.map(esc).join(", ")} — aynı ad
+      yazılırsa o alternatifin üzerine kaydedilir.</div>` : ""}
+    <div style="margin-top:10px"><button class="ghost primary" id="altKaydetOk">Kaydet</button>
+      <span class="hint" id="altDurum" role="status"></span></div>`);
+  const ok = $("#altKaydetOk");
+  ok.addEventListener("click", async () => {
+    const geri = dugmeMesgul(ok, "Kaydediliyor…");
+    await bekleBoyansin();
+    try{
+      applyState(await api("/api/alternatif", {name: $("#altAd").value, picks: sel}), {koru: true});
+      $("#detail").close();
+    }catch(err){
+      geri(); $("#altDurum").textContent = err.message || String(err);
+    }
+  });
+}
+
 /* ---------- programı kaydet / CRN listesi ---------- */
 function savedKey(){
   return (DATA.savedPicks && DATA.savedPicks.picks || [])
@@ -6401,6 +6738,8 @@ function renderSaveState(){
     btn.textContent = "Programı kaydet";
     btn.hidden = !LIVE || !dirty || !sel.length;
   }
+  const alt = $("#altKaydet");                 // Faz 77
+  if(alt) alt.hidden = !LIVE || !sel.length;
   if(mark){
     mark.hidden = !(saved.picks.length && !dirty);
     mark.textContent = "kaydedildi" + (saved.savedAt
@@ -6423,6 +6762,8 @@ function wirePicks(){
       geri(); hataBildir(btn, err);
     }
   };
+  const alt = $("#altKaydet");
+  if(alt && LIVE) alt.onclick = altKaydetDialog;
   const crn = $("#crnBtn");
   if(crn) crn.onclick = crnDialog;
   const yukle = $("#crnLoad");
@@ -7174,7 +7515,17 @@ function crnDialog(){
               ? "çıkarılır: " + o.carpisan.map(x => esc(x.cand.course)).join(", ")
               : "çakışmıyor"}</span>
           </div>`).join("")}</td></tr>`).join("")}</tbody></table>
-      </div></details>` : ""}`);
+      </div></details>` : ""}
+    ${(DATA.alternatives || []).length ? `<details class="field"${
+      list.some(p => !p.sec.free) ? " open" : ""}>
+      <summary style="cursor:pointer;font-size:var(--fs-md);color:var(--seal)"
+        >Alternatif programlar (${DATA.alternatives.length})</summary>
+      ${DATA.alternatives.map(a => {
+        const o = altOzet(a.picks);
+        return `<label class="field"><span>${esc(a.name)} · ${o.n} ders · ${o.kredi} kredi${
+          o.dolu.length ? ` · dolu: ${o.dolu.map(esc).join(", ")}` : ""}</span>
+          <input type="text" class="mono" readonly value="${esc(a.picks.map(p => p.crn).join(" "))}"></label>`;
+      }).join("")}</details>` : ""}`);
   const input = $("#crnLine");
   if(input){
     input.addEventListener("click", () => {
@@ -8165,6 +8516,7 @@ function render(){
   renderFloor();
   renderGnoHedef();          // Faz 57 — seçim değişince gereken ortalama da
   renderNotSenaryo();        // Faz 71 — dönem sonu not senaryosu
+  kalmaCiz();                // Faz 75 — program değişince "yeniden hesapla"
   renderArzUyarisi();
   renderDonemUyarisi();
   renderGeri();
@@ -9224,14 +9576,64 @@ document.addEventListener("keydown", (e) => {
      * anadal/ÇAP karışık geldiği için "yalnız kendi bölümüm" bakılamıyordu.
    ⚠️ Arama SIRALAMAYI değiştirmiyor; puan sırası korunuyor. Eşleşmeye göre
    yeniden sıralamak, motorun gerekçeli sırasını sessizce ezerdi. */
-const FILT = {q: "", role: "", free: false};
+const FILT = {q: "", role: "", free: false, fit: false, sort: ""};
 const LIMIT = 30;
 
+/* ★★ FAZ 74 — "PROGRAMIMA DAHA NE SIĞAR?"
+   Kayıt haftasının en sık sorusu. Aday listesi yalnız "kontenjanı olanlar"
+   diye süzülebiliyordu; hangisinin programdaki derslerle çakışmadan ve dönem
+   sınırını aşmadan eklenebileceğini bulmak için her dersin penceresini açıp
+   şubelere tek tek bakmak gerekiyordu. Bir ders SIĞAR, eğer:
+     · programda değilse ve aynı havuzdan seçili bir dersi çıkarmıyorsa,
+     · yükü dönem sınırına sığıyorsa (sınır biliniyorsa),
+     · en az bir şubesi: saati İLAN EDİLMİŞ (saatsiz şube çakışmıyor
+       görünür ama bilinmiyor — bilinmeyen bilinen gibi gösterilmez),
+       kontenjanı dolu değil (ilan edilmemiş kontenjan dolu sayılmaz),
+       programla ve meşgul saatlerle çakışmıyor.
+   Uyan şube satırda CRN'iyle yazıyor. */
+function sigdigiSube(c, kalan){
+  if(sel.some(x => x.course === c.course) || poolBlocker(c, null)) return null;
+  if(loadOf(c) > kalan + 1e-9) return null;
+  return c.sections.filter(s => (s.meetings || []).length
+      && (!s.capacity || yerSayisi(s) > 0)
+      && !conflictsWith(s, c.course).length && !mesgulCakisir(s))
+    .sort((a, b) => yerSayisi(b) - yerSayisi(a))[0] || null;
+}
+const kalanYuk = () => DATA.maxLoad ? DATA.maxLoad - totals().load : Infinity;
+/* ★★ FAZ 76 — SEÇMELİ SEÇERKEN GEÇMİŞ NOT DAĞILIMI LİSTEDE.
+   Öğrenci seçmeli ararken OBS'nin not dağılımı sayfasını ders ders açıyor;
+   veri (Faz 38) sayfada zaten vardı ama yalnız dersin penceresinde. Satırda
+   kısa özet (seçmeli havuz dersleri için her zaman, sıralama "geçmiş not
+   ortalaması" iken hepsi için) ve isteğe bağlı sıralama. Faz 38'in kuralı
+   aynen: bu bilgi öneri PUANINA girmiyor; sıralama yalnız görüntü. Dönem,
+   dersin penceresindeki varsayılanla aynı (`grades.selected`); dersin olağan
+   yarıyılı dışındaysa (çoğunlukla tekrar alanlar) bunu yazıyor. */
+function gecmisOzet(c){
+  const g = c.grades;
+  if(!g || !(g.terms || []).length) return null;
+  const d = g.terms.find(t => t.term === g.selected) || g.terms[0];
+  if(!d || !d.n || typeof d.meanPoints !== "number") return null;
+  return {ort: d.meanPoints, gecen: d.passRate, n: d.n,
+          etiket: `${d.yearName} ${d.season}`,
+          mevsimDisi: !!g.wantedSeason && d.season !== g.wantedSeason};
+}
+const bosYer = (c) => c.sections.reduce((a, s) => a + yerSayisi(s), 0);
+function siralanmis(l){
+  if(FILT.sort === "ort") return l.map((c, i) => [c, i]).sort(([a, i], [b, j]) => {
+    const x = gecmisOzet(a), y = gecmisOzet(b);
+    return (y ? y.ort : -1) - (x ? x.ort : -1) || i - j;
+  }).map(([c]) => c);
+  if(FILT.sort === "bos") return l.map((c, i) => [c, i])
+    .sort(([a, i], [b, j]) => bosYer(b) - bosYer(a) || i - j).map(([c]) => c);
+  return l;
+}
 function filteredCandidates(){
   const q = FILT.q.trim().toLocaleLowerCase("tr");
+  const kalan = kalanYuk();
   return M().candidates.filter(c => {
     if(FILT.role && c.role !== FILT.role) return false;
     if(FILT.free && !c.sections.some(s => s.free > 0)) return false;
+    if(FILT.fit && !sigdigiSube(c, kalan)) return false;
     if(!q) return true;
     /* ★ `altName` = aynı dersin ÖBÜR DİLDEKİ adı (MAT 271E ↔ MAT 271).
        İngilizce programın öğrencisi listede "Probability" görüyor ama
@@ -9323,18 +9725,32 @@ function listeKenarSolmasi(){
 
 function renderCandidates(){
   const chosen = new Set(sel.map(x => x.course));
-  const hepsi = filteredCandidates();
+  const hepsi = siralanmis(filteredCandidates());
   /* ★ Arama yapılmışken kesme YOK: aradığın ders 40. sıradaysa da gelmeli. */
   const list = FILT.q.trim() ? hepsi : hepsi.slice(0, LIMIT);
   const cnt = $("#candCount");
-  if(cnt) cnt.textContent = hepsi.length === M().candidates.length
+  const kalan = kalanYuk();
+  /* Seçmeli havuz yuvası programda doluysa ders "sığmıyor": eklemek o yuvadaki
+     dersi çıkarır (`choose` ile aynı kural). Gerçek sitede 6 kredi boş kalıp
+     "0 ders" yazınca nedeni görünmüyordu — sayıyla birlikte söylüyoruz. */
+  const havuzDolu = FILT.fit ? M().candidates.filter(c =>
+    !chosen.has(c.course) && poolBlocker(c, null)).length : 0;
+  if(cnt && FILT.fit) cnt.textContent = `${hepsi.length} ders programa sığıyor${
+    kalan !== Infinity ? ` · sınıra ${+kalan.toFixed(1)} ${DATA.unitLabel} kaldı` : ""}${
+    havuzDolu ? ` · ${havuzDolu} seçmeli dersin havuz yuvası programda dolu`
+      + " (eklenirse o yuvadaki dersin yerine geçer)" : ""}`;
+  else if(cnt) cnt.textContent = hepsi.length === M().candidates.length
     ? (hepsi.length > list.length
         ? `${M().candidates.length} aday · ilk ${list.length} listeleniyor`
         : `${hepsi.length} aday`)
     : `${M().candidates.length} adaydan ${hepsi.length} tanesi`;
+  if(cnt && FILT.sort === "ort") cnt.textContent += " · geçmiş not ortalamasına göre"
+    + " sıralı (öneri puanına dahil değildir; verisi olmayanlar sonda)";
   $("#cands tbody").innerHTML = list.map(c => {
     const free = Math.max(0, ...c.sections.map(s => s.free));
     const inPlan = chosen.has(c.course);
+    const uyan = FILT.fit ? sigdigiSube(c, kalan) : null;
+    const gecmis = (c.pool || FILT.sort === "ort") ? gecmisOzet(c) : null;
     return `<tr data-course="${esc(c.course)}" style="cursor:pointer"
         title="${inPlan ? "programda" : "programa ekle"}">
       <td class="mono score">${c.score}</td>
@@ -9350,7 +9766,13 @@ function renderCandidates(){
           : (c.sections.some(s => s.online)
              ? `<span class="chip online" style="margin-left:6px">çevrimiçi şube var</span>` : "")}
         <div class="why">${esc(c.name)}${c.reasons.length
-          ? " — " + c.reasons.map(esc).join("; ") : ""}${acilanNot(c)}</div></td>
+          ? " — " + c.reasons.map(esc).join("; ") : ""}${acilanNot(c)}</div>${uyan
+          ? `<div class="why uyansube">uyan şube: CRN <span class="mono">${esc(uyan.crn)}</span>
+             · ${uyan.meetings.map(m => `${DAYS[m.day - 1]} ${hhmm(m.start)}`).join(", ")}${
+             uyan.capacity ? ` · ${yerSayisi(uyan)} boş yer` : " · kontenjan ilan edilmemiş"}</div>` : ""}${gecmis
+          ? `<div class="why ndkisa">geçmiş dönem: ortalama <b class="mono">${gecmis.ort}</b>
+             · %${gecmis.gecen} geçti · n=${gecmis.n} (${esc(gecmis.etiket)})${gecmis.mevsimDisi
+             ? ` · <span class="uyari">olağan yarıyılı dışı</span>` : ""}</div>` : ""}</td>
       <td><span class="tag ${c.role}">${c.role}</span></td>
       <!-- data-e: telefonda kart düzeninde sütun başlığı olmuyor; sayının
            ne olduğu hücrenin yanına yazılıyor (Faz 50).
@@ -9363,7 +9785,7 @@ function renderCandidates(){
     /* ★ İki BOŞ birbirinden ayrı: süzgeç boşalttıysa çıkış yolunu söyle,
        havuz baştan boşsa NEDEN boş olduğunu söyle. Tek bir "aday ders yok"
        ikisini de aynı çıkmaza sokuyordu. */
-    (FILT.q || FILT.role || FILT.free)
+    (FILT.q || FILT.role || FILT.free || FILT.fit)
       ? `süzgece uyan ders bulunmamaktadır — <a href="#" id="candClear">süzgeci temizle</a>`
       : (M().candidates.length
           ? "aday ders bulunmamaktadır"
@@ -9375,8 +9797,8 @@ function renderCandidates(){
   const clr = $("#candClear");
   if(clr) clr.addEventListener("click", (e) => {
     e.preventDefault();
-    FILT.q = ""; FILT.role = ""; FILT.free = false;
-    $("#candQ").value = ""; $("#candFree").checked = false;
+    FILT.q = ""; FILT.role = ""; FILT.free = false; FILT.fit = false;
+    $("#candQ").value = ""; $("#candFree").checked = false; $("#candFit").checked = false;
     renderCandFilters(); renderCandidates();
   });
   listeKenarSolmasi();
@@ -9387,6 +9809,12 @@ $("#candQ").addEventListener("input", (e) => {
 });
 $("#candFree").addEventListener("change", (e) => {
   FILT.free = e.target.checked; renderCandidates();
+});
+$("#candFit").addEventListener("change", (e) => {
+  FILT.fit = e.target.checked; renderCandidates();
+});
+$("#candSort").addEventListener("change", (e) => {
+  FILT.sort = e.target.value; renderCandidates();
 });
 $("#katalogBtn").addEventListener("click", () => katalogDialog());
 
@@ -9735,6 +10163,7 @@ function gorunumAc(id, odakla){
      görünür olunca bir kez daha ölçmek zorundayız. */
   if(id === "tierSection" && typeof drawTierLinks === "function")
     requestAnimationFrame(drawTierLinks);
+  if(typeof kalmaOto === "function") kalmaOto();     // Faz 75
   if(odakla){
     /* ⚠️ Görünüm değişince sayfa kaydırılmıyor — KAYDIRMAMAK bu değişikliğin
        amacı. Ama ekran okuyucu ve klavye kullanıcısı için odağın nereye
@@ -10026,7 +10455,8 @@ function renderRoadmap(){
           .map(t => esc(t.label)).join(", ")}` : ""].filter(Boolean).join(" · ")}
       <button class="ghost mini" id="yhSenaryoKapat">Mevcut plana dön</button></div>`;
   body.innerHTML = `${yhSenaryoPaneli(T)}${serit}<div class="yhprogramlar">${programlar}</div>${
-    simdi}${yaz}${varsayim}${zincir}${donemler}${kalan}`;
+    simdi}${yaz}<div data-kalma="yh">${kalmaPanelIcerik()}</div>${varsayim}${zincir}${donemler}${kalan}`;
+  kalmaBagla(); kalmaOto();        // Faz 75
   const yuk = $("#yhYuk");
   if(yuk) yuk.addEventListener("change", () => { yhAyar().maxLoad = +yuk.value; yhSenaryoKur(); });
   body.querySelectorAll("[data-bos]").forEach(b => b.addEventListener("click", () => {

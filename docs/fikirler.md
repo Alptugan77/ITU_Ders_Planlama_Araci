@@ -1,5 +1,10 @@
 # Kalan eksikler ve geliştirilmesi gerekenler
 
+> **Faz 74–77 (24.09.2026):** programa sığanlar süzgeci, kalma riski, seçmelide
+> geçmiş not dağılımı, alternatif programlar ✅. Açık kalemler: aynı seçmelinin
+> birden çok havuz yuvasına aday olması (motor), alternatifleri yan yana
+> ızgarada karşılaştırma. Ayrıntı: `docs/faz74-77-kayit-haftasi.md`.
+
 > **Faz 71 (24.09.2026):** dönem sonu not senaryosu — "bu notları alırsam
 > GNO'm, ÇAP ortalamam, kredi sınırım ne olur" ✅. Açık kalem: akademik
 > durum (başarılı/sınamalı) — yönetmelikteki dönem sayısına bağlı eşikler

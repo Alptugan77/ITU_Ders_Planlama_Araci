@@ -57,6 +57,21 @@ CREATE TABLE IF NOT EXISTS saved_pick (
     PRIMARY KEY (student_id, term, course_code)
 );
 
+-- ★★ FAZ 77: ALTERNATİF PROGRAMLAR ("Plan B", "Plan C"…). Kayıt gününde
+-- dolan bir şube bütün programı değiştirebiliyor; öğrenci birkaç tam program
+-- hazırlayıp aralarında geçmek istiyor. `saved_pick` ANA programdır ve
+-- değişmedi; alternatifler adlarıyla ayrı tutuluyor, aynı dönem anahtarıyla.
+CREATE TABLE IF NOT EXISTS saved_alt (
+    student_id  INTEGER REFERENCES student(id) ON DELETE CASCADE,
+    term        TEXT,
+    name        TEXT,
+    course_code TEXT,
+    crn         TEXT,
+    position    INTEGER,
+    saved_at    TEXT,
+    PRIMARY KEY (student_id, term, name, course_code)
+);
+
 -- ★★ FAZ 28: BEYAN EDİLEN DENKLİKLER ARTIK BURADA (kişisel veri).
 --   Eskiden `reference.sqlite3`'e yazılıyordu ve `declared.py` "bunlar kişisel
 --   veri DEĞİL, müfredat bilgisi" diyordu. Oysa `tools/gizlilik_denetimi.py`
