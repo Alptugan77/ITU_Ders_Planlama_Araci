@@ -1664,7 +1664,7 @@ def kalma_riski(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: i
 
 
 def yol_senaryosu(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
-                  settings, bu_donem: list[dict], max_load, bos) -> dict:
+                  settings, bu_donem: list[dict], max_load, bos, zor=None) -> dict:
     """Faz 61 — yol haritası SENARYOSU: daha hafif dönem yükü ve boş dönemler.
 
     "Çalışıyorum, dönemde en çok 18 kredi alabilirim", "3. dönem Erasmus'a
@@ -1681,15 +1681,23 @@ def yol_senaryosu(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id:
         raise ValueError("boş dönem geçersiz") from None
     if any(not 1 <= x <= YH.UFUK for x in bos) or len(bos) > 6:
         raise ValueError("boş dönem geçersiz")
+    # ★ Faz 89 — dönem başına en çok N zor ders (1–5); yok/0 → sınır yok.
+    try:
+        zor = int(zor) if zor not in (None, "", 0, "0") else None
+    except (TypeError, ValueError):
+        raise ValueError("zor ders sınırı geçersiz") from None
+    if zor is not None and not 1 <= zor <= 5:
+        raise ValueError("zor ders sınırı geçersiz")
     planlar, taban = _senaryo_planlari(con, settings, g)
     h = YH.kur(con, g["grades"], planlar, term=g["term"], donem=g["donem"],
                max_load=g["max_load"], bu_donem=g["bu"],
                bu_donem_kaynagi="senaryo", equivalences=g["equivalences"],
-               taban=taban, bos=bos, mesgul=REC.busy_sections(settings.mesgul))
+               taban=taban, bos=bos, mesgul=REC.busy_sections(settings.mesgul),
+               zor_siniri=zor)
     az = POL.load_max_duration()
     h["maxDuration"] = ({"semesters": az.semesters, "verified": az.verified,
                          "source": az.source, "note": az.note} if az else None)
-    h["scenario"] = {"maxLoad": g["max_load"], "empty": bos}
+    h["scenario"] = {"maxLoad": g["max_load"], "empty": bos, "hardMax": zor}
     return h
 
 
@@ -6379,7 +6387,7 @@ function kalmaPanelIcerik(){
   return `<div class="note yhkalma">${bas}
     ${riskli.length ? `<div class="yhsatir kalmariskli"><b>Öncelik:</b> ${riskli.map(c =>
       `<b class="mono">${esc(c.course)}</b>`).join(", ")} — hem mezuniyeti geciktirebilir hem
-      de geçmişte öğrencilerin en az %${RISK_ORAN}'si bu dersi geçememiştir.</div>` : ""}
+      de geçmişte bu dersi geçemeyen öğrenci oranı %${RISK_ORAN} veya üzerindedir.</div>` : ""}
     ${etkili.map(c => { const o = kalmaOrani(c);
       return `<div class="yhsatir"><b class="mono">${esc(c.course)}</b> —
       ${c.programs.filter(p => p.delay !== 0).map(p => gecikmeYazi(p, c)).join("; ")}<span class="meta"> ·
@@ -7338,6 +7346,23 @@ function danismanSorulari(){
   }
   /* ★ Faz 73 — başarısız olunan ders bu dönem programda değilse. Uyan
      şubesi olan ("programa eklenebilir") soru değil; tek dokunuşla çözülüyor. */
+  /* ★★ Faz 89 — tahmini zorluk (Faz 87) ve kalma oranı (Faz 88). Kalma
+     riski yalnız ZATEN hesaplanmışsa kullanılıyor; özet hesap tetiklemiyor. */
+  const zorlar = picks().filter(p => { const z = zorlukOf(p.cand); return z && z.level >= 4; });
+  if(zorlar.length >= 3)
+    q.push(`Bu dönemki programımda geçmiş not dağılımına göre <b>${zorlar.length}</b> zor ders
+      bulunmaktadır (<span class="mono">${zorlar.map(p => esc(p.cand.course)).join(", ")}</span>).
+      Yük dengesi açısından birini sonraki döneme bırakmalı mıyım?`);
+  if(kalmaGuncel() && KALMA.veri && !KALMA.yukleniyor)
+    KALMA.veri.courses.forEach(c => {
+      const z = zorlukOf(candOf(c.course)), oran = z ? +(100 - z.passRate).toFixed(1) : null;
+      const gec = Math.max(...c.programs.map(p => p.delay || 0));
+      if(gec > 0 && oran !== null && oran >= 20)
+        /* Sayıya ek getirilmiyor ("%30'u", "%25'i"…): ek sayıya göre değişir. */
+        q.push(`<b class="mono">${esc(c.course)}</b> dersinden kalmam mezuniyetimi
+          geciktirebilir; geçmişte bu dersi geçemeyen öğrenci oranı <b>%${oran}</b>.
+          Bu derse nasıl hazırlanmam önerilir?`);
+    });
   const tk = tekrarDurumu().filter(x => x.tur !== "UYAR");
   if(tk.length) q.push(`Başarısız olduğum <span class="mono">${tk.map(x =>
       esc(x.course) + (x.grade ? ` (${esc(x.grade)})` : "")).join(", ")}</span> bu dönem
@@ -7354,7 +7379,8 @@ function danismanOzeti(){
   const satirlar = picks().map(p => `<tr><td class="mono"><b>${esc(p.cand.course)}</b></td>
     <td>${esc(p.cand.name)}</td><td>${esc(p.cand.role === "PLAN_DISI" ? "plan dışı" : p.cand.role)}</td>
     <td class="mono">${p.cand.credits}</td><td class="mono">${esc(p.sec.crn)}</td>
-    <td>${saat(p)}</td></tr>`).join("");
+    <td>${saat(p)}</td><td>${(z => z ? `${esc(z.label)} <span class="mono">${zp(z.score)}</span>`
+      : "—")(zorlukOf(p.cand))}</td></tr>`).join("");
   const kontrol = [];
   if(DATA.maxLoad) kontrol.push(`Dönem yükü <b class="mono">${t.load} / ${DATA.maxLoad}</b>
     ${esc(DATA.unitLabel)} ${t.load > DATA.maxLoad ? "— <b>sınır aşıldı</b>" : "✓"}`);
@@ -7364,6 +7390,10 @@ function danismanOzeti(){
   }
   if(g && g.counted) kontrol.push(`GNO (tahmini) <b class="mono">${g.value.toFixed(2)}</b> ·
     <span class="mono">${g.credits}</span> kredi`);
+  const pz = programZorlugu(picks().map(p => p.cand));                // Faz 89
+  if(pz.ort !== null) kontrol.push(`Tahmini zorluk <b class="mono">${zp(pz.ort)}</b> / 10
+    (kredi ağırlıklı; geçmiş not dağılımından) · ${pz.zor ? `<b>${pz.zor}</b> zor ders` : "zor ders yok"}${
+    pz.yok ? ` · ${pz.yok} ders için veri yok` : ""}`);
   const bitis = R && !R.error && !R.noTranscript ? (R.programs || []).map(p => `<li><b>${esc(buyukBas(p.label))}</b>:
     ${p.finish ? `${esc(p.finish.label)}${p.finishSemester ? ` (${p.finishSemester}. yarıyıl)` : ""}`
       : p.jointDegree ? `tahmin edilmedi — ortak program (${esc(p.jointDegree)})` : "hesaplanamadı"}${p.nominal && p.finish ? (p.finish.index > p.nominal.index
@@ -7378,7 +7408,7 @@ function danismanOzeti(){
       ${esc(tarihYaz(new Date().toISOString()))}</div>
     <h3>Bu dönemin programı</h3>
     ${satirlar ? `<table><thead><tr><th>Ders</th><th>Ad</th><th>Program</th><th>Kr</th>
-      <th>CRN</th><th>Saat</th></tr></thead><tbody>${satirlar}</tbody></table>`
+      <th>CRN</th><th>Saat</th><th>Tahmini zorluk</th></tr></thead><tbody>${satirlar}</tbody></table>`
       : `<div class="empty">Programda ders bulunmamaktadır.</div>`}
     <h3>Kontroller</h3><ul>${kontrol.map(k => `<li>${k}</li>`).join("")}</ul>
     ${bitis ? `<h3>Tahmini bitiş</h3><ul>${bitis}</ul>` : ""}
@@ -10729,17 +10759,17 @@ function yariyilSatiri(p, md){
 let YH_SENARYO = null, YH_AYAR = null;
 function yhAyar(){
   const T = DATA.roadmap;
-  if(!YH_AYAR) YH_AYAR = {maxLoad: T.maxLoad, bos: new Set()};
+  if(!YH_AYAR) YH_AYAR = {maxLoad: T.maxLoad, bos: new Set(), zor: 0};
   return YH_AYAR;
 }
 async function yhSenaryoKur(){
   const T = DATA.roadmap, A = yhAyar();
   const kutu = $("#yhSenaryoDurum");
-  if(A.maxLoad === T.maxLoad && !A.bos.size){ YH_SENARYO = null; renderRoadmap(); return; }
+  if(A.maxLoad === T.maxLoad && !A.bos.size && !A.zor){ YH_SENARYO = null; renderRoadmap(); return; }
   if(kutu) kutu.textContent = "hesaplanıyor…";
   try{
     const r = await api("/api/yolharitasi", {bu: capBitisGirdi().bu, maxLoad: A.maxLoad,
-                                             bos: [...A.bos]});
+                                             bos: [...A.bos], zor: A.zor || null});
     YH_SENARYO = r.senaryo;
   }catch(err){
     YH_SENARYO = null;
@@ -10759,6 +10789,10 @@ function yhSenaryoPaneli(T){
     <label>Dönem başına en çok <select id="yhYuk">${yukler.map(v =>
       `<option value="${v}"${v === A.maxLoad ? " selected" : ""}>${v}${
         v === T.maxLoad ? " (mevcut sınır)" : ""}</option>`).join("")}</select> kredi</label>
+    ${yhZorVar(T) ? `<label title="Tahmini zorluğu 10 üzerinden 6 ve üstü olan dersler; fazlası sonraki uygun döneme bırakılır"
+      >Dönem başına en çok <select id="yhZor">${[0, 1, 2, 3].map(v =>
+      `<option value="${v}"${v === (A.zor || 0) ? " selected" : ""}>${v ? v : "sınırsız"}</option>`).join("")}</select>
+      zor ders</label>` : ""}
     <span class="yhbosetiket">Boş bırakılacak dönemler (Erasmus, staj):</span>
     ${donemler.map(t => `<button class="ghost mini" data-bos="${t.index}"
       aria-pressed="${A.bos.has(t.index)}">${A.bos.has(t.index) ? "✓ " : ""}${
@@ -10766,6 +10800,11 @@ function yhSenaryoPaneli(T){
     <span class="meta" id="yhSenaryoDurum" aria-live="polite"></span>
   </div>`;
 }
+
+/* ★★ Faz 89 — "zor dersleri dağıt" senaryosu yalnız haritada zor ders
+   VARSA sunuluyor (verisiz katalogda anlamsız bir seçenek olurdu). */
+const yhZorVar = (T) => (T.terms || []).some(t => !t.current
+  && (t.items || []).some(i => i.difficulty && i.difficulty.level >= 4));
 
 /* ★★ Faz 85 — dönem kartında "kaç zor ders". Yerleşimi değiştirmiyor; zor
    dersleri aynı döneme yığan bir planı öğrenci kendisi görebilsin diye. */
@@ -10883,6 +10922,9 @@ function renderRoadmap(){
       ${yhZorluk(t)}
       ${(t.timeDeferred || []).length ? `<div class="yhuyari">Saat çakışması nedeniyle bu döneme
         konamadı: <span class="mono">${t.timeDeferred.map(esc).join(", ")}</span></div>` : ""}
+      ${(t.hardDeferred || []).length ? `<div class="yhuyari">Dönem başına zor ders
+        sınırı nedeniyle sonraki döneme bırakıldı:
+        <span class="mono">${t.hardDeferred.map(esc).join(", ")}</span></div>` : ""}
       ${(t.hourDeferred || []).length ? `<div class="yhuyari">Haftalık boş saat
         (meşgul saatler dışında) yetmediğinden bu döneme konamadı:
         <span class="mono">${t.hourDeferred.map(esc).join(", ")}</span></div>` : ""}
@@ -10926,13 +10968,17 @@ function renderRoadmap(){
         R.scenario.maxLoad !== T.maxLoad ? `dönem başına en çok <b class="mono">${
           R.scenario.maxLoad}</b> kredi` : "",
         R.scenario.empty.length ? `boş: ${(R.terms || []).filter(t => t.skipped)
-          .map(t => esc(t.label)).join(", ")}` : ""].filter(Boolean).join(" · ")}
+          .map(t => esc(t.label)).join(", ")}` : "",
+        R.scenario.hardMax ? `dönem başına en çok <b class="mono">${
+          R.scenario.hardMax}</b> zor ders` : ""].filter(Boolean).join(" · ")}
       <button class="ghost mini" id="yhSenaryoKapat">Mevcut plana dön</button></div>`;
   body.innerHTML = `${yhSenaryoPaneli(T)}${serit}<div class="yhprogramlar">${programlar}</div>${
     simdi}${yaz}<div data-kalma="yh">${kalmaPanelIcerik()}</div>${varsayim}${zincir}${donemler}${kalan}`;
   kalmaBagla(); kalmaOto();        // Faz 75
   const yuk = $("#yhYuk");
   if(yuk) yuk.addEventListener("change", () => { yhAyar().maxLoad = +yuk.value; yhSenaryoKur(); });
+  const zorSec = $("#yhZor");
+  if(zorSec) zorSec.addEventListener("change", () => { yhAyar().zor = +zorSec.value; yhSenaryoKur(); });
   body.querySelectorAll("[data-bos]").forEach(b => b.addEventListener("click", () => {
     const A = yhAyar(), i = +b.dataset.bos;
     if(A.bos.has(i)) A.bos.delete(i); else A.bos.add(i);

@@ -234,7 +234,8 @@ def kur(con: sqlite3.Connection, grades: Mapping[str, str], planlar: list[dict],
         term: str, donem: int, max_load: float, bu_donem: Iterable[dict],
         bu_donem_kaynagi: str = "", equivalences=None,
         taban: POL.SecondFloor | None = None, ufuk: int = UFUK,
-        yaz: str | None = None, bos: Iterable[int] = (), mesgul: Iterable = ()) -> dict:
+        yaz: str | None = None, bos: Iterable[int] = (), mesgul: Iterable = (),
+        zor_siniri: int | None = None) -> dict:
     """Yol haritası.
 
     `planlar`: `[{"planId", "role", "label", "program"}]` — anadal önce.
@@ -245,6 +246,9 @@ def kur(con: sqlite3.Connection, grades: Mapping[str, str], planlar: list[dict],
     bu dönem Güz'se bir sonraki Bahar'ın arkası.
     `bos` (Faz 61): hiç İTÜ dersi alınmayacak dönemlerin sırası (1 = gelecek
     dönem) — Erasmus, staj, izin. Yarıyıl sayısına DAHİL sayılıyor.
+    `zor_siniri` (Faz 89): bir döneme en çok bu kadar "zor" ders (tahmini
+    zorluk kademesi ≥ 4, yani genel puan ≥ 6) konur; fazlası sonraki uygun
+    döneme kalır. Senaryo — "zor dersleri dağıtırsam ne zaman biterim".
 
     ⚠️ Bağlantının `row_factory`si çağıranın; burada geçici değişip geri
     konuyor (sunucu `Row`, testler düz demet kullanıyor).
@@ -255,13 +259,14 @@ def kur(con: sqlite3.Connection, grades: Mapping[str, str], planlar: list[dict],
         return _kur(con, grades, planlar, term=term, donem=donem, max_load=max_load,
                     bu_donem=bu_donem, bu_donem_kaynagi=bu_donem_kaynagi,
                     equivalences=equivalences, taban=taban, ufuk=ufuk, yaz=yaz,
-                    bos=frozenset(int(x) for x in bos), mesgul=tuple(mesgul))
+                    bos=frozenset(int(x) for x in bos), mesgul=tuple(mesgul),
+                    zor_siniri=zor_siniri)
     finally:
         con.row_factory = eski
 
 
 def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kaynagi,
-         mesgul=(),
+         mesgul=(), zor_siniri=None,
          equivalences, taban, ufuk, yaz=None, bos=frozenset()) -> dict:
     equivalences = list(equivalences or [])
     names = {r[0]: r[1] for r in con.execute("SELECT code, name FROM course")}
@@ -543,6 +548,11 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
 
     kod = term
     hep_saat, hep_butce = set(), set()          # Faz 82 — gerekçe için
+    hep_zor: set = set()                        # Faz 89
+
+    def zor_mu(ders) -> bool:
+        z = zorluk_ozeti(ders) if ders else None
+        return bool(z and z["level"] >= 4)
     for t in range(1, ufuk + 1):
         kod = sonraki_donem(kod)
         if not kalan:
@@ -563,6 +573,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
         saat_bilinir = kod[4:] == term[4:]          # Faz 82 — aynı mevsim
         ertelenen_saat: list = []
         ertelenen_butce: list = []
+        ertelenen_zor: list = []                # Faz 89
         # Öncelik: en uzun zinciri başlatan önce (kritik yol), sonra planın
         # dönem sırası, zorunlu ders seçmeli havuzdan önce.
         uygun.sort(key=lambda b: (-b.yukseklik, b.donem_no or 99,
@@ -575,6 +586,17 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             toplam += b.kredi
             if "CAP" in b.roller:
                 cap_kredi += b.kredi
+
+        def zora_sigar(b: Birim) -> bool:
+            """★ Faz 89 — senaryo: bu dönemde zor ders sınırı dolmadı mı.
+            Havuz (ders belli değil) ve verisiz ders sayılmıyor — zorluğu
+            bilinmeyen ders "zor" diye ertelenmez."""
+            if not zor_siniri or not zor_mu(b.ders):
+                return True
+            if sum(1 for x in secilen if zor_mu(x.ders)) < zor_siniri:
+                return True
+            ertelenen_zor.append(b.ders)
+            return False
 
         def saate_sigar(b: Birim) -> bool:
             """Faz 82 — b eklenince (1) haftalık saat bütçesi aşılmıyor mu,
@@ -597,17 +619,19 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
                 if cap_kredi + 1e-9 >= taban.minimum:
                     break
                 if ("CAP" in b.roller and toplam + b.kredi <= max_load + 1e-9
-                        and saate_sigar(b)):
+                        and zora_sigar(b) and saate_sigar(b)):
                     al(b)
         for b in uygun:
             if (b not in secilen and b.ders not in ertelenen_saat
-                    and toplam + b.kredi <= max_load + 1e-9 and saate_sigar(b)):
+                    and toplam + b.kredi <= max_load + 1e-9
+                    and zora_sigar(b) and saate_sigar(b)):
                 al(b)
         for b in secilen:
             b.yer = t
             varsayilan |= b.kodlar
         hep_saat.update(ertelenen_saat)
         hep_butce.update(x for x in ertelenen_butce if x)
+        hep_zor.update(ertelenen_zor)
         kazanilan += toplam
         kalan = [b for b in kalan if b.yer is None]
         # Taban eksiği yalnız ÇAP SÜRERKEN söyleniyor: son ÇAP döneminde
@@ -632,6 +656,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             "timeCheck": "var" if saat_bilinir else "yok",
             "timeDeferred": sorted(set(ertelenen_saat)),
             "hourDeferred": sorted(set(x for x in ertelenen_butce if x)),
+            "hardDeferred": sorted(set(ertelenen_zor)),                   # Faz 89
             "weeklyMinutes": round(sum(haftalik_dk(b) for b in secilen)),
             "availableMinutes": bos_dk,
             # ÇAP tabanı tutmuyorsa SÖYLENİYOR (yeterli alınabilir ÇAP dersi yok).
@@ -672,6 +697,9 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             sebep = "her denendiği dönemde öbür derslerle saat çakışması oluşmaktadır"
         elif (b.ders or b.havuz) in hep_butce:
             sebep = "haftalık boş saat (meşgul saatler dışında) yetmemektedir"
+        elif b.ders and b.ders in hep_zor:
+            sebep = (f"dönem başına en çok {zor_siniri} zor ders senaryosunda "
+                     f"{ufuk} dönem içinde yerleştirilememiştir")
         yerlesmeyen.append({"course": b.ders, "name": b.ad, "pool": b.havuz,
                             "credits": b.kredi, "roles": sorted(b.roller),
                             "reason": sebep})
@@ -776,6 +804,12 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             "dersi planlanmamış ve dönemler yarıyıl sayısına dahil edilmiştir. Kayıt dondurma "
             "yarıyıl sayısına dahil edilmeyebilir; yurt dışında alınan derslerin denkliği bu "
             "hesapta yer almamaktadır.")
+    if zor_siniri:
+        varsayimlar.append(
+            f"Her döneme en çok {zor_siniri} zor ders (tahmini zorluk 10 üzerinden 6 ve "
+            "üstü) konmuştur; fazlası sonraki uygun döneme bırakılmıştır. Zorluk geçmiş not "
+            "dağılımından tahmindir; zorluğu bilinmeyen dersler ve seçmeli havuzlar sınıra "
+            "sayılmamıştır.")
     if gecmisten:
         varsayimlar.append(
             f"{gecmisten} dersin açıldığı yarıyıl geçmiş not dağılımından belirlenmiştir: "
