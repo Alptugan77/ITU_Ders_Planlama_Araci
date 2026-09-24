@@ -2511,6 +2511,8 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--focus);outline-o
 .ozetdolusatir .ozetnot{display:block}
 .ozetdolusatir button{margin-left:4px}
 .ozetnot{color:var(--ink-3)}
+.ozettekrar{padding-top:6px;border-top:1px solid var(--border)}
+.ozettekrar .ozetbaslik{font-weight:600;margin-bottom:4px}
 .ozetlejant{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:var(--fs-sm);
   padding-top:6px;border-top:1px solid var(--border)}
 .ozetpuan{font-size:var(--fs-sm);color:var(--ink-3)}
@@ -6819,6 +6821,13 @@ function danismanSorulari(){
       q.push(`Şartlı geçtiğim ${g.conditional.length} ders bulunmaktadır ve GNO'm 2.00'ın
         altındadır. Hangi dersleri tekrar almalıyım?`);
   }
+  /* ★ Faz 73 — başarısız olunan ders bu dönem programda değilse. Uyan
+     şubesi olan ("programa eklenebilir") soru değil; tek dokunuşla çözülüyor. */
+  const tk = tekrarDurumu().filter(x => x.tur !== "UYAR");
+  if(tk.length) q.push(`Başarısız olduğum <span class="mono">${tk.map(x =>
+      esc(x.course) + (x.grade ? ` (${esc(x.grade)})` : "")).join(", ")}</span> bu dönem
+    programımda yer almamaktadır${tk.some(x => x.tur === "CAKISIYOR") ? ` (şubeleri
+    programımdaki derslerle çakışmaktadır)` : ""}. Bu dersi ne zaman tekrar almalıyım?`);
   return q;
 }
 
@@ -7691,6 +7700,92 @@ function bosSube(course){
       && !conflictsWith(s, course).length && !mesgulCakisir(s))
     .sort((a, b) => yerSayisi(b) - yerSayisi(a))[0] || null;
 }
+/* ★★ FAZ 73 — BAŞARISIZ OLUNAN DERS PROGRAMDA YOKSA, NEDENİ.
+   Gerçek sitede (Faz 72 gezintisi) MAT 104E'den FF alan öğrencinin önerilen
+   programında MAT 104E yoktu ve hiçbir yer nedenini söylemiyordu: 11 şubenin
+   hepsi yandalın tek şubeli iki dersiyle çakışıyordu. Motorun tercihi
+   bilinçli olabilir; ama öğrenci bunu ızgaraya bakıp bulmak zorundaydı.
+   Transkriptte FAILED olan (ve sonradan geçilmemiş — `earned_course` dersin
+   SON durumunu tutuyor) her ders için, programda değilse:
+     · aday değil → darboğazdaki gerekçe (açılmamış, programa kapalı, önşart);
+       gerekçe de yoksa planlarda kalan bir ders değildir → yazılmıyor;
+     · bütün şubeler dolu (kontenjanı İLAN EDİLMİŞ ve 0 boş) → "dolu";
+     · uyan şube var → "programa eklenebilir" + tek dokunuş;
+     · yalnız meşgul saatlerinizle çakışıyor → öyle yazıyor;
+     · programdaki derslerle çakışıyor → EN AZ krediyi düşüren şube ve
+       çıkacak dersler adıyla; ekleme `choose()` ile, geri alınabilir.
+   Kontenjanı ilan edilmemiş şube "açık olabilir" sayılıyor (dolu demek
+   uydurma olurdu); ekleme düğmesi yine de boş yeri bilinen şubeyi seçiyor. */
+function tekrarDurumu(){
+  const secili = new Set(sel.map(x => x.course));
+  const acikOlabilir = (s) => !s.capacity || yerSayisi(s) > 0;
+  return ((SETUP && SETUP.transcript) || [])
+    .filter(t => t.status === "FAILED" && !secili.has(t.course))
+    .map(t => {
+      const r = {course: t.course, grade: t.grade || "", tur: "", crn: "", cikar: []};
+      const cand = candOf(t.course);
+      if(!cand){
+        const b = (DATA.blockers || []).find(x => x.course === t.course);
+        if(!b) return null;
+        return {...r, tur: "ENGEL", detay: b.detail || ""};
+      }
+      const acik = cand.sections.filter(acikOlabilir);
+      if(!acik.length) return {...r, tur: "DOLU"};
+      const serbest = acik.filter(s => !mesgulCakisir(s));
+      if(!serbest.length) return {...r, tur: "MESGUL"};
+      const yerli = (l) => l.filter(s => yerSayisi(s) > 0).length ? l.filter(s => yerSayisi(s) > 0) : l;
+      const uyan = yerli(serbest.filter(s => !conflictsWith(s, t.course).length));
+      if(uyan.length){
+        const s = uyan.slice().sort((a, b) => yerSayisi(b) - yerSayisi(a))[0];
+        return {...r, tur: "UYAR", crn: s.crn};
+      }
+      const kredi = (s) => conflictsWith(s, t.course).reduce((a, p) => a + (p.cand.credits || 0), 0);
+      const s = yerli(serbest).slice().sort((a, b) => kredi(a) - kredi(b)
+        || yerSayisi(b) - yerSayisi(a))[0];
+      return {...r, tur: "CAKISIYOR", crn: s.crn,
+              cikar: conflictsWith(s, t.course).map(p => p.cand.course)};
+    }).filter(Boolean).map(r => r.crn ? {...r, ...eklemeEtkisi(r)} : r);
+}
+/* Tek dokunuşun iki yan etkisi ÖNCEDEN söyleniyor (sonradan kırmızıya dönen
+   bir sayaçla öğrenmek yerine): dönem sınırı aşılıyor mu, ikinci programın
+   yarıyıl tabanı (Faz 58 Y.4'teki gibi) bozuluyor mu. */
+function eklemeEtkisi(r){
+  const cand = candOf(r.course), cikan = new Set(r.cikar);
+  const kalan = picks().filter(p => !cikan.has(p.cand.course));
+  const yuk = kalan.reduce((a, p) => a + loadOf(p.cand), 0) + loadOf(cand);
+  const F = DATA.secondFloor;
+  let tabanBozar = false;
+  if(F && F.min && !F.undeclared && tabanDurumu(F).ok){
+    const ik = kalan.filter(p => p.cand.role !== "ANADAL")
+      .reduce((a, p) => a + (p.cand.credits || 0), 0)
+      + (cand.role !== "ANADAL" ? cand.credits || 0 : 0);
+    tabanBozar = ik + 1e-9 < F.min;
+  }
+  return {asar: !!(DATA.maxLoad && yuk > DATA.maxLoad + 1e-9), yuk: +yuk.toFixed(1), tabanBozar};
+}
+function tekrarOzeti(){
+  const L = tekrarDurumu();
+  if(!L.length) return "";
+  const ne = (x) => x.tur === "ENGEL" ? esc(x.detay || "bu dönem alınamamaktadır")
+    : x.tur === "DOLU" ? "bütün şubeleri doludur; kontenjanın izlenmesi önerilir"
+    : x.tur === "MESGUL" ? "açık şubeleri meşgul olarak işaretlediğiniz saatlerle çakışmaktadır"
+    : x.tur === "UYAR" ? `CRN <span class="mono">${esc(x.crn)}</span> programla çakışmamaktadır`
+    : `şubeleri programdaki <span class="mono">${x.cikar.map(esc).join(", ")}</span>
+       ile çakışmaktadır`;
+  const dugme = (x) => x.tur === "UYAR"
+    ? ` <button class="ghost mini" data-tekrar="${esc(x.course)}" data-crn="${esc(x.crn)}"
+        >programa ekle</button>`
+    : x.tur === "CAKISIYOR"
+    ? ` <button class="ghost mini" data-tekrar="${esc(x.course)}" data-crn="${esc(x.crn)}"
+        >ekle, ${x.cikar.map(esc).join(" ve ")} çıkar</button>` : "";
+  return `<div class="ozetdolu ozettekrar"><div class="ozetbaslik">Tekrar alınması gereken
+      ders${L.length > 1 ? "ler" : ""} programda değil</div>${L.map(x => `
+    <div class="ozetdolusatir"><span class="yerdurum dolu">${esc(x.grade || "kaldı")}</span>
+      <b class="mono">${esc(x.course)}</b>${dugme(x)}
+      <span class="ozetnot">— ${ne(x)}${x.asar ? `; eklenirse dönem yükü
+        <b class="mono">${x.yuk}</b> / ${DATA.maxLoad} ile sınırı aşar` : ""}${x.tabanBozar
+        ? `; ${esc(LBL)} yarıyıl tabanı (${DATA.secondFloor.min} kredi) sağlanamaz` : ""}</span></div>`).join("")}</div>`;
+}
 function poolBlocker(cand, exceptCourse){
   if(!cand.pool) return null;
   return picks().find(p => p.cand.course !== exceptCourse && p.cand.pool &&
@@ -8049,6 +8144,7 @@ function render(){
               <span class="mono">${yerSayisi(b)}</span> boş yer · çakışmıyor</span>`
           : ` <span class="ozetnot">— uygun boş şube bulunmamaktadır; kontenjanın izlenmesi önerilir</span>`}</div>`;
     }).join("")}</div>` : ""}
+    ${tekrarOzeti()}
     <div class="ozetlejant">
       <span class="dot"><i style="background:var(--anadal)"></i>anadal</span>
       ${SECONDS().map(x => `<span class="dot"><i style="background:var(--${
@@ -8061,6 +8157,8 @@ function render(){
     ${tercihNotu()}`;
   $("#schedSummary").querySelectorAll("[data-bosa]").forEach(b =>
     b.addEventListener("click", () => choose(b.dataset.bosa, b.dataset.crn)));
+  $("#schedSummary").querySelectorAll("[data-tekrar]").forEach(b =>   // Faz 73
+    b.addEventListener("click", () => choose(b.dataset.tekrar, b.dataset.crn)));
   $("#editState").hidden = !edited();
   $("#reset").hidden = !edited();
   renderSaveState();

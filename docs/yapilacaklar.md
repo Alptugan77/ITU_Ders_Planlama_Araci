@@ -534,6 +534,12 @@ her maddeden önce gelen tek iş.
 > not senaryosu eşik hapları GNO paneliyle aynı ✅
 > ➜ Ayrıntı: `docs/faz72-yandal-gezintisi.md`
 >
+> **Faz 73 (24.09.2026 — tekrar alınacak dersler):** başarısız olunan ders
+> programda yoksa özette nedeni (açılmamış, dolu, meşgul saat, çakışan
+> dersler) ve tek dokunuşla ekleme; dönem sınırı ve ÇAP yarıyıl tabanı yan
+> etkisi önceden yazılıyor ✅ · danışman özetinde soru ✅
+> ➜ Ayrıntı: `docs/faz73-tekrar-dersleri.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
