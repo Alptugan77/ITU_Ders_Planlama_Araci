@@ -115,6 +115,32 @@ def term_year(kod: str) -> int | None:
     return int(k[:4])
 
 
+def donem_kodu_tarihten(tarih: str) -> str:
+    """ISO tarih → o gün OBS ders programının gösterdiği dönemin kodu.
+
+    ★★ Faz 64 (24.09.2026) — kullanıcı: *"we are currently in 2026-2027 fall
+    semester not in 2025-2026"*. itu-helper'ın `lessons.psv`'sinde dönem
+    YOK; yükleyici şubelere ayardaki `term`i basıyordu, o da örnek dosyadan
+    kalma `202610`'du (= 2025-2026 Güz). 20.09.2026'da çekilen şubeler bu
+    yüzden bir yıl geride etiketlendi ve yol haritası "2025-2026 Güz"den
+    başladı. Şubelerin dönemi ÇEKİLDİKLERİ GÜNÜN bir gerçeği; ayar değil.
+
+    Eylül–Aralık → Güz, Şubat–Mayıs → Bahar. Ocak (final, bahar programı
+    ilanı), Haziran–Ağustos (yaz okulu, güz programı ilanı) geçiş ayları:
+    OBS hangisini gösteriyor bilinmiyor → BOŞ; çağıran başka kaynağa düşer.
+    """
+    t = str(tarih or "")[:10]
+    try:
+        yil, ay = int(t[:4]), int(t[5:7])
+    except ValueError:
+        return ""
+    if 9 <= ay <= 12:
+        return f"{yil + 1}10"
+    if 2 <= ay <= 5:
+        return f"{yil}20"
+    return ""
+
+
 def donem_adi(kod: str) -> str:
     """`202610` → `2025-2026 Güz`. Çözemezse BOŞ döner.
 

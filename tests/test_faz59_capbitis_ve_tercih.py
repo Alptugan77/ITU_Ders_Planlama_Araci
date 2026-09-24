@@ -185,7 +185,7 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     assert c["HATA"].startswith("0"), c["HATA"]
 
     # Y.1 — vitrinin ikinci ÇAP seçeneği INS: 4 halkalık zincir, 10. yarıyıl.
-    assert c["CAPBITIS"].startswith("2027-2028 Bahar (10. yarıyıl)"), c["CAPBITIS"]
+    assert c["CAPBITIS"].startswith("2028-2029 Bahar (10. yarıyıl)"), c["CAPBITIS"]
     assert "5 ders kaldı" in c["CAPBITIS"] and "kredi" not in c["CAPBITIS"]
     assert "yarıyıl tabanı tutmuyor" in c["CAPBITIS"]
     assert "6. yarıyılda" in c["CAPNOT"] and "kabulü, kontenjan ve sıralama" in c["CAPNOT"]

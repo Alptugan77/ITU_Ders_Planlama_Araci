@@ -399,7 +399,7 @@ def test_UCTAN_UCA_vitrin_yol_haritasi(tmp_path, monkeypatch):
     assert c["HATA"] == "0"
     assert c["KAYNAK"].startswith("açılıştaki öneri 1"), c["KAYNAK"]
     # Vitrin öğrencisi: GEO 341E alınmazsa anadal 2027-2028 Bahar'a kayıyor.
-    assert "ANADAL=2027-2028 Bahar" in c["PROGRAMLAR"], c["PROGRAMLAR"]
+    assert "ANADAL=2028-2029 Bahar" in c["PROGRAMLAR"], c["PROGRAMLAR"]
     assert "GEO 341E/2" in c["SIMDI"], c["SIMDI"]
     assert c["GORUNUR"] == "True"
     assert int(c["KART"]) >= 4

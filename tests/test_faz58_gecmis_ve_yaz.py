@@ -306,7 +306,7 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     # Y.3 — GEO 341E geçen yaz 14 öğrenciyle açıldı; ilk yazda alınırsa 2 dönem.
     y = json.loads(c["YAZ"])
     assert [(x["course"], x["term"], x["gains"][0]["terms"]) for x in y] == \
-        [("GEO 341E", "2025-2026 Yaz", 2)], y
+        [("GEO 341E", "2026-2027 Yaz", 2)], y
     assert "14 öğrenci" in c["YAZKUTU"] and "bu yaz açılacağı demek değil" in c["YAZKUTU"]
 
     # Y.2 — iki ÇAP dersinin mevsimi planda yoktu; geçmişten okundu.

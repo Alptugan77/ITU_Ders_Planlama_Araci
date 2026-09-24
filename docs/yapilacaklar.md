@@ -474,6 +474,14 @@ her maddeden önce gelen tek iş.
 > Geri alma deneyi: 6/6 kırmızı.
 > ➜ Ayrıntı: `docs/faz63-durust-bitis.md`
 >
+> **Faz 64 (24.09.2026 — bugünkü dönem):** kullanıcı: *"we are currently in
+> 2026-2027 fall semester not in 2025-2026"*. ★★ Şubelere örnek ayardan kalma
+> `202610` (2025-2026 Güz) basılıyordu; site bir yıl geriden başlıyordu →
+> dönem şubelerin çekildiği günden ✅ · başlık haritayla aynı dönem ✅ · örnek
+> ayar ve vitrin 2026-2027 Güz ✅
+> Geri alma deneyi: 6/6 kırmızı.
+> ➜ Ayrıntı: `docs/faz64-bugunku-donem.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

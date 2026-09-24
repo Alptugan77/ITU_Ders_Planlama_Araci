@@ -196,13 +196,13 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
 
     # Senaryo: vitrinde 2026-2027 Güz Erasmus → GEO 341E zinciri bir yıl kayıyor.
     kart, serit = c["S1"].split("|")
-    assert "2028-2029 Bahar" in kart and "12. yarıyılında" in kart, kart
+    assert "2029-2030 Bahar" in kart and "12. yarıyılında" in kart, kart
     assert "bugünkü plana göre 2 dönem geç" in kart
-    assert "Senaryo gösteriliyor — kaydedilmedi." in serit and "boş: 2026-2027 Güz" in serit
-    assert c["ATLANDI"] == "2026-2027 Güz"
+    assert "Senaryo gösteriliyor — kaydedilmedi." in serit and "boş: 2027-2028 Güz" in serit
+    assert c["ATLANDI"] == "2027-2028 Güz"
     assert "dönem başına en çok 15 kredi" in c["S2"], c["S2"]
     serit3, kart3 = c["S3"].split("|")
-    assert serit3 == "" and "2027-2028 Bahar" in kart3 and "bugünkü plana" not in kart3
+    assert serit3 == "" and "2028-2029 Bahar" in kart3 and "bugünkü plana" not in kart3
 
     # Danışman özeti (1): GEO 341E şubesi bir ÇAP dersiyle çakışıyor, o düşünce
     # ÇAP tabanı 6/9 — özet bunu soruyor (renderFloor ile aynı hesap).

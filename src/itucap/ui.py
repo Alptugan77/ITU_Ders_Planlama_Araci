@@ -453,6 +453,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     belirsizlik hataya döndü (yandal seçiliyken rol CAP çıkıyordu), o yüzden
     çağıran taraf artık listeyi açıkça verebiliyor.
     """
+    # ★ Faz 64 — "bu dönem" tek yerden: ayar, yoksa şubelerin çekildiği gün.
+    aktif_donem = _aktif_donem(con, settings)
     grades = S.grades(ucon, student_id)
     equivalences = R.load_equivalences(con, ucon=ucon)
     if seconds is None:
@@ -725,7 +727,7 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     def _not_dagilimi(code: str):
         if code not in _nd_cache:
             try:
-                _nd_cache[code] = ND.distribution(con, code, settings.term)
+                _nd_cache[code] = ND.distribution(con, code, aktif_donem)
             except Exception:                     # noqa: BLE001
                 # Dağılım bir SÜS; okunamazsa aracın geri kalanı çalışmalı.
                 _nd_cache[code] = None
@@ -1017,17 +1019,19 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         "settingsError": settings.load_error,
         # ★ Faz 53 — okunan tabloların dışında kalan ayar satırları.
         "settingsWarnings": settings.load_uyarilari,
-        "term": settings.term,
+        # ★ Faz 64 — sitede `term` ayarı yok: başlık da haritayla AYNI dönemi
+        # (şubelerin çekildiği gün) yazıyor.
+        "term": aktif_donem,
         # ★ B3 — başlıkta ham `202610` yazıyordu. Çözülemezse BOŞ; arayüz
         # o zaman ham kodu yazmaya devam ediyor, isim UYDURMUYOR.
-        "termLabel": config.donem_adi(settings.term),
+        "termLabel": config.donem_adi(aktif_donem),
         # ★★ Faz 38 — planladığın dönemin notları AÇIKLANMIŞ mı?
         # Takvimden tahmin etmiyoruz, kaynağa soruyoruz: o dönem için
         # kaç dersin dağılımı yayınlanmış. Sıfırdan büyükse dönem geçmişte
         # kalmış demektir ve `settings.term` büyük ihtimalle yanlış.
         # ⚠️ 0 "gelecekte" DEMEK DEĞİL — hiç çekilmemiş de olabilir; arayüz
         # bu ikisini `gradeCoverage.courses` ile ayırıyor.
-        "termGraded": ND.term_already_graded(con, settings.term),
+        "termGraded": ND.term_already_graded(con, aktif_donem),
         "gradeCoverage": ND.coverage(con),
         "unit": settings.unit, "unitLabel": settings.unit_label,
         "maxLoad": limit,
@@ -1276,6 +1280,13 @@ def _aktif_donem(con: sqlite3.Connection, settings) -> str:
     if len(term) == 6:
         return term
     try:
+        # ★★ Faz 64 — önce şubelerin ÇEKİLDİĞİ gün: yayındaki katalogda şubeler
+        # 20.09.2026'da çekilmiş ama örnek ayardan kalma `202610` (2025-2026
+        # Güz) basılmıştı; site bir yıl geride başlıyordu. Basılı dönem yalnız
+        # tarih bir geçiş ayına düşüyorsa kullanılıyor.
+        cekim = con.execute("SELECT MAX(updated_at) FROM lesson").fetchone()[0]
+        if config.donem_kodu_tarihten(cekim):
+            return config.donem_kodu_tarihten(cekim)
         donemler = [str(r[0]) for r in con.execute(
             "SELECT DISTINCT term FROM lesson WHERE term IS NOT NULL AND term != ''")]
     except sqlite3.Error:
