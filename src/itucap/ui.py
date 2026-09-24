@@ -505,6 +505,11 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             "planId": plan_id,
             "program": plan["program_code"],
             "title": plan["title"],
+            # ★ Faz 67 — OBS'den çekilen planın resmî sayfası (itu-helper
+            # kaynaklı planların OBS'de karşılığı yok → None, link çizilmez).
+            "url": (plan["source_url"] if str(plan["source_url"] or "")
+                    .startswith(config.OBS + "/public/DersPlan/DersPlanDetay/") else None),
+            "source": plan["source"],
             "percent": stats["percent"],
             "slotsDone": stats["slots_done"], "slotsTotal": stats["slots_total"],
             "openRequired": stats["open_required"],
@@ -749,6 +754,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                 "yearName": t["yearName"], "season": t["season"],
                 "counts": t["counts"],
                 "buckets": ND.bucketise(t["counts"]),
+                # ★ Faz 67 — verinin okunduğu OBS sayfasının kendisi.
+                "url": config.notdagilimi_url(code, config.term_year(t["term"]) or 0),
                 **t["summary"],
             } for t in d["terms"]],
         }
@@ -1067,6 +1074,7 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
              for c in [*cands, *term_cands]}),
         "taking": sorted(S.in_progress(ucon, student_id)),
         "panels": panels,
+        "links": config.DIS_BAGLANTILAR,
         "candidates": candidates_json(cands),
         "schedules": schedule_json,
         # ★ Dönemlik + alttan kipi: ayrı aday havuzu, ayrı programlar.
@@ -3351,6 +3359,16 @@ dialog.wide{max-width:880px}
 dialog.wide .pad{max-height:min(84vh,760px);overflow-y:auto}
 dialog::backdrop{background:var(--scrim)}
 dialog .pad{padding:24px 24px}
+/* ★ Faz 67 — dış bağlantılar: altı çizili (renk tek işaret değil) ve ↗. */
+a.dislink{color:var(--seal);text-decoration:underline;text-underline-offset:2px;
+  /* Cümle içi bağlantının dokunma alanı ≥24px (Faz 48 kuralı): satır içi
+     dolgu satır aralığını değiştirmeden tıklanabilir alanı büyütür. */
+  padding-block:6px}
+a.dislink:hover{color:var(--ink)}
+.dislinkler{color:var(--ink-3);font-size:var(--fs-sm);margin-top:8px;line-height:var(--lh-loose)}
+.planlink{font-size:var(--fs-sm);font-weight:400;white-space:nowrap}
+.kaynaklar{margin-top:8px}
+.kaynaklar>div{margin-top:4px}
 footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal);padding-top:14px;
   line-height:var(--lh-loose)}
 /* ★ Faz 27 — YAZDIRMA (yapılacaklar §3.2).
@@ -3778,6 +3796,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
        transkript girmemiş kişiye söylenince, girmediği bir veriyi sızdırdığını
        sanıyor. Uyarı her yerde tekrarlanınca da okunmaz oluyor. -->
   <span id="gizlilik"></span>
+  <div id="kaynaklar" class="kaynaklar"></div>
 </footer>
 </div>
 
@@ -3791,6 +3810,19 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c =>
   ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const hhmm = (m) => String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+/* ★ Faz 67 — DIŞ SİTEYE YÖNLENDİRME. Adresler tek yerde:
+   `config.DIS_BAGLANTILAR` (→ DATA.links). Yeni sekmede açılır ve
+   `noreferrer`: hangi sayfadan gelindiği (ve adres çubuğundaki paylaşım
+   parametresi) karşı siteye gönderilmez. ↗ işareti, bağlantının aracın
+   DIŞINA çıktığını gösterir. */
+const disLink = (k, etiket, url) => {
+  const L = (DATA.links || {})[k] || {};
+  const u = url || L.url;
+  if(!u) return etiket ? esc(etiket) : "";
+  return `<a class="dislink" href="${esc(u)}" target="_blank" rel="noopener noreferrer"
+    title="${esc([L.aciklama, "yeni sekmede açılır"].filter(Boolean).join(" · "))}">${
+    esc(etiket || L.ad || u)}<span aria-hidden="true"> ↗</span></a>`;
+};
 
 /* ★★ FAZ 40 — ders başına TON basamağı.
    Rolün rengi sabit; bu yalnız `--soft`u hangi yöne, ne kadar kaydıracağımızı
@@ -3928,6 +3960,14 @@ function renderHeader(){
   $("#blockTitle").textContent = "Alınamayan dersler";
   $("#tierTitle").textContent = ikili ? "Kademeler" : `${LBL} kademeleri`;
   $("#gen").textContent = veriTarihi();
+  $("#kaynaklar").innerHTML = `<div><b>Veri kaynakları:</b> ders, şube ve kontenjan
+      bilgileri ${disLink("ituHelperVeri", "İTÜ Helper açık veri deposundan")}; ders
+      planları, denklikler ve not dağılımları ${disLink("obsPlan", "İTÜ OBS")}'den
+      alınmaktadır.</div>
+    <div><b>Yararlı bağlantılar:</b> ${disLink("kepler", "Kepler (ders kaydı)")} ·
+      ${disLink("obsProgram")} · ${disLink("obsPlan")} · ${disLink("yonerge")} ·
+      ${disLink("ituHelper")} (${disLink("ituHelperOnsart", "önşart zinciri")},
+      ${disLink("ituHelperProgram", "program oluşturucu")})</div>`;
   /* ★ Faz 54: sitede "bu dosya" YOK — notlar tarayıcıda. Yanlış yeri
      söylemek, neyin nerede durduğunu (ve neyin kaybolabileceğini) gizler. */
   $("#gizlilik").textContent = (DATA.load && DATA.load.noTranscript) ? ""
@@ -4077,7 +4117,7 @@ function renderVeriYasi(){
      çalışmayacak bir düğme. Yerine neden eski olduğu yazıyor. */
   el.innerHTML = `<span class="veriyazi">${esc(veriYasiMetni())}</span>`
     + (siteMi() ? `<span class="veriyazi sitenot">Site dönem başında güncellenir;
-         güncel kontenjan bilgisi OBS'dedir.</span>`
+         güncel kontenjan bilgisi ${disLink("obsProgram")} sayfasındadır.</span>`
        : LIVE ? `<button class="ghost mini" id="veriTazele">tazele</button>` : "")
     + gecmisDonemUyarisi();
   el.classList.toggle("stale", !!(DATA.dataAge && DATA.dataAge.stale));
@@ -6018,8 +6058,9 @@ function renderSaved(){
     const line = saved.map(p => p.crn).join(" ");
     openDialog(`<div class="eyebrow">Kayıt günü</div>
       <h2 style="margin-bottom:4px">Kaydedilen CRN'ler</h2>
-      <p class="modenote" style="margin:2px 0 10px">OBS'ye girilecek numaralar.
-        Araç, ders kaydı işlemini sizin adınıza yapmaz.</p>
+      <p class="modenote" style="margin:2px 0 10px">Ders kaydı sırasında
+        ${disLink("kepler")} sistemindeki “Ders Kayıt İşlemleri” ekranına girilecek
+        numaralar. Araç, ders kaydı işlemini sizin adınıza yapmaz.</p>
       <label class="field"><span>Tümü (kopyala)</span>
         <input type="text" class="mono" readonly value="${esc(line)}"></label>
       `);
@@ -6121,9 +6162,10 @@ function crnLoadDialog(){
   openDialog(`
     <div class="eyebrow">Kayıt sonrası</div>
     <h2 style="margin-bottom:4px">CRN'den program yükle</h2>
-    <p class="modenote" style="margin:2px 0 10px">OBS'de kayıt yapıldıysa CRN'ler
-      buraya yapıştırılarak kesinleşen program ızgarada görüntülenebilir.
-      Bu işlem yalnızca <b>görüntüleme</b> amaçlıdır; araç OBS'ye veri göndermez.</p>
+    <p class="modenote" style="margin:2px 0 10px">Kepler'de kayıt yapıldıysa kayıtlı
+      derslerin CRN'leri buraya yapıştırılarak kesinleşen program ızgarada
+      görüntülenebilir. Bu işlem yalnızca <b>görüntüleme</b> amaçlıdır; araç Kepler'e
+      veya OBS'ye veri göndermez.</p>
     <label class="field"><span>CRN'ler (boşluk, virgül veya satır ile ayrılmış)</span>
       <textarea id="crnIn" rows="4" class="mono"
         placeholder="12486 13524 12550"></textarea></label>
@@ -6760,9 +6802,11 @@ function crnDialog(){
   openDialog(`
     <div class="eyebrow">Kayıt günü</div>
     <h2 style="margin-bottom:4px">CRN listesi</h2>
-    <p class="modenote" style="margin:2px 0 10px">OBS'ye girilecek numaralar.
-      Araç, ders kaydını sizin adınıza yapmaz; bu liste kayıt ekranına elle
-      girilmek üzere hazırlanmıştır.</p>
+    <p class="modenote" style="margin:2px 0 10px">Ders kaydı ${disLink("kepler")}
+      üzerinden, “Ders Kayıt İşlemleri” ekranına CRN girilerek yapılır. Araç, ders
+      kaydını sizin adınıza yapmaz; bu liste kayıt ekranına elle girilmek üzere
+      hazırlanmıştır. Kayıttan hemen önce güncel kontenjan ${disLink("obsProgram")}
+      sayfasından kontrol edilebilir.</p>
     ${kayitKontrol()}
     <label class="field"><span>Tümü (kopyala)</span>
       <input type="text" id="crnLine" class="mono" readonly value="${esc(line)}">
@@ -6965,7 +7009,10 @@ function panelHTML(p, plan){
         ${bilinmiyor ? "" : `<div class="pctlbl">tamamlandı</div>`}
       </div>
     </div>
-    <div class="name">${esc(p.title)}</div>
+    <div class="name">${esc(p.title)}${p.url
+      ? ` <span class="planlink">${disLink("obsPlan", "planı OBS'de görüntüle", p.url)}</span>`
+      : p.source === "itu-helper"
+        ? ` <span class="planlink">${disLink("ituHelperVeri", "plan kaynağı: İTÜ Helper")}</span>` : ""}</div>
     ${bilinmiyor ? `<div class="proj bilinmiyor">
       <b>İlerleme bilinmemektedir</b>; başarılan dersler girilmemiştir.
       Aşağıdaki sayılar kalan dersleri değil, <b>planın tamamını</b> göstermektedir.
@@ -7220,7 +7267,7 @@ function renderPrintCrn(){
       </tr>`).join("")}</tbody></table>
     <div style="margin-top:3mm;font-size:9pt">
       ${esc(veriYasiMetni())} · Bu liste bilgilendirme amaçlıdır;
-      ders kaydı OBS üzerinden yapılır.</div>`;
+      ders kaydı Kepler (kepler-beta.itu.edu.tr) üzerinden yapılır.</div>`;
 }
 
 /* ---------- tercihin bu programa etkisi (Faz 27) ----------
@@ -8369,7 +8416,7 @@ function notDagilimi(cand){
         : "Okunabilirlik için <b>artılı notlar temel harfle birlikte</b> "
           + "sayılmıştır (BA+ → BA). Ayrıntı üstteki düğmeyle görüntülenebilir; "
           + "<b>ortalama her zaman 15 harf notundan</b> hesaplanır."}
-      <br>Kaynak: İTÜ ÖBS Ders Not Dağılımı · <b>${g.codes.map(esc).join(" + ")}</b>
+      <br>Kaynak: ${disLink("obsNot", "İTÜ OBS Ders Not Dağılımı", donem.url)} · <b>${g.codes.map(esc).join(" + ")}</b>
       birlikte (OBS, Türkçe ve İngilizce kodları ayırmamaktadır)${
       g.terms.length > 1 ? ` · ${g.terms.length} döneme ait veri mevcut` : ""}.${
       /* ⚠️ Kaynağın kendi toplamı harflerin toplamına her zaman eşit değil
@@ -8467,6 +8514,8 @@ function courseDialog(course){
         : ""}</div>` : ""}
     ${puanKirilimi(cand)}
     ${notDagilimi(cand)}
+    <div class="dislinkler">Resmî kaynaklarda: ${disLink("obsProgram", "şube ve kontenjan (OBS Ders Programı)")}
+      · ${disLink("obsPlan", "önşart ve ders planı (OBS Ders Planları)")}</div>
     ${fits.length ? `<div class="chipline"><span class="chip">başka şube</span>
       <span style="color:var(--ink-3);font-size:var(--fs-sm)">${fits.length} seçenek</span></div>
       <div class="optlist">${fits.map(s => optionRow(cand, s, "")).join("")}</div>` : ""}
@@ -9114,7 +9163,9 @@ function renderHero(){
         <span class="mono">make app</span> ile başlatınız.`}
       <div style="margin-top:6px">${siteMi()
         ? "Girilen bilgiler hiçbir sunucuya gönderilmez; veriler tarayıcıda saklanır."
-        : "Girilen bilgiler bu bilgisayarda saklanır (<span class=\"mono\">data/</span>)."}</div>
+        : "Girilen bilgiler bu bilgisayarda saklanır (<span class=\"mono\">data/</span>)."}
+        Ders ve şube verileri ${disLink("ituHelper", "İTÜ Helper")} açık veri projesinden,
+        ders planları ${disLink("obsPlan", "İTÜ OBS")}'den alınmaktadır.</div>
       ${/* ★ Faz 54: YENİ CİHAZDA yedekten devam — Ayar görünümü kurulum
             bitmeden gizli, yedeği yüklemenin tek yolu burası. */ ""}
       ${siteMi() && window.__ITUCAP_YEDEK__ ? `<div class="heroyedek">Başka bir
@@ -9725,7 +9776,9 @@ function renderBasvuruBody(){
 
   $("#basvuruBody").innerHTML = `
     <div class="note" style="margin:12px 0">${verdict}</div>
-    <div class="blocklist" style="margin-bottom:16px">${checks}</div>
+    <div class="blocklist" style="margin-bottom:8px">${checks}</div>
+    <div class="dislinkler" style="margin-bottom:16px">Şartların tam metni:
+      ${disLink("yonerge")} · Planlar: ${disLink("obsPlan")}</div>
     ${s.optionCount ? `
       <div class="chipline"><span class="eyebrow">Başvurulabilecek programlar</span>
         <span class="chip credit">${s.optionCount}</span>
@@ -10014,7 +10067,8 @@ function renderTierGroup(grup, i){
   $("#tierFoot" + i).innerHTML =
     `${bagli} ders plan içinden bir önşarta bağlıdır` +
     (disari.size ? ` · ${disari.size} önşart plan dışındandır (anadalda alınmış olabilir)` : "") +
-    ` · kademe 0: hemen alınabilir.`;
+    ` · kademe 0: hemen alınabilir. Planların önşart zincirleri
+      ${disLink("ituHelperOnsart", "İTÜ Helper Önşart Zinciri")} sayfasında da incelenebilir.`;
 }
 
 function drawTierLinks(){

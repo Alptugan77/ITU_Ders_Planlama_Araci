@@ -29,6 +29,48 @@ EP = {
     "eq_branches": f"{OBS}/public/GenelTanimlamalar/GetDersBransKodlariByPlanId",       # POST
 }
 
+# ★ Faz 67 — arayüzün yönlendirdiği DIŞ SİTELER (tek kaynak; arayüz
+# `DATA.links` üzerinden okur). Kullanıcı 24.09.2026: *"gerektiğinde site
+# içinde itü helper gibi sitelere yönlendir ve bahset"*.
+# ⚠️ Adres UYDURULMADI: İTÜ adresleri İTÜ Helper ana sayfasının "İTÜ
+# KISAYOLLARI" listesinden (github.com/itu-helper/home, index.html), OBS
+# sayfaları bu projenin kullandığı uçlardan (docs/obs-endpoints.md), yönerge
+# kurallar.toml'daki kaynaktan alındı.
+DIS_BAGLANTILAR = {
+    "kepler": {"ad": "Kepler", "url": "https://kepler-beta.itu.edu.tr/",
+               "aciklama": "İTÜ ders kayıt sistemi"},
+    "obsProgram": {"ad": "OBS Ders Programı", "url": f"{OBS}/public/DersProgram",
+                   "aciklama": "güncel şube, saat ve kontenjan"},
+    "obsPlan": {"ad": "OBS Ders Planları", "url": EP["plan_page"],
+                "aciklama": "resmî ders planları ve önşartlar"},
+    "obsNot": {"ad": "OBS Ders Not Dağılımı", "url": f"{OBS}/public/DersNotDagilimi",
+               "aciklama": "geçmiş dönemlerin harf notu dağılımları"},
+    "yonerge": {"ad": "ÇAP/Yandal Yönergesi",
+                "url": "https://www.sis.itu.edu.tr/TR/mevzuat/yatay-cap-yandal-yonerge.php",
+                "aciklama": "ÇAP ve yandal başvuru ve devam şartları"},
+    "ituHelper": {"ad": "İTÜ Helper", "url": "https://itu-helper.github.io/home/",
+                  "aciklama": "İTÜ öğrencileri için açık kaynaklı araçlar"},
+    "ituHelperOnsart": {"ad": "İTÜ Helper — Önşart Zinciri",
+                        "url": "https://itu-helper.github.io/prereq-scheduler/prerequsitory_chains",
+                        "aciklama": "ders planlarının önşart zincirlerini görselleştirir"},
+    "ituHelperProgram": {"ad": "İTÜ Helper — Program Oluşturucu",
+                         "url": "https://itu-helper.github.io/prereq-scheduler/schedule_creator",
+                         "aciklama": "CRN girmeden ders programı oluşturma"},
+    "ituHelperVeri": {"ad": "itu-helper/data", "url": "https://github.com/itu-helper/data",
+                      "aciklama": "bu aracın ders ve şube verisinin kaynağı"},
+}
+
+
+def notdagilimi_url(code: str, yil: int | str) -> str:
+    """OBS not dağılımı sayfası — `sources/obs_notdagilimi` ile AYNI uç ve
+    parametreler (aracın veriyi okuduğu sayfanın kendisi)."""
+    from urllib.parse import urlencode
+    parca = str(code or "").replace(" ", "")
+    i = next((k for k, ch in enumerate(parca) if ch.isdigit()), len(parca))
+    return (f"{OBS}/public/DersNotDagilimi/NotDagilimiSearch?"
+            + urlencode({"bransKodu": parca[:i], "dersNo": parca[i:], "yil": int(yil)}))
+
+
 PLAN_TYPES = [
     "on-lisans", "lisans", "cap", "yandal", "muhendislik-tamamlama",
     "bilimsel-hazirlik", "yuksek-lisans", "tezsiz-yuksek-lisans",

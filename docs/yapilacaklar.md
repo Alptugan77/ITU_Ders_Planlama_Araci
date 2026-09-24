@@ -494,6 +494,13 @@ her maddeden önce gelen tek iş.
 > üslup kuralları belgelendi ✅
 > ➜ Ayrıntı: `docs/faz66-resmi-dil.md`
 >
+> **Faz 67 (24.09.2026 — dış bağlantılar):** kullanıcı: *"gerektiğinde site
+> içinde itü helper gibi sitelere yönlendir ve bahset"*. Veri kaynakları
+> (İTÜ Helper, OBS) sayfada anılıyor; Kepler, OBS Ders Programı/Planları,
+> not dağılımı (derse özel), plan sayfası (OBS planlarında), yönerge ve
+> İTÜ Helper araçlarına bağlantı ✅ · kayıt "OBS'de" değil Kepler'de ✅
+> ➜ Ayrıntı: `docs/faz67-dis-baglantilar.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
