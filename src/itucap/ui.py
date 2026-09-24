@@ -2588,6 +2588,9 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--focus);outline-o
 .ozetnot{color:var(--ink-3)}
 .ozettekrar{padding-top:6px;border-top:1px solid var(--border)}
 .why.uyansube{color:var(--ok)}
+.tickliste{display:flex;flex-direction:column;gap:6px}
+.tickliste .tickbox{white-space:normal;align-items:flex-start;flex-wrap:wrap}
+.tickliste .tickbox .hint{flex-basis:100%;margin-left:32px}
 .yhkalma{margin-top:14px}
 .altbaslik{display:flex;align-items:baseline;gap:8px;margin-top:16px;padding-top:12px;
   border-top:1px solid var(--border)}
@@ -2698,6 +2701,10 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--focus);outline-o
   .tier li span.dispre{min-height:32px;padding:0 10px;
     display:inline-flex;align-items:center}
   .tiers{gap:8px}
+  /* Faz 80 — tek sütunda çizgiler dinlenmede gizli; odakta yalnız zincir. */
+  .tierlinks path{display:none}
+  .tierstage.focus .tierlinks path.line.on{display:inline}
+  .tier li{width:100%}
   /* Aday tablosu 6 sütunla telefona sığmıyordu; kutusunun içinde yana
      kayıyordu ama asıl iş burada yapılıyor — kaydırarak kullanılmamalı.
      Plan ve AKTS sütunları düşüyor: rol zaten ders hücresindeki etikette,
@@ -3149,6 +3156,13 @@ table.cmp .meta.arti{color:var(--ok)}
   border-top:1px dashed var(--border);padding-top:4px}
 .tier li .disout .mono{color:var(--ink)}
 .tier li[data-s="DONE"]{opacity:.5;border-left-color:var(--ok)}
+/* Faz 80 — ders adı (tek satır), kademenin dönemi, katlanmış kademe. */
+.tier li .tad{font-size:var(--fs-xs);color:var(--ink-2);font-weight:400;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tier > h3 .tierdonem{float:right;color:var(--ink-3);font-weight:600;letter-spacing:var(--ls-0);
+  text-transform:none;font-family:var(--font-body)}
+.tier.bitti > h3{color:var(--ink-3);border-bottom-width:1px}
+.tierbitti{font-size:var(--fs-sm);color:var(--ink-3);line-height:var(--lh-normal)}
 .tier li[data-s="DONE"] .top{text-decoration:line-through}
 /* Alınabilir = önşartların tamamı sağlanmış, BU DÖNEM alınabilir. */
 .tier li[data-s="READY"]{background:var(--cap-soft);color:var(--cap-ink);font-weight:600;
@@ -4985,7 +4999,7 @@ function tercihDialog(){
   let gunler = new Set(P.bosGunler || []);
   openSetup(`
     <div class="eyebrow">Kurulum</div>
-    <h2 style="margin-bottom:4px">Tercihlerin</h2>
+    <h2 style="margin-bottom:4px">Tercihler</h2>
     <p class="modenote" style="margin:2px 0 4px">Tercihler <b>eleme değil,
       sıralama</b> amacıyla kullanılır: araç önce uygulanabilir programları
       belirler, ardından tercihlerinize en uygun olanı öne alır. Tercihlere
@@ -5005,7 +5019,11 @@ function tercihDialog(){
       </div>
       <span class="hint">Beş günün tamamı seçilemez.</span></label>
 
-    <div class="grid2" style="margin-top:14px">
+    <!-- ★ Faz 80 — iki onay kutusu 190px'lik ızgara sütunlarındaydı ve
+         .tickbox satır KAYDIRMIYOR (white-space:nowrap): "Aynı gün kampüs
+         değiştirmek istemiyorum" yandaki kutunun üstüne taşıyordu (1400px'te
+         ölçüldü). Alt alta liste; etiket gerekirse kayıyor. -->
+    <div class="tickliste" style="margin-top:14px">
       <label class="tickbox"><input type="checkbox" id="fKampus"
         ${P.kampus ? "checked" : ""}> Aynı gün kampüs değiştirmek istemiyorum${
         kampusKapsami()}</label>
@@ -5098,7 +5116,7 @@ function tercihOnizleme(once, sonra){
   };
   const d = sonra.prefDelta || 0;
   return `<div class="note tercihsonuc">
-    <b>1. öneri bu tercihlerle</b>${degisim.length ? "" : " — <b>değişmiyor</b>"}
+    <div><b>1. öneri bu tercihlerle</b>${degisim.length ? "" : " — <b>değişmiyor</b>"}</div>
     ${degisim.length ? `<div class="tercihdegisim">${degisim.join(" · ")}</div>` : ""}
     <div class="meta">mevcut: ${sekil(once)}<br>bu tercihlerle: ${sekil(sonra)}</div>
     ${(sonra.prefReasons || []).length ? `<div>Tercih puanı <b class="mono">${
@@ -10950,15 +10968,43 @@ function renderTiers(){
   requestAnimationFrame(drawTierLinks);
 }
 
+/* ★★ FAZ 80 — KADEMELERİN TASARIMI (kullanıcı 24.09.2026: "kademeler
+   kısmının tasarımını iyileştirir misin").
+   · Kutu yalnız ders KODU gösteriyordu; artık adı da (tek satır).
+   · Kademe başlığı ZAMANI söylüyor: tamamlanmamış ilk kademe bu dönem, her
+     sonraki kademe en az bir dönem sonra ("en erken 2027-2028 Bahar").
+     "En erken": dersin açıldığı yarıyıl daha da geciktirebilir.
+   · TAMAMLANMIŞ kademe tek satıra katlanıyor — üstü çizili kutular ekranın
+     yarısını kaplıyordu; bağları "önce …" metninde zaten yazıyor.
+   · Dar ekranda (tek sütun) çizgiler dinlenmede GİZLİ, bir derse dokununca
+     yalnız o zincirin çizgileri çıkıyor: 390px'te bütün bağlar sağdaki
+     oluğa üst üste biniyor, okunmayan bir yumak oluşuyordu. */
+function donemIleri(kod, n){
+  let y = +String(kod).slice(0, 4), s = String(kod).slice(4);
+  if(!y || !["10", "20"].includes(s)) return "";
+  for(let k = 0; k < n; k++){ if(s === "10") s = "20"; else { s = "10"; y++; } }
+  return `${y - 1}-${y} ${s === "10" ? "Güz" : "Bahar"}`;
+}
+const kademeBitti = (t) => t.courses.length && t.courses.every(c => c.status === "DONE");
 function renderTierGroup(grup, i){
   const stage = $("#tierStage" + i);
-  const cols = grup.tiers.map(t => `
+  const ilkAcik = grup.tiers.findIndex(t => !kademeBitti(t));
+  const cols = grup.tiers.map((t, j) => kademeBitti(t) ? `
+    <div class="tier bitti">
+      <h3>Kademe ${t.tier} · tamamlandı</h3>
+      <div class="tierbitti">${t.courses.map(c => `<span class="mono"
+        title="${esc(c.name || c.course)}">${esc(c.course)}</span>`).join(" · ")}</div>
+    </div>` : `
     <div class="tier">
-      <h3>Kademe ${t.tier} · ${t.courses.reduce((a,c)=>a+c.credits,0)} kredi</h3>
+      <h3>Kademe ${t.tier} · ${t.courses.reduce((a,c)=>a+c.credits,0)} kredi${
+        ilkAcik >= 0 && DATA.term ? `<span class="tierdonem"
+          title="Her kademe en az bir dönem sürer; dersin açıldığı yarıyıl bu tarihi geciktirebilir">
+          ${j === ilkAcik ? "bu dönem" : "en erken " + esc(donemIleri(DATA.term, j - ilkAcik))}</span>` : ""}</h3>
       <ul>${t.courses.map(c => `<li data-s="${c.status}" data-c="${esc(c.course)}"
             title="${esc(c.name || c.course)}">
         <span class="top"><span class="mono">${esc(c.course)}</span>
         <span class="mono" style="color:var(--ink-3)">${c.credits}</span></span>
+        ${c.name ? `<span class="tad">${esc(c.name)}</span>` : ""}
         ${(c.needs && c.needs.length)
             ? `<span class="dep">önce <b>${c.needs.map(esc).join("</b> · <b>")}</b></span>` : ""}
         ${(c.outside && c.outside.length)
