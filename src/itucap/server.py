@@ -553,8 +553,8 @@ class State:
         # vermesi — bu projede tekrar tekrar canımızı yakan hata sınıfı.
         if kind not in config.SECOND_CHOICES:
             raise ValueError(
-                "ikinci program türü geçersiz: "
-                + ", ".join(sorted(config.SECOND_CHOICES)) + " olabilir")
+                "ikinci program türü geçersiz; geçerli değerler: "
+                + ", ".join(sorted(config.SECOND_CHOICES)))
         values["second_kind"] = kind
         anadal = _clean_code(body.get("anadalProgram"))
         if not anadal:
@@ -588,7 +588,7 @@ class State:
         if bilinmeyen:
             raise ValueError(
                 "katalogda olmayan program kodu: " + ", ".join(bilinmeyen)
-                + " — kutudan seçersen kod kendiliğinden doğru gelir")
+                + " (listeden seçildiğinde kod otomatik olarak doğru girilir)")
         # ★★ Kutuda YALNIZ EKSTRALAR durur (kullanıcı isteği 27.08.2026).
         # Anadal/ÇAP/yandal kodları `allowed_programs` içinde her seferinde
         # yeniden türetiliyor; dosyaya da yazmak onları elle yazılmış
@@ -700,7 +700,7 @@ class State:
             except sqlite3.Error:
                 continue
         yakin = sorted(yakin)[:4]
-        ek = (" — bunu mu demek istedin: " + ", ".join(yakin)) if yakin else ""
+        ek = (" (benzer kodlar: " + ", ".join(yakin) + ")") if yakin else ""
         raise ValueError(f"{rol} programı katalogda yok: {code}{ek}")
 
     def refresh(self, skip_obs: bool = False) -> dict:
@@ -711,15 +711,15 @@ class State:
         ikincisi 30 saniye bekleyip aynı işi tekrar yapardı.
         """
         if self.busy:
-            raise ValueError("tazeleme zaten sürüyor")
+            raise ValueError("veri tazeleme işlemi devam etmektedir")
         if not can_refresh():
             # ★ Tarayıcıda (Pyodide) tarama yığını yok ve olamaz: OBS'ye
             # tarayıcıdan istek atmak zaten CORS'a takılır. Kullanıcıya
             # "ModuleNotFoundError" göstermek yerine ne yapması gerektiğini
             # söylüyoruz — ve arayüz düğmeyi hiç göstermiyor (bkz. canRefresh).
             raise ValueError(
-                "veri tazeleme bu ortamda yapılamıyor — katalog siteyle "
-                "birlikte yayınlanıyor ve dönem başında güncelleniyor")
+                "veri tazeleme bu ortamda yapılamaz; katalog siteyle birlikte "
+                "yayımlanır ve dönem başında güncellenir")
         self.busy = True
         try:
             from . import pipeline
@@ -1048,7 +1048,7 @@ class State:
         # değil (tercih yumuşak) ama anlamsız bir istek: kullanıcıya
         # söylüyoruz, sessizce kabul edip sonucu bozmuyoruz.
         if len(gunler) >= 5:
-            raise ValueError("beş günün beşini birden boş isteyemezsin")
+            raise ValueError("beş günün tamamı boş olarak seçilemez")
 
         def adlar(anahtar: str) -> list[str]:
             return [s for s in (str(x).strip()
@@ -1094,7 +1094,7 @@ class State:
         if remove:
             yeni = [x for x in current if x.strip() != remove.strip()]
             if len(yeni) == len(current):
-                raise ValueError("böyle bir aralık yok")
+                raise ValueError("belirtilen aralık bulunamadı")
             current = yeni
         else:
             day, start, end = int(day), int(start), int(end)
@@ -1106,7 +1106,7 @@ class State:
             if parse_busy(metin) is None:      # kendi ürettiğimizi doğrula
                 raise ValueError("aralık okunamadı")
             if metin in current:
-                raise ValueError("bu aralık zaten var")
+                raise ValueError("bu aralık zaten tanımlıdır")
             current = sorted({*current, metin})
         config.update_settings({"mesgul": current})
         return {"busyCount": len(current)}
@@ -1355,7 +1355,7 @@ class Handler(BaseHTTPRequestHandler):
     # ---------------------------------------------------------------- POST
     def do_POST(self) -> None:
         if not self._authorized():
-            return self._error(403, "jeton geçersiz — sayfayı yenile")
+            return self._error(403, "oturum anahtarı geçersiz; lütfen sayfayı yenileyiniz")
         url = urlparse(self.path)
         try:
             body = self._body()

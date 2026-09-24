@@ -35,7 +35,10 @@ def step_ituhelper(con, settings, offline: bool = False) -> None:
     with db.run_step(con, "ituhelper.courses") as box:
         box["rows"] = ituhelper.load_courses(con, src)
     with db.run_step(con, "ituhelper.lessons") as box:
-        box["rows"] = ituhelper.load_lessons(con, src, settings.term)
+        # ★ Faz 64 — şubelerin dönemi çekildikleri günden; ayar yalnız geçiş
+        # aylarında (bkz. config.donem_kodu_tarihten).
+        box["rows"] = ituhelper.load_lessons(
+            con, src, config.donem_kodu_tarihten(db.now()) or settings.term)
     with db.run_step(con, "ituhelper.course_plans") as box:
         box["rows"] = ituhelper.load_course_plans(con, src)
 

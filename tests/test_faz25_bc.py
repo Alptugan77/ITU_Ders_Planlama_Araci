@@ -117,14 +117,14 @@ def test_plan_disi_HICBIR_SLOTU_doldurmuyor(dbs):
     html = UI.render(_collect(dbs))
     govde = re.search(r"function injectSections\(bulunan\)\{(.*?)\n\}", html, re.S).group(1)
     assert "slotId: 0" in govde and 'pool: ""' in govde
-    assert "plan dışı — hiçbir şartı doldurmaz" in govde
+    assert "plan dışı; hiçbir şartı karşılamaz" in govde
 
 
 def test_plan_disi_kredi_ozette_AYRICA_yaziyor(dbs):
     """Kredi yüke girer ama ilerleme yüzdesi artmaz. İkisi aynı satırda
     yazmazsa kullanıcı farkı hataya yorar."""
     html = UI.render(_collect(dbs))
-    assert "plan dışı</b> — yüke sayılır, şart doldurmaz" in html
+    assert "plan dışıdır</b>; yüke sayılır, şart karşılamaz" in html
 
 
 def test_salt_okunur_kopyada_katalog_KAPALI(dbs):
@@ -158,7 +158,7 @@ def test_yedek_plan_CAKISMAYI_soyluyor(dbs):
     yazmıyordu. Kayıt gününde lazım olan cümle: "10493 dolarsa 10495'e geç,
     çakışma yok"."""
     html = UI.render(_collect(dbs))
-    assert "Yedek plan — seçtiğin şube dolarsa" in html
+    assert "Yedek plan — seçilen şubenin dolması durumunda" in html
     assert "çakışmıyor" in html and "çıkarılır: " in html
 
 
@@ -177,7 +177,7 @@ def test_ics_tarihleri_TAHMIN_oldugunu_yaziyor(dbs):
     """★ Akademik takvim (dönem başı, tatiller) bu araçta YOK. Tarihleri
     kesinmiş gibi yazmak, yanlış bir günü doğru göstermek olurdu."""
     html = UI.render(_collect(dbs))
-    assert "Tarihler TAHMİNİ" in html
+    assert "Tarihler tahminidir" in html
     assert "COUNT=${ICS_HAFTA}" in html          # sonsuza kadar tekrar YOK
 
 
@@ -192,7 +192,7 @@ def test_ics_kacisi_TERS_BOLU_yu_iki_kez_kacirmiyor(dbs):
 def test_saati_ilan_edilmemis_ders_SESSIZCE_dusmuyor(dbs):
     """Takvimde 5 ders bekleyip 4 görmek, hangisinin düştüğünü sormalı."""
     html = UI.render(_collect(dbs))
-    assert "saati ilan edilmemiş — takvim dosyasına GİRMEDİ" in html
+    assert "saati ilan edilmediğinden takvim dosyasına eklenmemiştir" in html
 
 
 # ============================================================ B4. bağlantı
@@ -203,12 +203,12 @@ def test_baglantida_YALNIZ_crn_var(dbs):
     govde = re.search(r"function paylasBaglantisi\(\)\{(.*?)\n\}", html, re.S).group(1)
     assert "picks().map(p => p.sec.crn)" in govde
     assert "grades" not in govde and "transcript" not in govde
-    assert "Notların, transkriptin ve bölümün <b>girmiyor</b>" in html
+    assert "Notlarınız, transkriptiniz ve bölüm bilginiz <b>bağlantıya eklenmez</b>" in html
 
 
 def test_baglantidaki_eksik_crn_SESSIZCE_atilmiyor(dbs):
     html = UI.render(_collect(dbs))
-    assert "Bağlantıdaki ${eksik.length} CRN katalogda yok" in html
+    assert "Bağlantıdaki ${eksik.length} CRN katalogda bulunamadı" in html
 
 
 # ================================================== B5. hocaya göre arama
@@ -225,26 +225,26 @@ def test_kayit_kontrolu_UC_DURUMLU(dbs):
     html = UI.render(_collect(dbs))
     assert "function kayitKontrol()" in html
     assert "ok === null ? \"—\"" in html
-    assert "sağlandı demek DEĞİL" in html
+    assert "koşulun sağlandığı anlamına gelmez" in html
 
 
 def test_kayit_kontrolu_BES_BASLIK(dbs):
     html = UI.render(_collect(dbs))
-    for baslik in ("Kredi tavanı", "Çakışma yok", "Kontenjan",
+    for baslik in ("Kredi sınırı", "Saat çakışması", "Kontenjan",
                    "İkinci anadal tabanı", "Her dersin CRN'i var"):
         assert baslik in html, baslik
 
 
 def test_transkriptsiz_tavan_BAKILAMAZ(dbs):
     html = UI.render(_collect(dbs))
-    assert "transkript girilmedi — tavan bilinmiyor" in html
+    assert "transkript girilmediğinden sınır bilinmemektedir" in html
 
 
 def test_beyansiz_taban_IDDIA_edilmiyor(dbs):
     """Yönerge tabanı BAŞLANGIÇ YARIYILINA bağlıyor; beyan yoksa "tamam"
     değil, "bakılamıyor"."""
     html = UI.render(_collect(dbs))
-    assert "taban iddia edilmiyor" in html
+    assert "taban değerlendirilmedi" in html
 
 
 def test_kontenjan_kontrolu_TARIH_yaziyor(dbs):
@@ -313,7 +313,7 @@ def test_arz_uyarisi_HIC_ACILMAYACAK_demiyor(dbs):
     olmayan bir bilgiyi iddia etmek olurdu."""
     html = UI.render(_collect(dbs))
     govde = re.search(r"function renderArzUyarisi\(\)\{(.*?)\n\}", html, re.S).group(1)
-    assert "şu ana kadar ilan edilmemiş" in govde
+    assert "henüz ilan edilmemiştir" in govde
     assert "açılmayacak" not in govde        # yorumlar hariç, ÜRETİLEN metin
 
 

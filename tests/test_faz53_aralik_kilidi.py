@@ -287,7 +287,7 @@ def test_BOZUK_ve_GOLGE_satir_GORUNUYOR():
 def test_serit_OKUNMAYANI_ve_ARALIGI_soyluyor():
     g = _fn("renderKilitNot")
     assert 'const okunmayan = list.filter(l => l.tur === "bozuk" || l.tur === "golge");' in g
-    assert "<b>uygulanmıyor</b>" in g
+    assert "<b>uygulanmamaktadır</b>" in g
     assert 'l.neden === "aralik"' in g, "aralığa uyan şube yoksa neden söylenmiyor"
     assert "kilitEtiketi(l)" in g, "rozet hâlâ yalnız CRN yazıyor"
     # "hepsini aç" her satırı KENDİSİYLE siliyor (ders kodu olmayan satır da).
@@ -407,7 +407,7 @@ def test_TEMIZ_dosyada_uyari_YOK():
 def test_arayuz_UYARIYI_basiyor():
     g = _fn("renderAyarHatasi")
     assert "DATA.settingsWarnings" in g
-    assert "okumuyor" in g and "yanıltıcı bir kopya" in g
+    assert "okumamaktadır" in g and "etkisiz bir kopyadır" in g
     assert '"settingsWarnings": settings.load_uyarilari' in KAYNAK
 
 
@@ -535,7 +535,7 @@ def test_UCTAN_UCA_aralik_kilidi(tmp_path, monkeypatch):
         pytest.fail(r.stderr[-2000:])
     c = dict(s.split(":", 1) for s in r.stdout.strip().splitlines()
              if ":" in s and s.split(":", 1)[0].isupper())
-    assert "cap_baslangic_yariyili" in c["AYARUYARI"] and "okumuyor" in c["AYARUYARI"], c
+    assert "cap_baslangic_yariyili" in c["AYARUYARI"] and "okumamaktadır" in c["AYARUYARI"], c
     assert "Sabah olsun · 1 şube" in c["DUGMELER"], c["DUGMELER"]
     assert "Öğleden sonra olsun · 2 şube" in c["DUGMELER"], c["DUGMELER"]
     assert c["KILIT"] == '[["aralik","12:30-24:00",true,["301","302"]]]', c["KILIT"]
@@ -550,7 +550,7 @@ def test_UCTAN_UCA_aralik_kilidi(tmp_path, monkeypatch):
     assert c["SUBEDUGME"] == "Bu saate kilitle", "şube düğmesi aralık kilidini açıyor gibi"
     assert c["ACILDI"] == "gizli", c
     assert c["BOZUK_ONERI"] == "True", "okunamayan kilit önerileri değiştirdi"
-    assert "uygulanmıyor" in c["BOZUK_SERIT"] and "AAA 101E@8.30-12.30" in c["BOZUK_SERIT"], \
+    assert "uygulanmamaktadır" in c["BOZUK_SERIT"] and "AAA 101E@8.30-12.30" in c["BOZUK_SERIT"], \
         c["BOZUK_SERIT"]
     assert c["BOZUK_SILINDI"] == "True"
     assert int(c["TELEFON"]) >= 44, f"telefonda kilit düğmesi küçük: {c['TELEFON']}px"

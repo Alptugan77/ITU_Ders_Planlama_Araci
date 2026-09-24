@@ -230,7 +230,7 @@ def test_tercih_kurulum_ADIMI_DEGIL_ince_ayar():
     Faz 26'nın kaldırdığı "duvar" hissi geri geliyordu."""
     src = open(UI.__file__.replace(".pyc", ".py"), encoding="utf-8").read()
     assert '"key": "tercih"' not in src, "tercih yine kurulum adımı olmuş"
-    assert "Nasıl bir program istediğini söyle" in src
+    assert "Program tercihleri" in src
     assert "const tercihGoster = !tercihSayisi();" in src
 
 

@@ -148,7 +148,7 @@ def _checks(kind: str, gpa_value: float, credits: float,
     türünün ta kendisi.
     """
     out: list[Check] = []
-    yok = "Transkript girilmedi — bu şart buradan değerlendirilemiyor."
+    yok = "Transkript girilmediğinden bu şart değerlendirilememektedir."
     for t in POL.load_thresholds(path=rules_path, program=kind, kind="basvuru"):
         out.append(Check(
             key=t.key, label=t.label,
@@ -176,14 +176,14 @@ def _checks(kind: str, gpa_value: float, credits: float,
     if kind == "cap":
         out.append(Check(
             "siralama", "Anadal başarı sıralamasında üst %20", None,
-            "Sıralama verisi bu araçta yok — OBS'den ya da bölümünden öğren.",
+            "Sıralama verisi bu araçta bulunmamaktadır; OBS'den veya bölümden öğrenilebilir.",
             "ÇAP/Yandal Yönergesi Madde 15"))
     else:
         out.append(Check(
             "onceki_dersler", "Başvurulan yarıyıla kadarki TÜM dersler başarılmış",
             None,
-            "Hangi derslerin 'o yarıyıla kadar' sayıldığı kayıt yılına bağlı; "
-            "transkriptinde kalan ders varsa danışmanına sor.",
+            "Hangi derslerin 'o yarıyıla kadar' sayıldığı kayıt yılına bağlıdır; "
+            "transkriptte başarısız ders varsa danışmanınıza danışınız.",
             "ÇAP/Yandal Yönergesi Madde 22/a"))
     return out
 

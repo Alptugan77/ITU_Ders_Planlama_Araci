@@ -479,7 +479,7 @@ def test_projection_updates_when_selection_changes(page7):
     p.evaluate("() => { sel = []; render(); }")
     after = p.evaluate("() => DATA.panels.map(x => planned(x.planId).slots)")
     assert after == [0] * len(after)
-    assert "ders yok" in p.locator(".proj").first.inner_text()
+    assert "ders bulunmamaktadır" in p.locator(".proj").first.inner_text()
     assert errors == []
 
 

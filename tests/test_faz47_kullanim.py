@@ -154,8 +154,8 @@ def test_ONERI_TIKI_iddia_degil():
     · Kaydet'e basılmadan hiçbir şey yazılmıyor."""
     assert "const bostu = !(SETUP.transcript || []).length;" in KAYNAK
     assert "if(donem > 1 && bostu){" in KAYNAK
-    assert "${onerilen.length} ders senin için işaretlendi" in KAYNAK
-    assert "Bu bir tahmin, kayıt değil" in KAYNAK
+    assert "${onerilen.length} ders işaretlendi" in KAYNAK
+    assert "Bu işaretleme bir tahmindir" in KAYNAK
     assert 'id="ckUndo"' in KAYNAK
 
 
@@ -163,7 +163,7 @@ def test_BIRINCI_DONEM_hicbir_sey_isaretlemiyor():
     """★ "1. dönem olan birisinin geçtiği ders yoktur" — öneri de yapılmıyor,
     ve bunun SÖYLENDİĞİ bir satır var (boş liste açıklamasız kalmasın)."""
     assert "donem > 1" in KAYNAK, "1. dönemde de öneri yapılıyor"
-    assert "<b>1. dönemdesin</b>" in KAYNAK
+    assert "<b>1. yarıyıldasınız;</b>" in KAYNAK
 
 
 # ------------------------------------------------- 1-4. yerleşim

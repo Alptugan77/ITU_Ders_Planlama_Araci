@@ -66,7 +66,7 @@ def test_donem_uyarisi_OLCULEN_dagilimi_yaziyor():
     assert "p.cand.termNo" in govde, "dağılım gerçek seçimden hesaplanmıyor"
     assert "dönemden ${say[t]}" in govde, "dönem başına SAYI yazılmıyor"
     # Ve ne OLMADIĞINI söylüyor. (Kaynakta satır sarması var, boşluk normalize.)
-    assert "önerdiğim liste değil" in re.sub(r"\s+", " ", govde)
+    assert "bu dönem için önerilen ders listesi değildir" in re.sub(r"\s+", " ", govde)
 
 
 def test_donem_uyarisinda_TEK_TIKLIK_cikis_var():
@@ -86,7 +86,7 @@ def test_donem_bilinmiyorken_TAHMIN_iddia_EDILMIYOR():
     ÇIKARILACAK bir şey olmadığı için ortada bir "tahmin" de yok."""
     assert re.search(r"\$\{DATA\.donem\s*\?\s*`Şu an kullanılan:", KAYNAK, re.S), \
         "dönem durumu koşulsuz yazılıyor"
-    assert "Şu an dönem bilinmiyor" in KAYNAK
+    assert "Yarıyıl bilgisi bulunmamaktadır" in KAYNAK
     # "0. dönem" hiçbir dalda üretilemiyor: sayı yalnız DATA.donem doluyken.
     assert "${DATA.donem}. dönem</b>\n           (" in KAYNAK.replace("\r", "") or \
         "dönem</b>" in KAYNAK
@@ -165,7 +165,7 @@ with sync_playwright() as p:
     print("ONCE_DONEM_SAYISI:" + str(o["donemSayisi"]))
     print("ONCE_MOD_YUKSEKLIK:" + str(o["modH"]))
     print("SAYI_YAZIYOR:" + ("E" if "1. dönemden" in o["metin"] else "H"))
-    print("NE_DEGIL_YAZIYOR:" + ("E" if "önerdiğim liste değil" in o["metin"] else "H"))
+    print("NE_DEGIL_YAZIYOR:" + ("E" if "bu dönem için önerilen ders listesi değildir" in o["metin"] else "H"))
     # Uyarıdaki düğme dönem diyaloğunu açıyor mu?
     pg.click("#donemUyariAc"); pg.wait_for_timeout(700)
     print("DIYALOG_ACILDI:" + ("E" if pg.query_selector("dialog[open]") else "H"))

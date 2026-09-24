@@ -23,7 +23,9 @@ cap_plan_id = 0            # `make programs` çıktısındaki id
 
 # anadal_plan_id = 0        # `plans HTAE_LS --plan-type lisans` ile doldur
 
-term = "202610"              # 2026-2027 Güz
+# OBS dönem kodu: yıl akademik yılın BİTİŞ yılı → 202710 = 2026-2027 Güz,
+# 202720 = 2026-2027 Bahar. Planladığın dönemi yaz.
+term = "202710"              # 2026-2027 Güz
 
 # ★ Bulunduğun dönem (1..8). "Dönemlik + alttan" öneri kipi bunu kullanır:
 #   dönemlik = bu dönemin plan dersleri, alttan = daha önceki dönemlerden kalanlar.

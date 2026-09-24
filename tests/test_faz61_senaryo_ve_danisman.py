@@ -68,7 +68,7 @@ def test_BOS_DONEM_takvimde_KALIYOR_ve_zinciri_kaydiriyor(tmp_path):
     assert kart["skipped"] is True and kart["items"] == [] and kart["floorGap"] is None
     p = h["programs"][0]
     assert p["finish"]["index"] == 7 and p["finishSemester"] == 12
-    assert any("boş bıraktın" in a and "yarıyıl sayısına DAHİL" in a for a in h["assumptions"])
+    assert any("boş bırakılmıştır" in a and "yarıyıl sayısına dahil" in a for a in h["assumptions"])
 
 
 def test_BOS_DONEM_zincire_DOKUNMUYORSA_bitis_ayni(tmp_path):
@@ -94,7 +94,7 @@ def test_OZET_gorunumlerle_AYNI_hesap():
     assert "tabanDurumu(F)" in _js("danismanSorulari")
     assert "tabanDurumu(F)" in _js("danismanOzeti")
     f = _js("danismanOzeti")
-    assert "__AD_TAM__" in f and "Bu sayfa GNO'nu içerir" in f
+    assert "__AD_TAM__" in f and "Bu sayfa GNO\n      bilgisini içerir" in f
 
 
 def test_BASKI_yalniz_OZET_ve_BODYde():
@@ -196,23 +196,23 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
 
     # Senaryo: vitrinde 2026-2027 Güz Erasmus → GEO 341E zinciri bir yıl kayıyor.
     kart, serit = c["S1"].split("|")
-    assert "2028-2029 Bahar" in kart and "12. yarıyılında" in kart, kart
-    assert "bugünkü plana göre 2 dönem geç" in kart
-    assert "Senaryo gösteriliyor — kaydedilmedi." in serit and "boş: 2026-2027 Güz" in serit
-    assert c["ATLANDI"] == "2026-2027 Güz"
+    assert "2029-2030 Bahar" in kart and "12. yarıyıl" in kart, kart
+    assert "mevcut plana göre 2 dönem geç" in kart
+    assert "Senaryo görüntülenmektedir (kaydedilmedi)." in serit and "boş: 2027-2028 Güz" in serit
+    assert c["ATLANDI"] == "2027-2028 Güz"
     assert "dönem başına en çok 15 kredi" in c["S2"], c["S2"]
     serit3, kart3 = c["S3"].split("|")
-    assert serit3 == "" and "2027-2028 Bahar" in kart3 and "bugünkü plana" not in kart3
+    assert serit3 == "" and "2028-2029 Bahar" in kart3 and "mevcut plana" not in kart3
 
     # Danışman özeti (1): GEO 341E şubesi bir ÇAP dersiyle çakışıyor, o düşünce
     # ÇAP tabanı 6/9 — özet bunu soruyor (renderFloor ile aynı hesap).
     soru1 = json.loads(c["SORU1"])
-    assert any(s.startswith("İkinci anadaldan bu dönem 6 kredi alıyorum; yarıyıl tabanı 9 (3 eksik)")
+    assert any(s.startswith("İkinci anadaldan bu dönem 6 kredi alıyorum; yarıyıl tabanı 9 kredidir (3 kredi eksik)")
                for s in soru1), soru1
     # (2) GEO 341E çakışmasız eklenince 27/25 — yük sorusu.
     soru = json.loads(c["SORU"])
-    assert any(s.startswith("Programım 27 kredi, sınırım 25") for s in soru), soru
-    assert any("GEO 331E şubem (CRN 13603) dolu" in s for s in soru), soru
+    assert any(s.startswith("Programım 27 kredi olup 25 sınırını") for s in soru), soru
+    assert any("GEO 331E şubemin (CRN 13603) kontenjanı doludur" in s for s in soru), soru
     assert any(s.startswith("Anadal tahmini bitişim") for s in soru), soru
     satir, secim = c["TABLO"].split("|")
     assert satir == secim, "özetteki tablo programdaki derslerle aynı değil"

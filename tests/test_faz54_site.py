@@ -128,7 +128,7 @@ def test_PENCERE_plani_KIMIN_icin_oldugunu_soyluyor():
     f = _kod(KAYNAK[KAYNAK.index("const fillPlans"):KAYNAK.index("const turetilenKodlar")])
     assert "öğrencileri için (${uygun.length})" in f
     assert "başka bölümlerin planları (${diger.length})" in f
-    assert "senin planın\n            olmayabilir" in f or "senin planın" in f
+    assert "bu plan sizin" in f
     # Anadal değişince plan listesi yeniden kuruluyor.
     assert re.search(r'\$\("#fAnadal"\)\.addEventListener\("change", \(\) => \{\s*'
                      r'kindsOf\(kind\)\.forEach\(k => fillPlans\(k\)\);', KAYNAK)
@@ -188,7 +188,7 @@ def test_SITEDE_olu_dugme_ve_yanlis_cumle_YOK():
     assert re.search(r"siteMi\(\) \? `<span class=\"veriyazi sitenot\">", v), \
         "sitede tazele düğmesi yine çiziliyor"
     assert "return LIVE && DATA.canRefresh === false;" in _fn("siteMi")
-    assert 'siteMi() ? "Notların yalnız bu tarayıcıda' in KAYNAK
+    assert 'siteMi() ? "Notlarınız yalnızca bu tarayıcıda' in KAYNAK
 
 
 def test_ADIMLAR_opaklikla_SOLDURULMUYOR():
@@ -212,7 +212,7 @@ def test_YEDEK_yalniz_BILINEN_dosyalari_yaziyor():
 def test_YEDEK_ONCE_soyluyor_SONRA_yaziyor():
     g = _fn("yedekDosyaSec")
     assert g.index("Y.oku(dosya)") < g.index("Y.uygula(sonuc.yedek)")
-    assert "şimdiki verinin yerine geçecek" in g
+    assert "mevcut verilerin yerine geçecektir" in g
     assert 'data-yedek="once"' in g, "önce şimdikini indirme yolu yok"
     # Kutu yalnız sitede — yerelde veri zaten dosyada ve yedekli.
     assert 'if(!siteMi() || !window.__ITUCAP_YEDEK__) return "";' in _fn("veriKutusu")

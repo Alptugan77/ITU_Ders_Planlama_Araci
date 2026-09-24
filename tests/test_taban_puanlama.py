@@ -146,5 +146,5 @@ def test_sablon_taban_uyarisini_kuruyor():
     from itucap import ui as UI
 
     kaynak = inspect.getsource(UI)
-    for parca in ("floorGaps", "taban ✗", "tabanı karşılayan çakışmasız program"):
+    for parca in ("floorGaps", "taban ✗", "tabanı karşılayan çakışmasız bir program"):
         assert parca in kaynak, parca

@@ -98,7 +98,7 @@ def test_KILIT_bu_kipte_BAGLAMAZ_diyor():
     # metne bakan hâli yeşil kalmıştı.
     assert re.search(r"if\(disKip\)\s*\n?\s*return", govde), \
         "kip dışı dalı koşula bağlı değil"
-    assert "bağlamaz" in govde
+    assert "uygulanmaz" in govde
     # Motor tarafı gerçekten böyle mi — muhafız iddiayı KAYNAKTA doğruluyor.
     rec = pathlib.Path(UI.__file__).with_name("recommend.py").read_text(
         encoding="utf-8")
@@ -119,8 +119,8 @@ def test_SERIT_hepsi_kapsam_disiysa_yanlis_soylemiyor():
     # kendisini arıyoruz.
     assert re.search(r"const kapsamDisi = uygulanan\.filter\(l => l\.ok && !bagli", govde), \
         "kapsam dışı kilitler hesaplanmıyor"
-    assert "bu kipte bağlamıyor" in govde
-    assert "Bu kipte hiçbiri bağlamıyor" in govde
+    assert "bu kipte uygulanmamaktadır" in govde
+    assert "Bu kipte hiçbir kilit uygulanmamaktadır" in govde
     # Giriş cümlesi KOŞULLU: bağlayan kilit yoksa "etrafında kuruluyor"
     # denmiyor.
     assert re.search(r": bagli\.length \? `Öneriler", govde), "giriş cümlesi koşulsuz"
@@ -249,7 +249,7 @@ with sync_playwright() as p:
                  geçiyor, ona bakan bir ölçüm kip notu hiç çizilmese bile
                  yeşil kalırdı (muhafız denemesinde oldu). */
               kipNotu: t.includes("kendiliğinden önermez"),
-              kilitNotu: t.includes("bu kipte bağlamaz"),
+              kilitNotu: t.replace(/\\s+/g, " ").includes("bu kipte uygulanmaz"),
               cikar: !!dl.querySelector("#removeCourse")}; }""")
     print("PENCERE:" + str(r["acik"]))
     print("KIPNOTU:" + str(r.get("kipNotu")))
@@ -261,7 +261,7 @@ with sync_playwright() as p:
     s = pg.evaluate("""() => { const el = document.querySelector("#kilitNot");
       if(!el || el.hidden) return {yok:true};
       const t = (el.innerText||"").replace(/\s+/g," ");
-      return {yok:false, kapsam: t.includes("bu kipte bağlamıyor"),
+      return {yok:false, kapsam: t.includes("bu kipte uygulanmamaktadır"),
               yanlisIddia: t.includes("etrafında kuruluyor")}; }""")
     print("SERIT:" + str(s.get("kapsam")))
     print("SERIT_YANLIS:" + str(s.get("yanlisIddia")))

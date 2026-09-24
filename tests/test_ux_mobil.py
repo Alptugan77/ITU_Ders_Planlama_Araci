@@ -27,8 +27,8 @@ def test_onsart_rozeti_TAVSIYEYI_ipucunda_tasiyor():
     """Metin kalkınca 'OBS'den doğrula' tavsiyesi kaybolmamalı — rozet
     ipucuna taşındı."""
     src = _src()
-    assert "OBS'den doğrula" in src        # rozet title'ında
-    assert "danışmanına sor" in src
+    assert "OBS'den doğrulayınız" in src        # rozet title'ında
+    assert "danışmanınıza danışınız" in src
 
 
 # ====================================== 2. rozet mobilde bölünmüyor

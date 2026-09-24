@@ -66,8 +66,8 @@ def test_olmayan_dosya_HATA_degil(tmp_path):
 def test_ayar_hatasi_ARAYUZDE_yaziyor(dbs):
     html = UI.render(_collect(dbs))
     assert 'id="ayarHatasi"' in html
-    assert "Ayar dosyan okunamadı — varsayılanlarla açıldı" in html
-    assert "Seçtiğin bölüm ve dönem <b>kullanılmıyor</b>" in html
+    assert "Ayar dosyası okunamadı; varsayılan ayarlar kullanılıyor" in html
+    assert "Seçilen bölüm ve dönem <b>kullanılmamaktadır</b>" in html
 
 
 # ==================================================== D2. geri al
@@ -254,7 +254,7 @@ def test_bos_kurulumda_CIKMAZ_ekran_yok(ilk_giris_sayfasi):
     ne olduğu belirsiz bir ekran, kullanıcıyı orada bırakıyordu."""
     metin = __import__("pathlib").Path(ilk_giris_sayfasi["path"]).read_text(
         encoding="utf-8")
-    assert "Önce bölümünü seç" in metin
+    assert "Bölüm seçilmedi" in metin
     assert 'id="goProgram"' in metin
 
 

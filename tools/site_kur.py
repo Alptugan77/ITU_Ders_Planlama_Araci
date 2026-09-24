@@ -215,9 +215,16 @@ def prune(src: Path, dst: Path) -> dict:
         stats["notdagilimi"] = 0
     stats["ders"] = con.execute("SELECT COUNT(*) FROM course").fetchone()[0]
     stats["sube"] = con.execute("SELECT COUNT(*) FROM lesson").fetchone()[0]
-    stats["donem"] = (con.execute(
+    damga = (con.execute(
         "SELECT term FROM lesson WHERE term IS NOT NULL LIMIT 1").fetchone()
         or ("?",))[0]
+    # ★ Faz 64 — uygulama "bu dönem"i şubelerin ÇEKİLDİĞİ günden alıyor
+    # (ui._aktif_donem); günlük de aynısını yazsın. Damga farklıysa o da görünsün.
+    sys.path.insert(0, str(ROOT / "src"))
+    from itucap import config as _config
+    cekim = con.execute("SELECT MAX(updated_at) FROM lesson").fetchone()[0]
+    gercek = _config.donem_kodu_tarihten(cekim) or damga
+    stats["donem"] = gercek + (f" (katalog damgası {damga})" if gercek != damga else "")
     con.close()
     return stats
 
@@ -492,8 +499,8 @@ _LOADER_CSS = """
 YUK_ASAMALARI = [("python", "Python çalışma ortamı"),
                  ("motor", "Motor dosyaları"),
                  ("katalog", "Ders kataloğu"),
-                 ("veri", "Kayıtlı verin"),
-                 ("hesap", "Programın hesaplanıyor")]
+                 ("veri", "Kayıtlı veriler"),
+                 ("hesap", "Program hesaplanıyor")]
 
 
 def _loader_html(UI) -> str:
@@ -524,10 +531,10 @@ def _loader_html(UI) -> str:
        telefonda "Yeniden dene" ilk ekrandan taşabilirdi. -->
   <div class="yukHata" id="yukHata" hidden></div>
   <ol class="yukListe" id="yukListe">{adimlar}</ol>
-  <p class="gizlilik"><b>Notların tarayıcından çıkmıyor.</b>
-     Bu sitenin sunucusu yok: hesap senin cihazında yapılıyor, girdiğin
-     notlar yalnız bu tarayıcıda saklanıyor. Yayınlanan tek veri herkese
-     açık ders kataloğu.</p>
+  <p class="gizlilik"><b>Notlarınız tarayıcınızın dışına çıkmaz.</b>
+     Bu sitenin bir sunucusu bulunmamaktadır: hesaplamalar cihazınızda yapılır,
+     girilen notlar yalnızca bu tarayıcıda saklanır. Yayımlanan tek veri,
+     herkese açık ders kataloğudur.</p>
 </div></div>
 """
 

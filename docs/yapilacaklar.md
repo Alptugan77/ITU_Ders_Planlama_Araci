@@ -466,6 +466,34 @@ her maddeden önce gelen tek iş.
 > hatası ✅
 > ➜ Ayrıntı: `docs/faz62-site-acilis.md`
 >
+> **Faz 63 (24.09.2026 — dürüst bitiş):** 127 programın hepsi gerçek
+> katalogla kuruldu. ★★ 2+. yarıyılda transkript girilmemişken harita planın
+> tamamını kalan sayıp "azami süreyi aşıyorsun" diyordu → tahmin yok,
+> "Dersleri gir" ✅ · ★★ 20 UOLP (ortak lisans) programında son İTÜ dersi
+> mezuniyet gibi yazılıyordu → "tahmin edilmedi", danışmana soru ✅
+> Geri alma deneyi: 6/6 kırmızı.
+> ➜ Ayrıntı: `docs/faz63-durust-bitis.md`
+>
+> **Faz 64 (24.09.2026 — bugünkü dönem):** kullanıcı: *"we are currently in
+> 2026-2027 fall semester not in 2025-2026"*. ★★ Şubelere örnek ayardan kalma
+> `202610` (2025-2026 Güz) basılıyordu; site bir yıl geriden başlıyordu →
+> dönem şubelerin çekildiği günden ✅ · başlık haritayla aynı dönem ✅ · örnek
+> ayar ve vitrin 2026-2027 Güz ✅
+> Geri alma deneyi: 6/6 kırmızı.
+> ➜ Ayrıntı: `docs/faz64-bugunku-donem.md`
+>
+> **Faz 65 (24.09.2026 — gerçek sitede gezi):** ÇAP'sız öğrenciye ÇAP
+> başlangıç yarıyılı sorulmuyor, dönem gerçekten tek tık ✅ · plandan
+> işaretle penceresinden transkript yapıştırmaya yol ✅
+> Geri alma deneyi: 4/4 kırmızı.
+> ➜ Ayrıntı: `docs/faz65-kurulum-gezisi.md`
+>
+> **Faz 66 (24.09.2026 — resmî dil):** kullanıcı: *"bir plan, kehanet değil
+> gibi lafları azaltıp resmi bir şekilde açıklamaları oluşturur musun"*.
+> Arayüzün tüm görünür metni kişisiz/“siz” hitaplı resmî üsluba çevrildi;
+> üslup kuralları belgelendi ✅
+> ➜ Ayrıntı: `docs/faz66-resmi-dil.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

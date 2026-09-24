@@ -62,8 +62,8 @@ const ETIKET = {
   python:  "Python çalışma ortamı indiriliyor",
   motor:   "Motor dosyaları yükleniyor",
   katalog: "Ders kataloğu indiriliyor",
-  veri:    "Kayıtlı verin geri yükleniyor",
-  hesap:   "Programın hesaplanıyor",
+  veri:    "Kayıtlı veriler geri yükleniyor",
+  hesap:   "Program hesaplanıyor",
 };
 const PYODIDE_ADLARI = ["pyodide.js", "pyodide.asm.mjs", "pyodide.asm.wasm",
                         "python_stdlib.zip", "pyodide-lock.json"];
@@ -210,8 +210,8 @@ function ciz(){
   if(uyari){
     const takildi = indiriyor && simdi - IZ.sonDegisim > 12000;
     if(takildi && uyari.hidden){
-      uyari.textContent = "Bağlantı yavaş görünüyor — sayfayı açık bırak, " +
-        "indirme sürüyor. İlk açılıştan sonra büyük dosyalar önbellekten gelir.";
+      uyari.textContent = "Bağlantı yavaş görünmektedir; indirme devam ettiğinden " +
+        "lütfen sayfayı kapatmayınız. İlk açılıştan sonra büyük dosyalar önbellekten yüklenir.";
       uyari.hidden = false;
     }else if(!takildi && !uyari.hidden){
       uyari.hidden = true;
@@ -245,8 +245,9 @@ function hataGoster(err){
   if(!kutu) return;
   const ad = li ? li.firstChild.textContent.trim() : "yükleme";
   kutu.innerHTML = `<h2>Site açılamadı</h2>
-    <p><b></b> adımında durdu. Çoğunlukla bağlantı kesintisidir — bir kez daha
-      denemek yeter. Sorun sürerse aşağıdaki hatayı GitHub'da bildir.</p>
+    <p>Yükleme <b></b> adımında durdu. Bu durum genellikle bir bağlantı
+      kesintisinden kaynaklanır; yeniden denenmesi çoğunlukla yeterlidir. Sorun
+      devam ederse aşağıdaki hata iletisini GitHub üzerinden bildiriniz.</p>
     <code></code>
     <button type="button" id="yukTekrar">Yeniden dene</button>`;
   kutu.querySelector("b").textContent = ad;             // innerHTML'e değil

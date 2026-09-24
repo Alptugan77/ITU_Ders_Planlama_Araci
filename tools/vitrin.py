@@ -35,7 +35,7 @@ from pathlib import Path
 KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK / "src"))
 
-DONEM = "202610"          # 2025-2026 Güz (bkz. config.donem_adi, Faz 38)
+DONEM = "202710"          # 2026-2027 Güz — bugünkü dönem (Faz 64) (bkz. config.donem_adi, Faz 38)
 
 # (kod, ad, kredi, AKTS, önşart metni) — önşart metni OBS'nin biçiminde.
 DERSLER = [
@@ -128,15 +128,15 @@ BLG_CAP = ["BLG 102E", "BLG 223E", "BLG 231E", "BLG 222E", "BLG 252E",
 
 # Transkript: (ders, not, dönem). MAT 210E FF — alttan alınacak.
 TRANSKRIPT = [
-    *[(k, n, "202410") for k, n in zip(HTAE_PLAN[1],
+    *[(k, n, "202510") for k, n in zip(HTAE_PLAN[1],
       ["BB", "CB", "AA", "CC", "BA", "BB", "AA", "BA"])],
-    *[(k, n, "202420") for k, n in zip(HTAE_PLAN[2],
+    *[(k, n, "202520") for k, n in zip(HTAE_PLAN[2],
       ["CB", "CC", "BB", "BA", "BB", "AA", "BB"])],
-    *[(k, n, "202510") for k, n in zip(HTAE_PLAN[3],
+    *[(k, n, "202610") for k, n in zip(HTAE_PLAN[3],
       ["CC", "BB", "CB", "BA", "BB"])],
-    *[(k, n, "202520") for k, n in zip(HTAE_PLAN[4],
+    *[(k, n, "202620") for k, n in zip(HTAE_PLAN[4],
       ["FF", "CB", "BB", "CC", "BA"])],
-    ("BLG 102E", "BB", "202520"), ("BLG 231E", "CB", "202520"),
+    ("BLG 102E", "BB", "202620"), ("BLG 231E", "CB", "202620"),
 ]
 
 BINALAR = [("INB", "İnşaat Fakültesi"), ("EEB", "Elektrik-Elektronik Fakültesi"),
@@ -204,33 +204,33 @@ SUBELER = [
 
 # Not dağılımı — (anahtar, dönem, {not: öğrenci}) — UYDURMA sayılar.
 DAGILIMLAR = [
-    ("GEO 315", "202510", {"AA": 9, "BA+": 3, "BA": 11, "BB+": 4, "BB": 14,
+    ("GEO 315", "202610", {"AA": 9, "BA+": 3, "BA": 11, "BB+": 4, "BB": 14,
                            "CB+": 2, "CB": 10, "CC+": 1, "CC": 8, "DC": 5,
                            "DD": 3, "FF": 4, "VF": 1}),
-    ("GEO 315", "202410", {"AA": 7, "BA": 12, "BB": 15, "CB": 11, "CC": 9,
+    ("GEO 315", "202510", {"AA": 7, "BA": 12, "BB": 15, "CB": 11, "CC": 9,
                            "DC": 4, "DD": 3, "FF": 6, "VF": 2}),
-    ("MAT 210", "202510", {"AA": 6, "BA": 8, "BB": 12, "CB": 15, "CC": 18,
+    ("MAT 210", "202610", {"AA": 6, "BA": 8, "BB": 12, "CB": 15, "CC": 18,
                            "DC": 14, "DD": 11, "FF": 22, "VF": 9}),
-    ("BLG 223", "202510", {"AA": 14, "BA+": 2, "BA": 10, "BB": 12, "CB": 11,
+    ("BLG 223", "202610", {"AA": 14, "BA+": 2, "BA": 10, "BB": 12, "CB": 11,
                            "CC": 9, "DC": 7, "DD": 5, "FF": 10, "VF": 4}),
-    ("GEO 321", "202420", {"AA": 3, "BA": 4, "BB": 6, "CB": 5, "CC": 3,
+    ("GEO 321", "202520", {"AA": 3, "BA": 4, "BB": 6, "CB": 5, "CC": 3,
                            "DD": 2, "FF": 1}),
     # Faz 58 — yol haritası için geçmiş: GEO 341E geçen YAZ da açılmış;
     # BLG 335E Güz dersi ve Baharda 3 bütünlemeci var (açılış SAYILMAMALI);
     # BLG 336E Bahar dersi. İki ÇAP dersinin mevsimi hiçbir planda yok.
-    ("GEO 341", "202510", {"AA": 6, "BA": 8, "BB": 12, "CB": 10, "CC": 9,
+    ("GEO 341", "202610", {"AA": 6, "BA": 8, "BB": 12, "CB": 10, "CC": 9,
                            "DC": 4, "DD": 3, "FF": 3}),
-    ("GEO 341", "202530", {"AA": 2, "BA": 3, "BB": 4, "CB": 2, "CC": 2, "FF": 1}),
-    ("BLG 335", "202510", {"AA": 9, "BA": 11, "BB": 16, "CB": 14, "CC": 12,
+    ("GEO 341", "202630", {"AA": 2, "BA": 3, "BB": 4, "CB": 2, "CC": 2, "FF": 1}),
+    ("BLG 335", "202610", {"AA": 9, "BA": 11, "BB": 16, "CB": 14, "CC": 12,
                            "DC": 7, "DD": 5, "FF": 6}),
-    ("BLG 335", "202520", {"DD": 1, "FF": 2}),
-    ("BLG 336", "202520", {"AA": 7, "BA": 9, "BB": 12, "CB": 10, "CC": 8,
+    ("BLG 335", "202620", {"DD": 1, "FF": 2}),
+    ("BLG 336", "202620", {"AA": 7, "BA": 9, "BB": 12, "CB": 10, "CC": 8,
                            "DC": 4, "DD": 3, "FF": 5}),
     # Faz 59 — INS ÇAP seçeneğinin zinciri Güz/Bahar sırasıyla veriliyor.
-    ("INS 201", "202510", {"AA": 10, "BB": 30, "CC": 30, "DD": 10, "FF": 10}),
-    ("INS 202", "202520", {"AA": 8, "BB": 25, "CC": 30, "DD": 10, "FF": 7}),
-    ("INS 301", "202510", {"AA": 6, "BB": 20, "CC": 25, "DD": 8, "FF": 6}),
-    ("INS 302", "202520", {"AA": 5, "BB": 18, "CC": 22, "DD": 8, "FF": 5}),
+    ("INS 201", "202610", {"AA": 10, "BB": 30, "CC": 30, "DD": 10, "FF": 10}),
+    ("INS 202", "202620", {"AA": 8, "BB": 25, "CC": 30, "DD": 10, "FF": 7}),
+    ("INS 301", "202610", {"AA": 6, "BB": 20, "CC": 25, "DD": 8, "FF": 6}),
+    ("INS 302", "202620", {"AA": 5, "BB": 18, "CC": 22, "DD": 8, "FF": 5}),
 ]
 
 
@@ -349,7 +349,7 @@ def kur(kok: Path) -> Path:
             con.execute("INSERT INTO lesson_snapshot(taken_at,crn,course_code,capacity,"
                         "enrolled) VALUES (?,?,?,?,?)", (stamp, crn, kod, kon, eski))
 
-    # ⚠️ Kodun yılı akademik yılın BİTİŞİ (Faz 38): 202510 = 2024-2025 Güz.
+    # ⚠️ Kodun yılı akademik yılın BİTİŞİ (Faz 38): 202610 = 2025-2026 Güz.
     # Eski elle yazılmış tablo bir yıl kaymıştı.
     def yil(d): return f"{int(d[:4]) - 1}-{d[:4]}"
     ad = {"10": "Fall Semester", "20": "Spring Semester", "30": "Summer Semester"}

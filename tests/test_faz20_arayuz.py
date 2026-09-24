@@ -163,7 +163,7 @@ def test_kademeler_asagi_doguru(dbs):
 def test_kaydedilen_bolum_sablonda(dbs):
     html = UI.render(_collect(dbs))
     for parca in ("savedSection", "renderSaved", "findSection", "modeIndexFor",
-                  "Kaydettiğin program"):
+                  "Kaydedilen program"):
         assert parca in html, parca
 
 

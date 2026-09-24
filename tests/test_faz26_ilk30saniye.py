@@ -64,13 +64,13 @@ def test_bolum_secilince_ARTIK_engellemiyor(dbs):
 
 def test_baslik_TEK_ADIM_diyor(dbs):
     html = UI.render(_bos(dbs))
-    assert "Hoş geldin — tek adımda başla" in html
+    assert "Hoş geldiniz" in html
     assert "üç adımda kur" not in html.lower()
 
 
 def test_bolum_secilince_baslik_ARAÇ_CALISIYOR(dbs):
     html = UI.render(_sadece_bolum(dbs))
-    assert "Araç çalışıyor — istersen daha da iyileştir" in html
+    assert "Program oluşturuldu" in html
 
 
 # ============================================== 2. tek birincil eylem
@@ -80,8 +80,8 @@ def test_her_adimin_KENDI_eylem_adi_var(dbs):
     # ⚠️ Faz 47: SIRA DEĞİŞTİ — dönem, transkriptten önce. Sebebi bağımlılık:
     # dönem biliniyorsa "Plandan işaretle" geçmiş dönemlerin zorunlularını
     # ÖNERİ olarak tikliyor; ters sırada o öneri yapılamıyor.
-    assert [a["cta"] for a in adimlar] == ["Bölümünü seç", "Dönemi seç",
-                                           "Dersleri gir"]
+    assert [a["cta"] for a in adimlar] == ["Bölümünüzü seçin", "Yarıyılınızı seçin",
+                                           "Dersleri girin"]
     assert all(a["cta"] != "Aç" for a in adimlar)
 
 
@@ -106,7 +106,7 @@ def test_kurulum_cubugu_karsilama_sirasinda_GIZLI(dbs):
 def test_sirasi_gelmemis_adim_KAPALI(dbs):
     """★ Tıklanınca çıkmaza düşen bir düğme, olmayan bir düğmeden kötü."""
     html = UI.render(_bos(dbs))
-    assert "disabled title='Önce bölümünü seç'" in html
+    assert "disabled title='Önce bölüm seçiniz'" in html
     assert ".step.kilit" in html
 
 
@@ -128,7 +128,7 @@ def test_transkriptsiz_sayilar_PLANIN_TAMAMI_diye_etiketleniyor(dbs):
     """⚠️ Sayıyı gizlemek de olmaz: plan büyüklüğü gerçek bir bilgi.
     Ama "kalan zorunlu 44" ile "zorunlu ders 44" farklı iddialar."""
     html = UI.render(_sadece_bolum(dbs))
-    assert "senin kalanın değil" in html
+    assert "kalan dersleri değil, <b>planın tamamını</b>" in html
     assert 'bilinmiyor ? "zorunlu ders" : "kalan zorunlu"' in html
 
 
