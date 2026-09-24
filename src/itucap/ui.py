@@ -924,6 +924,10 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             "next": ({"max": load_rule.next_band.max_credits,
                       "minGpa": load_rule.next_band.min_gpa}
                      if load_rule.next_band else None),
+            # ★ Faz 71 — bantların tamamı: not senaryosu gelecek dönemin
+            # sınırını AYNI kurallardan (kurallar.toml) hesaplıyor.
+            "bands": [{"label": b.label, "minGpa": b.min_gpa, "max": b.max_credits}
+                      for b in POL.load_bands()[0]],
         }
 
     # ★ İkinci anadaldan asgari yarıyıl kredisi — MADDE 17'den AYRI kural.
@@ -2018,7 +2022,7 @@ __FONTLAR__
      * ızgarada dönüşümlü çizgi ağırlığı: saat başları kalın, yarımlar ince
 
    GECE'den gelen (zemin ve sıcaklık):
-     * koyu ama yumuşak zemin (#10141B) — saf siyah değil, mavi eğilimli
+     * koyu ama yumuşak zemin (#1A1F29, Faz 70'te açıldı) — saf siyah değil, mavi eğilimli
      * düşük kontrast gövde metni; kayıt haftasında saatlerce bakılıyor
      * tek aksan: periwinkle (--seal). Şematik'in çığlık kırmızısı yerine
        yalnız MEVZUAT çakışmasında kullanılan yumuşatılmış bir kırmızı.
@@ -3140,6 +3144,21 @@ table.cmp .meta.arti{color:var(--ok)}
 .yhdonem .empty{padding:8px 0;text-align:left}
 /* Faz 57 — GNO hedefi (Kredi sınırım). */
 .gnohedef{margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+/* Faz 71 — dönem sonu not senaryosu. */
+.notsenaryo .nsust{margin:6px 0;font-size:var(--fs-sm);color:var(--ink-2)}
+.notsenaryo .nskaydir{overflow-x:auto}
+.nstablo{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+.nstablo th{text-align:left;color:var(--ink-3);font-weight:600;padding:4px 8px;
+  border-bottom:1px solid var(--border-strong)}
+.nstablo td{padding:4px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
+.nstablo .sayi{text-align:right}
+.nstablo select,.notsenaryo .nsust select{min-height:32px}
+.nssonuc{margin-top:10px;display:grid;gap:4px;font-size:var(--fs-md)}
+.nsesik{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+/* Faz 72 — GNO panelindeki eşik hapları ile AYNI görünüm (küçük harf; .chip
+   BÜYÜK harf yazıyordu ve aynı eşik iki ayrı kılıkta görünüyordu). */
+.nsesik .cat.ok{background:var(--ok-soft);color:var(--ok)}
+.nsesik .cat.no{background:transparent;color:var(--danger);border-color:currentColor}
 .gnobaslik{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin-bottom:6px}
 .gnosatir{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;
   padding:8px 0;border-top:1px solid var(--border);font-size:var(--fs-md)}
@@ -3713,6 +3732,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
   <h2 style="margin-bottom:14px">Kredi ve not eşikleri</h2>
   <div id="gpaBody"></div>
   <div id="gnoHedefBody"></div>
+  <div id="notSenaryoBody"></div>
   <div id="loadBody"></div>
   <div id="floorBody"></div>
   <div id="creditBody"></div>
@@ -4000,6 +4020,12 @@ const SECONDS = () => DATA.seconds || [];
    "kaydım gitmiş" sanılmasına yol açıyordu (yandal kodu bozulunca tam da
    bu oldu). Planı yok diye SEÇİM yok sayılmıyor. */
 const SECONDS_YOK = () => DATA.secondsMissing || [];
+/* ★ Zaten girilmiş programın BAŞVURU eşiği hiçbir yerde ölçüt değil: yandal
+   öğrencisine "Yandal başvurusu ≥ 2.50 ✗" demek yanlış bir kaygı üretir.
+   Faz 57–71'de dört yerde ayrı ayrı yazılmıştı ve GNO paneli atlanmıştı
+   (Faz 72, gerçek sitede yandal öğrencisiyle görüldü); artık tek kural. */
+const kayitliBasvuru = (t) => t.kind === "basvuru"
+  && SECONDS().some(x => x.kind === t.scope);
 const ikinciYazi = () =>
   [...SECONDS().map(x => ` · <b>${esc(x.program)}</b> ${esc(x.label)}`),
    ...SECONDS_YOK().map(x => ` · <b>${esc(x.program)}</b> ${esc(x.label)}` +
@@ -4552,8 +4578,10 @@ async function save(fn, secenek = {varsayilanKip: true}){
     applyState(await fn(), secenek);
     say("kaydedildi ✓");
     setTimeout(() => $("#setup").close(), 550);
+    return true;
   }catch(err){
     say(err.message, true);
+    return false;
   }finally{
     clearInterval(sayac);
     geri();
@@ -5258,6 +5286,25 @@ function courseDialogSetup(){
   // sayfada tutulan çalışma kopyası; 'Kaydet'e kadar sunucuya gitmiyor
   let rows = SETUP.transcript.map(t => ({...t}));
   const grades = SETUP.grades;
+  /* ★★ FAZ 72 — yapıştırma çalışma kopyasını ESKİ bırakıyordu. "Bu 21 dersi
+     ekle" sunucuya yazıyor, pencere 550 ms sonra kapanıyordu; o arada liste
+     hâlâ "Girilmiş dersler (0)" gösteriyor ve "Kaydet" yeniden açılıyordu.
+     Kaydet'e basılırsa ESKİ liste replace:true ile gidip yapıştırılan
+     transkripti siliyordu (gerçek sitede ölçüldü: 20 ders → GNO bilinmiyor).
+     Tek tek eklenip kaydedilmemiş dersler de pencereyle birlikte
+     kayboluyordu. Artık: bekleyen düzenleme yapıştırmadan ÖNCE kaydediliyor,
+     başarıdan sonra liste sunucudaki transkriptle yenileniyor. */
+  const govde = () => ({
+    items: rows.map(r => ({course: r.course, grade: r.grade,
+                           inProgress: r.status === "IN_PROGRESS"})),
+    replace: true,
+  });
+  const ozet = () => JSON.stringify(govde().items);
+  let kayitli = ozet();
+  const calisma = {
+    bekleyen: () => ozet() !== kayitli ? govde() : null,
+    yenile: () => { rows = SETUP.transcript.map(t => ({...t})); kayitli = ozet(); draw(); },
+  };
 
   const gradeSelect = (r, i) => {
     const value = r.status === "IN_PROGRESS" ? "--" : (r.grade || "");
@@ -5399,7 +5446,7 @@ function courseDialogSetup(){
       kutu.innerHTML = `<div class="empty">okunuyor…</div>`;
       try{
         const r = await api("/api/transcript/preview", {text: metin});
-        trOnizlemeCiz(r.preview || {});
+        trOnizlemeCiz(r.preview || {}, calisma);
       }catch(err){
         kutu.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
       }
@@ -5407,18 +5454,14 @@ function courseDialogSetup(){
 
     // ★ replace:true — ekrandaki liste TAM liste. 'çıkar' düğmesinin
     //   çalışması için gerekli; yoksa silinen ders DB'de kalırdı.
-    $("#setupSave").addEventListener("click", () => save(() => api("/api/transcript", {
-      items: rows.map(r => ({course: r.course, grade: r.grade,
-                             inProgress: r.status === "IN_PROGRESS"})),
-      replace: true,
-    })));
+    $("#setupSave").addEventListener("click", () => save(() => api("/api/transcript", govde())));
   });
 }
 
 /* ---------- yapıştırma önizlemesi (ilk kullanıcı incelemesi A1) ----------
    ⚠️ Üç sayı AYRI: bulundu · atlandı · notu okunamadı. Tek bir "10 ders
    eklendi" satırı, atlanan 8 satırı ve okunamayan 2 notu gizliyordu. */
-function trOnizlemeCiz(p){
+function trOnizlemeCiz(p, calisma = null){
   const kutu = $("#trOnizleme");
   if(!p.count && !(p.bad || []).length){
     kutu.innerHTML = `<div class="empty">bu metinde ders satırı bulunamadı</div>`;
@@ -5453,11 +5496,15 @@ function trOnizlemeCiz(p){
     <button class="ghost primary" id="trUygula" style="margin-top:10px"
       ${p.count ? "" : "disabled"}>Bu ${p.count} dersi ekle</button>`;
   const btn = $("#trUygula");
-  if(btn) btn.addEventListener("click", () => save(async () => {
-    const body = await api("/api/transcript/paste",
-      {text: $("#trPaste").value, replace: false});
-    return body;
-  }));
+  if(btn) btn.addEventListener("click", async () => {
+    const tamam = await save(async () => {
+      const bekleyen = calisma && calisma.bekleyen();     // Faz 72
+      if(bekleyen) await api("/api/transcript", bekleyen);
+      return api("/api/transcript/paste", {text: $("#trPaste").value, replace: false});
+    });
+    // Aynı görevde (tıklama araya giremeden): liste artık kaydedilen transkript.
+    if(tamam && calisma) calisma.yenile();
+  });
 }
 
 /* ---------- dönem kredi yükü (yönetmelik) ---------- */
@@ -5632,8 +5679,9 @@ function renderGpa(){
     : t.ok ? "background:var(--ok-soft);color:var(--ok)"
            : "background:transparent;color:var(--danger);border-color:currentColor";
   const mark = t => t.ok === null ? "—" : (t.ok ? "✓" : "✗");
-  const groups = Object.keys(STAGE).filter(k => g.thresholds.some(t => t.kind === k));
-  const loose = g.thresholds.filter(t => !groups.includes(t.kind));
+  const esikler = g.thresholds.filter(t => !kayitliBasvuru(t));
+  const groups = Object.keys(STAGE).filter(k => esikler.some(t => t.kind === k));
+  const loose = esikler.filter(t => !groups.includes(t.kind));
   /* ★ Hangi PROGRAMIN kuralı olduğu yazıyor. ÇAP ve yandal aynı anda
      alınabiliyor ve eşikleri farklı maddelerden geliyor; etiketsiz
      gösterirsek biri öbürünün kuralı sanılır. 'genel' olanda etiket yok —
@@ -5648,12 +5696,12 @@ function renderGpa(){
   const chips = groups.map(k => `
     <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px">
       <span class="eyebrow" style="min-width:74px">${STAGE[k]}</span>
-      ${g.thresholds.filter(t => t.kind === k).map(chipOf).join("")}
+      ${esikler.filter(t => t.kind === k).map(chipOf).join("")}
     </div>`).join("") + (loose.length ? `
     <div class="cats" style="margin-top:8px">${loose.map(chipOf).join("")}</div>` : "");
-  const unverified = g.thresholds.filter(t => !t.verified).length;
-  const tolerated = g.thresholds.filter(t => t.tolerance);
-  const pending = g.thresholds.filter(t => t.ok === null);
+  const unverified = esikler.filter(t => !t.verified).length;
+  const tolerated = esikler.filter(t => t.tolerance);
+  const pending = esikler.filter(t => t.ok === null);
   $("#gpaBody").innerHTML = `
     <div class="gauge" style="margin-bottom:14px;padding-bottom:14px;
          border-bottom:1px solid var(--border)">
@@ -5718,9 +5766,7 @@ function gnoHedefleri(){
   };
   /* Zaten girilmiş programın BAŞVURU eşiği hedef değil: ÇAP öğrencisine
      "ÇAP başvurusu için 3.71 gerekir" demek yanlış bir kaygı üretirdi. */
-  const icinde = new Set(SECONDS().map(x => x.kind));
-  (g.thresholds || []).filter(t => t.basis === "genel" && t.min > 0
-      && !(t.kind === "basvuru" && icinde.has(t.scope)))
+  (g.thresholds || []).filter(t => t.basis === "genel" && t.min > 0 && !kayitliBasvuru(t))
     .forEach(t => ekle(t.min, t.label, "genel"));
   const L = DATA.load;
   if(L && L.next && L.next.minGpa) ekle(L.next.minGpa,
@@ -5747,16 +5793,23 @@ function gnoTabani(C0, P0, secili){
    Taban sunucudan (`gpa.remaining`, yol haritasıyla aynı kalan dersler):
    T = kalan kredi; C, P = bugünkü ortalamanın kredisi/puanı, kalan
    derslerden daha önce notu olup geçilmemişlerin (tekrar) payı düşülmüş. */
-function kalanSatiri(h, g, ik){
+/* Hesabın kendisi — satır (kalanSatiri) ve danışman sorusu AYNI sayıyı
+   kullanıyor (Faz 70). null: taban yok ya da hedef yalnız bu döneme bağlı. */
+function kalanGereken(h, g, ik){
   const R = (g.remaining || {})[h.taban];
-  if(!R || h.donemlik) return "";
+  if(!R || h.donemlik) return null;
   const C0 = h.taban === "ikinci" ? (ik ? ik.credits : 0) : g.credits;
   const P0 = h.taban === "ikinci" ? (ik ? ik.points : 0) : g.points;
   const T = R.credits, C = C0 - R.retakeCredits, P = P0 - R.retakePoints;
+  if(!T) return {T};
+  return {T, x: (h.min * (C + T) - P) / T, enIyi: (P + 4 * T) / (C + T)};
+}
+function kalanSatiri(h, g, ik){
+  const k = kalanGereken(h, g, ik);
+  if(!k) return "";
+  const {T, x, enIyi} = k;
   const bas = `Mezuniyete kadar kalan tüm derslerde (<b class="mono">${T}</b> kredi):`;
   if(!T) return `<span class="gnokalan">${bas.replace(":", "")} — kalan ders bulunmamaktadır.</span>`;
-  const x = (h.min * (C + T) - P) / T;
-  const enIyi = (P + 4 * T) / (C + T);
   let metin;
   if(x <= 1e-9)
     metin = `<span class="gnook">her durumda ✓</span> — kalan derslerin tümünden FF alınsa
@@ -5840,6 +5893,139 @@ function renderGnoHedef(){
       Tekrar alınan derste eski not yerine yeni not sayılmıştır (İTÜ'de son not
       geçerlidir); derslerin harf notlu olduğu varsayılmıştır.${kalanNotu(g)}</div>
   </div>`;
+}
+
+/* ★★ FAZ 71 — DÖNEM SONU NOT SENARYOSU ("bu notları alırsam ne olur").
+   GNO hedefi soruyu tersinden soruyordu (eşik için hangi ortalama gerekir);
+   öğrencinin kurduğu cümle ise "MAT 210E'den CC, BLG 223E'den BB alırsam
+   GNO'm, ÇAP ortalamam ve gelecek dönem kredi sınırım ne olur". Taban GNO
+   hedefiyle AYNI (`gnoTabani`: tekrar alınan dersin eski notu düşülür);
+   eşikler `DATA.gpa.thresholds`, kredi sınırı `DATA.load.bands`
+   (kurallar.toml). Seçimler yalnız bu tarayıcıda hatırlanır (kolaylık);
+   hiçbir kayda yazılmaz. */
+let NOT_SENARYO = null;
+function notSenaryo(){
+  if(NOT_SENARYO) return NOT_SENARYO;
+  try{ NOT_SENARYO = JSON.parse(localStorage_get("notSenaryo") || "{}") || {}; }
+  catch(e){ NOT_SENARYO = {}; }
+  return NOT_SENARYO;
+}
+const NS_PUAN = Object.fromEntries(HARF_PUAN);
+const yuvarla2 = (x) => Math.round(x * 100 + 1e-9) / 100;
+function senaryoHesapla(secili, notlar){
+  const g = DATA.gpa || {};
+  const notlu = secili.filter(p => notlar[p.cand.course] in NS_PUAN);
+  const kr = (l) => l.reduce((a, p) => a + p.cand.credits, 0);
+  const pu = (l) => l.reduce((a, p) => a + p.cand.credits * NS_PUAN[notlar[p.cand.course]], 0);
+  const T = kr(notlu);
+  const r = {notlu, eksik: secili.length - notlu.length, T, donem: T ? pu(notlu) / T : null,
+             gno: null, ikinci: null};
+  if(g.counted && T){
+    const b = gnoTabani(g.credits, g.points, notlu);
+    r.gno = (b.P + pu(notlu)) / (b.C + T);
+  }
+  const ik = (g.secondGpa || [])[0];
+  if(ik){
+    const kod = new Set(ik.codes);
+    const l = notlu.filter(p => kod.has(p.cand.course));
+    const b = gnoTabani(ik.credits, ik.points, l);
+    r.ikinciAd = ik.label;
+    r.ikinciSimdi = ik.credits ? ik.points / ik.credits : null;
+    r.ikinci = (b.C + kr(l)) ? (b.P + pu(l)) / (b.C + kr(l)) : r.ikinciSimdi;
+  }
+  return r;
+}
+/* Yönetmeliğin GNO bantlarından sınır — `policy.load_limit` ile aynı kural:
+   GNO'nun tuttuğu bantların en yükseği. */
+function bantSiniri(gno){
+  const B = (DATA.load && DATA.load.bands) || [];
+  const tutan = B.filter(b => gno + 1e-9 >= b.minGpa);
+  return tutan.length ? Math.max(...tutan.map(b => b.max)) : null;
+}
+function renderNotSenaryo(odak){
+  const kutu = $("#notSenaryoBody");
+  if(!kutu) return;
+  const g = DATA.gpa;
+  const secili = picks().filter(p => (p.cand.credits || 0) > 0);
+  if(!g || !secili.length){ kutu.innerHTML = ""; return; }
+  const notlar = notSenaryo();
+  const r = senaryoHesapla(secili, notlar);
+  const secim = (c) => `<select class="nssec" data-ns="${esc(c)}"
+      aria-label="${esc(c)} için beklenen not"><option value="">—</option>${
+      HARF_PUAN.slice().reverse().map(([h]) =>
+        `<option${notlar[c] === h ? " selected" : ""}>${h}</option>`).join("")}</select>`;
+  const satirlar = secili.map(p => {
+    const rt = (g.retake || {})[p.cand.course];
+    return `<tr><td class="mono">${esc(p.cand.course)}</td>
+      <td>${esc(p.cand.name || "")}${rt ? ` <span class="chip unknown"
+        title="Eski not ortalamadan düşülür; son alınan not geçerlidir">tekrar · eski ${
+        esc(rt.grade)}</span>` : ""}</td>
+      <td class="mono sayi">${p.cand.credits}</td><td>${secim(p.cand.course)}</td></tr>`;
+  }).join("");
+  const ok = (v, min) => yuvarla2(v) + 1e-9 >= min;
+  const esikler = !r.T ? [] : (g.thresholds || [])
+    .filter(t => t.min > 0 && !kayitliBasvuru(t))
+    .map(t => {
+      const v = t.basis === "ikinci anadal" ? r.ikinci : r.gno;
+      return v === null ? "" : `<span class="cat ${ok(v, t.min) ? "ok" : "no"}">${
+        esc(t.label)} ≥ ${t.min.toFixed(2)} ${ok(v, t.min) ? "✓" : "✗"}</span>`;
+    }).join("");
+  const L = DATA.load || {};
+  const simdiSinir = L.max || null;
+  const sonraSinir = r.gno !== null && DATA.unit === "kredi" ? bantSiniri(yuvarla2(r.gno)) : null;
+  const ok2 = (a, b) => `<b class="mono">${a}</b>${b !== undefined && b !== null
+    ? ` <span aria-hidden="true">→</span> <b class="mono">${b}</b>` : ""}`;
+  const sonuc = !r.T
+    ? `<div class="meta">Sonucu görmek için en az bir ders için beklenen notu seçiniz.</div>`
+    : `<div class="nssonuc">
+        <div>Dönem ortalaması: <b class="mono">${r.donem.toFixed(2)}</b>
+          <span class="meta">(${r.notlu.length} ders, ${r.T} kredi)</span></div>
+        <div>GNO (tahmini): ${g.counted ? ok2(g.value.toFixed(2), yuvarla2(r.gno).toFixed(2))
+          : `<span class="meta">bilinmemektedir; harf notu girilmiş ders bulunmadığından
+             yalnızca dönem ortalaması hesaplanmıştır.</span>`}</div>
+        ${r.ikinciAd ? `<div>${esc(r.ikinciAd)} ortalaması: ${r.ikinciSimdi === null
+          ? (r.ikinci === null ? `<span class="meta">henüz hesaplanamamaktadır</span>`
+             : ok2("—", yuvarla2(r.ikinci).toFixed(2)))
+          : ok2(r.ikinciSimdi.toFixed(2), r.ikinci === null ? null : yuvarla2(r.ikinci).toFixed(2))}</div>` : ""}
+        ${sonraSinir ? `<div>Gelecek dönem kredi sınırı (yönetmelik): ${
+          ok2(simdiSinir || "—", sonraSinir)} kredi</div>` : ""}
+        ${esikler ? `<div class="nsesik">${esikler}</div>` : ""}
+        ${r.eksik ? `<div class="meta">${r.eksik} ders için not seçilmediğinden hesaba
+          katılmamıştır.</div>` : ""}
+      </div>`;
+  kutu.innerHTML = `<div class="gnohedef notsenaryo">
+    <div class="gnobaslik"><b>Dönem sonu not senaryosu</b>
+      <span class="meta">programdaki dersler için beklenen notları seçiniz; sonuç
+        anında hesaplanır, hiçbir kayda yazılmaz</span></div>
+    <div class="nsust"><label>Tümüne uygula:
+      <select id="nsHepsi" aria-label="Tüm derslere aynı notu uygula"><option value="">seçiniz</option>
+        ${HARF_PUAN.slice().reverse().map(([h]) => `<option>${h}</option>`).join("")}
+        <option value="temizle">temizle</option></select></label></div>
+    <div class="nskaydir"><table class="nstablo"><thead><tr><th>Ders</th><th>Ad</th>
+      <th class="sayi">Kredi</th><th>Beklenen not</th></tr></thead>
+      <tbody>${satirlar}</tbody></table></div>
+    ${sonuc}
+    <div class="meta gnonot">Hesap tahminidir: GNO transkriptten alınmıştır; tekrar
+      alınan derste eski not yerine yeni not sayılır. Kredi sınırı İTÜ Lisans Eğitim ve
+      Öğretim Yönetmeliği MADDE 17'deki GNO bantlarından hesaplanır.</div>
+  </div>`;
+  kutu.querySelectorAll(".nssec").forEach(s => s.addEventListener("change", () => {
+    if(s.value) notlar[s.dataset.ns] = s.value; else delete notlar[s.dataset.ns];
+    localStorage_set("notSenaryo", JSON.stringify(notlar));
+    renderNotSenaryo(s.dataset.ns);        // yeniden çizim odağı kaybettirmesin
+  }));
+  if(odak){
+    const hedef = [...kutu.querySelectorAll(".nssec")].find(x => x.dataset.ns === odak)
+      || (odak === "*" ? $("#nsHepsi") : null);
+    if(hedef) hedef.focus();
+  }
+  const hep = $("#nsHepsi");
+  if(hep) hep.addEventListener("change", () => {
+    secili.forEach(p => { if(hep.value === "temizle") delete notlar[p.cand.course];
+                          else if(hep.value) notlar[p.cand.course] = hep.value; });
+    localStorage_set("notSenaryo", JSON.stringify(notlar));
+    renderNotSenaryo("*");
+  });
 }
 
 /* Kalan-ders satırının dayandığı şey — sayı ile birlikte yazılıyor. */
@@ -6617,11 +6803,18 @@ function danismanSorulari(){
       ÇAP yarıyıl tabanı sağlanamamaktadır (yeterli ÇAP dersi açılmamaktadır). Nasıl planlama yapmalıyım?`);
   }
   if(g && g.counted){
-    const icinde = new Set(SECONDS().map(x => x.kind));
-    (g.thresholds || []).filter(x => x.ok === false
-        && !(x.kind === "basvuru" && icinde.has(x.scope)))
+    (g.thresholds || []).filter(x => x.ok === false && !kayitliBasvuru(x))
       .forEach(x => q.push(`${esc(x.label)} için GNO ≥ ${x.min.toFixed(2)} gerekmektedir;
         tahmini GNO'm ${g.value.toFixed(2)}. Bu eşiğe nasıl ulaşabilirim?`));
+    /* ★ Faz 70 — kalan bütün derslerde AA bile yetmiyorsa (Faz 69 hesabı). */
+    const ik = (g.secondGpa || [])[0];
+    gnoHedefleri().forEach(h => {
+      const k = kalanGereken(h, g, ik);
+      if(k && k.T && k.x > 4 + 1e-9)
+        q.push(`${esc(h.adlar.join(" · "))} için ${h.taban === "ikinci" ? "ÇAP ortalamasının" : "GNO'nun"}
+          ${h.min.toFixed(2)} olması gerekmektedir; kalan tüm derslerim (${k.T} kredi) AA olsa
+          bile ortalamam en fazla ${k.enIyi.toFixed(2)} olur. Seçeneklerim nelerdir?`);
+    });
     if((g.conditional || []).length && g.conditionalRule && g.conditionalRule.ok === false)
       q.push(`Şartlı geçtiğim ${g.conditional.length} ders bulunmaktadır ve GNO'm 2.00'ın
         altındadır. Hangi dersleri tekrar almalıyım?`);
@@ -7873,6 +8066,7 @@ function render(){
   renderSaveState();
   renderFloor();
   renderGnoHedef();          // Faz 57 — seçim değişince gereken ortalama da
+  renderNotSenaryo();        // Faz 71 — dönem sonu not senaryosu
   renderArzUyarisi();
   renderDonemUyarisi();
   renderGeri();

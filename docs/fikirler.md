@@ -1,5 +1,10 @@
 # Kalan eksikler ve geliştirilmesi gerekenler
 
+> **Faz 71 (24.09.2026):** dönem sonu not senaryosu — "bu notları alırsam
+> GNO'm, ÇAP ortalamam, kredi sınırım ne olur" ✅. Açık kalem: akademik
+> durum (başarılı/sınamalı) — yönetmelikteki dönem sayısına bağlı eşikler
+> `kurallar.toml`'da beyan edilmemiş. Ayrıntı: `docs/faz71-not-senaryosu.md`.
+
 > **Faz 64 (24.09.2026):** "bu dönem" artık şubelerin çekildiği günden
 > (2026-2027 Güz) ✅. Ayrıntı: `docs/faz64-bugunku-donem.md`.
 

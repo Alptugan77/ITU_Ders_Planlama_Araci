@@ -142,8 +142,10 @@ def test_olculen_jetonlar_YERINDE():
     ⚠️ Faz 48: "gündüz `ink-3` DOSYADA iki kez geçer" sayımı, kâğıt paleti
     eklenince yanlış oldu. Sayım yerine bloklara bakıyoruz — asıl mesele
     hangi bloğun hangi değeri taşıdığı."""
-    assert PALETLER["gece"]["--ink-3"] == "#848EA1", "gece ink-3 eski değerde"
-    assert PALETLER["gece"]["--border-strong"] == "#647085"
+    # Faz 70: gece paleti okunurluk için yeniden (kullanıcı: "dark theme is
+    # less readable"); değerler tasarim.py'de ve ölçümü kontrast aracında.
+    assert PALETLER["gece"]["--ink-3"] == "#A9B2C2", "gece ink-3 eski değerde"
+    assert PALETLER["gece"]["--border-strong"] == "#7D899E"
     for ad in ("medya-gündüz", "açık-gündüz", "kâğıt"):
         assert PALETLER[ad]["--ink-3"] == "#5F6878", f"{ad} ink-3 sapmış"
 

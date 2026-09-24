@@ -49,10 +49,13 @@ def test_KALAN_TABAN_ortak_kaynak_ve_TEKRAR(dbs):
 
 
 def test_ARAYUZ_hesabi_ve_KURALLAR():
-    k = _js("kalanSatiri")
+    # Faz 70: hesap ortak yardımcıda (kalanGereken) — satır ve danışman
+    # sorusu aynı sayıyı kullanıyor.
+    k = _js("kalanGereken")
     assert "const T = R.credits, C = C0 - R.retakeCredits, P = P0 - R.retakePoints;" in k
-    assert "const x = (h.min * (C + T) - P) / T;" in k
-    assert "if(!R || h.donemlik) return" in k
+    assert "x: (h.min * (C + T) - P) / T" in k
+    assert "if(!R || h.donemlik) return null;" in k
+    assert "const k = kalanGereken(h, g, ik);" in _js("kalanSatiri")
     assert "${kalanSatiri(h, g, ik)}" in _js("renderGnoHedef")
     h = _js("gnoHedefleri")
     assert 'krediye çıkması`, "genel", true);' in h

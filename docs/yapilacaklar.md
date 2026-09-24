@@ -514,6 +514,26 @@ her maddeden önce gelen tek iş.
 > Geri alma deneyi: 6/6 kırmızı.
 > ➜ Ayrıntı: `docs/faz69-kalan-ortalama.md`
 >
+> **Faz 70 (24.09.2026 — gece teması):** kullanıcı: *"dark theme is less
+> readable"*. Gece paleti loş koyuya çekildi: zemin L 0.19→0.24, kart ayrımı,
+> çizgi 1.26→1.46, açıklama 6.95→9.03, meta 5.23→6.91 ✅ · ulaşılamayan eşik
+> danışman özetinde soruluyor ✅
+> ➜ Ayrıntı: `docs/faz70-koyu-tema.md`
+>
+> **Faz 71 (24.09.2026 — dönem sonu not senaryosu):** kullanıcı: *"make the
+> site more usefull and add new features"*. Programdaki her ders için beklenen
+> not seçiliyor → dönem ortalaması, GNO, ÇAP ortalaması, eşikler ✓/✗ ve
+> gelecek dönem kredi sınırı (MADDE 17 bantları) anında ✅ · tekrar alınan
+> dersin eski notu düşülüyor, not seçilmeyen ders hesaba girmiyor ✅
+> ➜ Ayrıntı: `docs/faz71-not-senaryosu.md`
+>
+> **Faz 72 (24.09.2026 — yandal öğrencisiyle gerçek site):** yapıştırmadan
+> hemen sonra Kaydet ESKİ listeyle transkripti siliyordu; kaydedilmemiş
+> düzenlemeler yapıştırmada kayboluyordu ✅ · kayıtlı olunan programın başvuru
+> eşiği GNO panelinde ✗ gösteriliyordu — kural tek yerde (`kayitliBasvuru`) ✅ ·
+> not senaryosu eşik hapları GNO paneliyle aynı ✅
+> ➜ Ayrıntı: `docs/faz72-yandal-gezintisi.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
