@@ -369,6 +369,24 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             b.dis_onsart = sorted(agac.courses() & dis)
             return True
         return False
+    # ★★ Faz 85 — tahmini zorluk (not ortalamasından). Yerleşimi ETKİLEMİYOR;
+    # yalnız kartta "bu dönemde kaç zor ders" okunabilsin diye taşınıyor.
+    from . import notlar as ND
+    _zk: dict = {}
+
+    def zorluk_ozeti(kod):
+        if not kod:
+            return None
+        if kod not in _zk:
+            try:
+                z = ND.zorluk(con, kod)
+            except Exception:                                  # noqa: BLE001
+                z = None
+            _zk[kod] = ({"level": z["level"], "label": z["label"],
+                         "mean": z["mean"], "n": z["n"], "lowData": z["lowData"]}
+                        if z and z.get("level") else None)
+        return _zk[kod]
+
     kazanilan = POL.earned_credits(con, grades) + sum(
         float(p.get("credits") or 0) for p in bu_donem)
     donemler = [{"code": term, "label": config.donem_adi(term) or term,
@@ -379,7 +397,8 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
                             "roles": [p.get("role") or ""], "pool": "",
                             # Faz 79 — havuz yuvası; istek üzerine kurulan
                             # haritalar (senaryo, ÇAP seçenekleri) geri gönderiyor.
-                            "slotId": p.get("slotId") or 0}
+                            "slotId": p.get("slotId") or 0,
+                            "difficulty": zorluk_ozeti(p["course"])}     # Faz 85
                            for p in sorted(bu_donem, key=lambda x: x["course"])],
                  "floorGap": None}]
 
@@ -604,7 +623,8 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
                        "chain": b.yukseklik,
                        "unparsed": b.ders in okunamayan,
                        "externalPrereq": b.dis_onsart,
-                       "past": gecmis_donemleri(b.gecmis)}                 # Faz 83
+                       "past": gecmis_donemleri(b.gecmis),                 # Faz 83
+                       "difficulty": zorluk_ozeti(b.ders)}                 # Faz 85
                       for b in secilen],
             # Faz 82 — saat denetimi: "var" (aynı mevsim, çakışmasız program
             # bulundu) / "yok" (öbür mevsim, saat bilinmiyor).

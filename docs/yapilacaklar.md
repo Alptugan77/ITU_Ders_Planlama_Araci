@@ -567,6 +567,12 @@ her maddeden önce gelen tek iş.
 > "0 alttan (1–0. dönem)" ✅
 > ➜ Ayrıntı: `docs/faz83-gecmis-donemler.md`, `docs/faz84-ilk-donem.md`
 >
+> **Faz 85 (24.09.2026):** derslerin tahmini zorluğu (olağan dönemlerin VF'siz
+> not ortalaması, katalogda beşte birlik dilim) — aday listesi, sıralama,
+> ders penceresi, program özeti, yol haritası ✅ · BL/BZ derslerinde yanlış
+> ortalama ve BZ'nin "geçti" sayılması ✅
+> ➜ Ayrıntı: `docs/faz85-tahmini-zorluk.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

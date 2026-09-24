@@ -68,7 +68,7 @@ def test_ESIK_ve_YUVA_kurallari():
     assert "slotId: atama[i] || p.cand.slotId || 0" in _js("kalmaGirdi")
     assert "slotId: i.slotId || 0" in _js("capBitisGirdi")
     yh = (pathlib.Path(UI.__file__).parent / "yolharitasi.py").read_text(encoding="utf-8")
-    assert '"slotId": p.get("slotId") or 0}' in yh
+    assert '"slotId": p.get("slotId") or 0,' in yh      # (Faz 85: ardından zorluk alanı)
 
 
 _CANLI = r'''

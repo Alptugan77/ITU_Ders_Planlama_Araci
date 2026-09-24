@@ -789,6 +789,12 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     # ★ Faz 38 — not dağılımı. Aday başına tek sorgu yerine tek seferde
     # okuyup önbelleğe alıyoruz; `candidates_json` iki kez çağrılıyor.
     _nd_cache: dict[str, dict | None] = {}
+    _olcek_kutu: list = []
+
+    def _zorluk_olcek():
+        if not _olcek_kutu:
+            _olcek_kutu.append(ND.zorluk_olcegi(con))
+        return _olcek_kutu[0]
 
     def _not_dagilimi(code: str):
         if code not in _nd_cache:
@@ -800,6 +806,11 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         d = _nd_cache[code]
         if not d:
             return None
+        # ★★ Faz 85 — tahmini zorluk. Ölçek bir kez (önbellekli) okunuyor.
+        try:
+            _zorluk = ND.zorluk(con, code, _zorluk_olcek())
+        except Exception:                         # noqa: BLE001
+            _zorluk = None
         # ★ Faz 38b — BÜTÜN dönemler taşınıyor, yalnız seçili olan değil:
         # arayüzde dönem değiştirmek yeni bir istek gerektirmesin. Ders
         # başına 1-3 dönem × 9 kova; sayfa boyutuna etkisi ihmal edilebilir.
@@ -810,6 +821,7 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             # ⚠️ Üç değerli (True/False/None) — "istenen yarıyıl bilinmiyor"
             # ile "uyuşmuyor" ayrı şeyler.
             "seasonMismatch": d["seasonMismatch"],
+            "difficulty": _zorluk,
             "terms": [{
                 "term": t["term"], "termName": t["termName"],
                 "yearName": t["yearName"], "season": t["season"],
@@ -2625,6 +2637,39 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--focus);outline-o
 .gecmisnot{margin-top:12px;font-size:var(--fs-sm);color:var(--ink-2);line-height:var(--lh-normal)}
 .yhsaat{font-size:var(--fs-xs);color:var(--ink-3);margin:2px 0 4px;line-height:var(--lh-snug)}
 .yhsaat .ok{color:var(--ok)}
+/* ★★ Faz 85 — tahmini zorluk ölçeği: beş yükselen çubuk + etiket. Renk
+   yalnız destek; kademe etikette ve ekran okuyucu metninde de yazıyor. */
+.zorluk{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);
+  font-weight:600;letter-spacing:var(--ls-wide);color:var(--ink-2);white-space:nowrap;
+  vertical-align:middle}
+.zorluk .zcubuk{display:inline-flex;align-items:flex-end;gap:2px}
+.zorluk .zcubuk i{display:block;width:4px;background:var(--border-strong)}
+.zorluk .zcubuk i:nth-child(1){height:4px}
+.zorluk .zcubuk i:nth-child(2){height:6px}
+.zorluk .zcubuk i:nth-child(3){height:8px}
+.zorluk .zcubuk i:nth-child(4){height:10px}
+.zorluk .zcubuk i:nth-child(5){height:12px}
+.zorluk .zcubuk i.on{background:currentColor}
+.zorluk.z1,.zorluk.z2{color:var(--ok)}
+.zorluk.z3{color:var(--ink-2)}
+.zorluk.z4{color:var(--warn)}
+.zorluk.z5{color:var(--danger)}
+.zorluk .azveri{color:var(--ink-3);font-weight:400}
+td .zorluk,.yhdonem li>.zorluk{margin-left:6px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);
+  white-space:nowrap}
+.zorlukkutu{border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;
+  margin:12px 0;background:var(--surface-2)}
+.zorlukkutu .zorlukust{display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+  font-size:var(--fs-sm);color:var(--ink-2)}
+.zorlukkutu .zorlukust .zorluk{font-size:var(--fs-sm)}
+.zorlukkutu .why{margin-top:6px}
+.zorlukkutu .zorluknot{margin-top:6px;font-size:var(--fs-xs);color:var(--ink-3);
+  line-height:var(--lh-snug)}
+.ozetzorluk{font-size:var(--fs-sm);color:var(--ink-2);margin-top:6px;line-height:var(--lh-snug)}
+.ozetzorluk .yogun{color:var(--warn)}
+.yhzorluk{font-size:var(--fs-xs);color:var(--ink-3);margin:2px 0 4px}
+.yhzorluk b{color:var(--warn)}
 .altbaslik{display:flex;align-items:baseline;gap:8px;margin-top:16px;padding-top:12px;
   border-top:1px solid var(--border)}
 .altsatir{padding:8px 0;border-bottom:1px solid var(--border);font-size:var(--fs-sm)}
@@ -3932,6 +3977,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
     <label class="tickbox">Sıralama <select id="candSort" aria-label="Aday dersleri sırala">
       <option value="">öneri puanı</option>
       <option value="ort">geçmiş not ortalaması</option>
+      <option value="zor">tahmini zorluk (kolaydan zora)</option>
       <option value="bos">boş kontenjan</option></select></label>
     <!-- ★ Faz 25/B1 — planında OLMAYAN dersi de aramak/eklemek için. -->
     <button class="ghost" id="katalogBtn">Katalogda ara</button>
@@ -8665,6 +8711,7 @@ function render(){
         over ? " — sınır aşıldı" : ""}"><i style="width:${(oran * 100).toFixed(0)}%"></i></div>` : ""}
     <div class="ozetsatir">${t.n} ders · <span class="mono">${ikincil}</span></div>
     ${haftaSekli()}
+    ${zorlukOzeti()}
     ${disKredi ? `<div class="planout">bunun <b class="mono">${disKredi}</b>
       kredisi <b>plan dışıdır</b>; yüke sayılır, şart karşılamaz</div>` : ""}
     ${doluSube.length ? `<div class="ozetdolu">${doluSube.map(p => {
@@ -9287,6 +9334,72 @@ function puanKirilimi(cand){
   </details>`;
 }
 
+/* ---------- ★★ FAZ 85 — TAHMİNİ ZORLUK ----------
+   Kullanıcı 24.09.2026: *"derslerin önceki dönemlerdeki not ortalaması ve
+   dağılımına göre tahmini zorluk derecelendirilmesi yapabilir misin"*.
+   Hesap sunucuda (`notlar.zorluk`): olağan dönemlerin VF'siz harf
+   ortalaması, katalogdaki öbür derslere göre beşte birlik dilime oturtuluyor.
+   ⚠️ Faz 38 kuralı aynen: ÖNERİ PUANINA GİRMİYOR; her yerde "tahmini" ve
+   neden tahmin olduğu yazıyor (ortalama hocanın not verme eğilimini de
+   yansıtır). Derecelenemeyen ders için kademe UYDURULMUYOR. */
+const zorlukOf = c => {
+  const z = c && c.grades && c.grades.difficulty;
+  return z && z.level ? z : null;
+};
+function zorlukCumlesi(z){
+  const donem = (z.termLabels || []).map(kisaDonem).join(", ");
+  return `Olağan dönemlerde${donem ? ` (${donem})` : ""} ${z.n} öğrencinin harf notu `
+    + `ortalaması ${z.mean.toFixed(2)} (VF hariç)`
+    + (z.lowerShare != null && z.catalog
+        ? `; not dağılımı bilinen ${z.catalog} ders içinde ortalaması bundan düşük olanların payı %${z.lowerShare}.`
+        : "; kademe, İTÜ'nün 2025-2026 not dağılımlarından ölçülen dilim sınırlarına göre belirlenmiştir.");
+}
+function zorlukRozet(z){
+  if(!z || !z.level) return "";
+  const cub = [1, 2, 3, 4, 5].map(i => `<i class="${i <= z.level ? "on" : ""}"></i>`).join("");
+  return `<span class="zorluk z${z.level}" title="Tahmini zorluk: ${esc(z.label)} (5 üzerinden ${
+      z.level}). ${esc(zorlukCumlesi(z))}${z.lowData ? " Az veriye dayanmaktadır." : ""}"
+    ><span class="zcubuk" aria-hidden="true">${cub}</span><span class="sr-only">tahmini zorluk: </span>${
+      esc(z.label)}${z.lowData ? ` <span class="azveri">· az veri</span>` : ""}</span>`;
+}
+/* Ders penceresindeki açıklamalı kutu. */
+function zorlukKutusu(cand){
+  const z = cand && cand.grades && cand.grades.difficulty;
+  if(!z) return "";
+  if(!z.level) return `<div class="zorlukkutu"><div class="zorlukust"><b>Tahmini zorluk</b>
+      <span class="zorluk">derecelendirilemedi</span></div>
+      <div class="why">${esc(z.reason || "")}</div></div>`;
+  return `<div class="zorlukkutu">
+    <div class="zorlukust"><b>Tahmini zorluk</b> ${zorlukRozet(z)}
+      <span class="mono">${z.level} / 5</span></div>
+    <div class="why">${esc(zorlukCumlesi(z))} FF oranı <b class="mono">%${z.failRate}</b>.${
+      z.lowData ? " <b>Az veriye dayanmaktadır.</b>" : ""}</div>
+    <div class="zorluknot">Tahmindir: not ortalaması dersin zorluğunun yanında öğretim
+      üyesinin not verme eğilimini ve dersi alan öğrencilerin yapısını da yansıtır.
+      Tekrar/bütünleme niteliğindeki küçük sınıflar ve devamsızlık (VF) hesaba katılmaz.
+      Bu bilgi öneri puanına <b>dahil edilmez</b>.</div>
+  </div>`;
+}
+/* Programın zorluk karışımı — özet ve karşılaştırma için. */
+function zorlukKarisimi(ps){
+  const say = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0};
+  let yok = 0;
+  ps.forEach(p => { const z = zorlukOf(p.cand); if(z) say[z.level]++; else yok++; });
+  return {say, yok, zor: say[4] + say[5]};
+}
+function zorlukOzeti(){
+  const ps = picks();
+  if(!ps.length) return "";
+  const k = zorlukKarisimi(ps);
+  const parca = [5, 4, 3, 2, 1].filter(l => k.say[l])
+    .map(l => `<b class="mono">${k.say[l]}</b> ${ZORLUK_AD[l]}`);
+  if(!parca.length) return "";
+  return `<div class="ozetzorluk aciklamali" title="Geçmiş not ortalamasından tahmin; öneri puanına dahil değildir">tahmini zorluk: ${
+    parca.join(" · ")}${k.yok ? ` · ${k.yok} ders için veri yok` : ""}${k.zor >= 3
+      ? ` — <span class="yogun">zor ders sayısı yüksek; yükün dengelenmesi değerlendirilebilir</span>` : ""}</div>`;
+}
+const ZORLUK_AD = {1: "çok kolay", 2: "kolay", 3: "orta", 4: "zor", 5: "çok zor"};
+
 /* ---------- geçmiş dönem not dağılımı (Faz 38) ----------
    İTÜ her dönem ders bazında harf notu dağılımı yayınlıyor
    (obs.itu.edu.tr/public/DersNotDagilimi). Bu bölüm o veriyi GÖSTERİR;
@@ -9313,12 +9426,13 @@ function notDagilimi(cand){
      ⚠️ bu bir kayıp (BA+ ≠ BA), o yüzden yazıyor ve bir tıkla geri geliyor.
      Ortalama HER ZAMAN 15 harften — kova yalnız çizim için. */
   const kutu = artili
-    ? ND_HARF.map(k => ({key: k, total: donem.counts[k] || 0,
+    ? ND_HARF.concat(["BL", "BZ"].filter(k => donem.counts[k]))   /* Faz 85 */
+        .map(k => ({key: k, total: donem.counts[k] || 0,
                          parts: [{grade: k, n: donem.counts[k] || 0}]}))
     : donem.buckets;
   const enBuyuk = Math.max(...kutu.map(b => b.total), 1);
   const bar = kutu.map(b => {
-    const kotu = (b.key === "FF" || b.key === "VF");
+    const kotu = (b.key === "FF" || b.key === "VF" || b.key === "BZ");
     const kirilim = b.parts.length > 1
       ? b.parts.map(p => `${p.grade}: ${p.n}`).join(" · ")
       : `${b.key}: ${b.total} kişi`;
@@ -9462,6 +9576,7 @@ function courseDialog(course){
       ${onerenKip >= 0 ? `Öneren kip: <b>${esc(MODES[onerenKip].label)}</b>.`
         : ""}</div>` : ""}
     ${puanKirilimi(cand)}
+    ${zorlukKutusu(cand)}
     ${notDagilimi(cand)}
     <div class="dislinkler">Resmî kaynaklarda: ${disLink("obsProgram", "şube ve kontenjan (OBS Ders Programı)")}
       · ${disLink("obsPlan", "önşart ve ders planı (OBS Ders Planları)")}</div>
@@ -9805,6 +9920,12 @@ function siralanmis(l){
     const x = gecmisOzet(a), y = gecmisOzet(b);
     return (y ? y.ort : -1) - (x ? x.ort : -1) || i - j;
   }).map(([c]) => c);
+  /* Faz 85 — kolaydan zora; aynı kademede ortalaması yüksek önce; verisi
+     olmayan sonda (sırası korunarak). */
+  if(FILT.sort === "zor") return l.map((c, i) => [c, i]).sort(([a, i], [b, j]) => {
+    const x = zorlukOf(a), y = zorlukOf(b);
+    return (x ? x.level : 9) - (y ? y.level : 9) || (y ? y.mean : 0) - (x ? x.mean : 0) || i - j;
+  }).map(([c]) => c);
   if(FILT.sort === "bos") return l.map((c, i) => [c, i])
     .sort(([a, i], [b, j]) => bosYer(b) - bosYer(a) || i - j).map(([c]) => c);
   return l;
@@ -9928,6 +10049,8 @@ function renderCandidates(){
     : `${M().candidates.length} adaydan ${hepsi.length} tanesi`;
   if(cnt && FILT.sort === "ort") cnt.textContent += " · geçmiş not ortalamasına göre"
     + " sıralı (öneri puanına dahil değildir; verisi olmayanlar sonda)";
+  if(cnt && FILT.sort === "zor") cnt.textContent += " · tahmini zorluğa göre sıralı, kolaydan"
+    + " zora (öneri puanına dahil değildir; verisi olmayanlar sonda)";
   $("#cands tbody").innerHTML = list.map(c => {
     const free = Math.max(0, ...c.sections.map(s => s.free));
     const inPlan = chosen.has(c.course);
@@ -9943,6 +10066,7 @@ function renderCandidates(){
           style="margin-left:6px" title="Önşart metni bulunmakla birlikte okunamamıştır; danışmanınıza danışınız">önşart okunamadı</span>`
           : (c.prereqMissing ? `<span class="chip unknown" style="margin-left:6px"
               title="Katalogda önşart metni bulunmamaktadır; bu, dersin önşartı olmadığı anlamına gelmez. OBS'den doğrulayınız.">önşart bilgisi yok</span>` : "")}
+        ${zorlukRozet(zorlukOf(c))}
         ${c.sections.every(s => s.online)
           ? `<span class="chip online" style="margin-left:6px">çevrimiçi</span>`
           : (c.sections.some(s => s.online)
@@ -10085,6 +10209,7 @@ function addDialog(course){
     ${pool ? `<div class="note" style="margin-top:8px">Aynı havuzdan
       <b class="mono">${esc(pool.cand.course)}</b> seçilidir; bu ders eklendiğinde o ders çıkarılır.</div>` : ""}
     <div class="optlist">${rows.map(r => r[1]).join("")}</div>
+    ${zorlukKutusu(cand)}
     ${gecmisDonemNotu(cand)}`);
 }
 
@@ -10525,6 +10650,17 @@ function yhSenaryoPaneli(T){
   </div>`;
 }
 
+/* ★★ Faz 85 — dönem kartında "kaç zor ders". Yerleşimi değiştirmiyor; zor
+   dersleri aynı döneme yığan bir planı öğrenci kendisi görebilsin diye. */
+function yhZorluk(t){
+  const z = (t.items || []).map(i => i.difficulty).filter(Boolean);
+  const zor = z.filter(d => d.level >= 4).length;
+  if(!zor) return "";
+  return `<div class="yhzorluk aciklamali" title="Geçmiş not ortalamasından tahmin; yerleşimi etkilemez"
+    >tahmini zorluk: <b class="mono">${zor}</b> zor ders${zor >= 3
+      ? " — yük yoğun olabilir" : ""}</div>`;
+}
+
 function renderRoadmap(){
   const sec = $("#roadmapSection"), T = DATA.roadmap;
   if(!sec) return;
@@ -10627,6 +10763,7 @@ function renderRoadmap(){
             ? ` · <span class="ok">bu dönemin şube saatleriyle çakışmasız program kurulabiliyor</span>`
             : ` · <span title="Bu yarıyılın ders saatleri henüz bilinmemektedir">saatler bilinmiyor; yalnız haftalık saat denetlendi</span>`)
         : ""}</div>` : ""}
+      ${yhZorluk(t)}
       ${(t.timeDeferred || []).length ? `<div class="yhuyari">Saat çakışması nedeniyle bu döneme
         konamadı: <span class="mono">${t.timeDeferred.map(esc).join(", ")}</span></div>` : ""}
       ${(t.hourDeferred || []).length ? `<div class="yhuyari">Haftalık boş saat
@@ -10638,6 +10775,7 @@ function renderRoadmap(){
       ${t.items.length ? `<ul>${t.items.map(i => `<li>
           <b class="mono">${esc(i.course || i.pool)}</b>${(i.roles || []).map(rolTag).join("")}
           <span class="mono" style="color:var(--ink-3)"> · ${i.credits} kr</span>
+          ${i.difficulty ? zorlukRozet(i.difficulty) : ""}
           ${i.course && i.name ? `<span class="yhad">${esc(i.name)}</span>` : ""}
           ${i.pool ? `<span class="yhad">seçmeli havuz — ders seçimi öğrenciye aittir</span>` : ""}
           ${!t.current && i.course && !i.season && !i.seasonSource ? `<span class="yhad uyari"
