@@ -508,6 +508,12 @@ her maddeden önce gelen tek iş.
 > Geri alma deneyi: 5/5 kırmızı.
 > ➜ Ayrıntı: `docs/faz68-notsuz-gno.md`
 >
+> **Faz 69 (24.09.2026 — kalan derslerde gereken ortalama):** her GNO eşiği
+> için bu dönemin yanında mezuniyete kadar kalan bütün derslerde gereken
+> ortalama ✅ (yol haritasıyla aynı kalan dersler, tekrar dersleri düşülmüş)
+> Geri alma deneyi: 6/6 kırmızı.
+> ➜ Ayrıntı: `docs/faz69-kalan-ortalama.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

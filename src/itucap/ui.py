@@ -418,6 +418,48 @@ def _ikinci_gno_tabani(con: sqlite3.Connection, ucon: sqlite3.Connection,
     return out
 
 
+def _kalan_gno_tabani(con: sqlite3.Connection, ucon: sqlite3.Connection,
+                      student_id: int, grades, equivalences, anadal_id,
+                      seconds: list[dict]) -> dict | None:
+    """Faz 69 — mezuniyete kadar KALAN BÜTÜN derslerin ortalama tabanı.
+
+    Kullanıcı 24.09.2026: *"eşikler için gereken dönem ortalamasının dışında
+    kalan bütün derslerden gereken dönem ortalamasını da hesaplayıp
+    gösterir misin"*. "Bu dönem yeterli değil" diyen bir eşiğin asıl sorusu:
+    kalan derslerin HEPSİNDE hangi ortalama yeter?
+
+    Kalan dersler yol haritasıyla AYNI kaynaktan (`YH._birimler`): anadal ve
+    ÇAP'ta ortak ders tek sayılıyor, havuz slotu kendi kredisiyle. Bu dönemin
+    programı da kalan derslerin içinde. Kalan derslerden daha önce notu olup
+    geçilmemiş olanlar (FF/VF) TEKRAR sayılıyor: eski notun kredisi ve puanı
+    ortalamadan düşüyor (İTÜ'de son not geçerli; `_tekrar_notlari` ile aynı).
+    """
+    if not anadal_id:
+        return None
+    planlar = [{"planId": anadal_id, "role": "ANADAL"}] + [
+        {"planId": s2["planId"], "role": s2["role"]} for s2 in seconds if s2.get("planId")]
+    birimler = YH._birimler(con, planlar, grades, equivalences, {})
+    graded = S.graded(ucon, student_id)
+
+    def taban(bs):
+        kredili = [b for b in bs if b.kredi > 0]
+        kodlar = {k for b in kredili if b.ders for k in b.kodlar}
+        tekrar = _tekrar_notlari(con, graded, kodlar)
+        return {"credits": round(sum(b.kredi for b in kredili), 1),
+                "courses": len(kredili),
+                "pools": sum(1 for b in kredili if not b.ders),
+                "poolAssumed": sum(1 for b in kredili
+                                   if getattr(b, "_kredi_varsayildi", False)),
+                "retakeCredits": round(sum(r["credits"] for r in tekrar.values()), 1),
+                "retakePoints": round(sum(r["points"] for r in tekrar.values()), 4),
+                "retake": sorted(tekrar)}
+
+    out = {"genel": taban(birimler)}
+    if any(s2.get("kind") == "cap" and s2.get("planId") for s2 in seconds):
+        out["ikinci"] = taban([b for b in birimler if "CAP" in b.roller])
+    return out
+
+
 def second_programs(settings: config.Settings, cap_id: int | None,
                     yandal_id: int | None) -> list[dict]:
     """Etkin ikinci programlar: [{kind, role, label, program, planId}, …].
@@ -838,6 +880,9 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         "retake": _tekrar_notlari(con, S.graded(ucon, student_id),
                                   {c.course for c in [*cands, *term_cands]}),
         "secondGpa": _ikinci_gno_tabani(con, ucon, student_id, seconds),
+        # ★ Faz 69 — mezuniyete kadar kalan bütün dersler.
+        "remaining": _kalan_gno_tabani(con, ucon, student_id, grades, equivalences,
+                                       anadal_id, seconds),
     }
     # ★ Şartlı başarı (MADDE 20/2-b + MADDE 31/1). Faz 11'de "şart bilinmiyor"
     # deniyordu; 22.08.2026'da yönetmelikten bulundu: şart, mezuniyet anındaki
@@ -3100,6 +3145,9 @@ table.cmp .meta.arti{color:var(--ok)}
   padding:8px 0;border-top:1px solid var(--border);font-size:var(--fs-md)}
 .gnosatir .gereken{text-align:right;white-space:nowrap}
 .gnosatir .gnoalt{grid-column:1/-1;font-size:var(--fs-sm);color:var(--ink-3)}
+/* Faz 69 — kalan bütün derslerde gereken ortalama (her eşiğin ikinci satırı). */
+.gnosatir .gnokalan{grid-column:1/-1;font-size:var(--fs-sm);color:var(--ink-2);
+  padding-left:10px;border-left:2px solid var(--border)}
 .gnook{color:var(--ok);font-weight:600}
 .gnoyok{color:var(--danger);font-weight:600}
 .gnohedef .meta{font-size:var(--fs-sm);color:var(--ink-3);line-height:var(--lh-normal)}
@@ -5659,10 +5707,13 @@ function gnoHedefleri(){
   /* ★ Faz 58: anahtar TABAN + eşik. Faz 57'de yalnız eşikti; ÇAP'ın kendi
      ortalaması (2.00) ile genel mezuniyet (2.00) aynı satıra birleşirdi —
      iki ayrı ortalamanın iki ayrı şartı. */
-  const ekle = (min, ad, taban) => {
+  /* `donemlik`: yalnız bu dönemin sonucuna bağlı hedef (dönem kredi sınırı);
+     mezuniyete kadar kalan dersler satırı ona anlamsız, gösterilmiyor. */
+  const ekle = (min, ad, taban, donemlik = false) => {
     const k = taban + ":" + min.toFixed(2);
-    if(gor.has(k)){ gor.get(k).adlar.push(ad); return; }
-    const h = {min, adlar: [ad], taban};
+    if(gor.has(k)){ const h0 = gor.get(k); h0.adlar.push(ad);
+      h0.donemlik = h0.donemlik && donemlik; return; }
+    const h = {min, adlar: [ad], taban, donemlik};
     gor.set(k, h); out.push(h);
   };
   /* Zaten girilmiş programın BAŞVURU eşiği hedef değil: ÇAP öğrencisine
@@ -5673,7 +5724,7 @@ function gnoHedefleri(){
     .forEach(t => ekle(t.min, t.label, "genel"));
   const L = DATA.load;
   if(L && L.next && L.next.minGpa) ekle(L.next.minGpa,
-    `dönem sınırının ${L.next.max} krediye çıkması`, "genel");
+    `dönem sınırının ${L.next.max} krediye çıkması`, "genel", true);
   if((g.secondGpa || []).length)
     (g.thresholds || []).filter(t => t.basis === "ikinci anadal" && t.min > 0)
       .forEach(t => ekle(t.min, t.label, "ikinci"));
@@ -5689,6 +5740,37 @@ function gnoTabani(C0, P0, secili){
   const C = C0 - tekrar.reduce((a, r) => a + r.credits, 0);
   const P = P0 - tekrar.reduce((a, r) => a + r.points, 0);
   return {T, C, P, tekrar};
+}
+/* ★★ FAZ 69 — MEZUNİYETE KADAR KALAN BÜTÜN DERSLERDE gereken ortalama.
+   Kullanıcı: "eşikler için gereken dönem ortalamasının dışında kalan bütün
+   derslerden gereken dönem ortalamasını da hesaplayıp gösterir misin".
+   Taban sunucudan (`gpa.remaining`, yol haritasıyla aynı kalan dersler):
+   T = kalan kredi; C, P = bugünkü ortalamanın kredisi/puanı, kalan
+   derslerden daha önce notu olup geçilmemişlerin (tekrar) payı düşülmüş. */
+function kalanSatiri(h, g, ik){
+  const R = (g.remaining || {})[h.taban];
+  if(!R || h.donemlik) return "";
+  const C0 = h.taban === "ikinci" ? (ik ? ik.credits : 0) : g.credits;
+  const P0 = h.taban === "ikinci" ? (ik ? ik.points : 0) : g.points;
+  const T = R.credits, C = C0 - R.retakeCredits, P = P0 - R.retakePoints;
+  const bas = `Mezuniyete kadar kalan tüm derslerde (<b class="mono">${T}</b> kredi):`;
+  if(!T) return `<span class="gnokalan">${bas.replace(":", "")} — kalan ders bulunmamaktadır.</span>`;
+  const x = (h.min * (C + T) - P) / T;
+  const enIyi = (P + 4 * T) / (C + T);
+  let metin;
+  if(x <= 1e-9)
+    metin = `<span class="gnook">her durumda ✓</span> — kalan derslerin tümünden FF alınsa
+      bile ortalama eşiğin üzerinde kalır.`;
+  else if(x > 4 + 1e-9)
+    metin = `<span class="gnoyok">ulaşılamaz</span> — kalan derslerin tümü AA olsa bile
+      ortalama en fazla <b class="mono">${enIyi.toFixed(2)}</b> olur; danışmanınızla
+      görüşmeniz önerilir.`;
+  else {
+    const harf = HARF_PUAN.find(([, v]) => v + 1e-9 >= x);
+    metin = `ortalama en az <b class="mono">${(Math.ceil(x * 100 - 1e-6) / 100).toFixed(2)}</b>
+      (her dersten en az <b class="mono">${harf[0]}</b>).`;
+  }
+  return `<span class="gnokalan">${bas} ${metin}</span>`;
 }
 function renderGnoHedef(){
   const kutu = $("#gnoHedefBody");
@@ -5706,7 +5788,7 @@ function renderGnoHedef(){
       secili.filter(p => kod.has(p.cand.course)));
   }
   const {T, tekrar} = tabanlar.genel;
-  const baslik = `<div class="gnobaslik"><b>Eşikler için gereken dönem ortalaması</b>
+  const baslik = `<div class="gnobaslik"><b>Eşikler için gereken ortalama</b>
     <span class="meta">programdaki <b class="mono">${T}</b> kredi üzerinden${
       tekrar.length ? ` · tekrar: ${tekrar.map(r => `<span class="mono">${esc(r.course)}</span>
         (${esc(r.grade)})`).join(", ")}` : ""}</span></div>`;
@@ -5718,8 +5800,8 @@ function renderGnoHedef(){
   const satirlar = hedefler.map(h => {
     const {T, C, P} = tabanlar[h.taban];
     const ikinci = h.taban === "ikinci";
-    const once = ikinci ? `Yalnız ${esc(ik.label)} dersleri (bu dönem
-      <b class="mono">${T}</b> kredi): ` : "";
+    const once = ikinci ? `Bu dönem, yalnız ${esc(ik.label)} dersleri
+      (<b class="mono">${T}</b> kredi): ` : "Bu dönem: ";
     let sag, alt;
     if(!T){
       const simdi = C ? P / C : null;
@@ -5734,7 +5816,7 @@ function renderGnoHedef(){
       const enIyi = (P + 4 * T) / (C + T);
       if(x <= 1e-9){
         sag = `<span class="gnook">her durumda ✓</span>`;
-        alt = once + "bu dönemin tüm derslerinden FF alınsa bile ortalama eşiğin üzerinde kalır.";
+        alt = once + "tüm derslerden FF alınsa bile ortalama eşiğin üzerinde kalır.";
       } else if(x > 4 + 1e-9){
         sag = `<span class="gnoyok">bu dönem yeterli değil</span>`;
         alt = once + `tüm dersler AA olsa bile ortalama en fazla <b class="mono">${enIyi.toFixed(2)}</b>
@@ -5749,14 +5831,28 @@ function renderGnoHedef(){
     return `<div class="gnosatir" data-taban="${h.taban}">
       <span><b class="mono">${h.min.toFixed(2)}</b> — ${h.adlar.map(esc).join(" · ")}</span>
       <span class="gereken">${sag}</span>
-      <span class="gnoalt">${alt}</span></div>`;
+      <span class="gnoalt">${alt}</span>
+      ${kalanSatiri(h, g, ik)}</div>`;
   }).join("");
   kutu.innerHTML = `<div class="gnohedef">${baslik}${satirlar}
     <div class="meta gnonot">Bu değerler gereken notun hesabıdır. GNO transkriptten
       alınmıştır (<span class="mono">${g.value.toFixed(2)}</span>, tahmini).
       Tekrar alınan derste eski not yerine yeni not sayılmıştır (İTÜ'de son not
-      geçerlidir); derslerin harf notlu olduğu varsayılmıştır.</div>
+      geçerlidir); derslerin harf notlu olduğu varsayılmıştır.${kalanNotu(g)}</div>
   </div>`;
+}
+
+/* Kalan-ders satırının dayandığı şey — sayı ile birlikte yazılıyor. */
+function kalanNotu(g){
+  const R = (g.remaining || {}).genel;
+  if(!R || !R.credits) return "";
+  return ` “Kalan tüm dersler” satırı, planlardaki henüz tamamlanmamış
+    <b class="mono">${R.courses}</b> dersin (${R.pools ? `<b class="mono">${R.pools}</b>
+    seçmeli havuz dahil; ` : ""}bu dönemin programı dahil) mezuniyet anındaki ortalamasını
+    gösterir${R.retake.length ? `; daha önce başarılamayan
+    <span class="mono">${R.retake.map(esc).join(", ")}</span> tekrar sayılmıştır` : ""}${
+    R.poolAssumed ? `; kredisi planda yazmayan ${R.poolAssumed} havuz 3 kredi varsayılmıştır` : ""}.
+    ÇAP'a devam ve başvuru eşikleri ise her dönem ve başvuru anında ayrıca sağlanmalıdır.`;
 }
 
 /* Şartlı geçer dersler (DC+…DD) — MADDE 20/2-b.

@@ -178,6 +178,9 @@ def _birimler(con, planlar, grades, equivalences, names) -> list[Birim]:
                 b = Birim(f"havuz:{row['id']}", "", set(), etiket, kredi or 3.0,
                           {plan["role"]}, row["term_no"], havuz=etiket)
                 b._slot = row["id"]            # type: ignore[attr-defined]
+                # Faz 69 — kredisi planda yazmayan havuz: 3 VARSAYILDI; bunu
+                # kullanan hesap (kalan derslerde gereken ortalama) söylüyor.
+                b._kredi_varsayildi = not kredi   # type: ignore[attr-defined]
             b._plan = plan                     # type: ignore[attr-defined]
             out[b.anahtar] = b
     return list(out.values())
