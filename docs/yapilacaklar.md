@@ -583,6 +583,16 @@ her maddeden önce gelen tek iş.
 > (ortalama 2.50 → 5); genel = %70 + %30; MAT 103 8.3 "zor" ✅
 > ➜ Ayrıntı: `docs/faz87-iki-alt-puan.md`
 >
+> **Faz 88 (24.09.2026):** tahmini zorluk karşılaştırmada ve program özetinde
+> (kredi ağırlıklı ortalama) ✅ · kalma riskinde geçmiş kalma oranı ve öncelik ✅
+> · not senaryosunda "geçmişteki ortanca notla doldur" ✅ · VF metni tutarlı ✅
+> ➜ Ayrıntı: `docs/faz88-zorluk-kullanimi.md`
+>
+> **Faz 89 (24.09.2026):** yol haritasında "dönem başına en çok N zor ders"
+> senaryosu ✅ · danışman özetinde tahmini zorluk sütunu, program zorluğu ve
+> iki otomatik soru ✅
+> ➜ Ayrıntı: `docs/faz89-zor-dagit-ve-danisman.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

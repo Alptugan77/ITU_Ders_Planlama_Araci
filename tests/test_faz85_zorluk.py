@@ -47,7 +47,8 @@ def test_ORTALAMA_tekrar_sinifi_haric():
         "202620": {"FF": 3},                           # bütünleme sınıfı (%0.6) → havuz dışı
     })
     assert z == {"mean": 2.0, "n": 500, "passRate": 10.0, "failRate": 10.0,
-                 "absentRate": 80.0, "terms": ["202610"]}
+                 "absentRate": 80.0, "terms": ["202610"],
+                 "median": "FF"}                       # (Faz 88: ortanca harf notu)
     assert ND.zorluk_ortalamasi({"202610": {"BL": 9, "VF": 2}}) is None
 
 
@@ -164,7 +165,8 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     # Kolaydan zora (genel puan 2.3 · 2.7 · 3.5 · 5.5 · 8.5); verisi olmayan sonda.
     assert sira[:5] == ["GEO 321E", "GEO 341E", "GEO 315E", "BLG 223E", "MAT 210E"], sira
     assert json.loads(c["ESIT"]) == ["B", "C", "A", "D"]
-    assert c["OZET"].startswith("tahmini zorluk: 1 orta · 2 kolay · 5 ders için veri yok"), c["OZET"]
+    # (Faz 88: özet kredi ağırlıklı ortalamayı da yazıyor.)
+    assert c["OZET"].startswith("tahmini zorluk 3.8/10: 1 orta · 2 kolay · 5 ders için veri yok"), c["OZET"]
     k = c["KUTU"]
     assert "Tahmini zorluk" in k and "çok zor 8.5 / 10" in k, k
     assert "Geçme zorluğu ağırlık %70 9.0 / 10 geçme oranı %73 (VF dahil)" in k, k

@@ -76,9 +76,11 @@ from . import config, db
 GRADES = ["AA", "BA+", "BA", "BB+", "BB", "CB+", "CB", "CC+", "CC",
           "DC+", "DC", "DD+", "DD", "FF", "VF"]
 
-# ★ Başarısızlık İKİ AYRI şey: `FF` dersten kalmak, `VF` devamsızlıktan
-# kalmak. Toplayıp "başarısızlık oranı" demek ikisini aynı sebep gibi
-# gösterirdi — devamsızlık dersin zorluğu hakkında bir şey söylemez.
+# ★ Başarısızlık İKİ AYRI şey: `FF` dersten kalmak, `VF` final sınavına
+# girme koşulunu sağlayamamak (devamsızlık ya da vize/ödev barajı). Özet
+# ikisini ayrı yüzde olarak taşıyor. ★ Faz 87–88: tahmini zorlukta VF
+# geçemeyenlere sayılıyor (kullanıcı: "vizeden kalan kişiler finale
+# giremediği için vf gözüküyor").
 FAIL_GRADES = ("FF", "BZ")
 ABSENT_GRADES = ("VF",)
 # ★★ Faz 85 — BAŞARILI/BAŞARISIZ ile notlanan dersler (ATA 121, TUR 121 …).
@@ -379,9 +381,9 @@ def summarise(counts: dict[str, int], announced: int | None = None) -> dict:
     `FF` ve `VF` sıfır puandır — İTÜ ortalamada ikisini de sayar. Buradaki
     ortalamayı başka bir kuralla hesaplamak, aynı sayfada iki farklı
     "ortalama" tanımı bırakırdı.
-    ⚠️ Ama `VF` **devamsızlık**, `FF` başarısızlık: ikisi ayrı yüzde olarak
-    da yazılıyor, çünkü düşük bir ortalamanın devam politikasından mı
-    zorluktan mı geldiği okunabilmeli.
+    ⚠️ Ama `VF` (final sınavına girme koşulu sağlanamadı: devamsızlık ya da
+    vize/ödev barajı) ile `FF` ayrı yüzde olarak da yazılıyor, çünkü düşük
+    bir ortalamanın nereden geldiği okunabilmeli.
 
     ⚠️ ÖLÇÜM (02.09.2026): kaynağın kendi toplamı (`ToplamAciklananOgrenci`)
     harflerin toplamına HER ZAMAN eşit değil — MAT 103 güz 2988/2987,
@@ -509,7 +511,16 @@ def zorluk_ortalamasi(terms: dict[str, dict[str, int]]) -> dict | None:
     n_harf = sum(havuz[g] for g in _HARFLER)
     n = n_harf + havuz["VF"]
     ort = sum(GRADE_POINTS[g] * havuz[g] for g in _HARFLER) / n_harf
-    return {"mean": round(ort, 2), "n": n,
+    # ★ Faz 88 — ORTANCA harf notu (VF hariç, olağan dönemler): harf notu
+    # alanların ortasındaki öğrencinin notu. Not senaryosunun "geçmişteki
+    # ortanca notla doldur" seçeneği bunu kullanıyor.
+    birikim, ortanca = 0, None
+    for g in _HARFLER:                                  # AA → FF
+        birikim += havuz[g]
+        if birikim * 2 > n_harf:            # çift sayıda: ortadaki İKİ nottan düşüğü (temkinli)
+            ortanca = g
+            break
+    return {"mean": round(ort, 2), "n": n, "median": ortanca,
             "passRate": round(100.0 * (n_harf - havuz["FF"]) / n, 1),
             "failRate": round(100.0 * havuz["FF"] / n, 1),
             "absentRate": round(100.0 * havuz["VF"] / n, 1),
@@ -566,7 +577,8 @@ def _zorluk(con: sqlite3.Connection, code: str) -> dict | None:
                 "reason": ("Ders başarılı/başarısız (BL/BZ) ile notlanmaktadır; "
                            "harf notu ortalaması yoktur." if bl
                            else "Harf notu verisi bulunmamaktadır.")}
-    temel = {**{k: z[k] for k in ("passRate", "mean", "n", "failRate", "absentRate", "terms")},
+    temel = {**{k: z[k] for k in ("passRate", "mean", "median", "n", "failRate",
+                                  "absentRate", "terms")},
              "termLabels": [config.donem_adi(t) or t for t in z["terms"]]}
     if z["n"] < ZORLUK_MIN_N:
         return {**temel, "level": None,

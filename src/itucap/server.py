@@ -242,7 +242,8 @@ class State:
             # Faz 61 — yol haritası senaryosu (daha hafif yük, boş dönemler).
             return {"senaryo": UI.yol_senaryosu(
                 self.con, self.ucon, self.student_id, self.settings(),
-                b.get("bu") or [], b.get("maxLoad") or 0, b.get("bos") or [])}
+                b.get("bu") or [], b.get("maxLoad") or 0, b.get("bos") or [],
+                b.get("zor"))}
         if path == "/api/kalmariski":
             # Faz 75 — "bu dersten kalırsam mezuniyetim ne kadar gecikir".
             return {"kalmaRiski": UI.kalma_riski(
