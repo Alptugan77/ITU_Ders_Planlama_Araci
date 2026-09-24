@@ -442,6 +442,35 @@ def load_conditional(path: Path | None = None) -> ConditionalRule:
     )
 
 
+@dataclass(frozen=True)
+class MaxDuration:
+    """Azami öğrenim süresi — yarıyıl cinsinden (Faz 59)."""
+    semesters: int
+    verified: bool
+    source: str = ""
+    note: str = ""
+
+
+def load_max_duration(path: Path | None = None) -> MaxDuration | None:
+    """`[azami_sure]` — beyan edilmemişse None: süre UYDURULMUYOR.
+
+    ⚠️ `dogrulandi = false` iken arayüz sayıyı ⚠ ile gösteriyor; eşiklerle
+    (`load_thresholds`) aynı kural.
+    """
+    path = DEFAULT_PATH if path is None else path
+    if not path.exists():
+        return None
+    block = tomllib.loads(path.read_text(encoding="utf-8")).get("azami_sure") or {}
+    try:
+        n = int(block["yariyil"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if n <= 0:
+        return None
+    return MaxDuration(n, bool(block.get("dogrulandi")), str(block.get("kaynak") or ""),
+                       str(block.get("aciklama") or ""))
+
+
 # ------------------------------------------------- dönem kredi yükü (MADDE 17)
 # İTÜ Lisans Eğitim ve Öğretim Yönetmeliği MADDE 17 (Değişik: RG 22/07/2022-31900)
 #

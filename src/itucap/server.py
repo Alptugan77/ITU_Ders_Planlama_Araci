@@ -82,7 +82,8 @@ def can_refresh() -> bool:
 # Yazan bir ucu buraya koymak, kullanıcının değişikliği yaptığını ama
 # ekranda göremediği bir hata üretir — sessiz ve bulması zor.
 READ_ONLY_PATHS = frozenset({"/api/katalog", "/api/ders", "/api/crn",
-                             "/api/transcript/preview"})
+                             "/api/transcript/preview", "/api/capbitis",
+                             "/api/tercih/onizle"})
 
 
 class State:
@@ -215,6 +216,13 @@ class State:
         if path == "/api/tercih":
             self.save_prefs(b)
             return {}
+        if path == "/api/tercih/onizle":
+            return {"onizleme": self.preview_prefs(b)}
+        if path == "/api/capbitis":
+            # Faz 59 — başvuru penceresinde "ya ÇAP'ı şurada yapsaydım".
+            return {"capBitis": UI.cap_bitisleri(
+                self.con, self.ucon, self.student_id, self.settings(),
+                b.get("plans") or [], b.get("bu") or [], b.get("maxLoad") or 0)}
         if path == "/api/katalog":
             return {"katalog": self.search_catalog(str(b.get("q") or ""))}
         if path == "/api/ders":
@@ -994,6 +1002,37 @@ class State:
     GUN_ADI = {1: "Pzt", 2: "Sal", 3: "Çar", 4: "Per", 5: "Cum"}
 
     def save_prefs(self, body: dict) -> dict:
+        degerler = self._tercih_degerleri(body)
+        config.update_settings(degerler)
+        return degerler
+
+    def preview_prefs(self, body: dict) -> dict:
+        """Faz 59 — tercihi KAYDETMEDEN dene (fikirler §3.6).
+
+        Tercih değiştirmenin bedelini görmek için pencereyi kaydedip ana
+        ekrana bakmak gerekiyordu; "hangi tercih neye mal oluyor" sorusu
+        deneme–yanılma ile cevaplanıyordu. Burada ayarların BELLEKTEKİ bir
+        kopyası tercihlerle değiştirilip rapor aynı yoldan (`UI.collect`)
+        kuruluyor; dosyaya hiçbir şey yazılmıyor. İstenen kipin 1. önerisi
+        dönüyor — arayüz bugünkü önerisiyle karşılaştırıyor.
+        ⚠️ Doğrulama kaydetmeyle AYNI (`_tercih_degerleri`): önizlemenin kabul
+        edip kaydetmenin reddettiği bir tercih olmasın.
+        """
+        import dataclasses
+        degerler = self._tercih_degerleri(body)
+        settings = dataclasses.replace(self.settings(), **degerler)
+        from .plans import anadal_plan as _anadal_plan
+        from .plans import resolve_seconds as _resolve_seconds
+        data = UI.collect(self.con, self.ucon, self.student_id, settings,
+                          _anadal_plan(self.con, settings), None,
+                          max_load=self.max_load, n_schedules=1,
+                          seconds=_resolve_seconds(self.con, settings))
+        kip = str(body.get("mode") or "")
+        mod = next((m for m in data.get("modes") or [] if m.get("key") == kip),
+                   (data.get("modes") or [{}])[0])
+        return {"mode": mod.get("key"), "schedule": (mod.get("schedules") or [None])[0]}
+
+    def _tercih_degerleri(self, body: dict) -> dict:
         erken = int(body.get("enErken") or 0)
         if not 0 <= erken <= 24 * 60:
             raise ValueError("saat 00:00–24:00 arasında olmalı")
@@ -1018,7 +1057,6 @@ class State:
             "tercih_istenen_hocalar": adlar("istenenHocalar"),
             "tercih_istenmeyen_hocalar": adlar("istenmeyenHocalar"),
         }
-        config.update_settings(degerler)
         return degerler
 
     def save_term(self, donem: int, cap_baslangic: int | None = None) -> int:

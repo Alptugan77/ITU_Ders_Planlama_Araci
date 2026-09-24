@@ -1,5 +1,11 @@
 # Kalan eksikler ve geliştirilmesi gerekenler
 
+> **Faz 59'da kapananlar (24.09.2026):** ★★ Y.1 "ya ÇAP'ı şurada yapsaydım" —
+> başvuru penceresinde her ÇAP programının tahmini bitişi ✅ · Y.7 azami
+> öğrenim süresi ✅ (⚠ doğrulanmamış, yalnız anadal) · §3.6 tercihi
+> kaydetmeden dene ✅. Açık: Y.8, Y.7'nin İTÜ maddesi.
+> Ayrıntı: `docs/faz59-cap-secimi-ve-tercih.md`.
+
 > **Faz 58'de kapananlar (24.09.2026):** Y.2 mevsim geçmişten ✅ (bütünlemeci
 > tuzağına eşikle) · Y.3 yaz okulu "ya yazın alsaydım" ✅ · Y.4 hangi ders
 > çıksın ✅ (ÇAP tabanını bozan öneri yok) · Y.5 programın resmi ✅ · Y.6
@@ -147,7 +153,11 @@ istemediğin hoca kalmıyor (−3 kredi)"*. Kredi kaybı ve dersin zorunlu olup
 olmadığı da yazıyor; zorunlu olmayan ve ucuz olan önde. "İstediğin hoca"
 sayacını sıfıra indirmek çare sayılmıyor — o kazanç değil kayıp.
 
-### 3.6 Tercihi kaydetmeden dene · **S**
+### 3.6 ~~Tercihi kaydetmeden dene~~ · ✅ **Faz 59'da kapandı**
+Ayarların bellekteki kopyasıyla rapor (`/api/tercih/onizle`), dosyaya hiçbir
+şey yazılmıyor; bugünkü 1. öneriyle yan yana.
+
+~~**S**~~
 Tercih değiştirmek için pencereyi açıp kaydetmek gerekiyor. Seçenek
 değişirken sonucun canlı güncellenmesi, "hangi tercih neye mal oluyor"u
 doğrudan gösterirdi.
@@ -179,7 +189,11 @@ program karşılaştırma, yedek plan, paylaşım bağlantısı, `.ics`, önşar
 kademe analizi. Faz 57'de kapanan: çok dönemli plan + "şunu alırsan"
 (onların "what-if" + "graduation timeline"ı), GNO hedefi.
 
-### Y.1 ★★ "Ya ÇAP'ı şu bölümde yapsaydım?" · **M**
+### Y.1 ~~"Ya ÇAP'ı şu bölümde yapsaydım?"~~ · ✅ **Faz 59'da kapandı**
+Başvuru penceresinde "Tahmini ÇAP bitişi" sütunu (istek üzerine, salt okunur
+`/api/capbitis`). Kalan kredi yazılmıyor (22.08.2026 kararı).
+
+~~**M**~~
 Derece planlayıcılarının en çok kullanılan özelliği: program değiştirmeden
 önce bitiş tarihini görmek. Elimizde her şey var — `yolharitasi.kur`
 herhangi bir plan listesiyle çalışıyor, ÇAP başvuru bölümü aday programları
@@ -222,7 +236,13 @@ dış kütüphane gerekmez (gizlilik denetimi dış kaynağı reddediyor).
 yok (ekranda yazıyor). `_threshold_info` o ortalamayı zaten hesaplıyor;
 yalnız ÇAP planındaki dersler üzerinden aynı formül.
 
-### Y.7 Azami öğrenim süresi uyarısı · **S (önce mevzuat)**
+### Y.7 ~~Azami öğrenim süresi uyarısı~~ · ✅ **Faz 59'da kapandı** (⚠ doğrulanmadı)
+14 yarıyıl, kaynak 2547 s. Kanun m. 44/c; `dogrulandi = false`. **Kalan:**
+İTÜ Lisans Yönetmeliği'ndeki madde numarası ve hazırlığın sayılıp
+sayılmadığı teyit edilmeli (bu ortamdan `sis.itu.edu.tr` kapalıydı); ÇAP'ın
+kendi süre kuralı bulunmalı — bulunana kadar yalnız anadala uygulanıyor.
+
+~~**S (önce mevzuat)**~~
 Yol haritasının bitişi yönetmelikteki azami süreyi aşıyorsa söylemeli.
 ⚠️ Sayıyı **tahmin etme**: önce yönetmelikten madde bulunup
 `kurallar.toml`'a `dogrulandi` ile beyan edilmeli.

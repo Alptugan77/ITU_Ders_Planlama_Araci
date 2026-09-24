@@ -98,6 +98,14 @@ DERSLER = [
     ("BLG 317E", "Database Systems", 3, 5, "BLG 223E MIN DD"),
     ("BLG 312E", "Computer Operating Systems", 3, 5, "BLG 222E MIN DD"),
     ("BLG 361E", "Software Engineering", 3, 5, "BLG 252E MIN DD"),
+    # --- Faz 59: ikinci bir ÇAP SEÇENEĞİ (INS, HTAE'ye açık) — başvuru
+    # penceresinde "ya ÇAP'ı şurada yapsaydım" sorusu için. Dört halkalık
+    # zincir ve öğrencinin zaten geçtiği bir ders (MAT 201E).
+    ("INS 201E", "Statics", 3, 5, "FIZ 101E MIN DD"),
+    ("INS 202E", "Strength of Materials", 3, 5, "INS 201E MIN DD"),
+    ("INS 301E", "Structural Analysis", 3, 5, "INS 202E MIN DD"),
+    ("INS 302E", "Reinforced Concrete", 3, 5, "INS 301E MIN DD"),
+    ("INS 331E", "Soil Mechanics", 3, 5, None),
 ]
 
 HTAE_PLAN = {
@@ -113,6 +121,7 @@ HTAE_PLAN = {
     8: ["GEO 4902E"],
 }
 MT_HAVUZU = ["GEO 381E", "GEO 383E", "GEO 385E"]
+INS_CAP = ["MAT 201E", "INS 201E", "INS 202E", "INS 301E", "INS 302E", "INS 331E"]
 BLG_CAP = ["BLG 102E", "BLG 223E", "BLG 231E", "BLG 222E", "BLG 252E",
            "BLG 311E", "BLG 335E", "BLG 336E", "BLG 317E", "BLG 312E",
            "BLG 361E"]
@@ -217,6 +226,11 @@ DAGILIMLAR = [
     ("BLG 335", "202520", {"DD": 1, "FF": 2}),
     ("BLG 336", "202520", {"AA": 7, "BA": 9, "BB": 12, "CB": 10, "CC": 8,
                            "DC": 4, "DD": 3, "FF": 5}),
+    # Faz 59 — INS ÇAP seçeneğinin zinciri Güz/Bahar sırasıyla veriliyor.
+    ("INS 201", "202510", {"AA": 10, "BB": 30, "CC": 30, "DD": 10, "FF": 10}),
+    ("INS 202", "202520", {"AA": 8, "BB": 25, "CC": 30, "DD": 10, "FF": 7}),
+    ("INS 301", "202510", {"AA": 6, "BB": 20, "CC": 25, "DD": 8, "FF": 6}),
+    ("INS 302", "202520", {"AA": 5, "BB": 18, "CC": 22, "DD": 8, "FF": 5}),
 ]
 
 
@@ -297,6 +311,13 @@ def kur(kok: Path) -> Path:
         c, e = kredi[kod]
         con.execute("INSERT INTO plan_slot(plan_id,slot_kind,course_code,credits,ects,"
                     "position) VALUES (2229,'REQUIRED',?,?,?,?)", (kod, c, e, i))
+    con.execute("INSERT INTO plan(id,program_code,host_program_code,plan_type,"
+                "obs_program_code,title,source,is_term_based) VALUES (2241,'INS',"
+                "'HTAE','cap','TUMMUH_INS','INS Double Major Program','obs',0)")
+    for i, kod in enumerate(INS_CAP):
+        c, e = kredi[kod]
+        con.execute("INSERT INTO plan_slot(plan_id,slot_kind,course_code,credits,ects,"
+                    "position) VALUES (2241,'REQUIRED',?,?,?,?)", (kod, c, e, i))
 
     import datetime as dt
     simdi = dt.datetime.now().replace(microsecond=0)

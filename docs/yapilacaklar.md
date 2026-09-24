@@ -423,6 +423,18 @@ her maddeden önce gelen tek iş.
 > Geri alma deneyi: 9/9 kırmızı.
 > ➜ Ayrıntı: `docs/faz58-gecmis-ve-yaz-okulu.md`
 >
+> **Faz 59'da kapananlar (24.09.2026 — ÇAP seçimi ve tercih):** kullanıcı:
+> *"continue on your improvements and changes"*. ★★ Başvuru penceresinde her
+> ÇAP programının **tahmini bitişi** (yol haritası: anadal + o ÇAP; istek
+> üzerine, salt okunur) ✅ · ⚠️ ilk sürüm kalan kredi yazıyordu — pencerenin
+> 22.08.2026 kararıyla çelişiyordu, çıkarıldı ✅ · bitişin kaçıncı yarıyıl
+> olduğu ve **azami öğrenim süresi** (14, 2547/44-c, ⚠ doğrulanmadı, yalnız
+> anadal) ✅ · **tercihi kaydetmeden dene** — ayar dosyasına hiçbir şey
+> yazılmıyor, doğrulama kaydetmeyle ortak ✅ · vitrine ikinci ÇAP seçeneği
+> (INS) ✅
+> Geri alma deneyi: 7/7 kırmızı.
+> ➜ Ayrıntı: `docs/faz59-cap-secimi-ve-tercih.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

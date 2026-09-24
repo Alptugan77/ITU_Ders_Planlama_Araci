@@ -177,6 +177,21 @@ kaynak     = "İTÜ Lisans Eğitim ve Öğretim Yönetmeliği MADDE 31/1"
 aciklama   = "Ağırlıklı genel not ortalamasını en az 2.00 düzeyine çıkarmış olmak."
 
 # ---------------------------------------------------------------------------
+# AZAMİ ÖĞRENİM SÜRESİ — Faz 59 (yol haritası bitişi bunu aşıyor mu)
+#
+# 2547 sayılı Yükseköğretim Kanunu Madde 44/c: lisans öğrenimi kayda göre
+# azami 7 yıl → 14 yarıyıl. İTÜ'nün kendi uygulaması (hazırlığın sayılıp
+# sayılmadığı, süre dolunca ek sınav hakkı) Lisans Yönetmeliği ve Senato
+# esaslarında. 24.09.2026'da bu ortamdan sis.itu.edu.tr'ye ulaşılamadı; İTÜ
+# madde numarası DOĞRULANMADI. Arayüz sayıyı ⚠ ile gösteriyor. Teyit edince
+# `kaynak`ı İTÜ maddesiyle değiştirip `dogrulandi = true` yap.
+[azami_sure]
+yariyil    = 14
+dogrulandi = false
+kaynak     = "2547 sayılı Kanun Madde 44/c (lisans: 7 yıl)"
+aciklama   = "Süre dolunca ek sınav hakkı tanınabiliyor; ayrıntı İTÜ ÖİDB'de."
+
+# ---------------------------------------------------------------------------
 # ŞARTLI BAŞARMIŞ — MADDE 20/2-b ve MADDE 31/1
 #
 # MADDE 20/2:
