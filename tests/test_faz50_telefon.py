@@ -54,7 +54,7 @@ def _kural(ad: str) -> str:
 def _telefon_blogu() -> str:
     """`@media (max-width:700px)` bloklarının tamamı (birden fazla var).
 
-    ⚠️ `split` ile ilk bloğu almak KIRILGAN — depoda üç ayrı 700px bloğu
+    ⚠️ `split` ile ilk bloğu almak KIRILGAN — repoda üç ayrı 700px bloğu
     var ve hangisine yazıldığı zamanla değişiyor. Süslü parantez sayıyoruz.
     """
     out = []

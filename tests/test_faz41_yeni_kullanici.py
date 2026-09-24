@@ -59,7 +59,7 @@ def test_DONEM_bilinmiyorsa_program_bunu_SOYLUYOR():
 def test_donem_uyarisi_OLCULEN_dagilimi_yaziyor():
     """Uyarı "bazı dersler farklı dönemden" demiyor — SAYIYI döküyor.
 
-    Bu depoda tekrarlayan ders: sayı dökülmezse kullanıcı uyarıyı genel bir
+    Bu repoda tekrarlayan ders: sayı dökülmezse kullanıcı uyarıyı genel bir
     uyarı sanıp geçiyor (bkz. `_term_note`, Faz 18)."""
     govde = re.search(r"function renderDonemUyarisi\(\)\{(.*?)\n\}",
                       KAYNAK, re.S).group(1)

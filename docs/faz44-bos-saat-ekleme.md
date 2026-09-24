@@ -62,7 +62,7 @@ BOŞ SAAT · Pzt 08:00
 * **Hiç sığmıyorsa bu söyleniyor** — sayıyla. "Genel uyarı" değil: *kaç*
   ders için yer açman gerektiği yazıyor.
 * ⚠️ **Takaslar gizlenmiyor.** Bazen istenen şey odur ("şunun yerine bunu
-  koy"). Gizleseydik "bu saatte hiçbir şey yok" sanılırdı — bu depoda
+  koy"). Gizleseydik "bu saatte hiçbir şey yok" sanılırdı — bu repoda
   tekrarlayan hata (bkz. Faz 25: havuz engelini gizlemek Çarşamba'da 19
   adayın 18'ini görünmez yapmıştı).
 
@@ -85,7 +85,7 @@ bulan `eklenebilirGizli()` ve ızgaranın altında onlara giden kısayollar.
 **Ölçünce yanlış çıktı.** O ders (`BHB 201E`) **17:30**'da başlıyor, yani
 görünür aralığın içinde; kırpma onu gizlemiyordu. Yazdığım kodu geri aldım.
 
-Kaydedilme sebebi: bu depoda kural *önce ölç, sonra değiştir*. Bu turda
+Kaydedilme sebebi: bu repoda kural *önce ölç, sonra değiştir*. Bu turda
 sırayı bozdum — teoriye göre kod yazıp sonra ölçtüm — ve düzeltme hatanın
 yanından geçti. `test_ILK_TESHIS_geri_alindi` o kodun geri gelmediğini
 tutuyor.
@@ -102,7 +102,7 @@ tutuyor.
 | `test_SIGANLAR_ile_TAKASLAR_ayri_gruplarda` | ★★ ayrım + sığanlar önce |
 | `test_HIC_SIGMIYORSA_bu_soyleniyor` | sayıyla, genel uyarı değil |
 | `test_takas_secenekleri_GIZLENMIYOR` | Faz 25'in dersi |
-| `test_ILK_TESHIS_geri_alindi` | ⚠️ ölçmeden yazılan kod depoda kalmasın |
+| `test_ILK_TESHIS_geri_alindi` | ⚠️ ölçmeden yazılan kod repoda kalmasın |
 | `test_UCTAN_UCA_sigan_ve_takas_ayriliyor` | ★★ tarayıcıda bütün akış |
 
 Uçtan uca test iki hücreyi birden kovalıyor: çakışan dersin olduğu hücrede

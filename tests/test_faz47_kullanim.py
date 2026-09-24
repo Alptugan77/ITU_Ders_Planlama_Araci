@@ -145,7 +145,7 @@ def test_DONEM_transkriptten_ONCE():
 
 
 def test_ONERI_TIKI_iddia_degil():
-    """⚠️⚠️ Bu depoda kural: bilinmeyen, bilinen gibi gösterilmez.
+    """⚠️⚠️ Bu repoda kural: bilinmeyen, bilinen gibi gösterilmez.
     "5. dönemdesin" ≠ "1–4. dönemin hepsini geçtin" (ders bırakmış, kalmış,
     yatay geçmiş olabilir). O yüzden öneri:
     · yalnız transkript BOŞKEN yapılıyor,

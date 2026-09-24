@@ -113,7 +113,7 @@ def test_blok_yoksa_ACIK(tmp_path):
 
 
 def test_gercek_kurallar_dosyasi_okunuyor():
-    """Depodaki `config/kurallar.toml` bu bloğu taşıyor ve açık."""
+    """Repodaki `config/kurallar.toml` bu bloğu taşıyor ve açık."""
     r = POL.load_catalog_rule()
     assert r.enabled is True
     # ⚠️ Yorum bizim olduğu için doğrulanmamış işaretli kalmalı.

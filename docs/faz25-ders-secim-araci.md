@@ -171,7 +171,7 @@ dün 12:50'de tazelenen veri 13 saat sonra hâlâ "bugün" görünüyordu.
 Faz 24'teki iki kilitleyici hata kod okuyarak değil, **boş bir kurulumu
 gerçekten çalıştırınca** çıktı. O yürüyüş artık test:
 
-* boş kurulumun sayfası **ayrı bir süreçte** üretiliyor — bu depoda
+* boş kurulumun sayfası **ayrı bir süreçte** üretiliyor — bu repoda
   `config/settings.toml` **var** ve testin içindeki modüller onu görüyor;
   Faz 24'teki hata tam da *"geliştiricinin dosyası varken sorun görünmüyor"*
   hatasıydı;

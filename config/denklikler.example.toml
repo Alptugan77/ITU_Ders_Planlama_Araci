@@ -1,7 +1,7 @@
 # Elle bildirilen ders denklikleri — KİŞİSEL DOSYA.
 #
 # `config/denklikler.toml` olarak kopyala ve kendi beyanlarını yaz.
-# O dosya `.gitignore`da: senin transkriptinle ilgili, depoya girmez.
+# O dosya `.gitignore`da: senin transkriptinle ilgili, repoya girmez.
 #
 # ⚠️ Bunlar SENİN beyanın. Uygulama "resmi" gibi göstermez. Ders saydırma için
 #    Fakülte Yönetim Kurulu kararı gerekebilir — danışmanına doğrulat.

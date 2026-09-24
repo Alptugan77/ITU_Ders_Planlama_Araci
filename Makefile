@@ -33,7 +33,7 @@ help:
 	@echo "make kesif T=yandal ARGS=--planlar - OBS'ye sor: hangi programlar var"
 	@echo "make basvuru  - hangi ÇAP/yandal programlarına başvurabilirim"
 	@echo "make site     - GitHub Pages için statik site kur"
-	@echo "make gizlilik - depoya kişisel veri sızmış mı"
+	@echo "make gizlilik - repoya kişisel veri sızmış mı"
 	@echo "make vitrin   - uydurma bir öğrenciyle arayüzü aç (ARGS=\"--ekran DIZIN\")"
 	@echo "make tasarim  - tasarım envanteri (ARGS=--denetle: ölçek dışı değer var mı)"
 
@@ -41,7 +41,7 @@ setup:
 	$(PY) -m venv $(VENV)
 	$(BIN)/pip install -q --upgrade pip
 	$(BIN)/pip install -q -e ".[dev]"
-	@# Kişisel yapılandırma depoda yok — örnekten kopyalanır, üzerine yazılmaz.
+	@# Kişisel yapılandırma repoda yok — örnekten kopyalanır, üzerine yazılmaz.
 	@test -f config/settings.toml   || cp config/settings.example.toml   config/settings.toml
 	@test -f config/denklikler.toml || cp config/denklikler.example.toml config/denklikler.toml
 	@echo "✅ hazır."

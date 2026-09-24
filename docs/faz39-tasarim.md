@@ -136,7 +136,7 @@ düğmenin basılı olduğunu duyuyor.
   yeni bir font indirmesi açılış süresine yazılır.
 * Faz 38b'de eksik bulunan `--warn-soft`/`--warn-ink` jetonları ve açık
   şemada eksik `--yandal*` bu turda üç paletin **hepsine** eklendi —
-  deponun kendi `test_kullanilan_her_css_jetonu_TANIMLI` testi yakaladı.
+  reponun kendi `test_kullanilan_her_css_jetonu_TANIMLI` testi yakaladı.
 
 ---
 

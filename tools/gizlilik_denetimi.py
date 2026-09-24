@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Depoya kişisel veri sızmış mı? — CI'da her itmede koşar.
+"""Repoya kişisel veri sızmış mı? — CI'da her itmede koşar.
 
-Bu araç bir öğrencinin **notlarını** tutuyor. Depo herkese açık olduğu için
+Bu araç bir öğrencinin **notlarını** tutuyor. Repo herkese açık olduğu için
 en pahalı hata, bir transkriptin ya da veritabanının yanlışlıkla commit
 edilmesi. `.gitignore` bunu engelliyor ama tek savunma olarak yeterli değil:
 
@@ -34,7 +34,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# Adı bu kalıplara uyan dosya depoda ASLA olmamalı.
+# Adı bu kalıplara uyan dosya repoda ASLA olmamalı.
 YASAK_ADLAR = [
     "data/user.sqlite3", "data/user.sqlite3-wal", "data/user.sqlite3-shm",
     "data/reference.sqlite3", "data/itucap.html",
@@ -58,7 +58,7 @@ METIN = {".md", ".txt", ".toml", ".py", ".html", ".yml", ".yaml", ".json"}
 
 
 def izlenen_dosyalar() -> list[str] | None:
-    """Git'in izlediği dosyalar. Git deposu değilse None."""
+    """Git'in izlediği dosyalar. Git reposu değilse None."""
     try:
         out = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True,
                              text=True, check=True).stdout
@@ -143,7 +143,7 @@ def main() -> int:
     dosyalar = izlenen_dosyalar()
     kaynak = "git ls-files"
     if dosyalar is None:
-        # Git deposu değil — dosya sistemine bak. `.venv` ve `data` hariç.
+        # Git reposu değil — dosya sistemine bak. `.venv` ve `data` hariç.
         kaynak = "dosya sistemi"
         dosyalar = [
             str(p.relative_to(ROOT)) for p in ROOT.rglob("*")
@@ -182,7 +182,7 @@ def main() -> int:
              else ""))
     if sorunlar:
         print("\nSIZINTI:\n" + "\n".join(sorunlar))
-        print("\nBu dosyalar kişisel veri içerebilir ve herkese açık bir depoda")
+        print("\nBu dosyalar kişisel veri içerebilir ve herkese açık bir repoda")
         print("durmamalı. `git rm --cached <dosya>` ile çıkar, `.gitignore`a ekle.")
         print("⚠️  Zaten itilmişse geçmişten de temizlenmeli (git-filter-repo).")
         return 1

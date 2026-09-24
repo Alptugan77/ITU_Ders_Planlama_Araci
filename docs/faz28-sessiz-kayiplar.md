@@ -306,7 +306,7 @@ yandal) `kaydedildi ✓` veriyor.
 ## 2. ★★ Ama doğrulama sitede yeni bir hata çıkaracaktı
 
 Faz 28'in başında eklediğim `_dogrula_program`, kodu **`program`
-tablosunda** arıyordu. Açılır kutu ise **`plan` tablosundan** doluyor. Depoya
+tablosunda** arıyordu. Açılır kutu ise **`plan` tablosundan** doluyor. Repoya
 işlenmiş katalogda ölçtüm:
 
 | | |
@@ -390,7 +390,7 @@ süzüyor.
 
 ## Kalan
 
-**Yayın hattı çalıştırılmalı.** Sitedeki hatanın düzeltmesi depoda duruyor;
+**Yayın hattı çalıştırılmalı.** Sitedeki hatanın düzeltmesi repoda duruyor;
 `gh release create katalog-YYYYMMDD` + Actions → `pages` çalışmadan
 kullanıcıya ulaşmıyor.
 
@@ -415,7 +415,7 @@ uymuyordu.** "Kodu ittim, site güncellenir" beklentisi makul; akış onu
 karşılamıyordu ve hiçbir yerde de yazmıyordu. `push` tetikleyicisi eklendi.
 
 ⚠️ Güvenli, çünkü akış katalogu **her zaman** en son `katalog-*` sürümünden
-indiriyor, depodan değil. Push yalnız KODU tazeliyor.
+indiriyor, repodan değil. Push yalnız KODU tazeliyor.
 
 Yol süzgeci var: `src/`, `web/`, `tools/site_kur.py`, mevzuat dosyaları ve
 akışın kendisi. Belge değişikliği yayın tetiklemiyor.
@@ -516,7 +516,7 @@ kolluyor. İki gerçek hata çıkardı:
 
 | | |
 |---|---|
-| Depo adı ve site adresi | `ITU_Ders_Secim_Araci` — paylaşılan linkler bozulmuyor |
+| Repo adı ve site adresi | `ITU_Ders_Secim_Araci` — paylaşılan linkler bozulmuyor |
 | Python paketi / import yolu | `itucap` — `python -m itucap.pipeline` aynı |
 | Tarayıcı veritabanı adı | `itucap` — ad değişince kimsenin verisi kaybolmasın |
 

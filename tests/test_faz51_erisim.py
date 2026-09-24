@@ -64,7 +64,7 @@ def _blok(basla: str) -> str:
 def _kod(blok: str) -> str:
     """Yorumları söküp tek satıra indirir.
 
-    ⚠️ Bu yardımcının yokluğu bu depoda ÜÇÜNCÜ kez hataya yol açtı (Faz 48,
+    ⚠️ Bu yardımcının yokluğu bu repoda ÜÇÜNCÜ kez hataya yol açtı (Faz 48,
     50 ve yine burada): yorum, neyin neden YAPILMADIĞINI anlatırken yasak
     dizgeyi de yazıyor, muhafız onu kodda sanıyor.
     """

@@ -1,6 +1,6 @@
 # Yapılacaklar
 
-Faz 1–56 bitti (1238 test). Depo GitHub'a hazır. Bu liste **sonrası** için:
+Faz 1–56 bitti (1238 test). Repo GitHub'a hazır. Bu liste **sonrası** için:
 ne kaldı, neden önemli, ne kadar iş, neye bağlı.
 
 ⚠️ **Yayınlanan site hâlâ eski.** Yayın hattı (`git push` → Actions → pages)
@@ -230,7 +230,7 @@ her maddeden önce gelen tek iş.
 > (GEO 401E, ATA 121, TUR 121, GEO 464E, SNT 103E) tıklayınca **hiçbir şey**
 > olmuyordu — ne pencere, ne hata, ne açıklama ✅ Sebep: pencere dersi `CAND`
 > (aktif kipin havuzu) ile çözüyor, ızgara ise `candOf` ile çiziliyordu;
-> *çizen* ile *açan* ayrı havuza bakıyordu. Kip politikası depoda zaten
+> *çizen* ile *açan* ayrı havuza bakıyordu. Kip politikası repoda zaten
 > yazılıydı (*"kip yalnız ÖNERİYİ daraltıyor, elle ekleme hakkını değil"*),
 > pencere ondan habersizdi · ⚠️ açmak yetmedi: ders bu kipin havuzunda
 > olmadığını ve hangi kipin önerdiğini SÖYLÜYOR ✅ · ★ pencere açılınca kilit
@@ -538,7 +538,7 @@ Bu bölümün çoğu kapandı. Açık kalanlar, sırayla:
 | 2.3 | Yaz okulu | — | M |
 | 3 | 1545 karşılıksız havuz seçeneği · 13 boş havuz | — | M · S |
 
-⚠️ Sıfır numaralı işler kod işi değil, **çalıştırma** işi: depoda her şey
+⚠️ Sıfır numaralı işler kod işi değil, **çalıştırma** işi: repoda her şey
 hazır, çalıştırılmadıkça hiçbiri kimseye görünmüyor.
 
 ✅ Faz 53'te kapandı: 2.4 (saat aralığına kilit) · 4.2 (nöbeti arka planda

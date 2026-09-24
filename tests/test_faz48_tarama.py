@@ -89,7 +89,7 @@ def test_KATLANAN_BASLIK_da_bir_hedef():
 
 def test_taban_summary_ESNEK_KUTU_DEGIL():
     """⚠️⚠️ Tabanı `display:flex` ile kurmak KOLAY ama iki şeyi bozuyor ve
-    ikisi de bu depoda ölçülmüş hatalar:
+    ikisi de bu repoda ölçülmüş hatalar:
 
     1. Esnek kutu, iki metin düğümü arasındaki boşluğu yutuyor —
        "11 dersbu dönem" (arz başlığındaki nota bak). Pencere başlıkları

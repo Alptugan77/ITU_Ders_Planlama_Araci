@@ -4,7 +4,7 @@
 helper gibi sitelere yönlendir ve bahset".*
 
 Araç, verisini iki kaynaktan alıyor ama bunu sayfada hiç söylemiyordu:
-ders/şube/kontenjan **İTÜ Helper**'ın açık veri deposundan
+ders/şube/kontenjan **İTÜ Helper**'ın açık veri reposundan
 (`itu-helper/data`), planlar/denklikler/not dağılımları **İTÜ OBS**'den.
 Kullanıcının asıl işi (ders kaydı) ise başka bir sitede — Kepler'de —
 yapılıyor. Artık sayfa bu siteleri yerinde anıyor ve bağlantı veriyor.
@@ -31,7 +31,7 @@ betikte elle yazılmış başka bir dış adres bulunmadığını denetliyor.
 
 ## Nerede
 
-* **Alt bilgi:** veri kaynakları (İTÜ Helper açık veri deposu, İTÜ OBS) ve
+* **Alt bilgi:** veri kaynakları (İTÜ Helper açık veri reposu, İTÜ OBS) ve
   yararlı bağlantılar (Kepler, OBS Ders Programı, OBS Ders Planları,
   ÇAP/Yandal Yönergesi, İTÜ Helper önşart zinciri ve program oluşturucu).
 * **Karşılama kartı:** verinin nereden geldiği, İTÜ Helper'ın adıyla.

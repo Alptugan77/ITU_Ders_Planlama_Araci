@@ -1,6 +1,6 @@
 # Faz 14 — GitHub Pages: motor tarayıcıda
 
-> ⚠️ Bu belgedeki bütün sayılar **örnektir**. Depoda kimsenin gerçek notu
+> ⚠️ Bu belgedeki bütün sayılar **örnektir**. Repoda kimsenin gerçek notu
 > ya da ortalaması yer almaz.
 
 ```bash
@@ -187,7 +187,7 @@ göre değişiyor.
 
 ## Katalog nasıl güncellenir
 
-Katalog depoda **yok** (15 MB türetilmiş veri, `.gitignore`da). Yayın akışı
+Katalog repoda **yok** (15 MB türetilmiş veri, `.gitignore`da). Yayın akışı
 onu bir sürüm varlığından indiriyor:
 
 ```bash
@@ -196,7 +196,7 @@ gh release create katalog-$(date +%Y%m%d) data/reference.sqlite3
 # → Actions → "pages" → Run workflow
 ```
 
-Böylece kişisel veri barındıran hiçbir dosya depoya girmiyor ama site
+Böylece kişisel veri barındıran hiçbir dosya repoya girmiyor ama site
 güncel katalogla kurulabiliyor. Dönem başında bir kez yeterli.
 
 ## Test kapsamı

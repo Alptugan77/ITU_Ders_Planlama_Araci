@@ -158,7 +158,7 @@ def _norm(brans: str, ders_no: str) -> str:
 def codes_from_title(title: str) -> tuple[str, ...]:
     """Başlıktaki ders kodları — `'MAT103 - MAT103E, Matematik I / …'`.
 
-    ⚠️ Kodu biz TÜRETMİYORUZ. Sondaki `E`'yi atarak eş bulmak bu depoda
+    ⚠️ Kodu biz TÜRETMİYORUZ. Sondaki `E`'yi atarak eş bulmak bu repoda
     başka yerlerde kullanılan bir sezgi; burada gerek yok çünkü **kaynak
     çiftin ikisini de yazıyor**. Sezgi yerine kaynağı okumak, `BLG 4901E`
     gibi 'E' ile biten ama İngilizce eşi başka olan kodlarda da doğru kalır.

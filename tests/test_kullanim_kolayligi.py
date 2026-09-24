@@ -77,7 +77,7 @@ def test_sablon_bolum_cubugunu_kuruyor(data):
     for parca in ("secnav", "renderSecNav", "gorunumAc", "acikGorunumler",
                   "scroll-margin-top"):
         assert parca in html, parca
-    assert "markCurrentSection" not in html, "eski çapa mantığı depoda kalmış"
+    assert "markCurrentSection" not in html, "eski çapa mantığı repoda kalmış"
 
 
 # ------------------------------------------------------ tarayıcıda gerçek

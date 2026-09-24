@@ -66,7 +66,7 @@ Bu yüzden boş sonuç *sebebini söylemek zorunda*:
   [ATA 121 · CRN 10136 ✕] [BLG 212E · CRN 12486 ✕] [hepsini aç]
 ```
 
-Sadece "öneri üretilemedi" deseydik kullanıcı dönemi suçlardı — bu depoda
+Sadece "öneri üretilemedi" deseydik kullanıcı dönemi suçlardı — bu repoda
 tekrarlayan hata (Faz 25: havuz engelini gizlemek; Faz 44: takasları
 ekleme gibi göstermek).
 

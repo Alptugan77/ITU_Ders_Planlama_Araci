@@ -203,7 +203,7 @@ print(json.dumps({{"path": str(out), "blocking": bool(data["onboarding"])}}))
 def ilk_giris_sayfasi(tmp_path):
     """HİÇ ayarı olmayan bir kurulumun sayfasını AYRI bir süreçte üret.
 
-    ⚠️ Ayrı süreç şart: bu depoda `config/settings.toml` VAR ve testin
+    ⚠️ Ayrı süreç şart: bu repoda `config/settings.toml` VAR ve testin
     içinde import edilmiş modüller onu görüyor. Faz 24'teki hata tam da
     "geliştiricinin dosyası varken sorun görünmüyor" hatasıydı.
     """

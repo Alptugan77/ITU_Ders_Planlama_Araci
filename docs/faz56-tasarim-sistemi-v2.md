@@ -28,7 +28,7 @@ dönemde, BLG'de ÇAP'a 5. yarıyılda başlamış, dört dönemlik transkripti 
 çevrimiçi, biri saatsiz), beş not dağılımı, iki anlık görüntü. Ders
 **kodları** İTÜ'nün gerçek kodları (ekran tanıdık görünsün diye); şubeler,
 hocalar, kontenjanlar ve notlar uydurma. Veri geçici klasörde kuruluyor,
-depodaki `data/`ya dokunulmuyor.
+repodaki `data/`ya dokunulmuyor.
 
 ```bash
 python tools/vitrin.py                 # sunucuyu açar, adresi yazar
@@ -154,7 +154,7 @@ içinde son bildirimden sonra `;` yok). Denetim dokuz tanesini yakaladı:
 Masaüstü ızgarası cuma 13:30–17:30'u taralı bir "staj" bloğu olarak
 çiziyordu; telefondaki gün listesi aynı gün için **"boş"** yazıyordu.
 `renderDayList()` hiç `DATA.busy` okumuyordu. Aynı veri iki biçimde iki
-farklı şey söylüyordu — bu depoda Faz 49'dan beri ölçülen hata sınıfı.
+farklı şey söylüyordu — bu repoda Faz 49'dan beri ölçülen hata sınıfı.
 
 Artık liste meşgul saati ızgaradakiyle aynı taramayla, "ders konmaz"
 notuyla ve dokununca kaldırma penceresiyle gösteriyor. Meşgul saatle

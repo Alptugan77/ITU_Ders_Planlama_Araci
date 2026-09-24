@@ -139,7 +139,7 @@ def test_ONAY_KUTUSU_tabanin_ustunde():
 # ------------------------------------------------------------- katlama
 def test_UYARI_KATLANDI_ama_SAYISI_gorunuyor():
     """★★ Ölçüm: arz kutusu 115px ve 47 kelimeydi, ızgaranın önünde.
-    ⚠️ Bu depoda "genel uyarı" yasak: katlanmış hâlde bile SAYI yazıyor."""
+    ⚠️ Bu repoda "genel uyarı" yasak: katlanmış hâlde bile SAYI yazıyor."""
     fn = re.search(r"function renderArzUyarisi\(\)\{(.*?)\n\}", KAYNAK, re.S).group(1)
     assert '<details class="arzdetay">' in fn
     assert "${arz.length} ders" in fn, "kapalıyken sayı yazmıyor"

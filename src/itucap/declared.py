@@ -26,7 +26,7 @@ from .normalize import normalize_course_code
 DEFAULT_PATH = config.ROOT / "config" / "denklikler.toml"
 # ★ Katalog düzeltmeleri KİŞİSEL DEĞİL: OBS'nin ders kataloğundaki hataları
 # beyan ederler, kimin transkriptiyle ilgileri yoktur. O yüzden ayrı bir
-# dosyada ve depoya girerler — herkes aynı hatayla karşılaşıyor.
+# dosyada ve repoya girerler — herkes aynı hatayla karşılaşıyor.
 CATALOG_PATH = config.ROOT / "config" / "katalog-duzeltmeleri.toml"
 
 

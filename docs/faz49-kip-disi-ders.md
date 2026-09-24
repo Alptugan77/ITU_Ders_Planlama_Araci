@@ -35,7 +35,7 @@ Oysa ızgara **`candOf`** ile çiziliyor — o, kipte bulamazsa tam havuza
 düşüyor. Yani *çizen* ile *açan* iki ayrı havuza bakıyordu; aradaki fark
 ekranda duran ama açılamayan ders olarak çıkıyordu.
 
-> ⚠️ Kip politikası bu depoda **27.08.2026'da zaten yazılıydı** (boş saat
+> ⚠️ Kip politikası bu repoda **27.08.2026'da zaten yazılıydı** (boş saat
 > penceresinin yorumunda): *"kip yalnız ÖNERİYİ daraltıyor, elle ekleme
 > hakkını değil."* Pencere o politikadan habersizdi. `choose`, `sectionOf`,
 > `picks` ve ızgara doğru yerden okuyordu; yalnız pencere okumuyordu.

@@ -2528,7 +2528,7 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--focus);outline-o
      ⚠️ Kural "44" diyordu ama değer 40'tı (Faz 39). Faz 50 telefon turunda
      ölçüldü: her görünümde 7–8 denetim 44'ün altında (`Tema` 34, `tazele`
      ve bütün `.ghost`lar 40). WCAG 2.2 tabanı 24 — o sağlanıyordu; bu
-     deponun KENDİ telefon kuralı 44 ve tutulmuyordu. */
+     reponun KENDİ telefon kuralı 44 ve tutulmuyordu. */
   .ghost,.tab{min-height:44px;display:inline-flex;align-items:center}
   /* ★ Ölçüm (Faz 39, 390px): telefonda 32 denetim 32px'in ALTINDAydı —
      `kaldır` ×4 (22px), `izle` ×11 (21px), `+N dış önşart` ×17 (19px).
@@ -2580,7 +2580,7 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--focus);outline-o
      ("180" → "18"). Yani telefonda liste hem çok uzun hem eksik okunuyordu.
 
      Tablo tek DOM olarak kalıyor — masaüstünde hâlâ tablo, telefonda kart.
-     İki ayrı çizim yazsaydık ikisi ayrışırdı (bu depoda ölçülmüş bir
+     İki ayrı çizim yazsaydık ikisi ayrışırdı (bu repoda ölçülmüş bir
      hata sınıfı). Aynı `<tr>`, başka yerleşim:
         kod + rozetler ................................ puan
         açıklama (tam genişlik)
@@ -3400,7 +3400,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
        sayı bu),
      · seçili sekme, seçili kip ve açık bölüm "seçili" görünmüyordu.
 
-   Bu depoda kural: bilgi sessizce kaybolmaz. Renk gidiyorsa YAZI gelir,
+   Bu repoda kural: bilgi sessizce kaybolmaz. Renk gidiyorsa YAZI gelir,
    çubuklar sistem renkleriyle yeniden çizilir.
    ⚠️ `forced-color-adjust:none` KULLANILMADI: kullanıcının paletini
    ezmek, yüksek kontrast isteyen kişinin isteğini geri çevirmek olurdu.
@@ -3974,7 +3974,7 @@ function renderHeader(){
   $("#tierTitle").textContent = ikili ? "Kademeler" : `${LBL} kademeleri`;
   $("#gen").textContent = veriTarihi();
   $("#kaynaklar").innerHTML = `<div><b>Veri kaynakları:</b> ders, şube ve kontenjan
-      bilgileri ${disLink("ituHelperVeri", "İTÜ Helper açık veri deposundan")}; ders
+      bilgileri ${disLink("ituHelperVeri", "İTÜ Helper açık veri reposundan")}; ders
       planları, denklikler ve not dağılımları ${disLink("obsPlan", "İTÜ OBS")}'den
       alınmaktadır.</div>
     <div><b>Yararlı bağlantılar:</b> ${disLink("kepler", "Kepler (ders kaydı)")} ·
@@ -5040,7 +5040,7 @@ function checklistDialog(){
      *"5. dönem olan birisi geçtiği dersleri işaretlemek için otomatik tik
      attırabilir"*).
 
-     ⚠️⚠️ ÖNERİ, İDDİA DEĞİL. Bu depoda kural: bilinmeyen, bilinen gibi
+     ⚠️⚠️ ÖNERİ, İDDİA DEĞİL. Bu repoda kural: bilinmeyen, bilinen gibi
      gösterilmez. "5. dönemdesin" demek "1–4. dönemin hepsini geçtin"
      DEMEK DEĞİL — ders bırakmış, kalmış, yatay geçmiş olabilir. O yüzden:
      · yalnız transkript HENÜZ BOŞKEN öneriliyor (girdiysen dokunulmuyor),
@@ -7193,7 +7193,7 @@ function renderArzUyarisi(){
   /* ★★ FAZ 46 — KATLANDI, GİZLENMEDİ.
      Ölçüm (17.09.2026): bu kutu 115px ve 47 kelimeydi ve haftalık ızgaranın
      ÖNÜNDE duruyordu; sayfada aynı anda açık 60 ikincil metin parçasının
-     en büyüğüydü. Artık özeti tek satır — ama SAYIYLA, çünkü bu depoda
+     en büyüğüydü. Artık özeti tek satır — ama SAYIYLA, çünkü bu repoda
      "genel uyarı" yasak: kaç ders olduğu kapalıyken de yazıyor. Ayrıntı
      tek tıkla, aynı yerde.
      ⚠️ `open` YOK: kutu kapalı açılıyor. İlk açılışta açık olsaydı
@@ -7478,7 +7478,7 @@ function renderTabs(){
    meşgul saatle çakışırsa motor hiçbir program kuramaz. Kullanıcı o an
    "bu dönem çakışmasız program yok" sanır — oysa sebep kendi koyduğu
    kısıt ve bir tıkla geri alınabilir. Sebebi söylemeyen bir boş ekran,
-   bu depoda tekrarlayan hatanın (Faz 25, Faz 44) aynısı olurdu. */
+   bu repoda tekrarlayan hatanın (Faz 25, Faz 44) aynısı olurdu. */
 function oneriYok(){
   const kl = kilitliBuKipte();
   if(!kl.length) return `<span class="empty">öneri üretilemedi</span>`;
@@ -7643,7 +7643,7 @@ function renderDayList(){
   /* ★★ FAZ 56 — MEŞGUL SAATLER TELEFONDA DA. Izgara onları çiziyordu, bu
      liste çizmiyordu: vitrin verisinde cuma 13:30–17:30 "staj" masaüstünde
      taralı bir bloktu, telefonda cuma "boş" yazıyordu. Aynı veri iki
-     biçimde iki farklı şey söylüyordu — bu depoda ölçülmüş bir hata sınıfı.
+     biçimde iki farklı şey söylüyordu — bu repoda ölçülmüş bir hata sınıfı.
      Meşgul saatle kesişen ders ÇAKIŞMA sayılıyor (elle eklenen ders oraya
      düşebilir; ızgarada o hücreyi ders örtüyor, burada ikisi de görünüyor). */
   (DATA.busy || []).filter(b => b.ok).forEach(b => {
@@ -8506,7 +8506,7 @@ function ndBagla(course){
    çözüyordu. Oysa ızgara `candOf` ile çiziliyor — o, kipte yoksa tam havuza
    düşüyor. Yani ekranda çizilen ama açılamayan ders çıkıyordu.
 
-   ⚠️ Bu depoda kip politikası zaten yazılıydı (27.08.2026, boş saat
+   ⚠️ Bu repoda kip politikası zaten yazılıydı (27.08.2026, boş saat
    penceresi): *"kip yalnız ÖNERİYİ daraltıyor, elle ekleme hakkını değil."*
    Pencere o politikadan habersizdi. Artık `choose`, `sectionOf`, `picks` ve
    ızgarayla aynı yerden okuyor.

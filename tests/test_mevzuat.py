@@ -231,7 +231,7 @@ not_ = "katalog hatası"
 def test_project_config_closes_both_unparsable_prereqs():
     """★ Katalog düzeltmeleri KİŞİSEL DEĞİL, o yüzden ayrı dosyada.
 
-    `denklikler.toml` senin beyanların — `.gitignore`da, depoya girmiyor.
+    `denklikler.toml` senin beyanların — `.gitignore`da, repoya girmiyor.
     OBS kataloğundaki hatalar herkesi ilgilendiriyor; onlar
     `katalog-duzeltmeleri.toml`'da ve depoyla birlikte geliyor."""
     ov = declared.load_prereq_overrides(
@@ -242,13 +242,13 @@ def test_project_config_closes_both_unparsable_prereqs():
         assert ov[code]["note"], f"{code} gerekçesiz beyan edilmiş"
 
 
-# ------------------------------------------------- depo hijyeni (Faz 12/GitHub)
+# ------------------------------------------------- repo hijyeni (Faz 12/GitHub)
 def test_personal_config_is_not_required_to_run():
-    """★ Kişisel yapılandırma dosyaları depoda YOK; araç yine de kurulmalı.
+    """★ Kişisel yapılandırma dosyaları repoda YOK; araç yine de kurulmalı.
 
     `config/settings.toml` ve `denklikler.toml` `.gitignore`da. Yeni klonlayan
     biri `make setup` çalıştırınca örnekten kopyalanıyor. Bu test örneklerin
-    gerçekten var olduğunu ve okunabildiğini kilitliyor — yoksa depo
+    gerçekten var olduğunu ve okunabildiğini kilitliyor — yoksa repo
     klonlanabilir ama çalıştırılamaz olurdu."""
     for name in ("settings.example.toml", "denklikler.example.toml"):
         p = config.ROOT / "config" / name
@@ -267,7 +267,7 @@ def test_example_settings_carry_no_real_program():
 
 
 def test_catalog_fixes_ship_with_the_repo():
-    """Katalog düzeltmeleri herkese ait — depoda olmalı ve `.gitignore`da olmamalı."""
+    """Katalog düzeltmeleri herkese ait — repoda olmalı ve `.gitignore`da olmamalı."""
     p = config.ROOT / "config" / "katalog-duzeltmeleri.toml"
     assert p.exists()
     ignored = (config.ROOT / ".gitignore").read_text(encoding="utf-8")
@@ -280,13 +280,13 @@ def test_gitignore_actually_ignores_every_personal_path():
     Önce `.gitignore` metninde satır arıyordu; o test yazıma bağlıydı ve
     kuralları sadeleştirince (yedi satır yerine tek `data/`) kırıldı — oysa
     davranış aynıydı, hatta daha güçlüydü. Metin yerine SONUCU ölçmek doğru:
-    kural nasıl yazılırsa yazılsın, bu yolların hiçbiri depoya giremez.
+    kural nasıl yazılırsa yazılsın, bu yolların hiçbiri repoya giremez.
     """
     import shutil
     import subprocess
 
     if not shutil.which("git") or not (config.ROOT / ".git").exists():
-        pytest.skip("git deposu değil")
+        pytest.skip("git reposu değil")
     yollar = [
         "data/user.sqlite3", "data/reference.sqlite3",
         "data/itucap.html", "data/yedek/transkript-20260101-000000.txt",
@@ -298,19 +298,19 @@ def test_gitignore_actually_ignores_every_personal_path():
                        cwd=config.ROOT, capture_output=True, text=True)
     yoksayilan = set(r.stdout.split())
     eksik = [y for y in yollar if y not in yoksayilan]
-    assert not eksik, f"depoya sızabilir: {eksik}"
+    assert not eksik, f"repoya sızabilir: {eksik}"
 
 
 def test_shared_config_is_not_ignored():
     """Ters yön: herkese ait dosyalar YOK SAYILMAMALI.
 
     `data/` gibi geniş bir kural yazarken paylaşılan bir dosyayı da
-    kapatmak kolay; o zaman depo klonlanır ama çalışmaz."""
+    kapatmak kolay; o zaman repo klonlanır ama çalışmaz."""
     import shutil
     import subprocess
 
     if not shutil.which("git") or not (config.ROOT / ".git").exists():
-        pytest.skip("git deposu değil")
+        pytest.skip("git reposu değil")
     paylasilan = ["config/kurallar.toml", "config/katalog-duzeltmeleri.toml",
                   "config/settings.example.toml", "config/denklikler.example.toml",
                   "src/itucap/basvuru.py", "README.md", "LICENSE"]

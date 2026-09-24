@@ -1,6 +1,6 @@
 # Faz 8 — Yerel uygulama: arayüz artık yazıyor
 
-> ⚠️ Bu belgedeki bütün sayılar **örnektir**. Depoda kimsenin gerçek notu
+> ⚠️ Bu belgedeki bütün sayılar **örnektir**. Repoda kimsenin gerçek notu
 > ya da ortalaması yer almaz — kişisel veri `data/` altında kalır ve
 > `.gitignore` ile dışarıda tutulur.
 

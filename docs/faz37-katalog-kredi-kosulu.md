@@ -4,11 +4,11 @@
 eksikleri belirtir misin… kapatabileceğin eksiklikler varsa değiştir ve
 geliştir"*
 
-Araç olgun; bu fazın işi yeni özellik değil, **ölçüm**. Depoyu gerçek veriyle
+Araç olgun; bu fazın işi yeni özellik değil, **ölçüm**. Repoyu gerçek veriyle
 çalıştırıp motorun ne gördüğünü ne görmediğini saydım. Üç eksik çıktı ve
 üçünün de ortak yanı şu: veri elimizdeydi, motor bakmıyordu.
 
-Testler **951 → 987** (985 geçti, 2 atlandı — o ikisi git deposu istiyor).
+Testler **951 → 987** (985 geçti, 2 atlandı — o ikisi git reposu istiyor).
 
 ---
 
@@ -162,7 +162,7 @@ bunu kilitliyor.
 ## Doğrulama
 
 ```
-pytest                    985 geçti · 2 atlandı (git deposu isteyen ikisi)
+pytest                    985 geçti · 2 atlandı (git reposu isteyen ikisi)
 make site                 katalog 10.9 MB → gzip 2.9 MB · kurulum sorunsuz
   ↳ yayınlanan katalogda class_restriction KORUNUYOR ve site config/kurallar.toml'u
     taşıyor → web ve yerel sürüm AYNI kuralı uyguluyor (ayrışmıyorlar)
@@ -189,7 +189,7 @@ kalite raporu
   karşılığı olmayan bir derse bakıyor, 275 önşart hedefi katalogda yok.
   Eşleme **beyan** ister; tahmin etmek ilerleme yüzdesini bozar.
 * **`§2.1` çok dönemli plan** ve **`§2.3` yaz okulu** — büyük işler.
-* **`F.5` yayın hattı** — depoda `origin` artık tanımlı ama site hâlâ
+* **`F.5` yayın hattı** — repoda `origin` artık tanımlı ama site hâlâ
   yayınlanmayı bekliyor; düzeltmelerin kullanıcıya ulaşması buna bağlı.
 * **`F.2` yerin ilan edilmediği %42** — yeniden ölçüldü, **1542/3630 =
   %42.5**, değişmemiş. Kalıcı görünüyor: "kampüs değişimi" tercihi bu kadar

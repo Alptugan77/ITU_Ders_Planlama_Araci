@@ -14,7 +14,7 @@ Testler **1030 → 1038** (1036 geçti, 2 atlandı).
 
 ## A. Neyin değişmediği önce
 
-⚠️ **Rolün rengi (hue) değişmedi ve değişmemeliydi.** Bu depoda renk
+⚠️ **Rolün rengi (hue) değişmedi ve değişmemeliydi.** Bu repoda renk
 dekorasyon değil, veri: `--anadal` / `--cap` / `--yandal` hangi programdan
 olduğunu söylüyor. Tonu hue'ya bindirmek o bilgiyi yok ederdi.
 
@@ -114,7 +114,7 @@ Uçtan uca test tam bunu kovalıyor: tema değişince **üç bloğun üçünün 
 hesaplanmış zemini değişmeli. Renk pişirilince test kırmızıya dönüyor
 (denendi).
 
-⚠️ Bu arada deponun kendi `test_kullanilan_her_css_jetonu_TANIMLI` testi
+⚠️ Bu arada reponun kendi `test_kullanilan_her_css_jetonu_TANIMLI` testi
 `--tonhedef`/`--tonoran` jetonlarını yakaladı: varsayılanlar `var(…, yedek)`
 içine saklanmıştı. Açıkça tanımlandılar — hem test geçti hem CSS okunur oldu.
 

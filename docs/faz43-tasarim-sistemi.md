@@ -91,7 +91,7 @@ tablo başlığı** onunla yazılıyor. `border-strong` ise cetvelleri ve tablo
 çizgilerini taşıyor.
 
 Ölçüm tekrar edilebilir: **`tools/kontrast_olcumu.py`** — tasarım sisteminin
-README'sinin adıyla andığı ama depoda olmayan araç. Paleti `ui.py`'den okuyor
+README'sinin adıyla andığı ama repoda olmayan araç. Paleti `ui.py`'den okuyor
 (elle kopya değil), 26 çifti iki temada ölçüyor: **52 ölçüm, hepsi tabanın
 üstünde**. Jetonu eski değerine döndürünce üç satır kırmızıya dönüyor —
 denendi.
@@ -146,14 +146,14 @@ Kullanıcının önceliği buydu. Denetlendi:
 | | durum |
 |---|---|
 | `.github/workflows/pages.yml` tetikleyici | `src/**` → yazı tipleri `src/itucap/fonts/` altında, **push yayını tetikler** ✅ |
-| `.gitignore` | `*.woff2` ve yeni araç dışlanmıyor, depoya girerler ✅ |
+| `.gitignore` | `*.woff2` ve yeni araç dışlanmıyor, repoya girerler ✅ |
 | `pyproject.toml` `package-data` | `fonts/*.woff2` ve `fonts/*.txt` eklendi ✅ |
 | `test.yml` | her push'ta `pytest -q` — Faz 43 testleri orada koşar ✅ |
 | gizlilik denetimi (yayının zorunlu adımı) | kurulmuş site **temiz** ✅ |
 | Pyodide paketleme | CI `npm install pyodide@<sürüm>` ile indirip `site_kur.py`'ye veriyor ✅ |
 
 ⚠️ **Eskimiş uyarı düzeltildi.** `docs/fikirler.md` F.5 şöyle diyordu:
-*"Yayından önce `make all-plans` gerekiyor — depodaki katalogda hiçbir yandal
+*"Yayından önce `make all-plans` gerekiyor — repodaki katalogda hiçbir yandal
 programı yok (76 `_YD` kodunun `program` satırı eksik)."* Ölçüldü: **71 `_YD`
 kodunun 71'inin de `program` satırı var, eksik 0**. Uyarı yapılmış bir işi
 yapılmamış gösteriyordu ve yayını geciktiren sebeplerden biriydi.
