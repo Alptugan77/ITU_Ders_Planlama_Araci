@@ -111,6 +111,23 @@ def _lisans_mevsimi(con: sqlite3.Connection, program: str, kodlar: set[str]):
     return None
 
 
+def gecmis_donemleri(gecmis: dict | None, en_cok: int = 6) -> list[dict]:
+    """Faz 83 — not dağılımında dersin GÖRÜNDÜĞÜ dönemler, yeniden eskiye.
+
+    Kullanıcı 24.09.2026: "geçmişteki not dağılımlarından derslerin hangi
+    dönemlerde açıldığı ile ilgili küçük bir bilgi geç, doğruluğunun belirsiz
+    olduğunu belirterek". Mevsim kararı (`gecmis_mevsimleri`) eşikli; bu liste
+    HAM veriyi gösteriyor (öğrenci sayısıyla) ki az öğrencili dönem — çoğunlukla
+    tekrar/bütünleme sınıfı — kendi sayısıyla görünsün. Yorum çağıranda:
+    kesin değildir.
+    """
+    if not gecmis:
+        return []
+    return [{"term": t, "label": config.donem_adi(t) or t, "n": n}
+            for t, n in sorted(gecmis.get("terms", {}).items(), reverse=True)
+            if n > 0][:en_cok]
+
+
 def gecmis_mevsimleri(con: sqlite3.Connection, kodlar: Iterable[str]) -> dict | None:
     """Faz 58 — dersin geçmiş not dağılımından GERÇEKTEN verildiği yarıyıllar.
 
@@ -586,7 +603,8 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
                        "alsoSeasonSource": b.ek_mevsim_kaynagi,
                        "chain": b.yukseklik,
                        "unparsed": b.ders in okunamayan,
-                       "externalPrereq": b.dis_onsart}
+                       "externalPrereq": b.dis_onsart,
+                       "past": gecmis_donemleri(b.gecmis)}                 # Faz 83
                       for b in secilen],
             # Faz 82 — saat denetimi: "var" (aynı mevsim, çakışmasız program
             # bulundu) / "yok" (öbür mevsim, saat bilinmiyor).
@@ -717,6 +735,10 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
           if mesgul else []),
         "Seçmeli havuzdan hangi dersin seçileceği bilinmediğinden havuz dersleri için önşart "
         "aranmamıştır.",
+        "Derslerin yanındaki \u201cgeçmişte\u201d bilgisi OBS not dağılımından türetilmiştir; "
+        "yalnızca not açıklanmış dönemleri gösterir ve az öğrencili dönem çoğunlukla tekrar "
+        "veya bütünleme sınıfıdır. Doğruluğu belirsizdir: dersin ileride aynı dönemlerde "
+        "açılacağı kesin değildir.",
     ]
     dis_var = [b for b in birimler if b.yer not in (None, 0) and b.dis_onsart]
     if dis_var:

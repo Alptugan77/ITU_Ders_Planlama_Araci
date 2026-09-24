@@ -2616,6 +2616,9 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--focus);outline-o
 .tickliste .tickbox{white-space:normal;align-items:flex-start;flex-wrap:wrap}
 .tickliste .tickbox .hint{flex-basis:100%;margin-left:32px}
 .yhkalma{margin-top:14px}
+.yhad.gecmis{color:var(--ink-3)}
+.yhgecmisnot{margin:14px 0 6px}
+.gecmisnot{margin-top:12px;font-size:var(--fs-sm);color:var(--ink-2);line-height:var(--lh-normal)}
 .yhsaat{font-size:var(--fs-xs);color:var(--ink-3);margin:2px 0 4px;line-height:var(--lh-snug)}
 .yhsaat .ok{color:var(--ok)}
 .altbaslik{display:flex;align-items:baseline;gap:8px;margin-top:16px;padding-top:12px;
@@ -10040,6 +10043,23 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+/* ★★ FAZ 83 — GEÇMİŞTE AÇILDIĞI DÖNEMLER (not dağılımından).
+   Kullanıcı: "geçmişteki not dağılımlarından derslerin hangi dönemlerde
+   açıldığı ile ilgili küçük bir bilgi geç, doğruluğunun belirsiz olduğunu
+   belirterek". Ham veri: not açıklanmış her dönem, öğrenci sayısıyla. Az
+   öğrencili dönem çoğunlukla tekrar/bütünleme sınıfı — sayı bunu görünür
+   kılıyor; açıklama doğruluğun belirsiz olduğunu söylüyor. */
+const kisaDonem = (l) => String(l || "").replace(/^(\d{4})-\d{2}(\d{2})/, "$1-$2");
+function gecmisDonemNotu(cand){
+  const T = ((cand && cand.grades && cand.grades.terms) || []).filter(t => t.n > 0);
+  if(!T.length) return "";
+  return `<div class="gecmisnot"><b>Geçmişte açıldığı dönemler</b>
+    (not dağılımına göre): ${T.slice(0, 6).map(t => `${esc(kisaDonem(`${t.yearName} ${t.season}`))}
+      <span class="mono">(${t.n} öğrenci)</span>`).join(" · ")}
+    <div class="meta">Yalnızca not açıklanmış dönemleri gösterir; az öğrencili dönem
+      çoğunlukla tekrar veya bütünleme sınıfıdır. Doğruluğu belirsizdir; dersin ileride
+      aynı dönemlerde açılacağı kesin değildir.</div></div>`;
+}
 function addDialog(course){
   /* Aynı sınıf (Faz 49): ekleme penceresi de kipin havuzuna kilitliydi.
      Çağıranların hepsi bugün kip havuzundan geliyor, ama denklik kartı ve
@@ -10060,7 +10080,8 @@ function addDialog(course){
     <div style="color:var(--ink-2);font-size:var(--fs-md);margin:2px 0 6px">${esc(cand.name)}</div>
     ${pool ? `<div class="note" style="margin-top:8px">Aynı havuzdan
       <b class="mono">${esc(pool.cand.course)}</b> seçilidir; bu ders eklendiğinde o ders çıkarılır.</div>` : ""}
-    <div class="optlist">${rows.map(r => r[1]).join("")}</div>`);
+    <div class="optlist">${rows.map(r => r[1]).join("")}</div>
+    ${gecmisDonemNotu(cand)}`);
 }
 
 /* ---------- darboğaz ---------- */
@@ -10583,7 +10604,12 @@ function renderRoadmap(){
   const zincir = (R.longest || []).length > 1 ? `<div class="yhzincir">En uzun önşart
       zinciri: ${R.longest.map(c => `<b class="mono">${esc(c)}</b>`).join(" → ")} —
       bu zincir en az <b>${R.longest.length} dönem</b> sürer.</div>` : "";
-  const donemler = `<div class="yhdonemler">${(R.terms || []).map(t => `
+  /* Faz 83 — "geçmişte" etiketinin ne olduğu, kartların hemen üstünde. */
+  const gecmisAciklama = (R.terms || []).some(t => !t.current && t.items.some(i => (i.past || []).length))
+    ? `<div class="meta yhgecmisnot">“geçmişte”: dersin OBS not dağılımında göründüğü dönemler
+        (parantezde not alan öğrenci sayısı). Doğruluğu belirsizdir; dersin ileride aynı
+        dönemlerde açılacağı kesin değildir.</div>` : "";
+  const donemler = gecmisAciklama + `<div class="yhdonemler">${(R.terms || []).map(t => `
     <section class="yhdonem${t.current ? " simdi" : ""}${t.summer ? " yaz" : ""}${
       t.items.length ? "" : " bos"}${t.skipped ? " atlandi" : ""}">
       <h3><span>${esc(t.label)}</span>${t.current
@@ -10623,6 +10649,9 @@ function renderRoadmap(){
           ${(i.externalPrereq || []).length ? `<span class="yhad uyari"
             title="Bu dersin önşartı planlarda bulunmamaktadır; önşartın sağlandığı veya muafiyet olduğu varsayıldı"
             >önşart varsayıldı: ${i.externalPrereq.slice(0, 2).map(esc).join(", ")}</span>` : ""}
+          ${!t.current && (i.past || []).length ? `<span class="yhad gecmis"
+            title="OBS not dağılımına göre; kesin değildir">geçmişte: ${i.past.slice(0, 4).map(g =>
+              `${esc(kisaDonem(g.label))} <span class="mono">(${g.n})</span>`).join(" · ")}</span>` : ""}
         </li>`).join("")}</ul>`
         : t.skipped ? `<div class="empty">Boş bırakılan dönem (Erasmus, staj veya izin);
             bu dönemde İTÜ dersi planlanmamıştır.</div>`
