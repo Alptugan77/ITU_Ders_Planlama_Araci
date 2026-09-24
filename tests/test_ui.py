@@ -776,5 +776,9 @@ def test_floor_panel_counts_only_the_second_program(dbs, tmp_path, monkeypatch,
     import re as _re
     html = UI.render(_collect_with_start(dbs, tmp_path, monkeypatch, 5))
     fn = html[html.index("function renderFloor()"):html.index("function renderLoad()")]
+    # ⚠️ Faz 61: hesap `tabanDurumu`na taşındı (danışman özetiyle ortak).
+    # renderFloor onu çağırıyor; filtre orada.
+    assert "tabanDurumu(F)" in fn
+    td = html[html.index("function tabanDurumu(F)"):html.index("function renderFloor()")]
     # Filtre anadal'ı dışlıyor mu?
-    assert _re.search(r'role\s*!==\s*"ANADAL"', fn), fn[:400]
+    assert _re.search(r'role\s*!==\s*"ANADAL"', td), td[:400]

@@ -1,5 +1,11 @@
 # Kalan eksikler ve geliştirilmesi gerekenler
 
+> **Faz 61'de eklenenler (24.09.2026):** yol haritası **senaryoları** — dönem
+> başına daha az kredi, boş dönem (Erasmus/staj) ✅ · **danışman özeti** —
+> tek sayfa, CRN'ler, kontroller, ölçülen sorunlardan çıkan sorular ✅.
+> Yeni açık kalem: kalıcı "Erasmus dönemi" (öneriyi de etkileyen).
+> Ayrıntı: `docs/faz61-senaryo-ve-danisman.md`.
+
 > **Faz 60'ta kapananlar (24.09.2026):** ★★ Y.8 kayıt günü çevrimdışı —
 > statik site cihazdaki kopyadan açılıyor ve kopyadan açıldığını tarihiyle
 > söylüyor ✅ · Y.7 azami süre kullanıcı tarafından teyit edildi ✅.

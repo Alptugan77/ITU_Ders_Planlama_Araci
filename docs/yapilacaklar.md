@@ -445,6 +445,17 @@ her maddeden önce gelen tek iş.
 > Geri alma deneyi: 10/10 kırmızı.
 > ➜ Ayrıntı: `docs/faz60-cevrimdisi.md`
 >
+> **Faz 61'de kapananlar (24.09.2026 — senaryo ve danışman):** kullanıcı: *"can
+> you continue on your improvements and aditions"*. ★★ Yol haritası
+> **senaryoları**: dönem başına en çok N kredi, boş dönem (Erasmus/staj) —
+> vitrinde 2026-2027 Güz'ü boş bırakmak anadalı bir yıl geciktiriyor,
+> 2025-2026 Bahar'ı bırakmak değiştirmiyor ✅ · ★★ **danışman özeti**: tek
+> sayfa, yalnız o basılıyor; sorular yalnız ölçülen sorunlardan ✅ · ilk
+> sürüm boş sayfa basıyordu (baskı kabı sarmalayıcıdaydı) ✅ · taban hesabı
+> tek yerde (`tabanDurumu`) ✅
+> Geri alma deneyi: 8/8 kırmızı.
+> ➜ Ayrıntı: `docs/faz61-senaryo-ve-danisman.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

@@ -190,7 +190,7 @@ def kur(con: sqlite3.Connection, grades: Mapping[str, str], planlar: list[dict],
         term: str, donem: int, max_load: float, bu_donem: Iterable[dict],
         bu_donem_kaynagi: str = "", equivalences=None,
         taban: POL.SecondFloor | None = None, ufuk: int = UFUK,
-        yaz: str | None = None) -> dict:
+        yaz: str | None = None, bos: Iterable[int] = ()) -> dict:
     """Yol haritası.
 
     `planlar`: `[{"planId", "role", "label", "program"}]` — anadal önce.
@@ -199,6 +199,8 @@ def kur(con: sqlite3.Connection, grades: Mapping[str, str], planlar: list[dict],
     `yaz` (Faz 58): İLK yaz okulunda alınacağı varsayılan tek ders — "ya
     yazın alsaydım" sorusu için. İlk yaz, ilk Bahar'dan sonra gelen yaz:
     bu dönem Güz'se bir sonraki Bahar'ın arkası.
+    `bos` (Faz 61): hiç İTÜ dersi alınmayacak dönemlerin sırası (1 = gelecek
+    dönem) — Erasmus, staj, izin. Yarıyıl sayısına DAHİL sayılıyor.
 
     ⚠️ Bağlantının `row_factory`si çağıranın; burada geçici değişip geri
     konuyor (sunucu `Row`, testler düz demet kullanıyor).
@@ -208,13 +210,14 @@ def kur(con: sqlite3.Connection, grades: Mapping[str, str], planlar: list[dict],
     try:
         return _kur(con, grades, planlar, term=term, donem=donem, max_load=max_load,
                     bu_donem=bu_donem, bu_donem_kaynagi=bu_donem_kaynagi,
-                    equivalences=equivalences, taban=taban, ufuk=ufuk, yaz=yaz)
+                    equivalences=equivalences, taban=taban, ufuk=ufuk, yaz=yaz,
+                    bos=frozenset(int(x) for x in bos))
     finally:
         con.row_factory = eski
 
 
 def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kaynagi,
-         equivalences, taban, ufuk, yaz=None) -> dict:
+         equivalences, taban, ufuk, yaz=None, bos=frozenset()) -> dict:
     equivalences = list(equivalences or [])
     names = {r[0]: r[1] for r in con.execute("SELECT code, name FROM course")}
     siniflama = {r[0]: r[1] for r in con.execute(
@@ -371,6 +374,18 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
         kod = sonraki_donem(kod)
         if not kalan:
             break
+        if t in bos:
+            # ★ Faz 61 — BOŞ DÖNEM (Erasmus, staj, izin): o dönem İTÜ dersi yok.
+            # Kart takvimde KALIYOR ("boş bıraktın") — atmak planı kısa gösterirdi.
+            # ÇAP tabanı eksiği burada yazılmıyor: kararı sen verdin, yönergedeki
+            # istisnayı (izinli dönem) danışmanın bilir; plan onu uydurmuyor.
+            donemler.append({"code": kod, "label": config.donem_adi(kod) or kod,
+                             "index": t, "current": False, "credits": 0,
+                             "items": [], "floorGap": None, "skipped": True})
+            if kod[4:] == "20" and yaz:
+                yaz_yerlestir(t, kod)
+                kalan = [b for b in kalan if b.yer is None]
+            continue
         uygun = [b for b in kalan if alinabilir(b, t, kod, kazanilan)]
         # Öncelik: en uzun zinciri başlatan önce (kritik yol), sonra planın
         # dönem sırası, zorunlu ders seçmeli havuzdan önce.
@@ -506,6 +521,11 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
         "bilinebiliyor. Yaz okulu hesaba katılmadı.",
         "Seçmeli havuzda hangi dersi seçeceğin bilinmediği için havuzun önşartı yok sayıldı.",
     ]
+    if bos:
+        varsayimlar.append(
+            f"{len(bos)} dönemi boş bıraktın (Erasmus/staj/izin): o dönemlerde İTÜ dersi "
+            "yok ve dönem yarıyıl sayısına DAHİL sayıldı — kayıt dondurma sayılmayabilir, "
+            "yurt dışında alınan derslerin denkliği bu hesapta yok.")
     if gecmisten:
         varsayimlar.append(
             f"{gecmisten} dersin açıldığı yarıyıl geçmiş not dağılımından okundu: "

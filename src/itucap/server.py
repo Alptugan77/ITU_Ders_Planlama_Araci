@@ -83,7 +83,7 @@ def can_refresh() -> bool:
 # ekranda göremediği bir hata üretir — sessiz ve bulması zor.
 READ_ONLY_PATHS = frozenset({"/api/katalog", "/api/ders", "/api/crn",
                              "/api/transcript/preview", "/api/capbitis",
-                             "/api/tercih/onizle"})
+                             "/api/tercih/onizle", "/api/yolharitasi"})
 
 
 class State:
@@ -223,6 +223,11 @@ class State:
             return {"capBitis": UI.cap_bitisleri(
                 self.con, self.ucon, self.student_id, self.settings(),
                 b.get("plans") or [], b.get("bu") or [], b.get("maxLoad") or 0)}
+        if path == "/api/yolharitasi":
+            # Faz 61 — yol haritası senaryosu (daha hafif yük, boş dönemler).
+            return {"senaryo": UI.yol_senaryosu(
+                self.con, self.ucon, self.student_id, self.settings(),
+                b.get("bu") or [], b.get("maxLoad") or 0, b.get("bos") or [])}
         if path == "/api/katalog":
             return {"katalog": self.search_catalog(str(b.get("q") or ""))}
         if path == "/api/ders":

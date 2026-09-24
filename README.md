@@ -54,7 +54,12 @@ ders hangisine sayılıyor, hangi önşart açık, bu dönem hangi kombinasyon
   açılmış ders için **"yazın alırsan"** hesabı da var. Bitişin kaçıncı
   yarıyıl olduğu ve azami öğrenim süresi (14 yarıyıl) kartta yazıyor;
   ÇAP başvuru penceresi her program için **"bu ÇAP'la ne zaman bitirirsin"**
-  sorusunu da cevaplıyor. ⚠️ Bir plan, kehanet
+  sorusunu da cevaplıyor. **Senaryo**: "dönemde en çok 18 kredi", "şu dönem
+  Erasmus'tayım" — harita kaydetmeden yeniden kuruluyor ve bugünkü plana göre
+  farkı yazıyor.
+* **Danışman özeti** — görüşmeye götürülecek tek sayfa: bu dönemin programı
+  CRN'leriyle, kredi/taban/GNO kontrolleri, tahmini bitiş ve yalnız ölçülen
+  sorunlardan çıkan **"danışmana sorulacaklar"**. Yalnız o sayfa basılıyor. ⚠️ Bir plan, kehanet
   değil: varsayımları (her ders ilk denemede geçilir, gelecek dönemlerin
   şubesi bilinmiyor, geçen yıl açılması bu yıl açılacağı demek değil)
   haritanın üstünde yazıyor.
