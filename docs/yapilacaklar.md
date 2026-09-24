@@ -520,6 +520,13 @@ her maddeden önce gelen tek iş.
 > danışman özetinde soruluyor ✅
 > ➜ Ayrıntı: `docs/faz70-koyu-tema.md`
 >
+> **Faz 71 (24.09.2026 — dönem sonu not senaryosu):** kullanıcı: *"make the
+> site more usefull and add new features"*. Programdaki her ders için beklenen
+> not seçiliyor → dönem ortalaması, GNO, ÇAP ortalaması, eşikler ✓/✗ ve
+> gelecek dönem kredi sınırı (MADDE 17 bantları) anında ✅ · tekrar alınan
+> dersin eski notu düşülüyor, not seçilmeyen ders hesaba girmiyor ✅
+> ➜ Ayrıntı: `docs/faz71-not-senaryosu.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

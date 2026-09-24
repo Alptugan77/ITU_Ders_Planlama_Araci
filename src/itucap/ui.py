@@ -924,6 +924,10 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             "next": ({"max": load_rule.next_band.max_credits,
                       "minGpa": load_rule.next_band.min_gpa}
                      if load_rule.next_band else None),
+            # ★ Faz 71 — bantların tamamı: not senaryosu gelecek dönemin
+            # sınırını AYNI kurallardan (kurallar.toml) hesaplıyor.
+            "bands": [{"label": b.label, "minGpa": b.min_gpa, "max": b.max_credits}
+                      for b in POL.load_bands()[0]],
         }
 
     # ★ İkinci anadaldan asgari yarıyıl kredisi — MADDE 17'den AYRI kural.
@@ -3140,6 +3144,17 @@ table.cmp .meta.arti{color:var(--ok)}
 .yhdonem .empty{padding:8px 0;text-align:left}
 /* Faz 57 — GNO hedefi (Kredi sınırım). */
 .gnohedef{margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+/* Faz 71 — dönem sonu not senaryosu. */
+.notsenaryo .nsust{margin:6px 0;font-size:var(--fs-sm);color:var(--ink-2)}
+.notsenaryo .nskaydir{overflow-x:auto}
+.nstablo{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+.nstablo th{text-align:left;color:var(--ink-3);font-weight:600;padding:4px 8px;
+  border-bottom:1px solid var(--border-strong)}
+.nstablo td{padding:4px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
+.nstablo .sayi{text-align:right}
+.nstablo select,.notsenaryo .nsust select{min-height:32px}
+.nssonuc{margin-top:10px;display:grid;gap:4px;font-size:var(--fs-md)}
+.nsesik{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
 .gnobaslik{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin-bottom:6px}
 .gnosatir{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;
   padding:8px 0;border-top:1px solid var(--border);font-size:var(--fs-md)}
@@ -3713,6 +3728,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
   <h2 style="margin-bottom:14px">Kredi ve not eşikleri</h2>
   <div id="gpaBody"></div>
   <div id="gnoHedefBody"></div>
+  <div id="notSenaryoBody"></div>
   <div id="loadBody"></div>
   <div id="floorBody"></div>
   <div id="creditBody"></div>
@@ -5849,6 +5865,140 @@ function renderGnoHedef(){
   </div>`;
 }
 
+/* ★★ FAZ 71 — DÖNEM SONU NOT SENARYOSU ("bu notları alırsam ne olur").
+   GNO hedefi soruyu tersinden soruyordu (eşik için hangi ortalama gerekir);
+   öğrencinin kurduğu cümle ise "MAT 210E'den CC, BLG 223E'den BB alırsam
+   GNO'm, ÇAP ortalamam ve gelecek dönem kredi sınırım ne olur". Taban GNO
+   hedefiyle AYNI (`gnoTabani`: tekrar alınan dersin eski notu düşülür);
+   eşikler `DATA.gpa.thresholds`, kredi sınırı `DATA.load.bands`
+   (kurallar.toml). Seçimler yalnız bu tarayıcıda hatırlanır (kolaylık);
+   hiçbir kayda yazılmaz. */
+let NOT_SENARYO = null;
+function notSenaryo(){
+  if(NOT_SENARYO) return NOT_SENARYO;
+  try{ NOT_SENARYO = JSON.parse(localStorage_get("notSenaryo") || "{}") || {}; }
+  catch(e){ NOT_SENARYO = {}; }
+  return NOT_SENARYO;
+}
+const NS_PUAN = Object.fromEntries(HARF_PUAN);
+const yuvarla2 = (x) => Math.round(x * 100 + 1e-9) / 100;
+function senaryoHesapla(secili, notlar){
+  const g = DATA.gpa || {};
+  const notlu = secili.filter(p => notlar[p.cand.course] in NS_PUAN);
+  const kr = (l) => l.reduce((a, p) => a + p.cand.credits, 0);
+  const pu = (l) => l.reduce((a, p) => a + p.cand.credits * NS_PUAN[notlar[p.cand.course]], 0);
+  const T = kr(notlu);
+  const r = {notlu, eksik: secili.length - notlu.length, T, donem: T ? pu(notlu) / T : null,
+             gno: null, ikinci: null};
+  if(g.counted && T){
+    const b = gnoTabani(g.credits, g.points, notlu);
+    r.gno = (b.P + pu(notlu)) / (b.C + T);
+  }
+  const ik = (g.secondGpa || [])[0];
+  if(ik){
+    const kod = new Set(ik.codes);
+    const l = notlu.filter(p => kod.has(p.cand.course));
+    const b = gnoTabani(ik.credits, ik.points, l);
+    r.ikinciAd = ik.label;
+    r.ikinciSimdi = ik.credits ? ik.points / ik.credits : null;
+    r.ikinci = (b.C + kr(l)) ? (b.P + pu(l)) / (b.C + kr(l)) : r.ikinciSimdi;
+  }
+  return r;
+}
+/* Yönetmeliğin GNO bantlarından sınır — `policy.load_limit` ile aynı kural:
+   GNO'nun tuttuğu bantların en yükseği. */
+function bantSiniri(gno){
+  const B = (DATA.load && DATA.load.bands) || [];
+  const tutan = B.filter(b => gno + 1e-9 >= b.minGpa);
+  return tutan.length ? Math.max(...tutan.map(b => b.max)) : null;
+}
+function renderNotSenaryo(odak){
+  const kutu = $("#notSenaryoBody");
+  if(!kutu) return;
+  const g = DATA.gpa;
+  const secili = picks().filter(p => (p.cand.credits || 0) > 0);
+  if(!g || !secili.length){ kutu.innerHTML = ""; return; }
+  const notlar = notSenaryo();
+  const r = senaryoHesapla(secili, notlar);
+  const secim = (c) => `<select class="nssec" data-ns="${esc(c)}"
+      aria-label="${esc(c)} için beklenen not"><option value="">—</option>${
+      HARF_PUAN.slice().reverse().map(([h]) =>
+        `<option${notlar[c] === h ? " selected" : ""}>${h}</option>`).join("")}</select>`;
+  const satirlar = secili.map(p => {
+    const rt = (g.retake || {})[p.cand.course];
+    return `<tr><td class="mono">${esc(p.cand.course)}</td>
+      <td>${esc(p.cand.name || "")}${rt ? ` <span class="chip unknown"
+        title="Eski not ortalamadan düşülür; son alınan not geçerlidir">tekrar · eski ${
+        esc(rt.grade)}</span>` : ""}</td>
+      <td class="mono sayi">${p.cand.credits}</td><td>${secim(p.cand.course)}</td></tr>`;
+  }).join("");
+  const ok = (v, min) => yuvarla2(v) + 1e-9 >= min;
+  const icinde = new Set(SECONDS().map(x => x.kind));
+  const esikler = !r.T ? [] : (g.thresholds || [])
+    .filter(t => t.min > 0 && !(t.kind === "basvuru" && icinde.has(t.scope)))
+    .map(t => {
+      const v = t.basis === "ikinci anadal" ? r.ikinci : r.gno;
+      return v === null ? "" : `<span class="chip ${ok(v, t.min) ? "credit" : "supply"}">${
+        esc(t.label)} ≥ ${t.min.toFixed(2)} ${ok(v, t.min) ? "✓" : "✗"}</span>`;
+    }).join("");
+  const L = DATA.load || {};
+  const simdiSinir = L.max || null;
+  const sonraSinir = r.gno !== null && DATA.unit === "kredi" ? bantSiniri(yuvarla2(r.gno)) : null;
+  const ok2 = (a, b) => `<b class="mono">${a}</b>${b !== undefined && b !== null
+    ? ` <span aria-hidden="true">→</span> <b class="mono">${b}</b>` : ""}`;
+  const sonuc = !r.T
+    ? `<div class="meta">Sonucu görmek için en az bir ders için beklenen notu seçiniz.</div>`
+    : `<div class="nssonuc">
+        <div>Dönem ortalaması: <b class="mono">${r.donem.toFixed(2)}</b>
+          <span class="meta">(${r.notlu.length} ders, ${r.T} kredi)</span></div>
+        <div>GNO (tahmini): ${g.counted ? ok2(g.value.toFixed(2), yuvarla2(r.gno).toFixed(2))
+          : `<span class="meta">bilinmemektedir; harf notu girilmiş ders bulunmadığından
+             yalnızca dönem ortalaması hesaplanmıştır.</span>`}</div>
+        ${r.ikinciAd ? `<div>${esc(r.ikinciAd)} ortalaması: ${r.ikinciSimdi === null
+          ? (r.ikinci === null ? `<span class="meta">henüz hesaplanamamaktadır</span>`
+             : ok2("—", yuvarla2(r.ikinci).toFixed(2)))
+          : ok2(r.ikinciSimdi.toFixed(2), r.ikinci === null ? null : yuvarla2(r.ikinci).toFixed(2))}</div>` : ""}
+        ${sonraSinir ? `<div>Gelecek dönem kredi sınırı (yönetmelik): ${
+          ok2(simdiSinir || "—", sonraSinir)} kredi</div>` : ""}
+        ${esikler ? `<div class="nsesik">${esikler}</div>` : ""}
+        ${r.eksik ? `<div class="meta">${r.eksik} ders için not seçilmediğinden hesaba
+          katılmamıştır.</div>` : ""}
+      </div>`;
+  kutu.innerHTML = `<div class="gnohedef notsenaryo">
+    <div class="gnobaslik"><b>Dönem sonu not senaryosu</b>
+      <span class="meta">programdaki dersler için beklenen notları seçiniz; sonuç
+        anında hesaplanır, hiçbir kayda yazılmaz</span></div>
+    <div class="nsust"><label>Tümüne uygula:
+      <select id="nsHepsi" aria-label="Tüm derslere aynı notu uygula"><option value="">seçiniz</option>
+        ${HARF_PUAN.slice().reverse().map(([h]) => `<option>${h}</option>`).join("")}
+        <option value="temizle">temizle</option></select></label></div>
+    <div class="nskaydir"><table class="nstablo"><thead><tr><th>Ders</th><th>Ad</th>
+      <th class="sayi">Kredi</th><th>Beklenen not</th></tr></thead>
+      <tbody>${satirlar}</tbody></table></div>
+    ${sonuc}
+    <div class="meta gnonot">Hesap tahminidir: GNO transkriptten alınmıştır; tekrar
+      alınan derste eski not yerine yeni not sayılır. Kredi sınırı İTÜ Lisans Eğitim ve
+      Öğretim Yönetmeliği MADDE 17'deki GNO bantlarından hesaplanır.</div>
+  </div>`;
+  kutu.querySelectorAll(".nssec").forEach(s => s.addEventListener("change", () => {
+    if(s.value) notlar[s.dataset.ns] = s.value; else delete notlar[s.dataset.ns];
+    localStorage_set("notSenaryo", JSON.stringify(notlar));
+    renderNotSenaryo(s.dataset.ns);        // yeniden çizim odağı kaybettirmesin
+  }));
+  if(odak){
+    const hedef = [...kutu.querySelectorAll(".nssec")].find(x => x.dataset.ns === odak)
+      || (odak === "*" ? $("#nsHepsi") : null);
+    if(hedef) hedef.focus();
+  }
+  const hep = $("#nsHepsi");
+  if(hep) hep.addEventListener("change", () => {
+    secili.forEach(p => { if(hep.value === "temizle") delete notlar[p.cand.course];
+                          else if(hep.value) notlar[p.cand.course] = hep.value; });
+    localStorage_set("notSenaryo", JSON.stringify(notlar));
+    renderNotSenaryo("*");
+  });
+}
+
 /* Kalan-ders satırının dayandığı şey — sayı ile birlikte yazılıyor. */
 function kalanNotu(g){
   const R = (g.remaining || {}).genel;
@@ -7889,6 +8039,7 @@ function render(){
   renderSaveState();
   renderFloor();
   renderGnoHedef();          // Faz 57 — seçim değişince gereken ortalama da
+  renderNotSenaryo();        // Faz 71 — dönem sonu not senaryosu
   renderArzUyarisi();
   renderDonemUyarisi();
   renderGeri();
