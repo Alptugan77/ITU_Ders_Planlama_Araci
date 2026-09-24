@@ -162,7 +162,11 @@ def test_KURULUM_isleri_VARSAYILAN_kipe():
     assert "applyState(await fn(), secenek);" in _fn("save")
     assert "const i = onceki.varsayilan ? -1 : MODES.findIndex(" in _fn("boot")
     # Tercih ve meşgul saat öneriyi değiştiriyor ama DURUMU değil: kip korunur.
-    assert KAYNAK.count("}), {});") >= 2
+    # ⚠️ Faz 59: tercih gövdesi `govde()`ye taşındı (önizlemeyle ortak); eskiden
+    # burada `}), {});` kalıbı SAYILIYORDU — biçim değişince kural bozulmuş
+    # gibi görünüyordu. Artık iki çağrının kendisi aranıyor.
+    assert 'save(() => api("/api/tercih", govde()), {});' in KAYNAK
+    assert 'label: $("#fAd").value}), {});' in KAYNAK       # meşgul saat
 
 
 # ===================================================== 3. tarih

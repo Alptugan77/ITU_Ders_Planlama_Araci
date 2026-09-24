@@ -471,6 +471,10 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             "program": plan.get("program", ""),
             "remaining": len(onun), "remainingCredits": round(sum(b.kredi for b in onun), 1),
             "finish": None if kalmayan or son is None else etiket(son),
+            # Faz 59 — bitişin öğrencinin kaçıncı yarıyılı olduğu (yaz sayılmıyor;
+            # bu dönem = `donem`). Dönem bilinmiyorsa None — tahmin yok.
+            "finishSemester": (donem + son if donem and not kalmayan and son is not None
+                               else None),
             "unplaced": len(kalmayan),
             "chain": max((b.yukseklik for b in onun if b.yer != 0), default=0),
         })

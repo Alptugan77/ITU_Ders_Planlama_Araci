@@ -22,7 +22,9 @@ ders hangisine sayılıyor, hangi önşart açık, bu dönem hangi kombinasyon
 çakışmıyor, kredi tavanını aşıyor muyum. Araç bunları hesaplıyor:
 
 * **Çakışmasız program önerisi** — açık şubeleri, önşartları, kredi tavanını
-  ve kritik yolu birlikte değerlendirip haftalık program kuruyor.
+  ve kritik yolu birlikte değerlendirip haftalık program kuruyor. Tercihlerin
+  (erken saat, boş gün, kampüs, hoca) sıralamayı etkiliyor ve **kaydetmeden
+  denenebiliyor**: 1. önerinin nasıl değişeceği yan yana gösteriliyor.
 * **İlerleme paneli** — anadal ve ikinci program ayrı ayrı; "bu dönemi
   bitirirsen nerede olursun" taramalı katmanla gösteriliyor.
 * **Önşart motoru** — katalog metnini ayrıştırıp (`MAT 103 MIN DD veya ...`)
@@ -49,7 +51,10 @@ ders hangisine sayılıyor, hangi önşart açık, bu dönem hangi kombinasyon
   yazıyor — yük sınırını aşıyorsa hangi dersin çıkabileceğiyle. Planda
   mevsimi olmayan dersin mevsimi geçmiş not dağılımından okunuyor
   (bütünleme için açılan birkaç kişilik not listesi sayılmadan); geçen yaz
-  açılmış ders için **"yazın alırsan"** hesabı da var. ⚠️ Bir plan, kehanet
+  açılmış ders için **"yazın alırsan"** hesabı da var. Bitişin kaçıncı
+  yarıyıl olduğu ve azami öğrenim süresi (14 yarıyıl) kartta yazıyor;
+  ÇAP başvuru penceresi her program için **"bu ÇAP'la ne zaman bitirirsin"**
+  sorusunu da cevaplıyor. ⚠️ Bir plan, kehanet
   değil: varsayımları (her ders ilk denemede geçilir, gelecek dönemlerin
   şubesi bilinmiyor, geçen yıl açılması bu yıl açılacağı demek değil)
   haritanın üstünde yazıyor.
@@ -106,6 +111,11 @@ paketinin parçası. Gerekçe ve ölçümler: `docs/faz56-tasarim-sistemi-v2.md`
   ya da cihaz değiştirirsen gider — Ayar görünümündeki **Yedeğini indir**
   bir JSON dosyası veriyor, yeni cihazda ilk karttan "yedeğinden devam et"
   ile geri yükleniyor (ikisi de tamamen tarayıcıda).
+* **Kayıt günü bağlantı yoksa da açılıyor.** Web sürümü bir kez açıldıktan
+  sonra kendi dosyalarının (sayfa, motor, katalog, Pyodide) kopyasını
+  tarayıcıda tutuyor; başka hiçbir yere dokunmuyor. Kopyadan açılınca sayfa
+  bunu **verinin tarihiyle** söylüyor — eski kontenjan canlıymış gibi
+  gösterilmiyor.
 * Yerel sürümde notların yalnız `data/user.sqlite3` dosyasında; `data/`
   klasörünün tamamı **`.gitignore`da**.
 * Ders kataloğu (`data/reference.sqlite3`) herkese açık veri, ayrı dosyada.

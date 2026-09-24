@@ -311,6 +311,9 @@ async function dosyaYaz(py, hedef, yol, ikili = false){
 
 async function katalogYukle(py, manifest){
   const res = await fetch("./" + manifest.catalog.file);
+  /* Faz 60 — katalog cihazdaki kopyadan geldiyse (sw.js işaretliyor) sayfa
+     bunu SÖYLEYECEK: eski kontenjanı canlıymış gibi göstermemek için. */
+  if(res.headers.get("X-Itucap-Onbellek")) window.__ITUCAP_ONBELLEK__ = true;
   if(!res.ok) throw new Error("katalog alınamadı");
   let buf;
   if(typeof DecompressionStream === "function"){
@@ -358,6 +361,17 @@ function domHazir(){
     ? new Promise(ok => document.addEventListener("DOMContentLoaded", ok,
                                                   {once: true}))
     : Promise.resolve();
+}
+
+/* ★★ FAZ 60 — ÇEVRİMDIŞI KATMAN (fikirler Y.8). Site AÇILDIKTAN sonra
+   kaydediliyor: ilk ziyarette büyük indirmeyle yarışmasın, önbelleğe alma
+   tarayıcının HTTP önbelleğinden beslensin. Yalnız güvenli bağlamda
+   (https ya da localhost) — tarayıcı başka türlü izin vermiyor zaten. */
+function cevrimdisiKatmanKur(){
+  if(!("serviceWorker" in navigator) || !window.isSecureContext) return;
+  navigator.serviceWorker.register("./sw.js").catch(() => {
+    /* Kayıt olmazsa site yine çalışıyor; yalnız çevrimdışı açılmıyor. */
+  });
 }
 
 /* ------------------------------------------------------------------ boot */
@@ -580,6 +594,7 @@ def _cagir(path, govde):
   window.__ITUCAP_APPLY__(data);
   const yuk = el("yukleniyor");
   if(yuk) yuk.remove();
+  cevrimdisiKatmanKur();                  // Faz 60 — ancak her şey açıldıktan sonra
   console.log(`[itucap] hazır ${((performance.now()-t0)/1000).toFixed(1)}s`,
               vardi ? "(kayıtlı veri geri yüklendi)" : "(ilk ziyaret)");
 }

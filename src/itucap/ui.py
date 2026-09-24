@@ -1393,11 +1393,95 @@ def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
                                "credits": a["credits"], "history": a["history"],
                                "term": yeni["summer"]["label"], "gains": kazanc})
         sonuc["summerGains"] = yazlar
+        # Faz 59 — azami öğrenim süresi (beyan edilmişse; doğrulanma durumuyla).
+        az = POL.load_max_duration()
+        sonuc["maxDuration"] = ({"semesters": az.semesters, "verified": az.verified,
+                                 "source": az.source, "note": az.note} if az else None)
         return sonuc
     except Exception as exc:                            # noqa: BLE001
         # Harita yardımcı bir görünüm: kurulamazsa sayfanın geri kalanı
         # açılmalı — ama sessiz değil, sebebi görünümde yazıyor.
         return {"error": f"{type(exc).__name__}: {exc}"}
+
+
+def cap_bitisleri(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
+                  settings, plan_ids: list, bu_donem: list[dict],
+                  max_load: float) -> dict:
+    """Faz 59 — "Ya ÇAP'ı şu bölümde yapsaydım?" (fikirler Y.1).
+
+    Başvuru penceresi her ÇAP programı için "sende sayılan ders" sayısını
+    veriyordu; asıl soruyu — **ne zaman biterim** — cevaplamıyordu. Yol
+    haritası motoru herhangi bir plan listesiyle çalışıyor: anadal + aday
+    ÇAP planı birlikte kuruluyor.
+
+    Varsayımlar (arayüz yazıyor): ÇAP'a **bir sonraki yarıyıl** başlanıyor
+    (yarıyıl tabanı ona göre); bu dönem yol haritasındaki dersler alınıyor;
+    başvurunun kabulü, kontenjan ve sıralama şartı bu hesapta YOK. Şu anki
+    ÇAP/yandal plana girmiyor — soru "onun yerine bu olsaydı".
+
+    ⚠️ Salt okunur ve istek üzerine (`/api/capbitis`): 60 programı sayfa
+    açılırken kurmak statik sitede (Pyodide) saniyeler sürerdi.
+    """
+    from .plans import anadal_plan
+    anadal_id = anadal_plan(con, settings)
+    term = str(settings.term or "")
+    if not anadal_id or len(term) != 6:
+        raise ValueError("anadal planı ya da dönem bilinmiyor")
+    try:
+        max_load = float(max_load)
+    except (TypeError, ValueError):
+        raise ValueError("kredi sınırı geçersiz") from None
+    if not 1 <= max_load <= 60:
+        raise ValueError("kredi sınırı geçersiz")
+    grades = S.grades(ucon, student_id)
+    equivalences = R.load_equivalences(con, ucon=ucon)
+    donem = int(settings.donem or 0)
+    taban = POL.second_floor(donem + 1) if donem else None
+    bu = [{"course": str(x.get("course") or ""), "credits": float(x.get("credits") or 0),
+           "slotId": 0, "role": str(x.get("role") or "")}
+          for x in (bu_donem or [])[:20] if x.get("course")]
+    anadal = {"planId": anadal_id, "role": "ANADAL", "label": "anadal",
+              "program": settings.anadal_program}
+
+    def kur(planlar):
+        return YH.kur(con, grades, planlar, term=term, donem=donem, max_load=max_load,
+                      bu_donem=bu, equivalences=equivalences, taban=taban)
+
+    def bitis(h, rol):
+        p = next((p for p in h["programs"] if p["role"] == rol), None)
+        return p, ((p or {}).get("finish") or {}).get("index")
+
+    _, yalniz = bitis(kur([anadal]), "ANADAL")
+    sonuc = {}
+    for pid in list(plan_ids or [])[:60]:
+        try:
+            pid = int(pid)
+        except (TypeError, ValueError):
+            continue
+        row = con.execute("SELECT program_code FROM plan WHERE id=? AND plan_type='cap'",
+                          (pid,)).fetchone()
+        if not row:
+            continue
+        h = kur([anadal, {"planId": pid, "role": "CAP", "label": "ÇAP",
+                          "program": row[0]}])
+        cap, cap_i = bitis(h, "CAP")
+        _, ana_i = bitis(h, "ANADAL")
+        sonuc[str(pid)] = {
+            "finish": cap["finish"] if cap else None,
+            "finishSemester": cap.get("finishSemester") if cap else None,
+            "remaining": cap["remaining"] if cap else 0,
+            # ⚠️ Kalan KREDİ bilerek yok: başvuru penceresi onu göstermiyor
+            # (22.08.2026 — havuz slotlarının kredisi programdan programa farklı).
+            "unplaced": cap["unplaced"] if cap else 0,
+            # ÇAP anadalı geciktiriyor mu — yalnız anadalla kurulan haritaya göre.
+            "anadalDelay": (ana_i - yalniz if ana_i is not None and yalniz is not None
+                            else None),
+            "floorShort": sum(1 for t in h["terms"] if t.get("floorGap")),
+            "unknownSeason": h["unknownSeason"],
+        }
+    return {"startTerm": donem + 1 if donem else None,
+            "floor": taban.minimum if taban else None,
+            "anadalAlone": yalniz, "results": sonuc}
 
 
 def _plan_uyarisi(con, settings) -> str:
@@ -2882,6 +2966,13 @@ table.cmp .meta.arti{color:var(--ok)}
 .gnoyok{color:var(--danger);font-weight:600}
 .gnohedef .meta{font-size:var(--fs-sm);color:var(--ink-3);line-height:var(--lh-normal)}
 .gnonot{margin-top:8px}
+/* Faz 60 — çevrimdışı şeridi (kopyadan açılan sayfa canlı değil). */
+.note.cevrimdisi{border-left-color:var(--warn);margin:8px 0}
+/* Faz 59 — tercih önizlemesi. */
+.tercihonizle{margin-top:14px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.tercihsonuc{margin-top:6px;align-self:stretch;display:flex;flex-direction:column;gap:6px}
+.tercihdegisim{font-size:var(--fs-md)}
+.tercihonizle .hint{font-size:var(--fs-sm);color:var(--ink-3);line-height:var(--lh-normal)}
 .yhuyari{font-size:var(--fs-sm);color:var(--warn);margin-top:6px}
 
 /* Bölüm çubuğu — yapışkan, tek satır, dar ekranda yana kayıyor. */
@@ -3223,7 +3314,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
      aynı Cmd+P aynı kâğıdı vermeli. */
   #panels,#savedSection,
   #tierSection,#roadmapSection,#creditSection,.tabs,#notime .blockitem button,
-  #arzUyari,#ayarHatasi,dialog,
+  #arzUyari,#ayarHatasi,#cevrimdisiNot,dialog,
   /* ★★ FAZ 48 — Faz 46/47'nin KABUĞU KÂĞIDA SIZIYORDU (taramada ölçüldü).
      `.govde` iki sütunlu ızgara: ray `display:none` olsa bile 216px'lik
      SÜTUN duruyordu; `.prgduzen` de 240px'lik bağlam sütununu ayırıyordu.
@@ -3294,6 +3385,8 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 
 <!-- D1: bozuk ayar dosyası. Sayfa açılıyor ama ne olduğu yazıyor. -->
 <div class="note ayarhata" id="ayarHatasi" hidden></div>
+<!-- Faz 60: çevrimdışı ya da cihazdaki kopyadan açıldı — veri canlı değil. -->
+<div class="note cevrimdisi" id="cevrimdisiNot" role="status" hidden></div>
 
 <!-- ★ İLK ZİYARET. Program seçilmemişken rapor GÖSTERİLMİYOR: seçilmemiş
      bir bölümün dolu haftalık programı, aracın söyleyebileceği en yanlış şey. -->
@@ -3775,6 +3868,26 @@ function veriYasiMetni(){
   const g = t === 0 ? "bugün" : (t === 1 ? "dün" : `${t} gün önce`);
   return `şube/kontenjan verisi ${g} tazelendi (${A.raw})`;
 }
+
+/* ★★ FAZ 60 — ÇEVRİMDIŞI AÇILDIYSA SÖYLE (fikirler Y.8).
+   Statik site artık cihazdaki kopyadan da açılıyor (`sw.js`). Kayıt günü
+   bu hayat kurtarır — ama kontenjan sayısı kopyanın tazelendiği ana ait.
+   Onu canlıymış gibi göstermek, bu aracın baştan beri yapmadığı şey:
+   katalog kopyadan geldiyse ya da bağlantı yoksa şerit tarihiyle yazıyor.
+   Yalnız statik sitede (`make app` her zaman canlı veriyle çalışıyor). */
+function cevrimdisiDurumu(){
+  const el = $("#cevrimdisiNot");
+  if(!el) return;
+  const kopya = !!window.__ITUCAP_ONBELLEK__;
+  const agYok = !!window.__ITUCAP_API__ && navigator.onLine === false;
+  el.hidden = !(kopya || agYok);
+  if(el.hidden) return;
+  el.innerHTML = `<b>${agYok ? "Bağlantı yok" : "Cihazdaki kopyadan açıldı"}</b> —
+    planın, CRN'lerin ve yedeklerin burada; ama ${esc(veriYasiMetni())}.
+    Kontenjan kayıt ekranında değişmiş olabilir: <b>CRN'leri OBS'de doğrula</b>.`;
+}
+addEventListener("online", cevrimdisiDurumu);
+addEventListener("offline", cevrimdisiDurumu);
 
 /* ---------- kısa bildirim ----------
    ★ Bölüm gizliyken sonucun yazılacağı bir yer gerekiyordu. `alert` iki
@@ -4552,7 +4665,13 @@ function tercihDialog(){
         <span class="hint">Ad parçası yeter. Virgülle ayır.
           ⚠️ 3417 şubenin 887'sinde hoca ilan edilmemiş — onlar hiçbir
           tercihe uymaz, ne artı ne eksi alır.</span></label>
-    </details>`, () => {
+    </details>
+    <div class="tercihonizle">
+      <button class="ghost" id="fOnizle" type="button">Kaydetmeden dene</button>
+      <span class="hint">1. önerinin bu tercihlerle nasıl değişeceğini gösterir;
+        hiçbir şey kaydedilmez.</span>
+      <div id="fOnizleSonuc" aria-live="polite"></div>
+    </div>`, () => {
     $("#fErken").querySelectorAll("button").forEach(b =>
       b.addEventListener("click", () => {
         erken = +b.dataset.v;
@@ -4568,18 +4687,64 @@ function tercihDialog(){
         b.setAttribute("aria-pressed", gunler.has(v));
         say("");
       }));
-    $("#setupSave").addEventListener("click", () => {
+    /* Kaydet ve "Kaydetmeden dene" AYNI gövdeyi gönderiyor — iki ayrı
+       toplama yolu ayrışırsa önizleme başka bir şeyi denemiş olurdu. */
+    const govde = () => {
       const ayir = (id) => $(id).value.split(",").map(s => s.trim()).filter(Boolean);
-      save(() => api("/api/tercih", {
-        enErken: erken,
-        bosGunler: [...gunler],
-        kampus: $("#fKampus").checked,
-        cevrimici: $("#fOnline").checked,
-        istenenHocalar: ayir("#fHocaVar"),
-        istenmeyenHocalar: ayir("#fHocaYok"),
-      }), {});                        // kip korunur (Faz 54)
+      return {enErken: erken, bosGunler: [...gunler],
+              kampus: $("#fKampus").checked, cevrimici: $("#fOnline").checked,
+              istenenHocalar: ayir("#fHocaVar"), istenmeyenHocalar: ayir("#fHocaYok")};
+    };
+    $("#setupSave").addEventListener("click", () => {
+      save(() => api("/api/tercih", govde()), {});   // kip korunur (Faz 54)
+    });
+    $("#fOnizle").addEventListener("click", async () => {
+      const btn = $("#fOnizle"), bitti = dugmeMesgul(btn, "hesaplanıyor…");
+      try{
+        const r = await api("/api/tercih/onizle", {...govde(), mode: M().key});
+        $("#fOnizleSonuc").innerHTML = tercihOnizleme((M().schedules || [])[0],
+                                                      r.onizleme && r.onizleme.schedule);
+      }catch(err){
+        $("#fOnizleSonuc").innerHTML = `<div class="note ayarhata">Denenemedi —
+          ${esc(err.message || String(err))}</div>`;
+      }finally{ bitti(); }
     });
   });
+}
+
+/* ★★ FAZ 59 — TERCİHİ KAYDETMEDEN DENE (fikirler §3.6).
+   Tercihin bedelini görmek için kaydedip ana ekrana bakmak, beğenmezsen
+   pencereyi yeniden açıp geri almak gerekiyordu. Sunucu ayarların
+   BELLEKTEKİ kopyasıyla raporu kuruyor (`/api/tercih/onizle`, salt okunur);
+   burada bugünkü 1. öneriyle yan yana: hangi ders/şube değişiyor, haftanın
+   şekli, tercih puanı ve — karşılanamıyorsa — ne bırakılmalı. */
+function tercihOnizleme(once, sonra){
+  if(!sonra) return `<div class="note tercihsonuc">Bu tercihlerle hiç program
+    kurulamadı — tercihler eleme yapmaz, sebep başka bir kısıt olmalı.</div>`;
+  const o = new Map(((once && once.picks) || []).map(p => [p.course, p.section.crn]));
+  const y = new Map(sonra.picks.map(p => [p.course, p.section.crn]));
+  const degisim = [
+    ...[...y.keys()].filter(k => !o.has(k)).map(k => `+ <b class="mono">${esc(k)}</b>`),
+    ...[...o.keys()].filter(k => !y.has(k)).map(k => `− <b class="mono">${esc(k)}</b>`),
+    ...[...y.keys()].filter(k => o.has(k) && o.get(k) !== y.get(k)).map(k =>
+      `<b class="mono">${esc(k)}</b> şubesi <span class="mono">${esc(o.get(k))} → ${
+        esc(y.get(k))}</span>`)];
+  const sekil = (x) => {
+    const s = x && x.shape;
+    if(!s || s.earliest == null) return "—";
+    return `${s.days.length} gün · <span class="mono">${hhmm(s.earliest)}–${hhmm(s.latest)}</span>
+      · boş gün: ${(s.freeDays || []).map(d => DAYS[d - 1]).join(" ") || "yok"}`;
+  };
+  const d = sonra.prefDelta || 0;
+  return `<div class="note tercihsonuc">
+    <b>1. öneri bu tercihlerle</b>${degisim.length ? "" : " — <b>değişmiyor</b>"}
+    ${degisim.length ? `<div class="tercihdegisim">${degisim.join(" · ")}</div>` : ""}
+    <div class="meta">şimdi: ${sekil(once)}<br>bu tercihlerle: ${sekil(sonra)}</div>
+    ${(sonra.prefReasons || []).length ? `<div>Tercih puanı <b class="mono">${
+      d > 0 ? "+" : ""}${d}</b>: ${sonra.prefReasons.map(esc).join(" · ")}</div>`
+      : `<div>Tercihlerin bu öneride tam karşılanıyor ✓</div>`}
+    ${tercihCaresi(sonra)}
+    <div class="meta">Kaydedilmedi — beğendiysen “Kaydet”.</div></div>`;
 }
 
 /* ---------- 2. dönem seçimi ---------- */
@@ -8899,6 +9064,25 @@ function renderSecNav(){
    hiçbir yerde yazmıyordu.
    ⚠️ Varsayımlar planın ÜSTÜNDE ve görünür: gelecek dönemlerin arzı
    bilinmiyor; bilinmeyeni bilinen gibi göstermemenin tek yolu söylemek. */
+/* ★ FAZ 59 — BİTİŞ KAÇINCI YARIYIL, AZAMİ SÜREYİ AŞIYOR MU.
+   Öğrenci süreyi dönem adıyla değil yarıyıl sayısıyla düşünüyor ("10.
+   yarıyılda biter"). Azami süre (`kurallar.toml` [azami_sure]) yalnız
+   ANADAL için karşılaştırılıyor: ÇAP'ın kendi süre kuralını doğrulamadık,
+   uydurmuyoruz. Doğrulanmamış sayı ⚠ ile ve kaynağıyla. */
+function yariyilSatiri(p, md){
+  if(!p.finishSemester) return "";
+  const anadal = p.role === "ANADAL";
+  const isaret = md && !md.verified ? " ⚠" : "";
+  const baslik = md ? esc([md.source, md.verified ? "" : "doğrulanmadı", md.note]
+    .filter(Boolean).join(" · ")) : "";
+  const asti = anadal && md && p.finishSemester > md.semesters;
+  return `<div class="yhalt"><span class="mono">${p.finishSemester}</span>. yarıyılında${
+    anadal && md ? ` · <span class="aciklamali" title="${baslik}">azami ${
+      md.semesters}${isaret}</span>` : ""}</div>${asti ? `<div class="yhgec">azami öğrenim
+      süresini <span class="mono">${p.finishSemester - md.semesters}</span> yarıyıl
+      aşıyor — danışmanınla konuş</div>` : ""}`;
+}
+
 function renderRoadmap(){
   const sec = $("#roadmapSection"), R = DATA.roadmap;
   if(!sec) return;
@@ -8925,6 +9109,7 @@ function renderRoadmap(){
         ? `<div class="yhgec">planındaki bitişten ${gec} dönem geç
              (${esc(p.nominal.label)})</div>`
         : `<div class="yhzamaninda">planındaki bitişle aynı ✓</div>`)}
+      ${yariyilSatiri(p, R.maxDuration)}
     </article>`;
   }).join("");
   const simdi = (R.takeNow || []).length ? `<div class="note yhsimdi">
@@ -9130,25 +9315,40 @@ function renderBasvuruBody(){
      ve havuz slotlarının kredisi programdan programa farklı sayılıyor.
      Denklik kapsamı düzeltildi ama kredi hâlâ duramayacağımız bir tahmin.
      Yerine SAĞLAM olan duruyor: birebir kodu tutan, geçilmiş ders sayısı. */
-  const rows = s.options.map(o => `
+  /* ★ Faz 59 — "tahmini bitiş" sütunu yalnız ÇAP'ta ve hesaplanabiliyorsa
+     (yol haritası var, uç çağrılabiliyor). Sonuç gelene kadar "hesaplanıyor". */
+  const bitisVar = basvuruKind === "cap" && capBitisHesaplanabilir();
+  const cb = bitisVar && CAP_BITIS && CAP_BITIS.veri;
+  const sirali = s.options.slice();
+  if(cb && BASVURU_SIRA === "bitis"){
+    const ix = o => { const r = cb.results[String(o.planId)];
+      return r && r.finish ? r.finish.index : 99; };
+    sirali.sort((a, b) => ix(a) - ix(b));
+  }
+  const rows = sirali.map(o => `
     <tr><td class="mono"><b>${esc(o.code)}</b></td>
       <td>${esc(o.name)}<div class="why">${esc(o.iteration || o.planTitle)}</div></td>
       <td class="mono">${o.slotsTotal}</td>
       <td class="mono">${o.alreadyCount
         ? `<b style="color:var(--ok)">${o.alreadyCount}</b>` : "0"}
         ${o.alreadyCount ? `<div class="why mono">${o.already.slice(0,4).map(esc).join(", ")}${
-          o.alreadyCount > 4 ? " …" : ""}</div>` : ""}</td></tr>`).join("");
+          o.alreadyCount > 4 ? " …" : ""}</div>` : ""}</td>
+      ${bitisVar ? `<td data-bitis="${esc(String(o.planId))}">${capBitisHucre(o.planId)}</td>` : ""}</tr>`).join("");
 
   $("#basvuruBody").innerHTML = `
     <div class="note" style="margin:12px 0">${verdict}</div>
     <div class="blocklist" style="margin-bottom:16px">${checks}</div>
     ${s.optionCount ? `
       <div class="chipline"><span class="eyebrow">Sana açık programlar</span>
-        <span class="chip credit">${s.optionCount}</span></div>
+        <span class="chip credit">${s.optionCount}</span>
+        ${cb && s.options.length > 1 ? `<button class="ghost mini" id="basvuruSira"
+          >${BASVURU_SIRA === "bitis" ? "Sende sayılana göre sırala"
+                                      : "Bitişe göre sırala"}</button>` : ""}</div>
       <div style="overflow-x:auto"><table class="list">
         <thead><tr><th>Kod</th><th>Program</th><th>Ders sayısı</th>
-          <th>Sende sayılan</th></tr></thead>
+          <th>Sende sayılan</th>${bitisVar ? "<th>Tahmini ÇAP bitişi</th>" : ""}</tr></thead>
         <tbody>${rows}</tbody></table></div>
+      ${bitisVar ? `<div class="why" id="capBitisNot" style="margin-top:8px">${capBitisNotu()}</div>` : ""}
       <div class="why" style="margin-top:8px">“Sende sayılan” = bu planda
         <b>birebir kodu tutan</b>, geçtiğin ders. Kalan kredi yazmıyoruz:
         havuz slotlarının nasıl sayıldığı programdan programa değişiyor,
@@ -9180,6 +9380,78 @@ function renderBasvuruBody(){
         iki katından fazla şişirirdi. Doldurmak için:
         <span class="mono">make all-plans</span>.
       </div>` : "")}`;
+  const sira = $("#basvuruSira");
+  if(sira) sira.addEventListener("click", () => {
+    BASVURU_SIRA = BASVURU_SIRA === "bitis" ? "ders" : "bitis";
+    renderBasvuruBody();
+  });
+  if(bitisVar && !(CAP_BITIS && CAP_BITIS.anahtar === capBitisAnahtari())) capBitisYukle();
+}
+
+/* ★★ FAZ 59 — "YA ÇAP'I ŞU BÖLÜMDE YAPSAYDIM?" (fikirler Y.1).
+   Derece planlayıcılarının en çok kullanılan özelliği: programa girmeden
+   önce bitiş tarihini görmek. Pencere "sende sayılan ders" sayısını
+   veriyordu; asıl soru ne zaman biteceğiydi. Yol haritası motoru anadal +
+   aday ÇAP planıyla yeniden kuruluyor (`/api/capbitis`, salt okunur).
+   İstek üzerine: 60 programı sayfa açılırken kurmak statik sitede
+   saniyeler sürerdi. Sonuç bu dönemin dersleri ve kredi sınırı değişmedikçe
+   önbellekte. */
+let CAP_BITIS = null, BASVURU_SIRA = "ders";
+function capBitisHesaplanabilir(){
+  const R = DATA.roadmap;
+  return !!(R && !R.error && (R.terms || []).length && (LIVE || window.__ITUCAP_API__));
+}
+function capBitisGirdi(){
+  const R = DATA.roadmap;
+  return {bu: R.terms[0].items.map(i => ({course: i.course, credits: i.credits,
+                                          role: (i.roles || [])[0] || ""})),
+          maxLoad: R.maxLoad};
+}
+function capBitisAnahtari(){
+  const g = capBitisGirdi();
+  return JSON.stringify([g.bu.map(x => x.course).sort(), g.maxLoad,
+                         ((DATA.basvuru || {}).cap || {options: []}).options.map(o => o.planId)]);
+}
+async function capBitisYukle(){
+  const s = DATA.basvuru && DATA.basvuru.cap;
+  if(!s || !s.options.length || !capBitisHesaplanabilir()) return;
+  const anahtar = capBitisAnahtari();
+  CAP_BITIS = {anahtar, veri: null, hata: ""};
+  try{
+    const r = await api("/api/capbitis", {plans: s.options.map(o => o.planId),
+                                          ...capBitisGirdi()});
+    if(!CAP_BITIS || CAP_BITIS.anahtar !== anahtar) return;
+    CAP_BITIS.veri = r.capBitis;
+  }catch(err){
+    if(CAP_BITIS && CAP_BITIS.anahtar === anahtar) CAP_BITIS.hata = err.message || "hata";
+  }
+  if($("#basvuruDlg").open && basvuruKind === "cap") renderBasvuruBody();
+}
+function capBitisHucre(planId){
+  if(!CAP_BITIS) return `<span class="why">hesaplanıyor…</span>`;
+  if(CAP_BITIS.hata) return `<span class="why" title="${esc(CAP_BITIS.hata)}">hesaplanamadı</span>`;
+  if(!CAP_BITIS.veri) return `<span class="why">hesaplanıyor…</span>`;
+  const r = CAP_BITIS.veri.results[String(planId)];
+  if(!r) return `<span class="why">—</span>`;
+  if(!r.finish) return `<span class="uyari">hesaplanamadı</span><div class="why">${
+    r.unplaced} ders yerleşmedi (önşartı planlarında yok ya da ufuk dışı)</div>`;
+  /* ⚠️ Kalan KREDİ yok — bu pencerenin 22.08.2026 kararı (havuz slotlarının
+     kredisi programdan programa farklı sayılıyor). Ders sayısı sağlam. */
+  const notlar = [`${r.remaining} ders kaldı`];
+  if(r.anadalDelay > 0) notlar.push(`<span class="uyari">anadalı ${r.anadalDelay} dönem geciktiriyor</span>`);
+  if(r.floorShort) notlar.push(`<span class="uyari">${r.floorShort} dönemde yarıyıl tabanı tutmuyor</span>`);
+  if(r.unknownSeason) notlar.push(`${r.unknownSeason} dersin mevsimi bilinmiyor`);
+  return `<b>${esc(r.finish.label)}</b>${r.finishSemester ? ` <span class="why">(${
+    r.finishSemester}. yarıyıl)</span>` : ""}<div class="why">${notlar.join(" · ")}</div>`;
+}
+function capBitisNotu(){
+  const v = CAP_BITIS && CAP_BITIS.veri;
+  return `<b>Tahmini ÇAP bitişi</b>: ÇAP'a <b>${v && v.startTerm ? v.startTerm + ". yarıyılda" :
+    "bir sonraki yarıyılda"}</b> başlarsan${v && v.floor ? ` (yarıyıl tabanı
+    <span class="mono">${v.floor}</span> kredi)` : ""} ve bu dönem yol haritasındaki
+    dersleri alırsan. Yol haritasının varsayımları geçerli; <b>başvurunun kabulü,
+    kontenjan ve sıralama şartı bu hesapta yok</b>. Şu anki ÇAP/yandal programın
+    hesaba girmedi — soru "onun yerine bu olsaydı".`;
 }
 
 function renderBlockers(){
@@ -9455,6 +9727,7 @@ function boot(onceki){
   renderBasvuru();
   renderTiers();
   renderRoadmap();
+  cevrimdisiDurumu();       // Faz 60
   if(!onceki){
     useMode(0);
   }else{
