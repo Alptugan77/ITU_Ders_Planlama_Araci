@@ -13,8 +13,9 @@ bilinmiyor. O yüzden:
   planın ÜSTÜNDE yazıyor;
 * mevsim (Güz/Bahar) TAHMİN EDİLMİYOR, planlardan OKUNUYOR: anadal dersinin
   mevsimi kendi planındaki dönemin tek/çiftliği; ÇAP/yandal dersininki, o
-  programın LİSANS planında aynı dersin dönemi. İkisi de bulunamazsa ders
-  "her dönem açılır" sayılıyor ve bu SAYILIP yazılıyor;
+  programın LİSANS planında aynı dersin dönemi. İkisi de bulunamazsa
+  (Faz 58) dersin GEÇMİŞ not dağılımına bakılıyor (`gecmis_mevsimleri`);
+  o da yoksa ders "her dönem açılır" sayılıyor ve bu SAYILIP yazılıyor;
 * yerleştirilemeyen ders sessizce düşmüyor: `yerlesmeyen` listesinde
   sebebiyle duruyor (planlarında olmayan bir önşart, kredi eşiği, ufuk);
 * kontenjan, şube, saat çakışması YOK — bunlar yalnız bu dönem için
@@ -46,6 +47,13 @@ from . import rules as R
 UFUK = 12           # en çok kaç dönem ileri (6 yıl)
 GECER = "AA"        # yerleştirilen ders "geçildi" sayılırken verilen not
 
+# ★ Faz 58 — geçmiş dağılımda GERÇEK açılışı bütünlemeciden ayıran eşik.
+# Güz dersinin Bahar dağılımı çoğunlukla birkaç bütünlemeci demek (Faz 38b:
+# BLG 212 Baharda n=2, ikisi de FF). "Notu var" = "açıldı" saysaydık her
+# Güz dersi Baharda da açılır görünürdü.
+GECMIS_TABAN = 5    # bir yarıyılda en az bu kadar notlu öğrenci
+GECMIS_ORAN = 0.25  # ve o akademik yılın en kalabalık yarıyılının en az ¼'ü
+
 
 @dataclass
 class Birim:
@@ -60,7 +68,9 @@ class Birim:
     havuz: str = ""                # seçmeli havuzun adı
     mevsim: str | None = None      # '10' Güz, '20' Bahar, None bilinmiyor
     ek_mevsim: str | None = None   # bu dönem şubesi VAR → o mevsimde de açılıyor
-    mevsim_kaynagi: str = ""       # 'plan' | 'lisans' | ''
+    mevsim_kaynagi: str = ""       # 'plan' | 'lisans' | 'gecmis' | ''
+    ek_mevsim_kaynagi: str = ""    # 'sube' (bu dönem şubesi) | 'gecmis'
+    gecmis: dict | None = None     # `gecmis_mevsimleri` sonucu
     en_erken: int = 1              # en erken dönem indeksi (0 = bu dönem)
     yukseklik: int = 0             # arkasından gelen en uzun zincir
     yer: int | None = None         # yerleştirildiği dönem indeksi
@@ -91,6 +101,48 @@ def _lisans_mevsimi(con: sqlite3.Connection, program: str, kodlar: set[str]):
         if kodlar & set(R.slot_codes(row)):
             return _mevsim(row["term_no"])
     return None
+
+
+def gecmis_mevsimleri(con: sqlite3.Connection, kodlar: Iterable[str]) -> dict | None:
+    """Faz 58 — dersin geçmiş not dağılımından GERÇEKTEN verildiği yarıyıllar.
+
+    Kaynak (Faz 38) tek istekte bir akademik yılın BÜTÜN yarıyıllarını
+    veriyor; o yıl verisi olan bir derste bir yarıyılın hiç görünmemesi,
+    o yarıyıl not açıklanmadığı demek. Bu yüzden karşılaştırma yıl içinde:
+    bir Güz/Bahar yarıyılı, `GECMIS_TABAN` öğrenciyi ve o yılın en kalabalık
+    yarıyılının `GECMIS_ORAN`ını geçiyorsa "verildi" sayılıyor. Yaz ayrı:
+    yalnız `GECMIS_TABAN`.
+
+    Döner: {"seasons": {'10','20'} alt kümesi, "summer": [{term, label, n}],
+    "terms": {term: n}} — dağılımı hiç olmayan derste None (TAHMİN YOK).
+    ⚠️ "Geçen yıl açıldı" ≠ "bu yıl açılacak"; çağıran bunu varsayım olarak
+    yazmak zorunda.
+    """
+    from . import notlar
+    anahtarlar = sorted({a for a in (notlar.lookup(con, k) for k in kodlar) if a})
+    if not anahtarlar:
+        return None
+    isaret = ",".join("?" * len(anahtarlar))
+    sayilar: dict[str, int] = {}
+    for term, n in con.execute(
+            f"""SELECT term, SUM(students) FROM grade_distribution
+                WHERE course_key IN ({isaret}) GROUP BY term""", anahtarlar):
+        sayilar[str(term)] = int(n or 0)
+    if not sayilar:
+        return None
+    mevsimler: set[str] = set()
+    yaz = []
+    for yil in sorted({t[:4] for t in sayilar}):
+        duzenli = {m: sayilar.get(yil + m, 0) for m in ("10", "20")}
+        ust = max(duzenli.values())
+        for m, n in duzenli.items():
+            if n >= GECMIS_TABAN and n >= GECMIS_ORAN * ust:
+                mevsimler.add(m)
+        n = sayilar.get(yil + "30", 0)
+        if n >= GECMIS_TABAN:
+            yaz.append({"term": yil + "30", "label": config.donem_adi(yil + "30")
+                        or yil + "30", "n": n})
+    return {"seasons": mevsimler, "summer": yaz, "terms": sayilar}
 
 
 def _birimler(con, planlar, grades, equivalences, names) -> list[Birim]:
@@ -137,12 +189,16 @@ def _sondaki_boslari_at(donemler: list[dict]) -> list[dict]:
 def kur(con: sqlite3.Connection, grades: Mapping[str, str], planlar: list[dict], *,
         term: str, donem: int, max_load: float, bu_donem: Iterable[dict],
         bu_donem_kaynagi: str = "", equivalences=None,
-        taban: POL.SecondFloor | None = None, ufuk: int = UFUK) -> dict:
+        taban: POL.SecondFloor | None = None, ufuk: int = UFUK,
+        yaz: str | None = None) -> dict:
     """Yol haritası.
 
     `planlar`: `[{"planId", "role", "label", "program"}]` — anadal önce.
     `bu_donem`: bu dönem alınacağı varsayılan dersler `[{"course", "credits",
     "slotId", "role"}]` (kaydedilen program ya da açılıştaki öneri).
+    `yaz` (Faz 58): İLK yaz okulunda alınacağı varsayılan tek ders — "ya
+    yazın alsaydım" sorusu için. İlk yaz, ilk Bahar'dan sonra gelen yaz:
+    bu dönem Güz'se bir sonraki Bahar'ın arkası.
 
     ⚠️ Bağlantının `row_factory`si çağıranın; burada geçici değişip geri
     konuyor (sunucu `Row`, testler düz demet kullanıyor).
@@ -152,13 +208,13 @@ def kur(con: sqlite3.Connection, grades: Mapping[str, str], planlar: list[dict],
     try:
         return _kur(con, grades, planlar, term=term, donem=donem, max_load=max_load,
                     bu_donem=bu_donem, bu_donem_kaynagi=bu_donem_kaynagi,
-                    equivalences=equivalences, taban=taban, ufuk=ufuk)
+                    equivalences=equivalences, taban=taban, ufuk=ufuk, yaz=yaz)
     finally:
         con.row_factory = eski
 
 
 def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kaynagi,
-         equivalences, taban, ufuk) -> dict:
+         equivalences, taban, ufuk, yaz=None) -> dict:
     equivalences = list(equivalences or [])
     names = {r[0]: r[1] for r in con.execute("SELECT code, name FROM course")}
     siniflama = {r[0]: r[1] for r in con.execute(
@@ -184,7 +240,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     # ders Güz'de de açılıyor (vitrinde MAT 210E: plan 4. dönem, bu Güz iki
     # şube). Yalnız plana bakmak onu gereksiz yere bir dönem kaydırıyordu.
     acik = {r[0] for r in con.execute("SELECT DISTINCT course_code FROM lesson")}
-    bilinmeyen_mevsim = 0
+    bilinmeyen_mevsim = gecmisten = 0
     for b in birimler:
         plan = b._plan                                  # type: ignore[attr-defined]
         if b.donem_no:
@@ -194,8 +250,21 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             if m:
                 b.mevsim, b.mevsim_kaynagi = m, "lisans"
         if b.mevsim and b.kodlar & acik and term[4:] != b.mevsim:
-            b.ek_mevsim = term[4:]
-        if b.mevsim is None and b.yer is None:
+            b.ek_mevsim, b.ek_mevsim_kaynagi = term[4:], "sube"
+        # ★ Faz 58 — geçmiş: planlar susuyorsa mevsim, konuşuyorsa ek mevsim.
+        # Plan ile geçmiş çelişirse ikisi de açık sayılıyor ve NOT düşülüyor —
+        # hangisinin doğru olduğunu bilmiyoruz, birini seçmek uydurmak olurdu.
+        b.gecmis = gecmis_mevsimleri(con, b.kodlar) if b.ders else None
+        g = (b.gecmis or {}).get("seasons") or set()
+        if g and b.yer is None:
+            if b.mevsim is None:
+                b.mevsim_kaynagi = "gecmis"
+                b.mevsim = next(iter(g)) if len(g) == 1 else None
+                gecmisten += 1
+            elif not b.ek_mevsim and (g - {b.mevsim}):
+                b.ek_mevsim, b.ek_mevsim_kaynagi = next(iter(g - {b.mevsim})), "gecmis"
+                gecmisten += 1
+        if b.mevsim is None and not b.mevsim_kaynagi and b.yer is None:
             bilinmeyen_mevsim += 1
         # Anadal dersi planındaki dönemden ÖNCE konmuyor (planın sırası);
         # alttan kalan (donem_no < donem) hemen gelecek döneme.
@@ -238,6 +307,48 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
                             "roles": [p.get("role") or ""], "pool": ""}
                            for p in sorted(bu_donem, key=lambda x: x["course"])],
                  "floorGap": None}]
+
+    # ★ Faz 58 — YAZ OKULU. Mevsim ve "plandaki dönemden önce değil" kuralı
+    # yazda uygulanmıyor (yaz okulu tam da öne almak için kullanılıyor);
+    # önşart ve kredi eşiği uygulanıyor. Yaz dersi, önündeki Bahar'ın
+    # sırasını alıyor: bir sonraki Güz'de geçilmiş sayılıyor.
+    yaz_sonuc: dict | None = None
+
+    def yaz_yerlestir(t: int, bahar: str) -> None:
+        nonlocal yaz_sonuc, kazanilan
+        if not yaz or yaz_sonuc is not None:
+            return
+        kod_yaz = bahar[:4] + "30"
+        b = next((x for x in birimler if x.ders and yaz in x.kodlar), None)
+        if b is None or b.yer is not None:
+            yaz_sonuc = {"course": yaz, "placed": False,
+                         "reason": ("planlarında kalmamış" if b is None
+                                    else "bu dönem alınıyor" if b.yer == 0
+                                    else "yazdan önceki dönemde zaten yerleşiyor")}
+            return
+        agac = agaclar.get(b.ders)
+        hazir = b.ders in okunamayan or agac is None or agac.satisfied(
+            R.prereq_view({c: GECER for c in varsayilan}))
+        if not hazir or not POL.check(b.ders, kazanilan, kurallar, names.get(b.ders, ""),
+                                      siniflama.get(b.ders), katalog_kurali).ok:
+            yaz_sonuc = {"course": b.ders, "placed": False,
+                         "reason": "önşartı ya da kredi eşiği o yaza kadar tutmuyor"}
+            return
+        b.yer = t
+        varsayilan.update(b.kodlar)
+        kazanilan += b.kredi
+        yaz_sonuc = {"course": b.ders, "placed": True, "index": t, "code": kod_yaz,
+                     "label": config.donem_adi(kod_yaz) or kod_yaz}
+        donemler.append({
+            "code": kod_yaz, "label": yaz_sonuc["label"], "index": t, "current": False,
+            "summer": True, "credits": b.kredi, "floorGap": None,
+            "items": [{"course": b.ders, "name": b.ad, "credits": b.kredi,
+                       "roles": sorted(b.roller), "pool": "", "season": "30",
+                       "seasonSource": "yaz", "chain": b.yukseklik,
+                       "unparsed": b.ders in okunamayan}]})
+
+    if term[4:] == "20":
+        yaz_yerlestir(0, term)
 
     def alinabilir(b: Birim, t: int, kod: str, kredi_var: float) -> bool:
         if t < b.en_erken:
@@ -301,6 +412,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
                        "roles": sorted(b.roller), "pool": b.havuz,
                        "season": b.mevsim, "seasonSource": b.mevsim_kaynagi,
                        "alsoSeason": b.ek_mevsim,
+                       "alsoSeasonSource": b.ek_mevsim_kaynagi,
                        "chain": b.yukseklik,
                        "unparsed": b.ders in okunamayan}
                       for b in secilen],
@@ -308,6 +420,9 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             "floorGap": (round(taban.minimum - cap_kredi, 1)
                          if taban and cap_kalan and cap_kredi < taban.minimum else None),
         })
+        if kod[4:] == "20" and yaz:
+            yaz_yerlestir(t, kod)
+            kalan = [b for b in kalan if b.yer is None]
 
     # ---------------------------------------------- 4. yerleşmeyenler — sebebiyle
     yerlesmeyen = []
@@ -387,9 +502,15 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
         "bilinebiliyor. Yaz okulu hesaba katılmadı.",
         "Seçmeli havuzda hangi dersi seçeceğin bilinmediği için havuzun önşartı yok sayıldı.",
     ]
+    if gecmisten:
+        varsayimlar.append(
+            f"{gecmisten} dersin açıldığı yarıyıl geçmiş not dağılımından okundu: "
+            f"yalnız gerçek bir sınıfın (en az {GECMIS_TABAN} öğrenci ve o yılın en "
+            f"kalabalık yarıyılının %{GECMIS_ORAN * 100:.0f}'i) olduğu yarıyıl sayıldı — "
+            "birkaç bütünlemeci sayılmadı. Geçen yıl açılması bu yıl açılacağı demek değil.")
     if bilinmeyen_mevsim:
         varsayimlar.append(f"⚠ {bilinmeyen_mevsim} dersin mevsimi hiçbir planda bulunamadı "
-                           "— her dönem açılır sayıldı.")
+                           "(geçmiş not dağılımında da yok) — her dönem açılır sayıldı.")
     return {
         "term": term, "maxLoad": max_load, "source": bu_donem_kaynagi,
         # ⚠️ Boş dönem ATILMIYOR (yalnız sondakiler): Bahar'da açılan bir dersi
@@ -399,6 +520,14 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
         "programs": programlar, "unplaced": yerlesmeyen,
         "chain": zincir, "longest": en_uzun, "heads": baslar,
         "unknownSeason": bilinmeyen_mevsim,
+        "summer": yaz_sonuc,
+        # Geçmişte YAZ okulunda gerçekten açılmış, bu dönem alınmayan dersler —
+        # "yazın alırsan ne değişir" sorusunun adayları (çağıran ölçüyor).
+        "summerCandidates": [
+            {"course": b.ders, "name": b.ad, "credits": b.kredi, "chain": b.yukseklik,
+             "roles": sorted(b.roller), "history": b.gecmis["summer"]}
+            for b in sorted(birimler, key=lambda b: (-b.yukseklik, b.anahtar))
+            if b.ders and b.yer != 0 and b.gecmis and b.gecmis["summer"]],
         "floor": ({"minimum": taban.minimum, "verified": taban.verified}
                   if taban else None),
         "assumptions": varsayimlar,

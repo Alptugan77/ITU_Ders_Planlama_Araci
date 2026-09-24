@@ -410,6 +410,19 @@ her maddeden önce gelen tek iş.
 > fikirler: `docs/fikirler.md` "Faz 57 araştırması".
 > ➜ Ayrıntı: `docs/faz57-yol-haritasi.md`
 >
+> **Faz 58'de kapananlar (24.09.2026 — geçmiş ve yaz okulu):** kullanıcı:
+> *"continue your work to improve"*. ★★ Dersin açıldığı yarıyıl geçmiş not
+> dağılımından (plan susuyorsa); ⚠️ bütünlemeci tuzağı eşikle ayıklanıyor
+> (yıl içinde ≥5 öğrenci ve en kalabalık yarıyılın ¼'ü) ✅ · vitrinde ÇAP
+> bitişi bir dönem geç ama doğru, ve gizli bir ÇAP tabanı sorunu görünür
+> oldu ✅ · ★★ yaz okulu "ya yazın alsaydım": GEO 341E geçen yaz açılmış,
+> ilk yazda alınırsa anadal 2 dönem erken ✅ · ★ yük aşılıyorsa hangi ders
+> çıksın — ÇAP tabanını bozan öneri yok (koruma olmasa BLG 222E önerilirdi)
+> ✅ · GNO hedefi ÇAP'ın kendi ortalaması için ✅ · programın resmi (PNG),
+> tarayıcıda, notsuz ✅ · vitrin dağılım yılları bir yıl kaymıştı ✅
+> Geri alma deneyi: 9/9 kırmızı.
+> ➜ Ayrıntı: `docs/faz58-gecmis-ve-yaz-okulu.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

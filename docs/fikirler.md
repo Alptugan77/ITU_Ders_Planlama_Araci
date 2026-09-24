@@ -1,5 +1,11 @@
 # Kalan eksikler ve geliştirilmesi gerekenler
 
+> **Faz 58'de kapananlar (24.09.2026):** Y.2 mevsim geçmişten ✅ (bütünlemeci
+> tuzağına eşikle) · Y.3 yaz okulu "ya yazın alsaydım" ✅ · Y.4 hangi ders
+> çıksın ✅ (ÇAP tabanını bozan öneri yok) · Y.5 programın resmi ✅ · Y.6
+> ÇAP ortalaması için GNO hedefi ✅. Açık kalan: Y.1, Y.7, Y.8.
+> Ayrıntı: `docs/faz58-gecmis-ve-yaz-okulu.md`.
+
 > **Faz 57'de kapananlar (23.09.2026):** ★★ §2.1 **çok dönemli plan** —
 > mezuniyet yol haritası ve "bu dönem şunu alırsan" ✅ · F.2'nin önerisi
 > (kampüs tercihinin veri kapsamı tercih ekranında) ✅ · GNO hedefi ✅ ·
@@ -181,7 +187,11 @@ zaten listeliyor. **Ne:** başvuru satırına "bu programla tahmini bitiş".
 ⚠️ Kabul edilmemiş programın ÇAP planı başlangıç yarıyılına bağlı; hangi
 yarıyıl varsayıldığı yazmalı.
 
-### Y.2 ★ Mevsimi veriden öğren · **S**
+### Y.2 ~~Mevsimi veriden öğren~~ · ✅ **Faz 58'de kapandı**
+Eşik yıl içinde: ≥5 öğrenci ve o yılın en kalabalık yarıyılının ¼'ü
+(bütünlemeci ayıklansın). Vitrinde ÇAP bitişi bir dönem geç — ama doğru.
+
+~~**S**~~
 Yol haritası mevsimi plan paritesinden okuyor; vitrinde 6 ÇAP dersinin
 mevsimi hiçbir planda yok ve "her dönem açılır" sayılıyor. Not dağılımı
 (Faz 38) dersin **hangi dönemlerde verildiğini** taşıyor. **Ne:** son iki
@@ -189,21 +199,25 @@ yılda yalnız Güz'de verilmiş dersi Güz dersi say, kaynağını ("geçmiş
 dönemler") yaz. ⚠️ "Geçen yıl açıldı" ≠ "bu yıl açılacak" — varsayım
 kutusuna girmeli.
 
-### Y.3 Yaz okulu yol haritasında · **M**
+### Y.3 ~~Yaz okulu yol haritasında~~ · ✅ **Faz 58'de kapandı** (tek ders)
+Kalan: iki dersin birlikte yazda alınması ve yaz okulu kredi sınırı
+(mevzuattan doğrulanmadı).
+
+~~**M**~~
 §2.3'ün yol haritasına bağlanması: alttan kalan dersi yaza koymak bir
 dönem kazandırıyorsa söyle. Not dağılımı yaz dönemlerini (`…30`) veriyor.
 
-### Y.4 "Programda dene" hangi dersi çıkaracağını önersin · **S**
+### Y.4 ~~"Programda dene" hangi dersi çıkaracağını önersin~~ · ✅ **Faz 58'de kapandı**
 Bugün "yük sınırını aşıyor, bir dersi çıkarman gerekir" diyor.
 `Schedule.pref_relief()`'in yaptığının aynısı: bitişi GECİKTİRMEYEN en
 ucuz çıkarma — yol haritası bunu ölçebiliyor (her aday için yeniden kur).
 
-### Y.5 Programı görsel olarak paylaş (PNG) · **S**
+### Y.5 ~~Programı görsel olarak paylaş (PNG)~~ · ✅ **Faz 58'de kapandı**
 Coursicle ve Schedule Builder'da var. Bizde bağlantı ve
 `.ics` var, görsel yok. Tarayıcıda `<canvas>`'a ızgarayı çizmek yeter;
 dış kütüphane gerekmez (gizlilik denetimi dış kaynağı reddediyor).
 
-### Y.6 ÇAP'ın kendi ortalaması için GNO hedefi · **S**
+### Y.6 ~~ÇAP'ın kendi ortalaması için GNO hedefi~~ · ✅ **Faz 58'de kapandı**
 "ÇAP mezuniyeti — ikinci anadal ortalaması ≥ 2.00" eşiği GNO hedefinde
 yok (ekranda yazıyor). `_threshold_info` o ortalamayı zaten hesaplıyor;
 yalnız ÇAP planındaki dersler üzerinden aynı formül.

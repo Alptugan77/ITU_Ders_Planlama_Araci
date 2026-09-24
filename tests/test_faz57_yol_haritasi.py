@@ -251,12 +251,15 @@ def test_TEKRAR_notu_yalniz_HAVUZDAKI_ve_GNOya_GIREN(tmp_path):
 def test_GNO_HEDEFI_canli_ve_tahmin_DEGIL():
     f = KAYNAK[KAYNAK.index("function renderGnoHedef(){"):]
     f = f[:f.index("\n}\n")]
+    t = KAYNAK[KAYNAK.index("function gnoTabani("):]
+    t = t[:t.index("\n}\n")]
     # Seçim değişince yeniden hesaplanıyor.
     r = KAYNAK[KAYNAK.index("function render(){"):]
     assert "renderGnoHedef();" in r[:r.index("\n}\n")]
-    # Formül: tekrar alınan dersin eski puanı ve kredisi çıkıyor.
-    assert "const C = g.credits - tekrar.reduce" in f
-    assert "const P = g.points - tekrar.reduce" in f
+    # Formül: tekrar alınan dersin eski puanı ve kredisi çıkıyor (Faz 58'de
+    # `gnoTabani`na taşındı — genel ve ÇAP ortalaması aynı hesabı kullanıyor).
+    assert "const C = C0 - tekrar.reduce" in t
+    assert "const P = P0 - tekrar.reduce" in t
     assert "const x = (h.min * (C + T) - P) / T;" in f
     assert "Tahmin değil, gereken notun hesabı" in f
     # Zaten girilmiş programın başvuru eşiği hedef sayılmıyor.
@@ -321,9 +324,9 @@ with sync_playwright() as p:
     def gno():
         return pg.evaluate("""() => ({g: {p: DATA.gpa.points, c: DATA.gpa.credits,
             r: DATA.gpa.retake}, T: picks().map(p => [p.cand.course, p.cand.credits]),
-            satir: [...document.querySelectorAll('#gnoHedefBody .gnosatir')].map(e =>
+            satir: [...document.querySelectorAll('#gnoHedefBody .gnosatir[data-taban=genel]')].map(e =>
               e.querySelector('b').textContent + '=' + e.querySelector('.gereken').textContent.trim()),
-            etiket: [...document.querySelectorAll('#gnoHedefBody .gnosatir > span:first-child')]
+            etiket: [...document.querySelectorAll('#gnoHedefBody .gnosatir[data-taban=genel] > span:first-child')]
               .map(e => e.textContent.replace(/\\s+/g, ' ')).join(' | '),
             tekrar: ((document.querySelector('#gnoHedefBody .gnobaslik')||{}).textContent || '')
               .replace(/\\s+/g, ' ')})""")
