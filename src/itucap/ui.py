@@ -789,12 +789,6 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     # ★ Faz 38 — not dağılımı. Aday başına tek sorgu yerine tek seferde
     # okuyup önbelleğe alıyoruz; `candidates_json` iki kez çağrılıyor.
     _nd_cache: dict[str, dict | None] = {}
-    _olcek_kutu: list = []
-
-    def _zorluk_olcek():
-        if not _olcek_kutu:
-            _olcek_kutu.append(ND.zorluk_olcegi(con))
-        return _olcek_kutu[0]
 
     def _not_dagilimi(code: str):
         if code not in _nd_cache:
@@ -806,9 +800,9 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         d = _nd_cache[code]
         if not d:
             return None
-        # ★★ Faz 85 — tahmini zorluk. Ölçek bir kez (önbellekli) okunuyor.
+        # ★★ Faz 85/87 — tahmini zorluk (10 üzerinden, iki alt puan).
         try:
-            _zorluk = ND.zorluk(con, code, _zorluk_olcek())
+            _zorluk = ND.zorluk(con, code)
         except Exception:                         # noqa: BLE001
             _zorluk = None
         # ★ Faz 38b — BÜTÜN dönemler taşınıyor, yalnız seçili olan değil:
@@ -2664,6 +2658,23 @@ td .zorluk,.yhdonem li>.zorluk{margin-left:6px}
   font-size:var(--fs-sm);color:var(--ink-2)}
 .zorlukkutu .zorlukust .zorluk{font-size:var(--fs-sm)}
 .zorlukkutu .why{margin-top:6px}
+.zorlukkutu .zgenel{font-size:var(--fs-sm);color:var(--ink-2)}
+.zorlukkutu .zgenel b{font-size:var(--fs-md);color:var(--ink)}
+.zorluk .zskor{font-weight:600}
+.zaltlar{display:grid;gap:8px;margin-top:10px}
+.zalt{display:grid;grid-template-columns:minmax(0,190px) minmax(0,1fr) auto;
+  align-items:center;gap:4px 10px;font-size:var(--fs-sm);color:var(--ink-2)}
+.zalt .zagirlik{color:var(--ink-3);font-size:var(--fs-xs)}
+.zalt .zbar{height:8px;background:var(--border);border-radius:var(--r);overflow:hidden}
+.zalt .zbar i{display:block;height:100%;background:currentColor}
+.zalt.z1 .zbar,.zalt.z2 .zbar{color:var(--ok)}
+.zalt.z3 .zbar{color:var(--ink-3)}
+.zalt.z4 .zbar{color:var(--warn)}
+.zalt.z5 .zbar{color:var(--danger)}
+.zalt .zdeger b{color:var(--ink)}
+.zalt .zdayanak{grid-column:1 / -1;font-size:var(--fs-xs);color:var(--ink-3)}
+@media(max-width:700px){.zalt{grid-template-columns:minmax(0,1fr) auto}
+  .zalt .zbar{grid-column:1 / -1;grid-row:2}}
 .zorlukkutu .zorluknot{margin-top:6px;font-size:var(--fs-xs);color:var(--ink-3);
   line-height:var(--lh-snug)}
 .ozetzorluk{font-size:var(--fs-sm);color:var(--ink-2);margin-top:6px;line-height:var(--lh-snug)}
@@ -9346,21 +9357,38 @@ const zorlukOf = c => {
   const z = c && c.grades && c.grades.difficulty;
   return z && z.level ? z : null;
 };
-function zorlukCumlesi(z){
-  const donem = (z.termLabels || []).map(kisaDonem).join(", ");
-  return `Olağan dönemlerde${donem ? ` (${donem})` : ""} ${z.n} öğrencinin harf notu `
-    + `ortalaması ${z.mean.toFixed(2)} (VF hariç)`
-    + (z.lowerShare != null && z.catalog
-        ? `; not dağılımı bilinen ${z.catalog} ders içinde ortalaması bundan düşük olanların payı %${z.lowerShare}.`
-        : "; kademe, İTÜ'nün 2025-2026 not dağılımlarından ölçülen dilim sınırlarına göre belirlenmiştir.");
+/* ★★★ Faz 87 — İKİ ALT PUAN, 10 ÜZERİNDEN (kullanıcı 24.09.2026): geçme
+   zorluğu (geçme oranından, VF başarısız sayılır) ve yüksek not alma zorluğu
+   (harf notu ortalamasından); genel = %70 geçme + %30 yüksek not. Hesap
+   sunucuda (`notlar.zorluk`); burada yalnız gösterim. */
+const zp = x => Number(x).toFixed(1);
+const zorlukDonemleri = z => (z.termLabels || []).map(kisaDonem).join(", ");
+function zorlukIpucu(z){
+  const d = zorlukDonemleri(z);
+  return `Tahmini zorluk: 10 üzerinden ${zp(z.score)} (${z.label}). `
+    + `Geçme zorluğu ${zp(z.passScore)}/10 (geçme oranı %${z.passRate}, VF dahil); `
+    + `yüksek not alma zorluğu ${zp(z.gradeScore)}/10 (ortalama ${z.mean.toFixed(2)}). `
+    + `Olağan dönemler${d ? `: ${d}` : ""}; ${z.n} öğrenci.`
+    + (z.lowData ? " Az veriye dayanmaktadır." : "");
 }
-function zorlukRozet(z){
+function zorlukRozet(z, puansiz){
   if(!z || !z.level) return "";
   const cub = [1, 2, 3, 4, 5].map(i => `<i class="${i <= z.level ? "on" : ""}"></i>`).join("");
-  return `<span class="zorluk z${z.level}" title="Tahmini zorluk: ${esc(z.label)} (5 üzerinden ${
-      z.level}). ${esc(zorlukCumlesi(z))}${z.lowData ? " Az veriye dayanmaktadır." : ""}"
+  return `<span class="zorluk z${z.level}" title="${esc(zorlukIpucu(z))}"
     ><span class="zcubuk" aria-hidden="true">${cub}</span><span class="sr-only">tahmini zorluk: </span>${
-      esc(z.label)}${z.lowData ? ` <span class="azveri">· az veri</span>` : ""}</span>`;
+      esc(z.label)}${puansiz ? "" : ` <span class="mono zskor">${zp(z.score)}</span><span class="sr-only"> / 10</span>`}${
+      z.lowData ? ` <span class="azveri">· az veri</span>` : ""}</span>`;
+}
+/* Alt puan satırı: ad · 0–10 çubuğu · puan · dayanak. Çubuğun rengi alt
+   puanın kendi kademesinden (aynı bantlar). */
+const ZORLUK_BANT = [2, 4, 6, 8.5];
+const zorlukKademe = x => 1 + ZORLUK_BANT.filter(b => x >= b).length;
+function zorlukAlt(ad, puan, agirlik, dayanak){
+  return `<div class="zalt z${zorlukKademe(puan)}">
+    <span class="zad">${ad} <span class="zagirlik">ağırlık ${agirlik}</span></span>
+    <span class="zbar" aria-hidden="true"><i style="width:${(puan * 10).toFixed(0)}%"></i></span>
+    <span class="mono zdeger"><b>${zp(puan)}</b> / 10</span>
+    <span class="zdayanak">${dayanak}</span></div>`;
 }
 /* Ders penceresindeki açıklamalı kutu. */
 function zorlukKutusu(cand){
@@ -9369,15 +9397,26 @@ function zorlukKutusu(cand){
   if(!z.level) return `<div class="zorlukkutu"><div class="zorlukust"><b>Tahmini zorluk</b>
       <span class="zorluk">derecelendirilemedi</span></div>
       <div class="why">${esc(z.reason || "")}</div></div>`;
+  const d = zorlukDonemleri(z);
   return `<div class="zorlukkutu">
-    <div class="zorlukust"><b>Tahmini zorluk</b> ${zorlukRozet(z)}
-      <span class="mono">${z.level} / 5</span></div>
-    <div class="why">${esc(zorlukCumlesi(z))} FF oranı <b class="mono">%${z.failRate}</b>.${
+    <div class="zorlukust"><b>Tahmini zorluk</b> ${zorlukRozet(z, true)}
+      <span class="zgenel"><b class="mono">${zp(z.score)}</b> / 10</span></div>
+    <div class="zaltlar">
+      ${zorlukAlt("Geçme zorluğu", z.passScore, "%70",
+         `geçme oranı <b class="mono">%${z.passRate}</b> (VF dahil)`)}
+      ${zorlukAlt("Yüksek not alma zorluğu", z.gradeScore, "%30",
+         `harf notu ortalaması <b class="mono">${z.mean.toFixed(2)}</b>`)}
+    </div>
+    <div class="why">Olağan dönemler${d ? `: ${esc(d)}` : ""}; <span class="mono">${z.n}</span> öğrenci.${
       z.lowData ? " <b>Az veriye dayanmaktadır.</b>" : ""}</div>
-    <div class="zorluknot">Tahmindir: not ortalaması dersin zorluğunun yanında öğretim
-      üyesinin not verme eğilimini ve dersi alan öğrencilerin yapısını da yansıtır.
-      Tekrar/bütünleme niteliğindeki küçük sınıflar ve devamsızlık (VF) hesaba katılmaz.
-      Bu bilgi öneri puanına <b>dahil edilmez</b>.</div>
+    <div class="zorluknot">Genel puan = geçme zorluğu × 0.7 + yüksek not alma zorluğu × 0.3.
+      Ölçek: geçme oranı %100 → 0, %85 → 5, %70 ve altı → 10; ortalama 4.00 → 0,
+      2.50 → 5, 1.00 ve altı → 10. <b>VF geçemeyenlere sayılır</b> (vizeden kalan
+      öğrenci finale giremediği için VF görünür). Kademe: 0–2 çok kolay · 2–4 kolay ·
+      4–6 orta · 6–8.5 zor · 8.5–10 çok zor.
+      Tahmindir: notlar dersin zorluğunun yanında öğretim üyesinin not verme eğilimini
+      ve dersi alan öğrencilerin yapısını da yansıtır. Tekrar/bütünleme niteliğindeki
+      küçük sınıflar hesaba katılmaz. Bu bilgi öneri puanına <b>dahil edilmez</b>.</div>
   </div>`;
 }
 /* Programın zorluk karışımı — özet ve karşılaştırma için. */
@@ -9920,11 +9959,11 @@ function siralanmis(l){
     const x = gecmisOzet(a), y = gecmisOzet(b);
     return (y ? y.ort : -1) - (x ? x.ort : -1) || i - j;
   }).map(([c]) => c);
-  /* Faz 85 — kolaydan zora; aynı kademede ortalaması yüksek önce; verisi
+  /* Faz 85/87 — kolaydan zora, genel puana (10 üzerinden) göre; verisi
      olmayan sonda (sırası korunarak). */
   if(FILT.sort === "zor") return l.map((c, i) => [c, i]).sort(([a, i], [b, j]) => {
     const x = zorlukOf(a), y = zorlukOf(b);
-    return (x ? x.level : 9) - (y ? y.level : 9) || (y ? y.mean : 0) - (x ? x.mean : 0) || i - j;
+    return (x ? x.score : 99) - (y ? y.score : 99) || i - j;
   }).map(([c]) => c);
   if(FILT.sort === "bos") return l.map((c, i) => [c, i])
     .sort(([a, i], [b, j]) => bosYer(b) - bosYer(a) || i - j).map(([c]) => c);

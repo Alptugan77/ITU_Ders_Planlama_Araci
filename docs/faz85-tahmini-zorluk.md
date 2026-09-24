@@ -1,5 +1,10 @@
 # Faz 85 — derslerin tahmini zorluğu
 
+> ⚠️ **Faz 86–87'de değişti:** zorluk artık iki alt puanda, 10 üzerinden
+> (geçme zorluğu %70 + yüksek not alma zorluğu %30; VF geçemeyenlere sayılır).
+> Aşağıdaki "yalnız ortalama" ölçüsü tarihçedir; güncel ölçü
+> `docs/faz87-iki-alt-puan.md`.
+
 Kullanıcı 24.09.2026: *"derslerin önceki dönemlerdeki not ortalaması ve
 dağılımına göre tahmini zorluk derecelendirilmesi yapabilir misin ve bunu
 kullanıcıya uygun bir şekilde sunar mısın"*.

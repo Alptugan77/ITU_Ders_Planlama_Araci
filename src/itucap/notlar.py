@@ -415,60 +415,104 @@ def summarise(counts: dict[str, int], announced: int | None = None) -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# ★★ FAZ 85 — TAHMİNİ ZORLUK (not ortalamasından)
+# ★★ FAZ 85 — TAHMİNİ ZORLUK (not dağılımından)
 #
 # Kullanıcı 24.09.2026: *"derslerin önceki dönemlerdeki not ortalaması ve
 # dağılımına göre tahmini zorluk derecelendirilmesi yapabilir misin ve bunu
 # kullanıcıya uygun bir şekilde sunar mısın"*.
 #
-# Ölçüt TEK ve açıklanabilir: dersin **olağan dönemlerindeki** harf notu
-# ortalaması, katalogdaki öbür derslerin ortalamalarıyla karşılaştırılıyor.
-# Beş kademe = beşte birlik dilimler (en düşük ortalamalı %20 "çok zor").
+# ★★★ FAZ 87 — İKİ ALT PUAN, 10 ÜZERİNDEN (kullanıcı 24.09.2026):
+# *"zorluğu iki kısıma ayır yüksek not alma zorluğu ve geçme zorluğu bunları
+# 10 üzerinden puanlandır sonra geçme zorluğunun %70i ile yüksek not alma
+# zorluğunun %30unu toplayıp genel bir zorluk üret örnek olarak 2.5 ortalama
+# 10 üzerinden 5 ediyor vfleri de geçme oranına say çünkü vizeden kalan
+# kişiler finale giremediği için vf gözüküyor %85 geçme oranı da 10 üzerinden
+# 5 gibi düşün mat 103 çok zor değil belki zor sayılabilir"*.
 #
-# ⚠️ Kararlar ve gerekçeleri:
-#   * **VF hariç.** Devamsızlık dersin zorluğu hakkında bir şey söylemez
-#     (bkz. modül başlığı). GNO ölçeğindeki `meanPoints` VF'yi 0 sayar; bu
-#     ölçü saymaz. İkisi ayrı sorulara cevap.
-#   * **Tekrar/bütünleme sınıfı hariç.** Bir dönemin öğrencisi en kalabalık
-#     dönemin %25'inden azsa o dönem havuza girmiyor (BLG 335 bahar: n=3,
-#     hepsi DD/FF — dersi anlatmıyor).
+#   * **Geçme zorluğu** (0–10) — geçme oranından; **VF başarısızlık sayılır**
+#     (vizeden kalan öğrenci finale giremediği için VF görünüyor).
+#     %100 → 0 · %85 → 5 · %70 ve altı → 10 (doğrusal).
+#   * **Yüksek not alma zorluğu** (0–10) — harf notu alanların ortalamasından
+#     (VF'li öğrencinin harf notu yok, ortalamaya girmez).
+#     4.00 → 0 · 2.50 → 5 · 1.00 ve altı → 10 (doğrusal).
+#   * **Genel** = 0.7 × geçme + 0.3 × yüksek not. Çan eğrisiyle not verilen
+#     ve herkesin geçtiği ders (GMI 214: %97.9 geçme, ortalama 2.18) düşük
+#     ortalamasına rağmen kolay çıkıyor (2.3).
+#   * **Kademe** genelden: 0–2 çok kolay · 2–4 kolay · 4–6 orta · 6–8.5 zor ·
+#     8.5–10 çok zor. "Çok zor" bilerek dar: MAT 103 (8.3) zor, FIZ 102 (9.2)
+#     çok zor — kullanıcının yargısı.
+#
+#   Faz 85–86'nın katalog yüzdeliği KALKTI: mutlak ölçek "10 üzerinden 5"
+#   diye okunabiliyor, katalogdaki öbür derslere bağlı değil ve vitrinde de
+#   gerçek katalogda da aynı sayıyı veriyor (sabit tablo gerekmiyor).
+#
+# ⚠️ Değişmeyen kararlar:
+#   * **Tekrar/bütünleme sınıfı hariç.** Öğrencisi (VF dahil) en kalabalık
+#     dönemin %25'inden az olan dönem havuza girmiyor (BLG 335 bahar: n=3).
 #   * **BL/BZ dersi derecelenmiyor** — harf notu yok.
-#   * **Az veri:** olağan dönemlerde < 20 harf notu → derece YOK;
-#     < 60 → derece var ama "az veri" diye işaretli.
+#   * **Az veri:** olağan dönemlerde < 20 öğrenci → derece YOK; < 60 →
+#     derece var ama "az veri" diye işaretli.
 #   * **Öneri puanına GİRMİYOR** (Faz 38 kuralı): gösteriyoruz, karar
-#     öğrencinin. Ortalama, zorluğun yanında hocanın not verme eğilimini ve
-#     sınıfın yapısını da yansıtır — metin bunu her yerde söylüyor.
+#     öğrencinin. Notlar hocanın not verme eğilimini ve sınıfın yapısını da
+#     yansıtır — metin bunu her yerde söylüyor.
 ZORLUK_MIN_N = 20
 ZORLUK_AZ_VERI = 60
 ZORLUK_ASIL_PAY = 0.25
 ZORLUK_ETIKET = {1: "çok kolay", 2: "kolay", 3: "orta", 4: "zor", 5: "çok zor"}
-# Canlı karşılaştırma için katalogda en az bu kadar derecelenebilir ders
-# olmalı; yoksa (kısmi çekim, vitrin) yüzdelik anlamsız — aşağıdaki SABİT
-# sınırlara düşülüyor.
-ZORLUK_CANLI_MIN = 300
-# Sabit sınırlar: gerçek katalogda (2025-2026, OBS) aynı yöntemle ölçülen
-# beşte birlik dilim sınırları — 24.09.2026, derecelenebilen 1187 ders.
-# Ortalama bu sınırların ALTINDAYSA zorluk artıyor.
-ZORLUK_SABIT_SINIRLAR = (2.28, 2.59, 2.94, 3.42)
+ZORLUK_AGIRLIK_GECME = 0.7
+ZORLUK_AGIRLIK_NOT = 0.3
+# Ölçek çapaları (kullanıcının verdiği): (değer → 0, değer → 5).
+GECME_CAPA = (100.0, 85.0)            # geçme oranı %
+NOT_CAPA = (4.0, 2.5)                 # harf notu ortalaması
+# Kademe sınırları (genel puan, 10 üzerinden).
+ZORLUK_BANTLARI = (2.0, 4.0, 6.0, 8.5)
 _HARFLER = tuple(g for g in GRADES if g not in ABSENT_GRADES)       # AA … FF
 
 
-def zorluk_ortalamasi(terms: dict[str, dict[str, int]]) -> dict | None:
-    """Olağan dönemlerin VF'siz harf ortalaması. `terms`: {dönem: {not: n}}.
+def _on_uzerinden(deger: float, capa: tuple[float, float]) -> float:
+    """Doğrusal: capa[0] → 0, capa[1] → 5; 0–10 arasına kırpılır."""
+    sifir, bes = capa
+    return round(max(0.0, min(10.0, 5.0 * (sifir - deger) / (sifir - bes))), 1)
 
-    Harf notu hiç yoksa (BL/BZ dersi ya da boş) `None`."""
+
+def gecme_zorlugu(gecme_orani: float) -> float:
+    return _on_uzerinden(gecme_orani, GECME_CAPA)
+
+
+def not_zorlugu(ortalama: float) -> float:
+    return _on_uzerinden(ortalama, NOT_CAPA)
+
+
+def genel_zorluk(gecme: float, yuksek_not: float) -> float:
+    return round(ZORLUK_AGIRLIK_GECME * gecme + ZORLUK_AGIRLIK_NOT * yuksek_not, 1)
+
+
+def zorluk_kademesi(genel: float) -> int:
+    return 1 + sum(1 for b in ZORLUK_BANTLARI if genel >= b)
+
+
+def zorluk_ortalamasi(terms: dict[str, dict[str, int]]) -> dict | None:
+    """Olağan dönemlerin sayıları. `terms`: {dönem: {not: n}}.
+
+    `n` VF dahil öğrenci; `passRate` VF'yi başarısız sayar; `mean` yalnız harf
+    notu alanlardan. Harf notu hiç yoksa (BL/BZ dersi ya da boş) `None`."""
     from .prereq import GRADE_POINTS
 
+    boy = {t: sum(cs.get(g, 0) for g in GRADES) for t, cs in terms.items()}
     harfli = {t: sum(cs.get(g, 0) for g in _HARFLER) for t, cs in terms.items()}
-    en_cok = max(harfli.values(), default=0)
-    if not en_cok:
+    if not max(harfli.values(), default=0):
         return None
-    asil = sorted((t for t, n in harfli.items() if n >= ZORLUK_ASIL_PAY * en_cok),
-                  reverse=True)
-    havuz = {g: sum(terms[t].get(g, 0) for t in asil) for g in _HARFLER}
-    n = sum(havuz.values())
-    ort = sum(GRADE_POINTS[g] * c for g, c in havuz.items()) / n
-    return {"mean": round(ort, 2), "n": n, "failRate": round(100.0 * havuz["FF"] / n, 1),
+    en_cok = max(boy.values())
+    asil = sorted((t for t, n in boy.items()
+                   if n >= ZORLUK_ASIL_PAY * en_cok and harfli[t]), reverse=True)
+    havuz = {g: sum(terms[t].get(g, 0) for t in asil) for g in GRADES}
+    n_harf = sum(havuz[g] for g in _HARFLER)
+    n = n_harf + havuz["VF"]
+    ort = sum(GRADE_POINTS[g] * havuz[g] for g in _HARFLER) / n_harf
+    return {"mean": round(ort, 2), "n": n,
+            "passRate": round(100.0 * (n_harf - havuz["FF"]) / n, 1),
+            "failRate": round(100.0 * havuz["FF"] / n, 1),
+            "absentRate": round(100.0 * havuz["VF"] / n, 1),
             "terms": asil}
 
 
@@ -481,9 +525,6 @@ def _donemler(con: sqlite3.Connection, key: str) -> dict[str, dict[str, int]]:
     return out
 
 
-_OLCEK_CACHE: dict = {}
-
-
 def _imza(con: sqlite3.Connection) -> tuple:
     """Önbellek anahtarı: veritabanı dosyası + son satır. ⚠️ `id(con)` tek
     başına yetmez — kapanan bağlantının kimliği yeni bir bağlantıya (başka
@@ -494,62 +535,24 @@ def _imza(con: sqlite3.Connection) -> tuple:
             con.execute("SELECT MAX(rowid) FROM grade_distribution").fetchone()[0])
 
 
-def zorluk_olcegi(con: sqlite3.Connection) -> list[float]:
-    """Katalogda derecelenebilen (n ≥ ZORLUK_MIN_N) derslerin ortalamaları,
-    sıralı. Veri değişmedikçe bir kez hesaplanıyor (tarayıcıda her durum
-    değişikliğinde 39 bin satırı yeniden okumamak için)."""
-    anahtar = _imza(con)
-    if anahtar in _OLCEK_CACHE:
-        return _OLCEK_CACHE[anahtar]
-    hepsi: dict[str, dict[str, dict[str, int]]] = {}
-    for k, t, g, n in con.execute(
-            "SELECT course_key, term, grade, students FROM grade_distribution"):
-        hepsi.setdefault(k, {}).setdefault(t, {})[g] = n
-    ortalar = []
-    for terms in hepsi.values():
-        z = zorluk_ortalamasi(terms)
-        if z and z["n"] >= ZORLUK_MIN_N:
-            ortalar.append(z["mean"])
-    ortalar.sort()
-    _OLCEK_CACHE.clear()
-    _OLCEK_CACHE[anahtar] = ortalar
-    return ortalar
-
-
-def zorluk_kademesi(ort: float, olcek: list[float]) -> tuple[int, float | None, str]:
-    """(kademe 1–5, bu dersten DÜŞÜK ortalamalı derslerin payı %, kaynak).
-
-    Kaynak "katalog" (canlı yüzdelik) ya da "sabit" (ölçülmüş sınırlar)."""
-    import bisect
-    if len(olcek) >= ZORLUK_CANLI_MIN:
-        alt = bisect.bisect_left(olcek, ort)
-        esit = bisect.bisect_right(olcek, ort) - alt
-        pay = (alt + esit / 2) / len(olcek)
-        return 5 - min(4, int(pay * 5)), round(100 * pay), "katalog"
-    kademe = 5 - sum(1 for s in ZORLUK_SABIT_SINIRLAR if ort >= s)
-    return kademe, None, "sabit"
-
-
 _ZORLUK_CACHE: dict = {}
 
 
-def zorluk(con: sqlite3.Connection, code: str,
-           olcek: list[float] | None = None) -> dict | None:
+def zorluk(con: sqlite3.Connection, code: str) -> dict | None:
     """Bir dersin tahmini zorluğu. Dağılımı hiç yoksa `None`; varsa ama
     derecelenemiyorsa `level=None` ve `reason`.
 
     Sonuç önbellekte: kalma riski haritayı ders başına yeniden kuruyor ve
     her kurulum aynı dersleri soruyor (tarayıcıda Pyodide'de pahalı)."""
-    olcek = zorluk_olcegi(con) if olcek is None else olcek
-    anahtar = (*_imza(con), code, len(olcek))
+    anahtar = (*_imza(con), code)
     if anahtar not in _ZORLUK_CACHE:
         if len(_ZORLUK_CACHE) > 5000:
             _ZORLUK_CACHE.clear()
-        _ZORLUK_CACHE[anahtar] = _zorluk(con, code, olcek)
+        _ZORLUK_CACHE[anahtar] = _zorluk(con, code)
     return _ZORLUK_CACHE[anahtar]
 
 
-def _zorluk(con: sqlite3.Connection, code: str, olcek: list[float]) -> dict | None:
+def _zorluk(con: sqlite3.Connection, code: str) -> dict | None:
     key = lookup(con, code)
     if not key:
         return None
@@ -563,15 +566,15 @@ def _zorluk(con: sqlite3.Connection, code: str, olcek: list[float]) -> dict | No
                 "reason": ("Ders başarılı/başarısız (BL/BZ) ile notlanmaktadır; "
                            "harf notu ortalaması yoktur." if bl
                            else "Harf notu verisi bulunmamaktadır.")}
-    donem_adi = [config.donem_adi(t) or t for t in z["terms"]]
-    temel = {"mean": z["mean"], "n": z["n"], "failRate": z["failRate"],
-             "terms": z["terms"], "termLabels": donem_adi}
+    temel = {**{k: z[k] for k in ("passRate", "mean", "n", "failRate", "absentRate", "terms")},
+             "termLabels": [config.donem_adi(t) or t for t in z["terms"]]}
     if z["n"] < ZORLUK_MIN_N:
         return {**temel, "level": None,
-                "reason": f"Olağan dönemlerde yalnızca {z['n']} harf notu vardır; "
+                "reason": f"Olağan dönemlerde yalnızca {z['n']} öğrenci vardır; "
                           f"derecelendirme için en az {ZORLUK_MIN_N} gerekir."}
-    kademe, pay, kaynak = zorluk_kademesi(z["mean"], olcek)
+    gecme, yuksek = gecme_zorlugu(z["passRate"]), not_zorlugu(z["mean"])
+    genel = genel_zorluk(gecme, yuksek)
+    kademe = zorluk_kademesi(genel)
     return {**temel, "level": kademe, "label": ZORLUK_ETIKET[kademe],
-            "lowerShare": pay, "scale": kaynak,
-            "catalog": len(olcek) if kaynak == "katalog" else None,
+            "score": genel, "passScore": gecme, "gradeScore": yuksek,
             "lowData": z["n"] < ZORLUK_AZ_VERI}
