@@ -4874,6 +4874,11 @@ function tercihOnizleme(once, sonra){
 function termDialog(){
   const cur = SETUP.donem;
   const capCur = SETUP.capBaslangic || 0;
+  /* ★ Faz 65 — ÇAP'ı olmayana "ÇAP'a başladığın yarıyıl" sorulmuyordu değil,
+     SORULUYORDU (gerçek sitede BLGE + "Yok" ile görüldü). Soru yalnız ÇAP
+     varken; yoksa dönem düğmesi TEK TIKLA kaydediyor — kurulum listesi
+     "Tek tıklama" diyordu, iki tık gerekiyordu. */
+  const capVar = ["cap", "ikisi"].includes(SETUP.secondKind);
   openSetup(`
     <div class="eyebrow">Kurulum</div>
     <h2 style="margin-bottom:4px">Bulunduğun dönem</h2>
@@ -4900,7 +4905,7 @@ function termDialog(){
         Otomatik seçilirse geçtiğin slotların en derin
         döneminden çıkarılır — kayıt donduran ya da yaz okulu okuyanda şaşabilir.
       </span></label>
-    <label class="field" style="margin-top:14px"><span>ÇAP'a başladığın yarıyıl</span>
+    ${capVar ? `<label class="field" style="margin-top:14px"><span>ÇAP'a başladığın yarıyıl</span>
       <div class="terms" id="fCap">
         <button data-t="0" aria-pressed="${!capCur}" style="width:auto;padding:8px 12px"
           >bilmiyorum</button>
@@ -4912,10 +4917,11 @@ function termDialog(){
         3'te başlayan her dönem en az <b>6</b>, 5'te başlayan en az <b>9</b>
         kredilik dersi ikinci anadaldan almak zorunda.
         &#8220;Bilmiyorum&#8221; seçilirse araç hiçbir taban iddia etmez.
-      </span></label>`, () => {
+      </span></label>` : ""}`, () => {
     let pick = cur || 0;
     let capPick = capCur || 0;
-    $("#fCap").querySelectorAll("button").forEach(b =>
+    const kaydet = () => save(() => api("/api/donem", {donem: pick, capBaslangic: capPick}));
+    if(capVar) $("#fCap").querySelectorAll("button").forEach(b =>
       b.addEventListener("click", () => {
         capPick = +b.dataset.t;
         $("#fCap").querySelectorAll("button").forEach(x =>
@@ -4926,9 +4932,9 @@ function termDialog(){
         pick = +b.dataset.t;
         $("#fTerm").querySelectorAll("button").forEach(x =>
           x.setAttribute("aria-pressed", +x.dataset.t === pick));
+        if(!capVar) kaydet();
       }));
-    $("#setupSave").addEventListener("click", () =>
-      save(() => api("/api/donem", {donem: pick, capBaslangic: capPick})));
+    $("#setupSave").addEventListener("click", kaydet);
   });
 }
 
@@ -5042,6 +5048,13 @@ function checklistDialog(){
       <b>0 kredili</b> dersler harf notu almaz — onlarda
       <b class="mono">BL</b> (başarılı) / <b class="mono">BZ</b> (başarısız).
       Not bilmiyorsan <b>DD</b> sayılır.</p>
+    <!-- ★ Faz 65 — kurulum listesi "en kolayı: transkriptini yapıştır"
+         diyordu ama "Dersleri gir" buraya açılıyordu ve buradan yapıştırmaya
+         yol YOKTU. Tikle girilen ders notsuz (DD) sayılıyor; GNO ve kredi
+         tavanı için gerçek notlar ancak yapıştırmayla geliyor. -->
+    <p class="modenote" style="margin:0 0 6px">Notlarınla girmek istersen:
+      <button class="ghost mini" id="ckYapistir">transkriptini yapıştır</button>
+      — GNO ve kredi tavanı gerçek notlarından hesaplanır.</p>
     ${onerilen.length ? `<div class="note" style="border-left:3px solid var(--warn);
       padding-left:10px;margin:8px 0">
       <b>${onerilen.length} ders senin için işaretlendi</b> — ${donem}.
@@ -5088,6 +5101,10 @@ function checklistDialog(){
       });
       count();
       geriAl.closest(".note").remove();
+    });
+    $("#ckYapistir").addEventListener("click", () => {
+      $("#setup").close();            // açık pencerede showModal hata verir
+      courseDialogSetup();
     });
     const bulk = $("#ckAllTerm");
     if(bulk) bulk.addEventListener("click", () => {

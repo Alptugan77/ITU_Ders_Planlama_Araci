@@ -482,6 +482,12 @@ her maddeden önce gelen tek iş.
 > Geri alma deneyi: 6/6 kırmızı.
 > ➜ Ayrıntı: `docs/faz64-bugunku-donem.md`
 >
+> **Faz 65 (24.09.2026 — gerçek sitede gezi):** ÇAP'sız öğrenciye ÇAP
+> başlangıç yarıyılı sorulmuyor, dönem gerçekten tek tık ✅ · plandan
+> işaretle penceresinden transkript yapıştırmaya yol ✅
+> Geri alma deneyi: 4/4 kırmızı.
+> ➜ Ayrıntı: `docs/faz65-kurulum-gezisi.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
