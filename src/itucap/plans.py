@@ -92,8 +92,8 @@ def plan_uyarisi(con, settings) -> str:
     row = con.execute("SELECT id FROM plan WHERE id=? AND plan_type='lisans'",
                       (istenen,)).fetchone()
     return "" if row else (
-        f"Ayarındaki anadal planı ({istenen}) katalogda yok — "
-        "en güncel plan kullanılıyor.")
+        f"Ayarlardaki anadal planı ({istenen}) katalogda bulunamadı; "
+        "en güncel plan kullanılmaktadır.")
 
 
 def resolve_seconds(con, settings) -> list[dict]:

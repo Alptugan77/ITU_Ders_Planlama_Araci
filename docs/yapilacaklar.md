@@ -488,6 +488,12 @@ her maddeden önce gelen tek iş.
 > Geri alma deneyi: 4/4 kırmızı.
 > ➜ Ayrıntı: `docs/faz65-kurulum-gezisi.md`
 >
+> **Faz 66 (24.09.2026 — resmî dil):** kullanıcı: *"bir plan, kehanet değil
+> gibi lafları azaltıp resmi bir şekilde açıklamaları oluşturur musun"*.
+> Arayüzün tüm görünür metni kişisiz/“siz” hitaplı resmî üsluba çevrildi;
+> üslup kuralları belgelendi ✅
+> ➜ Ayrıntı: `docs/faz66-resmi-dil.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

@@ -54,16 +54,16 @@ def test_secenek_KAC_DERS_DUSURDUGUNU_tasiyor():
 
 def test_SIGANLAR_ile_TAKASLAR_ayri_gruplarda():
     """★★ Asıl düzeltme: tek karışık liste yerine iki ayrı başlık."""
-    assert "buraya sığıyor" in SLOT
-    assert SLOT.count("yer açman gerekiyor") >= 2, "takas grubu ayrılmamış"
+    assert "bu saate uygun" in SLOT
+    assert SLOT.count("yer açılması gerekir") >= 2, "takas grubu ayrılmamış"
     # Sığanlar ÖNCE yazılıyor.
-    assert SLOT.index("buraya sığıyor") < SLOT.index("yer açman gerekiyor")
+    assert SLOT.index("bu saate uygun") < SLOT.index("yer açılması gerekir")
 
 
 def test_HIC_SIGMIYORSA_bu_soyleniyor():
     """⚠️ Proje ilkesi: yapılamayan şey söylenmeli. Kullanıcı 27 hücrede
     tek tek 18 satır okuyup "demek ki ekleyemiyorum" sonucuna varıyordu."""
-    assert "Bu saate çakışmadan sığan ders yok" in SLOT
+    assert "Bu saate çakışmadan yerleştirilebilecek ders bulunmamaktadır" in SLOT
     assert "hicTemiz" in SLOT and "varTakas" in SLOT
     # Sayı dökülüyor (genel uyarı değil).
     assert "${varTakas}" in SLOT
@@ -141,8 +141,8 @@ with sync_playwright() as p:
          or pg.query_selector('#grid td.free[data-day="1"]')
     hucre.click(); pg.wait_for_timeout(800)
     r = pg.evaluate(OKU)
-    print("PZT_UYARI:" + ("E" if "çakışmadan sığan ders yok" in r.get("uyari","") else "H"))
-    print("PZT_TAKAS:" + ("E" if any("YER AÇMAN" in g.upper() for g in r.get("gruplar",[])) else "H"))
+    print("PZT_UYARI:" + ("E" if "çakışmadan yerleştirilebilecek ders bulunmamaktadır" in r.get("uyari","") else "H"))
+    print("PZT_TAKAS:" + ("E" if any("YER AÇILMASI" in g.upper() for g in r.get("gruplar",[])) else "H"))
     pg.evaluate("() => document.querySelector('dialog[open]').close()")
     pg.wait_for_timeout(300)
     # Sal 09:00 → CCC temiz sığar
@@ -150,7 +150,7 @@ with sync_playwright() as p:
       or pg.query_selector('#grid td.free[data-day="2"]')
     h2.click(); pg.wait_for_timeout(800)
     r2 = pg.evaluate(OKU)
-    print("SAL_SIGAN:" + ("E" if any("SIĞIYOR" in g.upper() for g in r2.get("gruplar",[])) else "H"))
+    print("SAL_SIGAN:" + ("E" if any("UYGUN" in g.upper() for g in r2.get("gruplar",[])) else "H"))
     print("SAL_UYARI:" + ("E" if "çakışmadan sığan ders yok" in r2.get("uyari","") else "H"))
     # temiz seçeneği ekle
     pg.evaluate("""() => { const d=document.querySelector('dialog[open]');

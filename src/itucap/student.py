@@ -141,7 +141,7 @@ def _cozumle(line: str) -> tuple[Entry | None, str]:
     entry = make_entry(kod, None, "")
     if kalan_metin:
         return entry, (f"{normalize_course_code(kod)}: not okunamadı, "
-                       f"“geçtim (DD)” sayıldı — satır: {text[:70]}")
+                       f"başarılı (DD) olarak sayıldı — satır: {text[:70]}")
     return entry, ""
 
 

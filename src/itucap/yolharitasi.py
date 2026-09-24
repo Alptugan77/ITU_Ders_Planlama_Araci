@@ -367,16 +367,16 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
         b = next((x for x in birimler if x.ders and yaz in x.kodlar), None)
         if b is None or b.yer is not None:
             yaz_sonuc = {"course": yaz, "placed": False,
-                         "reason": ("planlarında kalmamış" if b is None
-                                    else "bu dönem alınıyor" if b.yer == 0
-                                    else "yazdan önceki dönemde zaten yerleşiyor")}
+                         "reason": ("planlarda kalan dersler arasında değil" if b is None
+                                    else "bu dönem alınmaktadır" if b.yer == 0
+                                    else "yaz okulundan önceki döneme zaten yerleşmektedir")}
             return
         agac = agaclar.get(b.ders)
         hazir = b.ders in okunamayan or onsart_tamam(b, agac)
         if not hazir or not POL.check(b.ders, kazanilan, kurallar, names.get(b.ders, ""),
                                       siniflama.get(b.ders), katalog_kurali).ok:
             yaz_sonuc = {"course": b.ders, "placed": False,
-                         "reason": "önşartı ya da kredi eşiği o yaza kadar tutmuyor"}
+                         "reason": "önşartı veya kredi eşiği o yaza kadar sağlanmamaktadır"}
             return
         b.yer = t
         varsayilan.update(b.kodlar)
@@ -482,18 +482,18 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     # ---------------------------------------------- 4. yerleşmeyenler — sebebiyle
     yerlesmeyen = []
     for b in kalan:
-        sebep = f"{ufuk} dönem içinde yerleşmedi"
+        sebep = f"{ufuk} dönem içinde yerleştirilemedi"
         agac = agaclar.get(b.ders) if b.ders else None
         if agac is not None:
             eksik = sorted({n.course for n in agac.missing(
                 R.prereq_view({c: GECER for c in varsayilan}))})
             if eksik:
-                sebep = ("önşartı planlarında olmayan ders(ler) istiyor: "
+                sebep = ("önşartı planlarda bulunmayan ders(ler)dir: "
                          + ", ".join(eksik[:4]))
         if b.ders and not POL.check(b.ders, kazanilan, kurallar,
                                     names.get(b.ders, ""), siniflama.get(b.ders),
                                     katalog_kurali).ok:
-            sebep = "kredi eşiği"
+            sebep = "kredi eşiği sağlanmamaktadır"
         yerlesmeyen.append({"course": b.ders, "name": b.ad, "pool": b.havuz,
                             "credits": b.kredi, "roles": sorted(b.roller),
                             "reason": sebep})
@@ -560,16 +560,17 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
               if b.ders and b.yer != 0]
 
     varsayimlar = [
-        "Planladığın her dersi ilk denemede geçeceğin varsayıldı.",
-        f"Bu dönem: {bu_donem_kaynagi or 'seçili program'} alınmış sayıldı.",
-        f"Her dönem en çok {max_load:g} kredi — bugünkü sınırın. GNO'n değişirse "
-        "sınır da değişir.",
-        "Dersler planlarındaki dönemin mevsiminde açılır sayıldı (tek dönem → Güz, "
-        "çift → Bahar); ÇAP/yandal dersinin mevsimi o programın lisans planından okundu. "
-        "Bu dönem şubesi olan ders bu mevsimde de açılır sayıldı.",
-        "Kontenjan, şube ve saat çakışması bu planda YOK — onlar yalnız bu dönem için "
-        "bilinebiliyor. Yaz okulu hesaba katılmadı.",
-        "Seçmeli havuzda hangi dersi seçeceğin bilinmediği için havuzun önşartı yok sayıldı.",
+        "Planlanan her dersin ilk denemede başarıyla tamamlanacağı varsayılmıştır.",
+        f"Bu dönem: {bu_donem_kaynagi or 'seçili program'} alınmış kabul edilmiştir.",
+        f"Her dönem en fazla {max_load:g} kredi (mevcut sınır) alınacağı varsayılmıştır; "
+        "GNO değiştiğinde sınır da değişebilir.",
+        "Derslerin, plandaki dönemin yarıyılında açılacağı varsayılmıştır (tek dönem: Güz, "
+        "çift dönem: Bahar); ÇAP/yandal dersinin yarıyılı ilgili programın lisans planından "
+        "alınmıştır. Bu dönem şubesi bulunan dersin bu yarıyılda da açılacağı kabul edilmiştir.",
+        "Kontenjan, şube ve saat çakışması bu planda dikkate alınmamıştır; bu bilgiler "
+        "yalnızca içinde bulunulan dönem için bilinmektedir. Yaz okulu hesaba katılmamıştır.",
+        "Seçmeli havuzdan hangi dersin seçileceği bilinmediğinden havuz dersleri için önşart "
+        "aranmamıştır.",
     ]
     dis_var = [b for b in birimler if b.yer not in (None, 0) and b.dis_onsart]
     if dis_var:
@@ -577,28 +578,31 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
         varsayimlar.append(
             f"{len(dis_var)} dersin önşartı planlarında olmayan derslerden "
             f"({', '.join(ornek)}{'…' if len({k for b in dis_var for k in b.dis_onsart}) > 4 else ''})"
-            " — bunları geçtiğin, muaf olduğun ya da başka kodla aldığın varsayıldı. "
-            "Değilse transkriptine ekle ya da danışmanına sor.")
+            "; bu derslerin başarıldığı, muaf olunduğu veya başka bir kodla alındığı "
+            "varsayılmıştır. Aksi durumda transkripte eklenmesi veya danışmana danışılması "
+            "önerilir.")
     if bos:
         varsayimlar.append(
-            f"{len(bos)} dönemi boş bıraktın (Erasmus/staj/izin): o dönemlerde İTÜ dersi "
-            "yok ve dönem yarıyıl sayısına DAHİL sayıldı — kayıt dondurma sayılmayabilir, "
-            "yurt dışında alınan derslerin denkliği bu hesapta yok.")
+            f"{len(bos)} dönem boş bırakılmıştır (Erasmus/staj/izin): bu dönemlerde İTÜ "
+            "dersi planlanmamış ve dönemler yarıyıl sayısına dahil edilmiştir. Kayıt dondurma "
+            "yarıyıl sayısına dahil edilmeyebilir; yurt dışında alınan derslerin denkliği bu "
+            "hesapta yer almamaktadır.")
     if gecmisten:
         varsayimlar.append(
-            f"{gecmisten} dersin açıldığı yarıyıl geçmiş not dağılımından okundu: "
-            f"yalnız gerçek bir sınıfın (en az {GECMIS_TABAN} öğrenci ve o yılın en "
-            f"kalabalık yarıyılının %{GECMIS_ORAN * 100:.0f}'i) olduğu yarıyıl sayıldı — "
-            "birkaç bütünlemeci sayılmadı. Geçen yıl açılması bu yıl açılacağı demek değil.")
+            f"{gecmisten} dersin açıldığı yarıyıl geçmiş not dağılımından belirlenmiştir: "
+            f"yalnızca düzenli bir sınıfın (en az {GECMIS_TABAN} öğrenci ve o yılın en "
+            f"kalabalık yarıyılının %{GECMIS_ORAN * 100:.0f}'i) bulunduğu yarıyıl esas "
+            "alınmıştır. Dersin geçen yıl açılmış olması bu yıl da açılacağı anlamına gelmez.")
     if ortaklar:
         varsayimlar.append(
-            f"⚠ Ortak program (UOLP · {', '.join(ortaklar)}): planda yalnız İTÜ'de alınan "
-            "dersler var; ortak üniversitedeki dönemler bu veride yok. Dersler art arda İTÜ "
-            "dönemlerine yerleştirildi ve bitiş TAHMİN EDİLMEDİ — hangi yarıyılın İTÜ'de "
-            "olduğunu danışmanına sor.")
+            f"⚠ Ortak program (UOLP · {', '.join(ortaklar)}): planda yalnızca İTÜ'de alınan "
+            "dersler yer almaktadır; ortak üniversitedeki dönemler bu veride bulunmamaktadır. "
+            "Dersler ardışık İTÜ dönemlerine yerleştirilmiş, bitiş tahmini yapılmamıştır. "
+            "Hangi yarıyılların İTÜ'de geçeceği için danışmanınıza başvurunuz.")
     if bilinmeyen_mevsim:
-        varsayimlar.append(f"⚠ {bilinmeyen_mevsim} dersin mevsimi hiçbir planda bulunamadı "
-                           "(geçmiş not dağılımında da yok) — her dönem açılır sayıldı.")
+        varsayimlar.append(f"⚠ {bilinmeyen_mevsim} dersin açıldığı yarıyıl hiçbir planda ve "
+                           "geçmiş not dağılımında bulunamamıştır; bu derslerin her dönem "
+                           "açılacağı varsayılmıştır.")
     return {
         "term": term, "maxLoad": max_load, "source": bu_donem_kaynagi,
         # ⚠️ Boş dönem ATILMIYOR (yalnız sondakiler): Bahar'da açılan bir dersi

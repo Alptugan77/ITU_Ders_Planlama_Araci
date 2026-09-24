@@ -186,8 +186,8 @@ def test_tercih_arayuzde_YUMUSAK_oldugunu_yaziyor(dbs):
     sanmasın."""
     html = UI.render(_collect(dbs))
     assert "eleme değil" in html and "sıralama" in html
-    assert "gösterilmemesi işine yaramaz" in html
-    assert "Tercih eleme değil sıralama" in html      # program özetindeki ipucu
+    assert "uymayan tek bir uygulanabilir program varsa bu program yine de gösterilir" in html
+    assert "eleme için değil sıralama için" in html      # program özetindeki ipucu
 
 
 # ================================================ 4. puan kırılımı §3.1
@@ -225,7 +225,7 @@ def test_puanin_ANLAMI_yaziyor(dbs):
     """★ "Yüksek puan = daha iyi ders" YANLIŞ okuma. Puan, bu dönem
     kaçırmanın maliyetini ölçüyor."""
     html = UI.render(_collect(dbs))
-    assert "bu dönem kaçırmak daha pahalı" in html
+    assert "bu dönem alınmamasının maliyetinin yüksek" in html
 
 
 def test_eksi_katki_da_GORUNUYOR(dbs):
@@ -261,7 +261,7 @@ def test_saatsiz_ders_BOS_GUN_sayilmiyor(dbs):
 def test_karsilastirma_ORTAK_dersleri_ayikliyor(dbs):
     html = UI.render(_collect(dbs))
     assert "function karsilastirDialog()" in html
-    assert "yalnız <b>değişenler</b>" in html
+    assert "yalnızca <b>farklılıklar</b>" in html
 
 
 def test_karsilastirma_TEK_oneride_gosterilmiyor(dbs):

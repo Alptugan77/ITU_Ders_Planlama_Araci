@@ -467,10 +467,10 @@ def tercih_puani(picks: Iterable["Pick"], tercih: Preferences | None,
     istenen, istenmeyen = _s["hoca_istenen"], _s["hoca_istenmeyen"]
     if erken:
         puan += TERCIH_AGIRLIK["erken"] * erken
-        sebep.append(f"{erken} ders istediğinden erken başlıyor")
+        sebep.append(f"{erken} ders tercih edilen saatten erken başlıyor")
     if bos:
         puan += TERCIH_AGIRLIK["bos_gun"] * bos
-        sebep.append(f"{bos} ders boş istediğin güne düşüyor")
+        sebep.append(f"{bos} ders boş kalması istenen güne denk geliyor")
     if tercih.kampus_degisimi_istemiyorum and kampus_degisimi:
         puan += TERCIH_AGIRLIK["kampus"] * kampus_degisimi
         sebep.append(f"{kampus_degisimi} kampüs değişimi")
@@ -479,10 +479,10 @@ def tercih_puani(picks: Iterable["Pick"], tercih: Preferences | None,
         sebep.append(f"{online} çevrimiçi şube")
     if istenen:
         puan += TERCIH_AGIRLIK["hoca_istenen"] * istenen
-        sebep.append(f"{istenen} derste istediğin hoca")
+        sebep.append(f"{istenen} derste tercih edilen öğretim üyesi")
     if istenmeyen:
         puan += TERCIH_AGIRLIK["hoca_istenmeyen"] * istenmeyen
-        sebep.append(f"{istenmeyen} derste istemediğin hoca")
+        sebep.append(f"{istenmeyen} derste tercih edilmeyen öğretim üyesi")
     return round(puan, 1), sebep
 
 
@@ -516,7 +516,7 @@ def score_all(cands: list[Candidate]) -> list[Candidate]:
 
         if c.critical:
             kat("critical", WEIGHTS["critical"], "kritik yolda",
-                "kritik yolda — ÇAP'ın süresini bu zincir belirliyor")
+                "kritik yolda — ÇAP süresini bu zincir belirler")
         share = c.unlocks / max_unlock
         kat("unlock", WEIGHTS["unlock"] * share,
             f"{c.unlocks} dersin önşartı",
@@ -537,7 +537,7 @@ def score_all(cands: list[Candidate]) -> list[Candidate]:
         elif len(c.sections) > DEFERRABLE_SECTIONS:
             kat("deferrable", WEIGHTS["deferrable"],
                 f"{len(c.sections)} şube — ertelenebilir",
-                f"{len(c.sections)} şube — her dönem açılıyor, ertelenebilir")
+                f"{len(c.sections)} şube — her dönem açılır, ertelenebilir")
         if c.role != "ANADAL":
             label = "Yandal" if c.role == "YANDAL" else "ÇAP"
             kat("cap_role", WEIGHTS["cap_role"], f"{label} dersi — arzı kısıtlı",
@@ -623,8 +623,8 @@ class Schedule:
         # Yalnız İHLAL sayan tercihler için anlamlı: "istediğin hoca" sayısını
         # sıfıra indirmek bir kazanç değil, kayıp.
         ihlaller = {"erken": "{n} ders erken başlıyor",
-                    "bos_gun": "boş istediğin gün(ler) boşalıyor",
-                    "hoca_istenmeyen": "istemediğin hoca kalmıyor"}
+                    "bos_gun": "boş kalması istenen gün(ler) boşalıyor",
+                    "hoca_istenmeyen": "tercih edilmeyen öğretim üyesi kalmıyor"}
         aktif = {k for k, v in simdi.items() if v and k in ihlaller}
         if not aktif:
             return []
@@ -1174,7 +1174,7 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
         crns = [r[0] for r in con.execute(
             "SELECT crn FROM lesson WHERE course_code=?", (code,))]
         if not crns:
-            out.append(Blocker(code, "ACILMAMIS", "bu dönem hiç şube yok"))
+            out.append(Blocker(code, "ACILMAMIS", "bu dönem şube açılmamıştır"))
             continue
         allowed = {c.upper() for c in allowed_programs} or {cap_program}
         if not load_sections(con, code, allowed):
@@ -1182,7 +1182,7 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
                 "SELECT DISTINCT program_code FROM lesson_allowed_program WHERE crn IN (%s)"
                 % ",".join("?" * len(crns)), crns)})
             out.append(Blocker(code, "PROGRAMA_KAPALI",
-                               f"{len(crns)} şube var ama yalnız {', '.join(progs)} alabiliyor"))
+                               f"{len(crns)} şube bulunmaktadır; yalnızca {', '.join(progs)} alabilir"))
             continue
         if code in unparsed:
             out.append(Blocker(code, "BILINMIYOR", "önşart verisi okunamadı"))
@@ -1196,7 +1196,7 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
                 # ELH 332" demek, öğrenciyi var olmayan bir dersi aramaya
                 # göndermek olurdu.
                 out.append(Blocker(code, "ONSART_KATALOGDA_YOK",
-                                   f"önşartı katalogda yok: {metin}"))
+                                   f"önşartı katalogda bulunmamaktadır: {metin}"))
             else:
                 out.append(Blocker(code, "ONSART", f"eksik: {metin}"))
             continue

@@ -547,11 +547,11 @@ def load_limit(gpa_value: float, second_kind: str = "cap",
     if bands and allowed:
         hit = max((b for b in bands if b.max_credits == allowed),
                   key=lambda b: b.min_gpa)
-        reasons.append(f"GNO {gpa_value:.2f} → en çok {allowed:g} kredi"
+        reasons.append(f"GNO {gpa_value:.2f} → en fazla {allowed:g} kredi"
                        + (f" ({hit.label})" if hit.label else ""))
     if nxt:
         reasons.append(f"{nxt.max_credits:g} krediye çıkmak için GNO ≥ "
-                       f"{nxt.min_gpa:.2f} gerekiyor")
+                       f"{nxt.min_gpa:.2f} gerekmektedir")
 
     minimum = float(band_cfg.get("min_kredi") or 0)
     exempt = False
@@ -565,7 +565,7 @@ def load_limit(gpa_value: float, second_kind: str = "cap",
     elif final_year and "son_sinif" in exemptions:
         exempt, why = True, "son sınıf"
     if exempt:
-        reasons.append(f"alt sınır uygulanmıyor — {why}")
+        reasons.append(f"alt sınır uygulanmaz ({why})")
         minimum = 0.0
     elif minimum:
         reasons.append(f"alt sınır {minimum:g} kredi")

@@ -123,7 +123,7 @@ def test_TONUN_NE_DEDIGI_ekranda_YAZILI():
     not_metni = re.search(r'id="tonNot">(.*?)</span>', KAYNAK, re.S).group(1)
     assert "ton" in not_metni.lower()
     assert "9" in not_metni, "kaç ton olduğu yazmıyor"
-    assert "üstüne gel" in not_metni, "emin olma yolu yazmıyor"
+    assert "üzerine gelindiğinde" in not_metni, "emin olma yolu yazmıyor"
 
 
 def test_AYNI_DERSIN_butun_saatleri_isaretlenebiliyor():

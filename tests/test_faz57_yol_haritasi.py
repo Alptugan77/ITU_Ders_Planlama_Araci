@@ -142,7 +142,7 @@ def test_KREDI_SINIRI_donemi_bolüyor(tmp_path):
     for t in h["terms"]:
         assert t["credits"] <= 12
     assert sum(len(t["items"]) for t in h["terms"]) == 6
-    assert "en çok 12 kredi" in " ".join(h["assumptions"])
+    assert "en fazla 12 kredi" in " ".join(h["assumptions"])
 
 
 def test_ANADAL_plandaki_donemden_ONCE_konmuyor(tmp_path):
@@ -164,7 +164,7 @@ def test_BILINMEYEN_MEVSIM_soyleniyor(tmp_path):
                    cap=["CCC 121"])
     h = _kur(con, planlar=ANADAL + CAP)
     assert h["unknownSeason"] == 1
-    assert any("mevsimi hiçbir planda bulunamadı" in a for a in h["assumptions"])
+    assert any("açıldığı yarıyıl hiçbir planda" in a for a in h["assumptions"])
     madde = next(i for t in h["terms"] for i in t["items"] if i["course"] == "CCC 121")
     assert madde["season"] is None
 
@@ -214,7 +214,7 @@ def test_DIS_ONSART_varsayiliyor_ve_YAZIYOR(tmp_path):
     assert p["finish"] is not None and p["unplaced"] == 0 and p["externalAssumed"] == 1
     madde = next(i for t in h["terms"] for i in t["items"] if i["course"] == "QQQ 131")
     assert madde["externalPrereq"] == ["DIS 100"]
-    assert any("DIS 100" in a and "varsayıldı" in a for a in h["assumptions"])
+    assert any("DIS 100" in a and "varsayılmıştır" in a for a in h["assumptions"])
 
 
 def test_PLANLI_onsart_eksikse_BEKLIYOR_ve_ufukta_YERLESMEYEN(tmp_path):
@@ -224,7 +224,7 @@ def test_PLANLI_onsart_eksikse_BEKLIYOR_ve_ufukta_YERLESMEYEN(tmp_path):
                    [("XXX 101", 5), ("YYY 102", 6)])
     h = _kur(con, ufuk=1)
     assert h["programs"][0]["finish"] is None and h["programs"][0]["unplaced"] == 2
-    assert all("yerleşmedi" in u["reason"] or "önşart" in u["reason"] for u in h["unplaced"])
+    assert all("yerleştirilemedi" in u["reason"] or "önşart" in u["reason"] for u in h["unplaced"])
 
 
 def test_OKUNAMAYAN_ONSART_engellemiyor_ama_ISARETLENIYOR(tmp_path):
@@ -276,7 +276,7 @@ def test_GNO_HEDEFI_canli_ve_tahmin_DEGIL():
     assert "const C = C0 - tekrar.reduce" in t
     assert "const P = P0 - tekrar.reduce" in t
     assert "const x = (h.min * (C + T) - P) / T;" in f
-    assert "Tahmin değil, gereken notun hesabı" in f
+    assert "Bu değerler gereken notun hesabıdır" in f
     # Zaten girilmiş programın başvuru eşiği hedef sayılmıyor.
     assert '!(t.kind === "basvuru" && icinde.has(t.scope))' in KAYNAK
 
@@ -291,7 +291,7 @@ def test_GORUNUM_kayitli_ve_varsayimlar_PLANIN_USTUNDE():
     sira = f[son:f.index("`;", son)]      # Faz 61: ifade artık iki satır
     assert sira.index("${varsayim}") < sira.index("${donemler}"), \
         "varsayımlar planın altına kaydı — okunmadan geçiliyor"
-    assert "Bu bir plan, kehanet değil." in f
+    assert "Hesaplama varsayımları" in f
 
 
 def test_MOTOR_statik_sitede_de_var():
@@ -403,7 +403,7 @@ def test_UCTAN_UCA_vitrin_yol_haritasi(tmp_path, monkeypatch):
     assert "GEO 341E/2" in c["SIMDI"], c["SIMDI"]
     assert c["GORUNUR"] == "True"
     assert int(c["KART"]) >= 4
-    assert c["GEC"].startswith("planındaki bitişten 2 dönem geç"), c["GEC"]
+    assert c["GEC"].startswith("plandaki bitişten 2 dönem geç"), c["GEC"]
     # "Programda dene" → ders programına geçip dersi ekleme penceresi.
     assert c["DENE"] == "detail|schedSection", c["DENE"]
     assert "GEO 341E" in c["DENEDERS"], c["DENEDERS"]
@@ -432,7 +432,7 @@ def test_UCTAN_UCA_vitrin_yol_haritasi(tmp_path, monkeypatch):
     # FF tekrarı: eski notun sıfırı gidiyor → aynı kredide gereken ortalama DÜŞER.
     assert gereken(o2, 2.5) < gereken({**o2, "g": {**o2["g"], "r": {}}}, 2.5)
 
-    assert "uyan boş şube yok" in c["DOLU1"], c["DOLU1"]
+    assert "uygun boş şube bulunmamaktadır" in c["DOLU1"], c["DOLU1"]
     assert "boş şubeye geç" in c["DOLU2"] and "13641" in c["DOLU2"], c["DOLU2"]
     crn, ozet, geri = c["DOLU3"].split("|")
     assert crn == "13641" and "GEO 331E" not in ozet, c["DOLU3"]

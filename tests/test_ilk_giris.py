@@ -132,7 +132,7 @@ def test_program_secimi_BOS_baslar(dbs):
     dokunmadan Kaydet'e basan herkes o bölüme yazılıyor — üstelik seçtiğini
     sanarak."""
     html = UI.render(_bos(dbs))
-    assert "— bölümünü seç —" in html
+    assert "— bölüm seçiniz —" in html
 
 
 def test_program_kutusunda_ADLAR_da_var(dbs):
@@ -160,7 +160,7 @@ def test_anadal_listesi_YALNIZ_lisans_plani_olanlar(dbs):
 
 def test_bos_anadal_KAYDEDILMIYOR(dbs):
     html = UI.render(_collect(dbs))
-    assert "Önce anadal bölümünü seç" in html
+    assert "Lütfen önce anadal bölümünü seçiniz" in html
 
 
 def test_sunucu_da_bos_anadali_REDDEDIYOR(tmp_path, monkeypatch):
@@ -192,7 +192,7 @@ def test_not_yokken_gizlilik_uyarisi_YAZILMIYOR(dbs):
     # ⚠️ Faz 54'te yeniden yazıldı: cümle artık ortama göre (sitede "bu
     # dosya" yok, notlar tarayıcıda). Kontrolün anlamı aynı: not yoksa BOŞ.
     assert "DATA.load.noTranscript) ? \"\"" in html
-    assert "\"Bu dosya notlarını içerir — paylaşma.\"" in html
+    assert "\"Bu dosya notlarınızı içerir; paylaşmayınız.\"" in html
 
 
 def test_notlar_VARKEN_uyari_geri_geliyor(dbs):
@@ -213,7 +213,7 @@ def test_plandan_isaretle_program_yokken_YOL_GOSTERIYOR(dbs):
     "Plan bulunamadı." görüyordu: ne olduğu, ne yapması gerektiği belli
     olmayan bir çıkmaz."""
     html = UI.render(_collect(dbs))
-    assert "Önce bölümünü seç" in html
+    assert "Bölüm seçilmedi" in html
     assert 'id="goProgram"' in html
 
 
@@ -221,7 +221,7 @@ def test_ders_ara_dugmesi_YANLIS_ad_degil(dbs):
     """★ "Ders ara" düğmesi GEÇİLEN dersler penceresini açıyordu; ilk giren
     kişi "alacağım dersi arayacağım" diye tıklayıp transkripte düşüyordu."""
     html = UI.render(_collect(dbs))
-    assert 'data-setup="dersler">Geçtiğin dersler<' in html
+    assert 'data-setup="dersler">Başarılan dersler<' in html
     # ⚠️ "Ders ara" ADI yasak değil — YERİ önemliydi. Kurulum çubuğundaki
     # düğme artık ne yaptığını söylüyor; gerçek katalog aramasının başlığında
     # "Ders ara" yazması doğru (Faz 25/B1).
@@ -254,8 +254,8 @@ def test_arama_SIRALAMAYI_degistirmiyor(dbs):
 def test_iki_ayri_BOS_iki_ayri_cevap(dbs):
     """Süzgeç boşalttıysa çıkış yolu, havuz baştan boşsa sebep."""
     html = UI.render(_collect(dbs))
-    assert "süzgece uyan ders yok" in html
-    assert "bölümünü ve geçtiğin dersleri girdiğinden emin ol" in html
+    assert "süzgece uyan ders bulunmamaktadır" in html
+    assert "bölüm ve başarılan ders bilgilerini kontrol ediniz" in html
 
 
 # --------------------------------------------------- 7. sayfa JS'i AYRIŞIYOR

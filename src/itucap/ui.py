@@ -347,9 +347,9 @@ def _threshold_info(con: sqlite3.Connection, ucon: sqlite3.Connection,
             if t.key == "cap_mezuniyet_ikinci":
                 if second_gpa is None:
                     item.update({"basis": "ikinci anadal", "ok": None,
-                                 "why": "ÇAP planında notlu ders yok — "
-                                        "ikinci anadal ortalaması henüz "
-                                        "hesaplanamıyor."})
+                                 "why": "ÇAP planında harf notlu ders "
+                                        "bulunmadığından ikinci anadal "
+                                        "ortalaması henüz hesaplanamamaktadır."})
                     out.append(item)
                     gorulen[t.key] = item
                     continue
@@ -1203,11 +1203,11 @@ def _onboarding(con, ucon, student_id, settings, anadal_id, seconds) -> dict | N
     ile isteğe bağlı iyileştirmeler AYRI; sırası gelmemiş adım KAPALI.
     """
     adimlar = [
-        {"key": "program", "label": "Bölümünü seç",
-         "cta": "Bölümünü seç",
-         "detail": "Anadal programın. Çift anadal ya da yandal yapmıyorsan "
-                   "\u201cYok\u201d bırak.",
-         "why": "Araç bundan sonra çalışmaya başlıyor.",
+        {"key": "program", "label": "Bölüm seçimi",
+         "cta": "Bölümünüzü seçin",
+         "detail": "Anadal programınız. Çift anadal veya yandal programına "
+                   "kayıtlı değilseniz \u201cYok\u201d seçeneğini bırakın.",
+         "why": "Öneriler bu seçimden sonra oluşturulur.",
          "sure": "10 saniye", "required": True,
          # ⚠️ YER TUTUCU "yapıldı" sayılmıyor (inceleme B2): örnek ayar
          # dosyası `anadal_program = "XXX"` yazıyor ve kart bunu ✓ TAMAM diye
@@ -1222,23 +1222,23 @@ def _onboarding(con, ucon, student_id, settings, anadal_id, seconds) -> dict | N
         # penceresi 1..N-1. dönemin zorunlularını ÖNERİ olarak tikleyebiliyor
         # ve iş bir dakikadan on saniyeye iniyor. Tersi sırada o öneri
         # yapılamıyor, çünkü hangi döneme kadar tikleneceği bilinmiyor.
-        {"key": "donem", "label": "Bulunduğun dönemi söyle",
-         "cta": "Dönemi seç",
-         "detail": "Kaçıncı dönemdesin? Tek tıklama.",
-         "why": "Hem \u201cN. dönem + alttan\u201d önerisi buna göre kuruluyor, "
-                "hem de bir sonraki adımda geçmiş dönemlerin zorunlu dersleri "
-                "senin için işaretleniyor.",
+        {"key": "donem", "label": "Yarıyıl bilgisi",
+         "cta": "Yarıyılınızı seçin",
+         "detail": "Kaçıncı yarıyılda olduğunuzu tek tıklamayla belirtin.",
+         "why": "\u201cN. dönem + alttan\u201d önerisi bu bilgiye göre oluşturulur; "
+                "bir sonraki adımda önceki yarıyılların zorunlu dersleri "
+                "işaretli olarak gelir.",
          "sure": "5 saniye", "required": False,
          "done": bool(settings.donem), "action": "donem"},
-        {"key": "transkript", "label": "Geçtiğin dersleri gir",
-         "cta": "Dersleri gir",
-         "detail": ("Dönemini söylediysen geçmiş dönemlerin zorunluları hazır "
-                    "işaretli gelir — sen yalnız düzeltirsin."
+        {"key": "transkript", "label": "Başarılan dersler",
+         "cta": "Dersleri girin",
+         "detail": ("Önceki yarıyılların zorunlu dersleri işaretli olarak gelir; "
+                    "yalnızca düzeltme yapmanız yeterlidir."
                     if settings.donem else
-                    "En kolayı: transkriptini olduğu gibi yapıştır. İstersen "
-                    "plandan tikle."),
-         "why": "Neyin kaldığını, önşartların tuttuğunu ve kredi tavanını "
-                "bundan çıkarıyor.",
+                    "Transkriptinizi olduğu gibi yapıştırabilir veya dersleri "
+                    "plan üzerinden işaretleyebilirsiniz."),
+         "why": "Kalan dersler, önşart durumu ve kredi sınırı bu bilgiden "
+                "hesaplanır.",
          "sure": "1 dakika", "required": False,
          "done": bool(S.grades(ucon, student_id)), "action": "plan"},
         # ⚠️ TERCİHLER BURAYA EKLENMEDİ — ve bu bilinçli. Denendi: dördüncü
@@ -1323,7 +1323,7 @@ def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
                "slotId": ders[p["course"]].slot_id if p["course"] in ders else 0,
                "role": ders[p["course"]].role if p["course"] in ders else "PLAN_DISI"}
               for p in kayitli]
-        kaynak = f"kaydettiğin program ({len(bu)} ders)"
+        kaynak = f"kaydedilen program ({len(bu)} ders)"
     elif acilis_programlari:
         bu = [{"course": pk.candidate.course, "credits": pk.candidate.credits,
                "slotId": pk.candidate.slot_id, "role": pk.candidate.role}
@@ -1470,7 +1470,7 @@ def _harita_girdisi(con, ucon, student_id: int, settings, bu_donem, max_load) ->
         raise ValueError("kredi sınırı geçersiz")
     grades = S.grades(ucon, student_id)
     if _transkript_eksik(int(settings.donem or 0), grades):
-        raise ValueError("geçtiğin dersler girilmedi — bitiş tahmini yapılamıyor")
+        raise ValueError("başarılan dersler girilmediği için bitiş tahmini yapılamıyor")
     return {
         "anadal_id": anadal_id, "term": term, "max_load": max_load,
         "grades": grades,
@@ -1610,10 +1610,10 @@ def _bos_havuz_sebebi(con, anadal_id, allowed) -> str:
     except sqlite3.Error:
         return ""
     if not toplam_sube:
-        return ("Katalogda hiç açık şube yok — ders programı henüz "
-                "yayınlanmamış olabilir (make refresh).")
+        return ("Katalogda açık şube bulunmamaktadır; ders programı henüz "
+                "yayımlanmamış olabilir (make refresh).")
     if not anadal_id:
-        return "Anadal planın bulunamadı — bölümünü seçtiğinden emin ol."
+        return "Anadal planı bulunamadı. Lütfen bölüm seçiminizi kontrol edin."
     kodlar = {str(c).upper() for c in (allowed or []) if str(c).strip()}
     if not kodlar:
         return ""
@@ -1624,10 +1624,10 @@ def _bos_havuz_sebebi(con, anadal_id, allowed) -> str:
              WHERE upper(program_code) IN ({isaret})""", sorted(kodlar)).fetchone()[0]
     if acik:
         return ""
-    return (f"{toplam_sube} şubenin HİÇBİRİ şu program kodlarına açık değil: "
+    return (f"{toplam_sube} şubenin hiçbiri şu program kodlarına açık değildir: "
             + ", ".join(sorted(kodlar))
-            + ". Program penceresindeki “Gelişmiş → Kayıt yapabildiğin program "
-              "kodları” alanını BOŞALT — o zaman seçtiğin bölümlerden türetilir.")
+            + ". Program penceresindeki “Gelişmiş → Kayıt yapılabilen program "
+              "kodları” alanı boşaltıldığında kodlar seçilen bölümlerden türetilir.")
 
 
 def _program_sekli(sched) -> dict:
@@ -1769,7 +1769,7 @@ def _term_note(cands: list[REC.Candidate], donem: int, second_label: str) -> str
     free = sum(1 for c in cands if c.term_no is None)
     parts = [f"{now} dönemlik ({donem}. dönem)", f"{below} alttan (1–{donem - 1}. dönem)"]
     if free:
-        parts.append(f"{free} {second_label or 'ikinci program'} — planı dönemsiz, hepsi kalır")
+        parts.append(f"{free} {second_label or 'ikinci program'} (planda dönem bilgisi yok; tüm dersler dahil)")
     return " · ".join(parts)
 
 
@@ -3545,7 +3545,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 <section class="card pad" id="savedSection" hidden>
   <div class="sechead"><div class="eyebrow">Kayıtlı</div><div class="rule"></div></div>
   <div class="savedhead">
-    <div><h2>Kaydettiğin program</h2>
+    <div><h2>Kaydedilen program</h2>
       <div class="summary" id="savedWhen"></div></div>
     <div class="toolbar" id="savedActions"></div>
   </div>
@@ -3591,12 +3591,13 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
        sütunu şişiriyordu ve anlattığı şeyin — ızgaranın — yanında değil
        üstündeydi. ⚠️ Yine KATLI: Faz 40'ın dersi gereği silinmiyor. -->
   <details class="ipucu">
-    <summary>Nasıl kullanılır · renkler ne diyor</summary>
-    <div class="hint">Derse tıkla → şube değiştir, yerine başka ders koy, çıkar.
-      Boş hücreye tıkla → o saate uyan dersler.</div>
-    <div class="hint" id="tonNot">Renk hangi programdan olduğunu söylüyor
-      &nbsp;·&nbsp; ton hangi ders olduğunu: aynı ton, aynı ders — 9 tondan
-      sonrası tekrar eder, emin olmak için dersin üstüne gel</div>
+    <summary>Kullanım ve renk açıklamaları</summary>
+    <div class="hint">Bir derse tıklandığında şube değiştirilebilir, ders başka bir
+      dersle değiştirilebilir veya programdan çıkarılabilir. Boş bir hücreye
+      tıklandığında o saate uyan dersler listelenir.</div>
+    <div class="hint" id="tonNot">Renk, dersin ait olduğu programı; ton ise dersi
+      gösterir (aynı ton, aynı ders). 9'dan fazla derste tonlar tekrarlanır;
+      ders adı, üzerine gelindiğinde görüntülenir.</div>
   </details>
   </div><!-- /prgorta -->
 
@@ -3640,10 +3641,11 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 
 <section class="card pad" id="suggestSection" hidden>
   <div class="sechead"><div class="eyebrow">Denklik</div><div class="rule"></div></div>
-  <h2>Bunu zaten almış olabilirsin</h2>
-  <div class="aciklama">Transkriptindeki dersler ile planlarının <b>dolmamış</b>
-    slotları arasında ad eşleşmesi arandı. Uygulamak senin onayınla —
-    yanlış bir denklik, tamamlamadığın bir şartı tamamlanmış gösterirdi.</div>
+  <h2>Daha önce alınmış olabilecek dersler</h2>
+  <div class="aciklama">Transkriptteki dersler ile planların <b>doldurulmamış</b>
+    slotları arasında ad eşleşmesi aranmıştır. Eşleşmeler yalnızca onayınızla
+    uygulanır; hatalı bir denklik, tamamlanmamış bir şartı tamamlanmış
+    gösterebilir.</div>
   <div id="suggestBody" style="margin-top:12px"></div>
 </section>
 
@@ -3652,12 +3654,13 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
      olmayabilir ama denklikle bir gereksinimi karşılıyor. -->
 <section class="card pad" id="denklikSection" hidden>
   <div class="sechead"><div class="eyebrow">Denklik</div><div class="rule"></div></div>
-  <h2>Denkliği bu dönem açık</h2>
-  <div class="aciklama">Almam gereken bir dersin <b>denkliği</b> bu dönem
-    açıksa burada. O açık dersi alırsan gereken ders sayılır — çoğu zaman
-    <b>başka bölümden</b> bir ders, <b>dilekçeyle</b> saydırılır. Kaynak:
-    OBS'nin ilan ettiği resmî denklikler + kendi beyanların. Saydırma için
-    danışmanına ve fakülte yönetim kuruluna danış.</div>
+  <h2>Bu dönem açılan denk dersler</h2>
+  <div class="aciklama">Alınması gereken bir dersin <b>denk</b> dersi bu dönem
+    açılmışsa burada listelenir. Denk ders alındığında gereken ders yerine
+    sayılabilir; bu genellikle <b>başka bir bölümün</b> dersidir ve
+    <b>dilekçe</b> ile saydırılır. Kaynak: OBS'de ilan edilen resmî denklikler
+    ve kullanıcı beyanları. Saydırma işlemi için danışmanınıza ve fakülte
+    yönetim kuruluna başvurunuz.</div>
   <div id="denklikBody" style="margin-top:12px"></div>
 </section>
 
@@ -3674,8 +3677,9 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 <section class="card pad" id="candSection">
   <div class="sechead"><div class="eyebrow">Sıralama</div><div class="rule"></div></div>
   <h2>Aday dersler</h2>
-  <div class="aciklama">Puan; kritik yol, kaç dersi açtığı, zorunluluk, kontenjan
-    ve kademeden hesaplanır. Satıra tıklayıp programa ekleyebilirsin.</div>
+  <div class="aciklama">Puan; kritik yol, dersin önşartı olduğu ders sayısı,
+    zorunluluk, kontenjan ve kademe dikkate alınarak hesaplanır. Bir satıra
+    tıklanarak ders programa eklenebilir.</div>
   <!-- ★ 24.08.2026 — liste ilk 30 ile kesiliyordu ve arama yoktu: aklındaki
        dersi arayan kişi onu bulamıyor, "bu araç benim dersimi bilmiyor"
        diye çıkıyordu. Süzgeç kesme sınırını da kaldırıyor. -->
@@ -3685,9 +3689,9 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
          okuyucu "arama" diyip geçiyordu. Üstelik yer tutucu yazmaya
          başlayınca kayboluyor — neyin arandığını hatırlatan tek şeydi. -->
     <input type="search" id="candQ" aria-label="Aday derslerde ara"
-      placeholder="ders ara — kod, ad ya da hoca (örn. MAT 103E, olasılık, Feza)">
+      placeholder="Ders arama — kod, ad veya öğretim üyesi (örn. MAT 103E, olasılık)">
     <div class="radios" id="candRole"></div>
-    <label class="tickbox"><input type="checkbox" id="candFree"> yalnız yeri olanlar</label>
+    <label class="tickbox"><input type="checkbox" id="candFree"> yalnızca kontenjanı olanlar</label>
     <!-- ★ Faz 25/B1 — planında OLMAYAN dersi de aramak/eklemek için. -->
     <button class="ghost" id="katalogBtn">Katalogda ara</button>
     <span class="candcount" id="candCount"></span>
@@ -3708,14 +3712,14 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 
 <section class="card pad" id="blockSection">
   <div class="sechead"><div class="eyebrow">Darboğaz</div><div class="rule"></div></div>
-  <h2 id="blockTitle">İkinci programda neden alamıyorsun</h2>
+  <h2 id="blockTitle">İkinci programda alınamayan dersler</h2>
   <div id="blockers"></div>
 </section>
 
 <!-- FAZ 12 — "başvurabilir miyim" (yapılacaklar 1.3) -->
 <section class="card pad" id="basvuruSection" hidden>
   <div class="sechead"><div class="eyebrow">Başvuru</div><div class="rule"></div></div>
-  <h2>Başvurabilir miyim</h2>
+  <h2>Başvuru koşulları</h2>
   <!-- ★ 22.08.2026: bölüm iki satıra indi, ayrıntı pencereye taşındı.
        Şartlar + program tablosu sayfanın en uzun bölümüydü ve her açılışta
        oradaydı; oysa dönemde birkaç kez bakılan bir şey. -->
@@ -3724,8 +3728,8 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 
 <dialog id="basvuruDlg" class="wide"><div class="pad">
   <h2 id="basvuruDlgTitle" style="margin-bottom:4px">ÇAP planları</h2>
-  <div class="aciklama">Yönergedeki şartlar senin durumunla karşılaştırılıyor.
-    Karar mercii bölümün — bu ekran hazırlık içindir.</div>
+  <div class="aciklama">Yönergedeki şartlar mevcut durumunuzla karşılaştırılmaktadır.
+    Başvuru kararı ilgili bölüme aittir; bu ekran yalnızca hazırlık amaçlıdır.</div>
   <div class="tabs" id="basvuruTabs" role="tablist" style="margin-top:12px"></div>
   <div id="basvuruBody"></div>
   <div class="toolbar" style="margin-top:16px">
@@ -3739,22 +3743,23 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 <section class="card pad" id="roadmapSection" hidden>
   <div class="sechead"><div class="eyebrow">Mezuniyet</div><div class="rule"></div></div>
   <h2>Yol haritası</h2>
-  <div class="aciklama">Kalan derslerin dönem dönem yerleşimi: önşart sırası,
-    dönem kredi sınırın ve dersin açıldığı mevsim hesaba katıldı. <b>Bir plan,
-    kehanet değil</b> — neye dayandığı hemen aşağıda.</div>
+  <div class="aciklama">Kalan dersler; önşart sırası, dönemlik kredi sınırı ve
+    dersin açıldığı yarıyıl dikkate alınarak dönemlere yerleştirilmiştir.
+    Hesaplamanın dayandığı varsayımlar aşağıda listelenmiştir.</div>
   <div id="roadmapBody"></div>
 </section>
 
 <section class="card pad" id="tierSection">
   <div class="sechead"><div class="eyebrow">Önşart zinciri</div><div class="rule"></div></div>
   <h2 id="tierTitle">Kademeler</h2>
-  <div class="aciklama">Her kademe en az bir dönem. Kademe sayısı, ikinci programı
-    bitirebileceğin en kısa süredir. <b>Çizgiler önşart bağıdır</b> — bir dersin
-    üstüne gelince yalnız o dersin zinciri belirir, tıklarsan kilitlenir
-    (ikinci tıkta çözülür).</div>
+  <div class="aciklama">Her kademe en az bir dönem sürer; kademe sayısı ikinci
+    programın tamamlanabileceği en kısa süreyi gösterir. <b>Çizgiler önşart
+    bağlarını</b> gösterir. Bir dersin üzerine gelindiğinde yalnızca o dersin
+    zinciri görüntülenir; tıklandığında sabitlenir, ikinci tıklamada serbest
+    bırakılır.</div>
   <div class="tierlegend" aria-hidden="true">
     <span><i class="rdy"></i> bu dönem alınabilir</span>
-    <span><i class="done"></i> almışsın</span>
+    <span><i class="done"></i> alınmış</span>
     <span><i></i> önşartı bekliyor</span>
     <span><i class="line"></i> önşart bağı</span>
   </div>
@@ -3766,7 +3771,8 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 </div><!-- /govde -->
 
 <footer>
-  Bu araç bilgilendirme amaçlıdır; ders kayıt kararların için danışmanına ve OBS'ye danış.
+  Bu araç yalnızca bilgilendirme amaçlıdır; ders kaydına ilişkin kararlar için
+  danışmanınıza ve OBS'ye başvurunuz.
   Şube ve kontenjan verisi <span id="gen" class="mono"></span> itibarıyla.
   <!-- ★ "Bu dosya notlarını içerir" YALNIZ gerçekten içeriyorsa yazılıyor:
        transkript girmemiş kişiye söylenince, girmediği bir veriyi sızdırdığını
@@ -3919,14 +3925,14 @@ function renderHeader(){
      ⚠️ Başlık artık BURADAN YAZILMIYOR — şablonda duruyor ve tek kaynağı
      `ui.AD_*` sabitleri. JS'ten ezmek ikinci bir kaynak demekti. */
   /* ★ C6 — başlık artık anadalı da kapsıyor. */
-  $("#blockTitle").textContent = "Bu dersleri neden alamıyorsun";
+  $("#blockTitle").textContent = "Alınamayan dersler";
   $("#tierTitle").textContent = ikili ? "Kademeler" : `${LBL} kademeleri`;
   $("#gen").textContent = veriTarihi();
   /* ★ Faz 54: sitede "bu dosya" YOK — notlar tarayıcıda. Yanlış yeri
      söylemek, neyin nerede durduğunu (ve neyin kaybolabileceğini) gizler. */
   $("#gizlilik").textContent = (DATA.load && DATA.load.noTranscript) ? ""
-    : siteMi() ? "Notların yalnız bu tarayıcıda — tarayıcı verisini silersen gider; yedeğini al (Ayar)."
-    : "Bu dosya notlarını içerir — paylaşma.";
+    : siteMi() ? "Notlarınız yalnızca bu tarayıcıda saklanır; tarayıcı verileri silindiğinde kaybolur. Yedek almanız önerilir (Ayar)."
+    : "Bu dosya notlarınızı içerir; paylaşmayınız.";
   renderVeriYasi();
   renderAyarHatasi();
   /* ★ Transkript yokken GNO da yok; "dönem yükü sınırı 35 kredi" o zaman
@@ -4005,9 +4011,9 @@ function cevrimdisiDurumu(){
   const agYok = !!window.__ITUCAP_API__ && navigator.onLine === false;
   el.hidden = !(kopya || agYok);
   if(el.hidden) return;
-  el.innerHTML = `<b>${agYok ? "Bağlantı yok" : "Cihazdaki kopyadan açıldı"}</b> —
-    planın, CRN'lerin ve yedeklerin burada; ama ${esc(veriYasiMetni())}.
-    Kontenjan kayıt ekranında değişmiş olabilir: <b>CRN'leri OBS'de doğrula</b>.`;
+  el.innerHTML = `<b>${agYok ? "Bağlantı yok" : "Cihazdaki kopyadan açıldı"}</b>.
+    Planınız, CRN'leriniz ve yedekleriniz kullanılabilir durumdadır; ancak ${esc(veriYasiMetni())}.
+    Kontenjanlar değişmiş olabilir; <b>CRN'leri OBS'de doğrulayınız</b>.`;
 }
 addEventListener("online", cevrimdisiDurumu);
 addEventListener("offline", cevrimdisiDurumu);
@@ -4052,8 +4058,8 @@ function gecmisDonemUyarisi(){
   const n = DATA.termGraded || 0;
   if(!n) return "";
   return ` · <b class="stale" title="Bu dönem için ${n} dersin not dağılımı
-    yayınlanmış; yani dönem tamamlanmış görünüyor.">⚠ ${
-    esc(DATA.termLabel || DATA.term)} bitmiş görünüyor</b>`;
+    yayımlanmıştır; dönem tamamlanmış görünmektedir.">⚠ ${
+    esc(DATA.termLabel || DATA.term)} tamamlanmış görünüyor</b>`;
 }
 
 function renderVeriYasi(){
@@ -4070,8 +4076,8 @@ function renderVeriYasi(){
      düğme duruyordu ve basınca "bu ortamda yapılamıyor" diyordu — hiç
      çalışmayacak bir düğme. Yerine neden eski olduğu yazıyor. */
   el.innerHTML = `<span class="veriyazi">${esc(veriYasiMetni())}</span>`
-    + (siteMi() ? `<span class="veriyazi sitenot">Site dönem başında güncelleniyor —
-         güncel kontenjan OBS'de.</span>`
+    + (siteMi() ? `<span class="veriyazi sitenot">Site dönem başında güncellenir;
+         güncel kontenjan bilgisi OBS'dedir.</span>`
        : LIVE ? `<button class="ghost mini" id="veriTazele">tazele</button>` : "")
     + gecmisDonemUyarisi();
   el.classList.toggle("stale", !!(DATA.dataAge && DATA.dataAge.stale));
@@ -4095,10 +4101,10 @@ function renderAyarHatasi(){
   el.hidden = !hata && !uyari.length;
   el.classList.toggle("yumusak", !hata && uyari.length > 0);
   if(hata){
-    el.innerHTML = `<b>Ayar dosyan okunamadı — varsayılanlarla açıldı.</b>
+    el.innerHTML = `<b>Ayar dosyası okunamadı; varsayılan ayarlar kullanılıyor.</b>
       <div class="mono" style="margin-top:4px">${esc(hata)}</div>
-      <div style="margin-top:6px">Seçtiğin bölüm ve dönem <b>kullanılmıyor</b>.
-        Dosyayı düzelt ya da aşağıdan yeniden seç.</div>`;
+      <div style="margin-top:6px">Seçilen bölüm ve dönem <b>kullanılmamaktadır</b>.
+        Dosyayı düzeltiniz veya seçimleri aşağıdan yeniden yapınız.</div>`;
     return;
   }
   if(!uyari.length) return;
@@ -4108,16 +4114,16 @@ function renderAyarHatasi(){
      yaz" diyor, yazılsa yarıyıl tabanı UYGULANMIYOR ve kimse söylemiyordu.
      Fatal değil (sayfa doğru çalışıyor), o yüzden kırmızı değil. */
   const yer = (u) => u.tablo ? `[${esc(u.tablo)}]` : "ilk tablo başlığından önce";
-  el.innerHTML = `<b>Ayar dosyanda okunmayan ${uyari.length === 1 ? "bir satır"
-      : uyari.length + " satır"} var.</b>
+  el.innerHTML = `<b>Ayar dosyasında okunmayan ${uyari.length === 1 ? "bir satır"
+      : uyari.length + " satır"} bulunmaktadır.</b>
     <ul style="margin:6px 0 0;padding-left:20px">${uyari.map(u => `<li>
       <span class="mono">${esc(u.anahtar)}</span> ${yer(u)} altında — ${u.golge
-        ? `araç <span class="mono">[student]</span>'taki değeri kullanıyor, bu
-           satır <b>yalnız yanıltıcı bir kopya</b>`
-        : `araç onu <b>okumuyor</b>, varsayılan değer geçerli`}.</li>`).join("")}</ul>
+        ? `araç <span class="mono">[student]</span> altındaki değeri kullanmaktadır;
+           bu satır <b>etkisiz bir kopyadır</b>`
+        : `araç bu satırı <b>okumamaktadır</b>; varsayılan değer geçerlidir`}.</li>`).join("")}</ul>
     <div style="margin-top:6px">Düzeltmek için bu satırları
-      <span class="mono">config/settings.toml</span> içinde
-      <span class="mono">[student]</span> başlığının altına taşı (ya da sil).</div>`;
+      <span class="mono">config/settings.toml</span> dosyasında
+      <span class="mono">[student]</span> başlığının altına taşıyınız veya siliniz.</div>`;
 }
 
 $("#theme").addEventListener("click", () => {
@@ -4154,7 +4160,7 @@ async function api(path, payload){
   }catch(err){
     // ★ En sık karşılaşılacak hata: kullanıcı terminalde Ctrl+C yapmış.
     // "Failed to fetch" demek yerine ne olduğunu söyle.
-    throw new Error("sunucuya ulaşılamadı — `make app` hâlâ çalışıyor mu?");
+    throw new Error("sunucuya ulaşılamadı; `make app` komutunun çalıştığını kontrol ediniz");
   }
   const body = await res.json().catch(() => ({error: "cevap okunamadı"}));
   if(!res.ok) throw new Error(body.error || ("hata " + res.status));
@@ -4240,14 +4246,14 @@ function setupBar(){
       <button class="ghost" data-setup="program">Program</button>
       <button class="ghost" data-setup="donem">Dönem</button>
       <button class="ghost primary" data-setup="plan">Plandan işaretle</button>
-      <button class="ghost" data-setup="dersler">Geçtiğin dersler</button>
+      <button class="ghost" data-setup="dersler">Başarılan dersler</button>
       <button class="ghost" data-setup="tercih">Tercihler${
         tercihSayisi() ? ` <span class="chip">${tercihSayisi()}</span>` : ""}</button>`
     : `<span class="ro">Düzenlemek için <span class="mono">make app</span></span>
        <button class="ghost" disabled>Program</button>
        <button class="ghost" disabled>Dönem</button>
        <button class="ghost" disabled>Plandan işaretle</button>
-       <button class="ghost" disabled>Geçtiğin dersler</button>
+       <button class="ghost" disabled>Başarılan dersler</button>
        <button class="ghost" disabled>Tercihler</button>`}
     ${veriKutusu()}`;
   $("#setupbar").querySelectorAll("[data-setup]").forEach(b =>
@@ -4267,12 +4273,13 @@ function veriKutusu(){
   if(!siteMi() || !window.__ITUCAP_YEDEK__) return "";
   const n = SETUP ? SETUP.transcript.length : 0;
   return `<div class="verikutusu" id="veriKutusu">
-    <b>Verin yalnız bu tarayıcıda.</b> Bölümün, ${n ? `<b>${n}</b> dersin` : "derslerin"},
-    kilitlerin ve kaydettiğin program bu tarayıcının deposunda — hiçbir sunucuya
-    gitmiyor. Tarayıcı verisini silersen, başka cihaza geçersen ya da tarayıcı
-    yer açmak için temizlerse <b>gider</b>.
+    <b>Verileriniz yalnızca bu tarayıcıda saklanır.</b> Bölüm bilginiz,
+    ${n ? `<b>${n}</b> dersiniz` : "dersleriniz"}, kilitleriniz ve kaydedilen program
+    bu tarayıcının deposunda tutulur; hiçbir sunucuya gönderilmez. Tarayıcı verileri
+    silindiğinde, başka bir cihaza geçildiğinde veya tarayıcı yer açmak için
+    temizlik yaptığında bu veriler <b>kaybolur</b>.
     <div class="veridugmeler">
-      <button class="ghost" id="yedekIndir">Yedeğini indir</button>
+      <button class="ghost" id="yedekIndir">Yedek indir</button>
       <button class="ghost" id="yedekSec">Yedekten yükle…</button>
     </div>
     <div class="verikalici" id="veriKalici"></div>
@@ -4301,13 +4308,13 @@ function yedekDosyaSec(durum){
     /* ⚠️ Uygulamadan ÖNCE ne olacağı söyleniyor: yedek şimdiki verinin
        YERİNE geçiyor. Önce şimdikini indirmek tek tık. */
     const O = sonuc.ozet, simdi = SETUP ? SETUP.transcript.length : 0;
-    durum.innerHTML = `<b>Bu yedek şimdiki verinin yerine geçecek.</b>
+    durum.innerHTML = `<b>Bu yedek, mevcut verilerin yerine geçecektir.</b>
       Yedek: ${esc((O.tarih || "").slice(0, 10))} · ${esc(O.anadal || "bölüm yok")} ·
-      <b>${Number(O.ders) || 0}</b> ders. Şimdi: ${esc((SETUP && SETUP.anadalProgram) || "bölüm yok")} ·
+      <b>${Number(O.ders) || 0}</b> ders. Mevcut: ${esc((SETUP && SETUP.anadalProgram) || "bölüm yok")} ·
       <b>${simdi}</b> ders.
       <div class="veridugmeler">
         ${simdi || (SETUP && SETUP.anadalProgram)
-          ? `<button class="ghost" data-yedek="once">Önce şimdikini indir</button>` : ""}
+          ? `<button class="ghost" data-yedek="once">Önce mevcut verileri indir</button>` : ""}
         <button class="ghost primary" data-yedek="uygula">Yedeği yükle</button>
         <button class="ghost" data-yedek="vazgec">Vazgeç</button></div>`;
     const b = (k) => durum.querySelector(`[data-yedek="${k}"]`);
@@ -4329,8 +4336,8 @@ async function wireVeriKutusu(){
   $("#yedekIndir").addEventListener("click", async () => {
     try{
       const n = await Y.indir();
-      durum.textContent = `İndirildi (${n} dosya). Dosyayı güvenli bir yere koy —
-        içinde notların var.`;
+      durum.textContent = `İndirildi (${n} dosya). Dosya notlarınızı içerdiğinden
+        güvenli bir yerde saklayınız.`;
     }catch(e){ hataBildir($("#yedekIndir"), e); }
   });
   $("#yedekSec").addEventListener("click", () => yedekDosyaSec(durum));
@@ -4340,16 +4347,16 @@ async function wireVeriKutusu(){
   const k = $("#veriKalici");
   const yaz = (v) => {
     k.innerHTML = v === true
-      ? "✓ Tarayıcı bu siteye <b>kalıcı depolama</b> verdi: yer açmak için verini silmez."
+      ? "✓ Tarayıcı bu siteye <b>kalıcı depolama</b> izni vermiştir; veriler yer açmak için silinmez."
       : v === false
-        ? `⚠️ Tarayıcı yer açmak için bu sitenin verisini <b>silebilir</b>.
-           <button class="ghost mini" id="kaliciIste">Kalıcı saklamasını iste</button>`
-        : "Bu tarayıcı kalıcı depolamayı desteklemiyor — yedeğini al.";
+        ? `⚠️ Tarayıcı yer açmak için bu sitenin verilerini <b>silebilir</b>.
+           <button class="ghost mini" id="kaliciIste">Kalıcı depolama iste</button>`
+        : "Bu tarayıcı kalıcı depolamayı desteklemiyor; yedek almanız önerilir.";
     const b = $("#kaliciIste");
     if(b) b.addEventListener("click", async () => {
       const r = await Y.kaliciIste();
       yaz(r);
-      if(r === false) say2("tarayıcı kabul etmedi — yedeğini indir");
+      if(r === false) say2("tarayıcı isteği kabul etmedi; yedek indirmeniz önerilir");
     });
   };
   try{ yaz(await Y.kalici()); }catch(e){ yaz(null); }
@@ -4436,7 +4443,7 @@ async function save(fn, secenek = {varsayilanKip: true}){
   const sayac = setInterval(() => {
     const sn = Math.round((Date.now() - t0) / 1000);
     if(sn >= 3) say(`kaydediliyor… ${sn} sn — plan yeniden hesaplanıyor, `
-                    + `pencereyi kapatma`);
+                    + `lütfen pencereyi kapatmayınız`);
   }, 1000);
   try{
     applyState(await fn(), secenek);
@@ -4480,7 +4487,7 @@ function programDialog(){
   const opts = (sel) =>
     /* ★ Boş seçim GERÇEK bir seçenek: yoksa liste alfabetik ilk bölümde
        (AIN) açılıyor ve dokunmadan Kaydet'e basan herkes o bölüme yazılıyor. */
-    (sel ? "" : `<option value="" selected>— bölümünü seç —</option>`) +
+    (sel ? "" : `<option value="" selected>— bölüm seçiniz —</option>`) +
     codes.map(c => `<option value="${esc(c)}"${c === sel ? " selected" : ""}
       >${esc(label(c))}</option>`).join("");
   const kindsOf = (k) => k === "ikisi" ? ["cap", "yandal"] : (k === "yok" ? [] : [k]);
@@ -4500,7 +4507,7 @@ function programDialog(){
   const secondOpts = (k, sel) => {
     const liste = (s.secondPrograms || {})[k] || [];
     if(!liste.length) return `<option value="">bu tipte plan yok — make all-plans</option>`;
-    return (sel ? "" : `<option value="" selected>— ${KIND_LABEL[k]} bölümü seç —</option>`)
+    return (sel ? "" : `<option value="" selected>— ${KIND_LABEL[k]} bölümü seçiniz —</option>`)
       + liste.map(p => `<option value="${esc(p.code)}"${p.code === sel ? " selected" : ""}
         >${esc(p.code)} — ${esc(p.name || p.code)}</option>`).join("");
   };
@@ -4508,20 +4515,20 @@ function programDialog(){
     <div class="eyebrow">Kurulum</div>
     <h2 style="margin-bottom:4px">Program seçimi</h2>
     <p class="modenote" style="margin:2px 0 4px">Bir tek anadal yeter.
-      <b>Çift anadal ya da yandal yapmıyorsan “Yok” bırak</b> — araç normal
-      ders seçim aracı olarak çalışır.</p>
+      <b>Çift anadal veya yandal programına kayıtlı değilseniz “Yok” seçeneğini
+      bırakınız</b>; araç bu durumda yalnızca anadal için çalışır.</p>
     <div class="grid2">
       <label class="field"><span>Anadal <b style="color:var(--anadal)">*</b></span>
         <!-- ★ C7 — 127 satırlık kutuda arama yoktu ve liste KODA göre
              sıralıydı: öğrenci "Bilgisayar" diye arıyor, liste
              "AIN, ARC, BES…" diye gidiyordu. -->
         <input type="search" id="fAnadalQ" autocomplete="off"
-          placeholder="bölüm ara — “bilgisayar”, “BLG”, “makina”…"
+          placeholder="Bölüm arama — “bilgisayar”, “BLG”, “makina”…"
           style="margin-bottom:6px">
         <select id="fAnadal" size="1">${opts(s.anadalProgram)}</select>
         <span class="hint" id="fAnadalSayi">Listede
           <b class="mono">${codes.length}</b> bölüm var.
-          Seninkini göremiyorsan o bölümün ders planı henüz çekilmemiştir.</span></label>
+          Bölümünüz listede yoksa o bölümün ders planı henüz alınmamıştır.</span></label>
       <label class="field"><span>İkinci program</span>
         <div class="radios" id="fKind">
           ${[["yok","Yok"],["cap","ÇAP"],["yandal","Yandal"],["ikisi","İkisi"]].map(([k,l]) =>
@@ -4536,30 +4543,30 @@ function programDialog(){
             ((s.secondChoice || {})[k] || {}).program)}</select></label>
         <label class="field"><span>${KIND_LABEL[k]} planı</span>
           <select id="fPlan-${k}"></select>
-          <span class="hint" id="fPlanNot-${k}">Planı boş bırakırsan en güncel OBS planı seçilir.</span></label>
+          <span class="hint" id="fPlanNot-${k}">Plan seçilmezse en güncel OBS planı kullanılır.</span></label>
       </div>`).join("")}
     <details class="adv"${ozelKod ? " open" : ""}>
       <summary>Gelişmiş</summary>
-      <div class="field"><span>Kayıt yapabildiğin program kodları</span>
+      <div class="field"><span>Kayıt yapılabilen program kodları</span>
         <div class="kodlar" id="fTuretilen"></div>
-        <span class="hint">Bir şubenin "Dersi Alabilen Programlar" listesinde
-          bunlardan biri varsa dersi alabilirsin. Yukarıdaki seçimlerden
-          <b>otomatik</b> geliyor — değişince kendiliğinden güncelleniyor.</span>
+        <span class="hint">Bir şubenin "Dersi Alabilen Programlar" listesinde bu
+          kodlardan biri bulunuyorsa ders alınabilir. Kodlar yukarıdaki seçimlerden
+          <b>otomatik</b> olarak türetilir ve seçimler değiştiğinde güncellenir.</span>
       </div>
       <div class="field" id="fOneriKutu" hidden><span>Bunlar da eklenebilir</span>
         <div class="kodlar" id="fOneri"></div>
         <!-- ⚠️ Otomatik EKLENMİYOR: "bu kodla da kayıt yapabilirsin" bir
              iddia ve yanlışsa alamayacağın dersi alabilir gösterir. -->
-        <span class="hint">Aynı bölümün öbür dil sürümü. Kayıt yapabiliyorsan
-          ekle — <b>emin değilsen ekleme</b>, aracın alamayacağın dersi
-          alabilir göstermesine yol açar.</span>
+        <span class="hint">Aynı bölümün diğer dildeki programı. Yalnızca bu
+          programa kayıt yapılabiliyorsa ekleyiniz; <b>emin değilseniz eklemeyiniz</b>.
+          Aksi hâlde alınamayacak dersler alınabilir olarak gösterilebilir.</span>
       </div>
       <label class="field"><span>Ekstra program kodları</span>
         <input type="text" id="fCodes" value="${esc((s.programCodes || []).join(", "))}"
-          placeholder="genelde boş kalır">
-        <span class="hint">Yukarıdakilere <b>ek olarak</b> kayıt yapabildiğin
-          kodlar. Anadal/ÇAP/yandal kodlarını buraya yazmana gerek yok.
-          Virgülle ayır.</span></label>
+          placeholder="genellikle boş bırakılır">
+        <span class="hint">Yukarıdakilere <b>ek olarak</b> kayıt yapılabilen
+          kodlar. Anadal, ÇAP ve yandal kodlarının buraya yazılması gerekmez.
+          Kodları virgülle ayırınız.</span></label>
     </details>`, () => {
     let kind = s.secondKind;
     /* ★★ FAZ 54 — PLANIN KİMİN İÇİN OLDUĞU YAZIYOR. ÇAP planları (anadal,
@@ -4595,13 +4602,13 @@ function programDialog(){
       if(!list.length) $("#fPlan-" + k).innerHTML +=
         `<option disabled>bu bölümde ${KIND_LABEL[k]} planı yok</option>`;
       const not = $("#fPlanNot-" + k);
-      if(not) not.innerHTML = !code || !list.length ? "Planı boş bırakırsan en güncel OBS planı seçilir."
-        : !an ? "Önce anadalını seç — planlar anadala göre ayrılıyor."
-        : uygun.length ? `<b>${uygun.length}</b> plan ${esc(an)} öğrencileri için ilan edilmiş;
-            boş bırakırsan en günceli seçilir.`
-        : `⚠️ Bu bölümün ${KIND_LABEL[k]} planlarının hiçbiri ${esc(an)} için ilan
-            edilmemiş. Otomatik seçim en güncel planı alır — <b>senin planın
-            olmayabilir</b>, OBS'den doğrula.`;
+      if(not) not.innerHTML = !code || !list.length ? "Plan seçilmezse en güncel OBS planı kullanılır."
+        : !an ? "Planlar anadala göre ayrıldığından önce anadal seçiniz."
+        : uygun.length ? `<b>${uygun.length}</b> plan ${esc(an)} öğrencileri için ilan edilmiştir;
+            plan seçilmezse en güncel olanı kullanılır.`
+        : `⚠️ Bu bölümün ${KIND_LABEL[k]} planlarından hiçbiri ${esc(an)} için ilan
+            edilmemiştir. Otomatik seçim en güncel planı kullanır; <b>bu plan sizin
+            planınız olmayabilir</b>. Lütfen OBS'den doğrulayınız.`;
     };
     /* ★★ Türetilen kodlar CANLI: kullanıcı bölümü değiştirince rozetler
        anında değişiyor. Kaydedilmiş değeri göstermek, "otomatik" sözünü
@@ -4616,8 +4623,8 @@ function programDialog(){
     const cizKodlar = () => {
       const t = turetilenKodlar();
       $("#fTuretilen").innerHTML = t.length
-        ? t.map(c => `<span class="kod" title="seçimlerinden geliyor">${esc(c)}</span>`).join("")
-        : `<span class="hint">bölüm seçince burada görünecek</span>`;
+        ? t.map(c => `<span class="kod" title="seçimlerden türetildi">${esc(c)}</span>`).join("")
+        : `<span class="hint">bölüm seçildiğinde burada görüntülenir</span>`;
       /* Öneri, ARTIK SEÇİLİ OLANA göre süzülüyor: kullanıcı ekstra kutusuna
          elle yazdıysa ya da bölümü değiştirdiyse öneri de değişmeli. */
       const yazili = new Set(($("#fCodes").value || "").split(/[,\s]+/)
@@ -4656,7 +4663,7 @@ function programDialog(){
       const uyan = codes.filter(c => !q
         || label(c).toLocaleLowerCase("tr").includes(q) || c === secili);
       $("#fAnadal").innerHTML =
-        (secili ? "" : `<option value="">— bölümünü seç —</option>`)
+        (secili ? "" : `<option value="">— bölüm seçiniz —</option>`)
         + uyan.map(c => `<option value="${esc(c)}"${c === secili ? " selected" : ""}
             >${esc(label(c))}</option>`).join("");
       $("#fAnadalSayi").innerHTML = q
@@ -4685,7 +4692,7 @@ function programDialog(){
       /* ★ Sunucu da reddediyor ama hata orada "anadal programı boş olamaz"
          diye çıkıyor; burada söylemek, kullanıcıyı alana geri götürüyor. */
       if(!anadal){
-        say("Önce anadal bölümünü seç", true);
+        say("Lütfen önce anadal bölümünü seçiniz", true);
         $("#fAnadal").focus();
         return;
       }
@@ -4696,7 +4703,7 @@ function programDialog(){
       });
       const eksik = kindsOf(kind).filter(k => !secim[k].program);
       if(eksik.length){
-        say(eksik.map(k => KIND_LABEL[k]).join(" ve ") + " bölümü seçilmedi", true);
+        say(eksik.map(k => KIND_LABEL[k]).join(" ve ") + " bölümü seçilmedi; lütfen seçiniz", true);
         return;
       }
       /* ⚠️ Kutuya YALNIZ EKSTRALAR gidiyor. Anadal/ÇAP/yandal kodları
@@ -4736,9 +4743,9 @@ function kampusKapsami(){
     (s.meetings || []).forEach(m => { top++; if(!m.campus) yok++; });
   }));
   if(!top || !yok) return "";
-  return `<span class="hint" style="display:block">Adaylarının
-    <b class="mono">${top}</b> yüz yüze ders saatinin <b class="mono">${yok}</b>
-    tanesinde bina/kampüs ilan edilmemiş — bu tercih onlarda uygulanamıyor.</span>`;
+  return `<span class="hint" style="display:block">Aday derslerin
+    <b class="mono">${top}</b> yüz yüze ders saatinden <b class="mono">${yok}</b>
+    tanesinde bina/kampüs ilan edilmemiştir; bu tercih söz konusu saatlerde uygulanamaz.</span>`;
 }
 
 function tercihDialog(){
@@ -4748,10 +4755,10 @@ function tercihDialog(){
   openSetup(`
     <div class="eyebrow">Kurulum</div>
     <h2 style="margin-bottom:4px">Tercihlerin</h2>
-    <p class="modenote" style="margin:2px 0 4px">Bunlar <b>eleme değil,
-      sıralama</b>: araç önce çalışan programları bulur, sonra tercihlerine
-      en uygun olanı öne alır. Tek çalışan program tercihine uymuyorsa yine
-      de gösterilir — <b>çünkü gösterilmemesi işine yaramaz.</b></p>
+    <p class="modenote" style="margin:2px 0 4px">Tercihler <b>eleme değil,
+      sıralama</b> amacıyla kullanılır: araç önce uygulanabilir programları
+      belirler, ardından tercihlerinize en uygun olanı öne alır. Tercihlere
+      uymayan tek bir uygulanabilir program varsa bu program yine de gösterilir.</p>
 
     <label class="field"><span>Şu saatten önce ders istemiyorum</span>
       <div class="radios" id="fErken">
@@ -4765,7 +4772,7 @@ function tercihDialog(){
           aria-pressed="${gunler.has(v)}" style="width:auto;padding:8px 12px"
           >${l}</button>`).join("")}
       </div>
-      <span class="hint">Beşini birden seçemezsin.</span></label>
+      <span class="hint">Beş günün tamamı seçilemez.</span></label>
 
     <div class="grid2" style="margin-top:14px">
       <label class="tickbox"><input type="checkbox" id="fKampus"
@@ -4778,16 +4785,16 @@ function tercihDialog(){
     <details class="adv"${(P.istenenHocalar || []).length
       || (P.istenmeyenHocalar || []).length ? " open" : ""}>
       <summary>Öğretim üyesi</summary>
-      <label class="field"><span>İstediğim hocalar</span>
+      <label class="field"><span>Tercih edilen öğretim üyeleri</span>
         <input type="text" id="fHocaVar"
           value="${esc((P.istenenHocalar || []).join(", "))}"
           placeholder="Buzluca, Şule Itır"></label>
-      <label class="field"><span>İstemediğim hocalar</span>
+      <label class="field"><span>Tercih edilmeyen öğretim üyeleri</span>
         <input type="text" id="fHocaYok"
           value="${esc((P.istenmeyenHocalar || []).join(", "))}">
-        <span class="hint">Ad parçası yeter. Virgülle ayır.
-          ⚠️ 3417 şubenin 887'sinde hoca ilan edilmemiş — onlar hiçbir
-          tercihe uymaz, ne artı ne eksi alır.</span></label>
+        <span class="hint">Adın bir kısmı yeterlidir; adları virgülle ayırınız.
+          ⚠️ 3417 şubenin 887'sinde öğretim üyesi ilan edilmemiştir; bu şubeler
+          tercih puanını etkilemez.</span></label>
     </details>
     <div class="tercihonizle">
       <button class="ghost" id="fOnizle" type="button">Kaydetmeden dene</button>
@@ -4805,7 +4812,7 @@ function tercihDialog(){
       b.addEventListener("click", () => {
         const v = +b.dataset.v;
         if(gunler.has(v)) gunler.delete(v);
-        else if(gunler.size >= 4) { say("beş günün beşini boş isteyemezsin", true); return; }
+        else if(gunler.size >= 4) { say("beş günün tamamı boş olarak seçilemez", true); return; }
         else gunler.add(v);
         b.setAttribute("aria-pressed", gunler.has(v));
         say("");
@@ -4842,8 +4849,8 @@ function tercihDialog(){
    burada bugünkü 1. öneriyle yan yana: hangi ders/şube değişiyor, haftanın
    şekli, tercih puanı ve — karşılanamıyorsa — ne bırakılmalı. */
 function tercihOnizleme(once, sonra){
-  if(!sonra) return `<div class="note tercihsonuc">Bu tercihlerle hiç program
-    kurulamadı — tercihler eleme yapmaz, sebep başka bir kısıt olmalı.</div>`;
+  if(!sonra) return `<div class="note tercihsonuc">Bu tercihlerle program
+    oluşturulamadı. Tercihler eleme yapmadığından neden başka bir kısıttır.</div>`;
   const o = new Map(((once && once.picks) || []).map(p => [p.course, p.section.crn]));
   const y = new Map(sonra.picks.map(p => [p.course, p.section.crn]));
   const degisim = [
@@ -4862,12 +4869,12 @@ function tercihOnizleme(once, sonra){
   return `<div class="note tercihsonuc">
     <b>1. öneri bu tercihlerle</b>${degisim.length ? "" : " — <b>değişmiyor</b>"}
     ${degisim.length ? `<div class="tercihdegisim">${degisim.join(" · ")}</div>` : ""}
-    <div class="meta">şimdi: ${sekil(once)}<br>bu tercihlerle: ${sekil(sonra)}</div>
+    <div class="meta">mevcut: ${sekil(once)}<br>bu tercihlerle: ${sekil(sonra)}</div>
     ${(sonra.prefReasons || []).length ? `<div>Tercih puanı <b class="mono">${
       d > 0 ? "+" : ""}${d}</b>: ${sonra.prefReasons.map(esc).join(" · ")}</div>`
-      : `<div>Tercihlerin bu öneride tam karşılanıyor ✓</div>`}
+      : `<div>Tercihleriniz bu öneride tamamen karşılanmaktadır ✓</div>`}
     ${tercihCaresi(sonra)}
-    <div class="meta">Kaydedilmedi — beğendiysen “Kaydet”.</div></div>`;
+    <div class="meta">Değişiklikler kaydedilmedi. Uygulamak için “Kaydet” düğmesini kullanınız.</div></div>`;
 }
 
 /* ---------- 2. dönem seçimi ---------- */
@@ -4881,10 +4888,10 @@ function termDialog(){
   const capVar = ["cap", "ikisi"].includes(SETUP.secondKind);
   openSetup(`
     <div class="eyebrow">Kurulum</div>
-    <h2 style="margin-bottom:4px">Bulunduğun dönem</h2>
+    <h2 style="margin-bottom:4px">Yarıyıl bilgisi</h2>
     <p class="modenote" style="margin:2px 0 4px">&#8220;Dönemlik + alttan&#8221;
-      öneri kipi bunu kullanır: dönemlik = bu dönemin plan dersleri,
-      alttan = önceki dönemlerden kalanlar.</p>
+      öneri kipi bu bilgiyi kullanır. Dönemlik: bu yarıyılın plan dersleri;
+      alttan: önceki yarıyıllardan kalan dersler.</p>
     <label class="field"><span>Dönem</span>
       <div class="terms" id="fTerm">
         <button data-t="0" aria-pressed="${!cur}" style="width:auto;padding:8px 12px"
@@ -4899,21 +4906,22 @@ function termDialog(){
       <span class="hint">${DATA.donem
         ? `Şu an kullanılan: <b class="mono">${DATA.donem}. dönem</b>
            (${esc(DATA.donemSource || "ayar")}).`
-        : `<b>Şu an dönem bilinmiyor</b> — geçtiğin dersleri de girmediğin için
-           çıkarılabilecek bir şey yok, o yüzden öneri planın her döneminden
-           ders karıştırıyor.`}
-        Otomatik seçilirse geçtiğin slotların en derin
-        döneminden çıkarılır — kayıt donduran ya da yaz okulu okuyanda şaşabilir.
+        : `<b>Yarıyıl bilgisi bulunmamaktadır.</b> Başarılan dersler de
+           girilmediğinden yarıyıl çıkarılamamaktadır; öneri bu nedenle planın
+           tüm dönemlerinden ders içermektedir.`}
+        Otomatik seçimde yarıyıl, başarılan slotların en ileri döneminden
+        çıkarılır; kayıt donduran veya yaz okuluna devam eden öğrencilerde
+        sonuç farklı olabilir.
       </span></label>
-    ${capVar ? `<label class="field" style="margin-top:14px"><span>ÇAP'a başladığın yarıyıl</span>
+    ${capVar ? `<label class="field" style="margin-top:14px"><span>ÇAP'a başlanan yarıyıl</span>
       <div class="terms" id="fCap">
         <button data-t="0" aria-pressed="${!capCur}" style="width:auto;padding:8px 12px"
           >bilmiyorum</button>
         <button data-t="3" aria-pressed="${capCur === 3}">3</button>
         <button data-t="5" aria-pressed="${capCur === 5}">5</button>
       </div>
-      <span class="hint">Bulunduğun dönem <b>değil</b> — ikinci anadala
-        <b>başladığın</b> yarıyıl. Yönerge yarıyıl tabanını buna bağlıyor:
+      <span class="hint">Bulunulan yarıyıl <b>değil</b>, ikinci anadala
+        <b>başlanan</b> yarıyıldır. Yönerge, yarıyıl tabanını bu bilgiye bağlar:
         3'te başlayan her dönem en az <b>6</b>, 5'te başlayan en az <b>9</b>
         kredilik dersi ikinci anadaldan almak zorunda.
         &#8220;Bilmiyorum&#8221; seçilirse araç hiçbir taban iddia etmez.
@@ -4951,12 +4959,12 @@ function checklistDialog(){
     const yok = !SETUP.anadalProgram;
     openDialog(`
       <div class="eyebrow">Kurulum</div>
-      <h2 style="margin-bottom:4px">${yok ? "Önce bölümünü seç" : "Plan bulunamadı"}</h2>
+      <h2 style="margin-bottom:4px">${yok ? "Bölüm seçilmedi" : "Plan bulunamadı"}</h2>
       <p class="modenote">${yok
-        ? `Tikleyeceğin ders listesi <b>senin planından</b> geliyor;
-           bölüm seçilmeden gösterilecek bir plan yok.`
-        : `Seçtiğin bölümün ders planı katalogda yok. Programı değiştirebilir
-           ya da geçtiğin dersleri tek tek girebilirsin.`}</p>
+        ? `İşaretlenecek ders listesi <b>bölümünüzün planından</b> alınır;
+           bölüm seçilmeden gösterilecek bir plan bulunmamaktadır.`
+        : `Seçilen bölümün ders planı katalogda bulunmamaktadır. Program
+           seçimini değiştirebilir veya başarılan dersleri tek tek girebilirsiniz.`}</p>
       <div class="dlgactions">
         <button class="ghost primary" id="goProgram">Program seçimini aç</button>
       </div>`);
@@ -5044,31 +5052,31 @@ function checklistDialog(){
   openSetup(`
     <div class="eyebrow">Kurulum</div>
     <h2 style="margin-bottom:4px">Plandan işaretle</h2>
-    <p class="modenote" style="margin:2px 0 6px">Aldığın dersleri tikle.
+    <p class="modenote" style="margin:2px 0 6px">Alınan dersleri işaretleyiniz.
       <b>0 kredili</b> dersler harf notu almaz — onlarda
       <b class="mono">BL</b> (başarılı) / <b class="mono">BZ</b> (başarısız).
-      Not bilmiyorsan <b>DD</b> sayılır.</p>
+      Notu bilinmeyen ders <b>DD</b> olarak sayılır.</p>
     <!-- ★ Faz 65 — kurulum listesi "en kolayı: transkriptini yapıştır"
          diyordu ama "Dersleri gir" buraya açılıyordu ve buradan yapıştırmaya
          yol YOKTU. Tikle girilen ders notsuz (DD) sayılıyor; GNO ve kredi
          tavanı için gerçek notlar ancak yapıştırmayla geliyor. -->
-    <p class="modenote" style="margin:0 0 6px">Notlarınla girmek istersen:
-      <button class="ghost mini" id="ckYapistir">transkriptini yapıştır</button>
-      — GNO ve kredi tavanı gerçek notlarından hesaplanır.</p>
+    <p class="modenote" style="margin:0 0 6px">Dersleri notlarıyla birlikte girmek için:
+      <button class="ghost mini" id="ckYapistir">transkript yapıştır</button>
+      (GNO ve kredi sınırı gerçek notlardan hesaplanır).</p>
     ${onerilen.length ? `<div class="note" style="border-left:3px solid var(--warn);
       padding-left:10px;margin:8px 0">
-      <b>${onerilen.length} ders senin için işaretlendi</b> — ${donem}.
-      dönemde olduğunu söyledin, 1–${donem - 1}. dönemin zorunluları tiklendi.
-      <b>Bu bir tahmin, kayıt değil:</b> geçmediğin varsa tikini kaldır.
+      <b>${onerilen.length} ders işaretlendi.</b> ${donem}. yarıyılda olduğunuz
+      belirtildiğinden 1–${donem - 1}. yarıyılların zorunlu dersleri işaretlenmiştir.
+      <b>Bu işaretleme bir tahmindir:</b> başarılamayan dersin işaretini kaldırınız.
       <button class="ghost mini" id="ckUndo" style="margin-left:6px"
-        >hepsinin tikini kaldır</button></div>`
+        >tüm işaretleri kaldır</button></div>`
       : (donem === 1 ? `<div class="note" style="margin:8px 0">
-          <b>1. dönemdesin</b> — geçmiş dönemin yok, bu liste boş başlıyor.
-          Yaz okulu ya da muafiyetle aldığın ders varsa tikle.</div>` : "")}
-    <div class="chipline"><span class="chip">tik at</span>
+          <b>1. yarıyıldasınız;</b> önceki yarıyıl bulunmadığından liste boş başlar.
+          Yaz okulunda veya muafiyetle alınan ders varsa işaretleyiniz.</div>` : "")}
+    <div class="chipline"><span class="chip">işaretle</span>
       <span style="color:var(--ink-3);font-size:var(--fs-sm)" id="ckCount"></span>
       <button class="ghost" id="ckAllTerm" style="margin-left:auto"
-        >Bu döneme kadarki zorunluları işaretle</button></div>
+        >Önceki yarıyılların zorunlu derslerini işaretle</button></div>
     <div class="scroll" style="max-height:420px">${body}</div>`, () => {
     const box = $("#setupBody");
     const count = () => {
@@ -5192,28 +5200,28 @@ function courseDialogSetup(){
 
   openSetup(`
     <div class="eyebrow">Kurulum</div>
-    <h2 style="margin-bottom:4px">Geçilen dersler</h2>
-    <p class="modenote" style="margin:2px 0 4px">Notu bilmiyorsan
-      <b>DD</b> sayılır — en kötü durum. Böylece &#8220;MIN CC&#8221; isteyen bir
-      önşartta yanlışlıkla &#8220;alabilirsin&#8221; denmez.</p>
+    <h2 style="margin-bottom:4px">Başarılan dersler</h2>
+    <p class="modenote" style="margin:2px 0 4px">Notu bilinmeyen ders en düşük
+      geçer not olan <b>DD</b> olarak sayılır. Böylece &#8220;MIN CC&#8221; koşulu
+      bulunan bir önşart yanlışlıkla sağlanmış gösterilmez.</p>
 
     <!-- ★ KOLAY YOL ÖNDE (ilk kullanıcı incelemesi D2). Kart "transkriptini
          olduğu gibi yapıştır" diyordu ama pencerede öne çıkan şey tek tek
          ders yazmaktı; yapıştırma katlanmış bir <details> içindeydi. -->
-    <label class="field"><span>1 · Transkriptini yapıştır (en kolayı)</span>
+    <label class="field"><span>1 · Transkript yapıştırma (önerilen)</span>
       <textarea id="trPaste" style="margin-top:4px"
-        placeholder="OBS not dökümünü olduğu gibi yapıştır — sütunlu hâli de olur:&#10;MAT 103E    Mathematics I    4.0   6.0   BB&#10;FIZ 101E    Physics I        3.0   4.5   CB"
+        placeholder="OBS not dökümünü olduğu gibi yapıştırınız; sütunlu biçim de kabul edilir:&#10;MAT 103E    Mathematics I    4.0   6.0   BB&#10;FIZ 101E    Physics I        3.0   4.5   CB"
         ></textarea>
-      <span class="hint">Sütunlu döküm de, <span class="mono">KOD NOT</span>
-        biçimi de olur. <b>Uygulamadan önce ne bulduğunu göstereceğim.</b>
-        Yapıştırma mevcut listeye <b>eklenir</b>, silmez.</span>
+      <span class="hint">Sütunlu döküm veya <span class="mono">KOD NOT</span>
+        biçimi kabul edilir. <b>Bulunan dersler uygulanmadan önce gösterilir.</b>
+        Yapıştırılan dersler mevcut listeye <b>eklenir</b>; mevcut kayıtlar silinmez.</span>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-        <button class="ghost primary" id="trOnizle">Ne bulduğuna bak</button>
+        <button class="ghost primary" id="trOnizle">Önizle</button>
       </div>
       <div id="trOnizleme" style="margin-top:10px"></div></label>
 
-    <label class="field"><span>2 · ya da tek tek ekle</span>
-      <input type="search" id="trSearch" placeholder="kod ya da ad — örn. MAT 103E"
+    <label class="field"><span>2 · Tek tek ekleme</span>
+      <input type="search" id="trSearch" placeholder="Kod veya ad — örn. MAT 103E"
         autocomplete="off">
       <div class="hits" id="trHits" hidden></div></label>
 
@@ -5229,9 +5237,9 @@ function courseDialogSetup(){
     ${(SETUP.backups || []).length ? `<details class="field">
       <summary style="cursor:pointer;font-size:var(--fs-md);color:var(--seal)"
         >Yedekten geri yükle (${SETUP.backups.length})</summary>
-      <div class="hint" style="margin:6px 0">Her silici kayıttan önce yedek
-        alınıyor. Geri yükleme de yedeklenir — yanlış yedeği seçersen ikinci
-        kez kaybetmezsin.</div>
+      <div class="hint" style="margin:6px 0">Silme içeren her kayıttan önce yedek
+        alınır. Geri yükleme işlemi de yedeklendiğinden yanlış bir yedek
+        seçildiğinde veri kaybı oluşmaz.</div>
       <div class="blocklist">${SETUP.backups.slice(0, 8).map(b => `
         <div class="blockitem" style="display:flex;justify-content:space-between;gap:8px">
           <span><b class="mono">${esc(b.stamp)}</b>
@@ -5284,7 +5292,7 @@ function courseDialogSetup(){
       const kutu = $("#trOnizleme");
       const metin = $("#trPaste").value;
       if(!metin.trim()){ kutu.innerHTML =
-        `<div class="empty">önce transkriptini yapıştır</div>`; return; }
+        `<div class="empty">önce transkript metnini yapıştırınız</div>`; return; }
       kutu.innerHTML = `<div class="empty">okunuyor…</div>`;
       try{
         const r = await api("/api/transcript/preview", {text: metin});
@@ -5333,7 +5341,7 @@ function trOnizlemeCiz(p){
         (hepsi eklenecek)</div>` : ""}
     </div>` : ""}
     ${(p.warnings || []).length ? `<div class="note" style="margin-top:8px">
-      <b>Notu okunamayan satırlar</b> — “geçtim (DD)” sayıldı:
+      <b>Notu okunamayan satırlar</b> (başarılı, DD olarak sayıldı):
       <div class="hint">${p.warnings.map(esc).join("<br>")}</div></div>` : ""}
     ${(p.bad || []).length ? `<div class="note" style="margin-top:8px">
       <b>Atlanan satırlar</b> (ders kodu bulunamadı):
@@ -5379,14 +5387,14 @@ function renderFloor(){
 
   if(F.undeclared){
     box.innerHTML = `<div class="note" style="margin-top:12px">
-      <b>İkinci anadaldan yarıyıl tabanı hesaplanamıyor.</b>
-      Yönerge, ÇAP'a <b>3.</b> yarıyılda başlayana her dönem en az <b>6</b>,
-      <b>5.</b> yarıyılda başlayana en az <b>9</b> kredi şartı koyuyor —
-      ama hangi yarıyılda başladığın beyan edilmemiş.
+      <b>İkinci anadal yarıyıl tabanı hesaplanamamaktadır.</b>
+      Yönerge, ÇAP'a <b>3.</b> yarıyılda başlayan öğrenci için her dönem en az
+      <b>6</b>, <b>5.</b> yarıyılda başlayan öğrenci için en az <b>9</b> kredi
+      şartı öngörmektedir; ancak başlanan yarıyıl belirtilmemiştir.
       ${LIVE
-        ? `<b>Dönem</b> düğmesinden gir — araç o zaman uyarabilir.`
-        : `<span class="mono">config/settings.toml</span> içindeki
-           <span class="mono">${esc(F.setting)}</span> alanına yaz.`}</div>`;
+        ? `Bu bilgi <b>Dönem</b> düğmesinden girilebilir.`
+        : `Bu bilgi <span class="mono">config/settings.toml</span> dosyasındaki
+           <span class="mono">${esc(F.setting)}</span> alanına yazılabilir.`}</div>`;
     return;
   }
 
@@ -5403,11 +5411,11 @@ function renderFloor(){
   box.innerHTML = `
     ${hicbiriOlmuyor ? `<div class="note" style="margin-top:12px;
         border-left-color:var(--warn)">
-      <b>Bu dönem açık derslerden tabanı karşılayan çakışmasız program
-      bulunamadı.</b> Motor ${oneriler.length} öneri üretti, hiçbiri
-      ${F.min} krediye ulaşmıyor — arz, çakışma ya da önşart yüzünden.
-      Bu <b>imkânsız</b> demek değil: taban indirilebiliyor (aşağıda) ve
-      dönem başında yeni şube açılabiliyor. Danışmanınla konuş.</div>` : ""}
+      <b>Bu dönem açılan derslerle tabanı karşılayan çakışmasız bir program
+      bulunamamıştır.</b> Oluşturulan ${oneriler.length} öneriden hiçbiri, ders
+      arzı, saat çakışması veya önşart nedeniyle ${F.min} krediye ulaşmamaktadır.
+      Tabanın indirilmesi mümkündür (aşağıda) ve dönem başında yeni şubeler
+      açılabilir. Danışmanınızla görüşmeniz önerilir.</div>` : ""}
     <div class="gauge" style="margin-top:14px;padding-top:14px;
          border-top:1px solid var(--border)">
       <div class="gaugebar" style="max-width:230px">
@@ -5419,29 +5427,29 @@ function renderFloor(){
       </div>
       <div style="flex:2;min-width:250px;font-size:var(--fs-md);color:var(--ink-2)">
         <b>İkinci anadaldan yarıyıl tabanı.</b>
-        ÇAP'a <b>${F.startTerm}.</b> yarıyılda başladığın için her dönem
-        en az <b class="mono">${F.min}</b> kredilik dersi ikinci anadaldan
-        alman gerekiyor.
-        <div style="color:var(--ink-3);margin-top:4px">Bu, dönem kredi
-          bandından (MADDE 17) ayrı bir kural — o banttan ÇAP öğrencisi muaf,
-          bu tabandan değil.</div>
+        ÇAP'a <b>${F.startTerm}.</b> yarıyılda başlandığından her dönem
+        ikinci anadaldan en az <b class="mono">${F.min}</b> kredilik ders
+        alınması gerekmektedir.
+        <div style="color:var(--ink-3);margin-top:4px">Bu kural, dönem kredi
+          bandından (MADDE 17) ayrıdır; ÇAP öğrencisi kredi bandından muaftır,
+          bu tabandan muaf değildir.</div>
         ${F.source ? `<div style="color:var(--ink-3)">${esc(F.source)}</div>` : ""}
       </div>
     </div>
     ${ok ? "" : `<div class="note" style="border-left-color:var(--danger);margin-top:12px">
-      <b>Seçili programda ikinci anadaldan ${kredi} kredi var, taban ${F.min}.</b>
-      ${eksik} kredi eksik.
-      ${R ? `<div style="margin-top:6px">Yönerge tabanı
-        <b>${R.min}</b> krediye kadar indirmene izin veriyor — ama
-        <b>kendiliğinden olmuyor</b>:
+      <b>Seçili programda ikinci anadaldan ${kredi} kredi bulunmaktadır; taban ${F.min} kredidir.</b>
+      ${eksik} kredi eksiktir.
+      ${R ? `<div style="margin-top:6px">Yönerge, tabanın
+        <b>${R.min}</b> krediye kadar indirilmesine izin vermektedir; ancak
+        indirim <b>başvuru ile</b> yapılır:
         ${R.conditions.map(c => `<span class="chip credit"
           style="margin:0 4px 0 0">${esc(c)}</span>`).join("")}
-        gerekiyor${R.deadline ? `, son tarih: <b>${esc(R.deadline)}</b>` : ""}.
+        gereklidir${R.deadline ? `; son tarih: <b>${esc(R.deadline)}</b>` : ""}.
         ${indirimYeterMi
-          ? `<b style="color:var(--ok)">İndirim onaylanırsa şu anki
-             seçimin yeterli olur.</b>`
+          ? `<b style="color:var(--ok)">İndirim onaylanırsa mevcut seçim
+             yeterli olacaktır.</b>`
           : `İndirim onaylansa bile ${+(R.min - kredi).toFixed(1)} kredi
-             daha gerekir.`}</div>` : ""}
+             daha gerekmektedir.`}</div>` : ""}
     </div>`}`;
 }
 
@@ -5449,7 +5457,7 @@ function renderLoad(){
   const L = DATA.load;
   if(!L || !L.max){ $("#loadBody").innerHTML = ""; return; }
   const fix = LIVE && L.conflict
-    ? `<button class="ghost" id="loadFix">Tavanı ${L.max}'e çek</button>` : "";
+    ? `<button class="ghost" id="loadFix">Sınırı ${L.max} krediye düşür</button>` : "";
   $("#loadBody").innerHTML = `
     <div class="gauge" style="margin-bottom:12px">
       <div class="gaugebar" style="max-width:230px">
@@ -5464,29 +5472,29 @@ function renderLoad(){
                sayı süs değil, motor gerçekten bu tavanla program kuruyor.
                ⚠️ Tavanı gizlemiyoruz — motor bir sayı kullanmak ZORUNDA.
                Söylediğimiz şey değişiyor: "hesaplandı" değil, "VARSAYILDI". */
-            ? `transkript yok — <b>en düşük band varsayıldı</b>:`
-            : (({"yönetmelik": "motor bunu kullanıyor — GNO'ndan hesaplandı",
-                 "ayar": "elle ayarlı (settings.toml)",
-                 "çağrı": "bu çalıştırmaya özel"}[L.limitSource] || "şu an ayarlı") + ":")}
+            ? `transkript girilmedi; <b>en düşük band varsayıldı</b>:`
+            : (({"yönetmelik": "kullanılan değer (GNO'dan hesaplandı)",
+                 "ayar": "elle ayarlanmış değer (settings.toml)",
+                 "çağrı": "bu çalıştırmaya özel değer"}[L.limitSource] || "ayarlı değer") + ":")}
           <b class="mono">${L.declared || "—"}</b></div>
       </div>
       <div style="flex:2;min-width:250px;font-size:var(--fs-md);color:var(--ink-2)">
         ${L.noTranscript ? `<div class="note" style="margin-bottom:8px">
-          <b>GNO bilinmiyor.</b> Aşağıdaki gerekçelerde geçen “GNO 0.00”
-          hesaplanmış bir değer <b>değil</b> — geçtiğin dersleri girmedin.
-          Girdiğinde tavan da değişebilir.
+          <b>GNO bilinmemektedir.</b> Aşağıdaki gerekçelerde yer alan “GNO 0.00”
+          hesaplanmış bir değer <b>değildir</b>; başarılan dersler henüz
+          girilmemiştir. Dersler girildiğinde kredi sınırı değişebilir.
           ${LIVE ? `<button class="ghost" data-setup="plan"
-            style="margin-left:6px">Dersleri gir</button>` : ""}</div>` : ""}
+            style="margin-left:6px">Dersleri girin</button>` : ""}</div>` : ""}
         ${L.reasons.map(r => `<div>· ${esc(r)}</div>`).join("")}
         ${L.source ? `<div style="color:var(--ink-3);margin-top:4px">${esc(L.source)}</div>` : ""}
       </div>
     </div>
     ${L.conflict ? `<div class="note" style="border-left-color:var(--danger)">
-      <b>Ayarlı tavan (${L.declared}) yönetmeliğin izin verdiğinden yüksek
-      (${L.max}).</b> ${L.next ? `${L.next.max} krediye çıkmak için GNO ≥
-      ${L.next.minGpa.toFixed(2)} gerekiyor; şu an ${DATA.gpa.value.toFixed(2)}.` : ""}
-      Motor <b>${L.declared}</b> krediye kadar program kuruyor — kayıtta
-      reddedilebilir. ${fix}</div>` : ""}`;
+      <b>Ayarlanan sınır (${L.declared}), yönetmeliğin izin verdiği değerden
+      (${L.max}) yüksektir.</b> ${L.next ? `${L.next.max} krediye çıkmak için GNO ≥
+      ${L.next.minGpa.toFixed(2)} gerekmektedir; mevcut GNO ${DATA.gpa.value.toFixed(2)}.` : ""}
+      Program <b>${L.declared}</b> krediye kadar oluşturulmaktadır; bu durum
+      kayıt sırasında reddedilebilir. ${fix}</div>` : ""}`;
   $("#loadBody").querySelectorAll("[data-setup]").forEach(b =>
     b.addEventListener("click", () => ({program: programDialog, donem: termDialog,
                                         plan: checklistDialog, tercih: tercihDialog,
@@ -5545,27 +5553,27 @@ function renderGpa(){
           <span class="mono">${g.credits}</span> kredi</div>
       </div>
       <div style="flex:2;min-width:250px;font-size:var(--fs-md);color:var(--ink-2)">
-        <b>GNO (tahmini)</b> — transkriptinden hesaplandı, <b>OBS'nin resmi
-        GNO'su değil</b>. Kesin değer için OBS'ye bak.
+        <b>GNO (tahmini)</b>: transkriptten hesaplanmıştır; <b>OBS'deki resmî
+        GNO değildir</b>. Kesin değer için OBS'ye başvurunuz.
         <div class="cats" style="margin-top:8px">${chips}</div>
       </div>
     </div>
     ${g.partial || unverified || (g.conditional || []).length
       ? `<div class="note" style="margin-bottom:14px">
       ${g.noCredit.length ? `Kredisi bilinmeyen <b>${g.noCredit.length}</b> ders
-        ortalamaya girmedi (<span class="mono">${g.noCredit.slice(0,5).map(esc).join(", ")}</span>). ` : ""}
+        ortalamaya katılmadı (<span class="mono">${g.noCredit.slice(0,5).map(esc).join(", ")}</span>). ` : ""}
       ${g.uncertain.length ? `Notu girilmemiş <b>${g.uncertain.length}</b> ders
-        <b>DD</b> sayıldı — gerçek GNO'n daha yüksek olabilir. ` : ""}
+        <b>DD</b> olarak sayıldı; gerçek GNO daha yüksek olabilir. ` : ""}
       ${(g.conditional || []).length ? condText(g) : ""}
-      ${pending.length ? `<b>${pending.length}</b> eşik henüz hesaplanamıyor
+      ${pending.length ? `<b>${pending.length}</b> eşik henüz hesaplanamamaktadır
         (—): ${pending.map(t => esc(t.why || t.label)).join(" ")} ` : ""}
       ${tolerated.length ? `<b>¹</b> ${tolerated.map(t =>
-        esc(t.label)).join(", ")}: yönerge bir defaya mahsus altına düşmeye
-        izin veriyor; ikinci kez düşersen kayıt silinir. ` : ""}
-      ${unverified ? `Eşiklerin <b>${unverified}</b> tanesi mevzuattan
-        <b>doğrulanmadı</b> (⚠ işaretli); teyit edip
-        <span class="mono">config/kurallar.toml</span> içinde
-        <span class="mono">dogrulandi = true</span> yap.` : ""}
+        esc(t.label)).join(", ")}: yönerge, eşiğin altına bir defaya mahsus
+        düşülmesine izin verir; ikinci kez düşülmesi durumunda kayıt silinir. ` : ""}
+      ${unverified ? `Eşiklerden <b>${unverified}</b> tanesi mevzuattan
+        <b>doğrulanmamıştır</b> (⚠ işaretli). Teyit edildikten sonra
+        <span class="mono">config/kurallar.toml</span> dosyasında
+        <span class="mono">dogrulandi = true</span> olarak işaretlenebilir.` : ""}
     </div>` : ""}`;
 }
 
@@ -5600,7 +5608,7 @@ function gnoHedefleri(){
     .forEach(t => ekle(t.min, t.label, "genel"));
   const L = DATA.load;
   if(L && L.next && L.next.minGpa) ekle(L.next.minGpa,
-    `dönem sınırı ${L.next.max} kredi olsun`, "genel");
+    `dönem sınırının ${L.next.max} krediye çıkması`, "genel");
   if((g.secondGpa || []).length)
     (g.thresholds || []).filter(t => t.basis === "ikinci anadal" && t.min > 0)
       .forEach(t => ekle(t.min, t.label, "ikinci"));
@@ -5633,13 +5641,13 @@ function renderGnoHedef(){
       secili.filter(p => kod.has(p.cand.course)));
   }
   const {T, tekrar} = tabanlar.genel;
-  const baslik = `<div class="gnobaslik"><b>Bu dönem hangi ortalama yeter?</b>
+  const baslik = `<div class="gnobaslik"><b>Eşikler için gereken dönem ortalaması</b>
     <span class="meta">programdaki <b class="mono">${T}</b> kredi üzerinden${
       tekrar.length ? ` · tekrar: ${tekrar.map(r => `<span class="mono">${esc(r.course)}</span>
         (${esc(r.grade)})`).join(", ")}` : ""}</span></div>`;
   if(!T){
     kutu.innerHTML = `<div class="gnohedef">${baslik}<div class="meta">Programda kredili
-      ders yok — hesap için ders seç.</div></div>`;
+      ders bulunmamaktadır; hesaplama için ders seçiniz.</div></div>`;
     return;
   }
   const satirlar = hedefler.map(h => {
@@ -5652,24 +5660,24 @@ function renderGnoHedef(){
       const simdi = C ? P / C : null;
       sag = `<span class="${simdi !== null && simdi + 1e-9 >= h.min ? "gnook" : "meta"}">${
         simdi === null ? "henüz yok" : "bu dönem değişmiyor"}</span>`;
-      alt = simdi === null ? `Bu dönem ${esc(ik.label)} dersi yok ve notlu
-          ${esc(ik.label)} dersin de yok — ortalama henüz hesaplanamıyor.`
-        : `Bu dönem ${esc(ik.label)} dersi yok; ${esc(ik.label)} ortalaman
-          <b class="mono">${simdi.toFixed(2)}</b> olarak kalıyor.`;
+      alt = simdi === null ? `Bu dönem ${esc(ik.label)} dersi ve notlu
+          ${esc(ik.label)} dersi bulunmadığından ortalama henüz hesaplanamamaktadır.`
+        : `Bu dönem ${esc(ik.label)} dersi bulunmamaktadır; ${esc(ik.label)} ortalaması
+          <b class="mono">${simdi.toFixed(2)}</b> olarak kalır.`;
     } else {
       const x = (h.min * (C + T) - P) / T;
       const enIyi = (P + 4 * T) / (C + T);
       if(x <= 1e-9){
         sag = `<span class="gnook">her durumda ✓</span>`;
-        alt = once + "bu dönemin bütün derslerinden FF alsan bile eşiğin üstünde kalıyorsun.";
+        alt = once + "bu dönemin tüm derslerinden FF alınsa bile ortalama eşiğin üzerinde kalır.";
       } else if(x > 4 + 1e-9){
-        sag = `<span class="gnoyok">bu dönem yetmez</span>`;
-        alt = once + `hepsi AA olsa bile ortalama en çok <b class="mono">${enIyi.toFixed(2)}</b>
-          olur — eşiğe birden fazla dönemde çıkılır.`;
+        sag = `<span class="gnoyok">bu dönem yeterli değil</span>`;
+        alt = once + `tüm dersler AA olsa bile ortalama en fazla <b class="mono">${enIyi.toFixed(2)}</b>
+          olur; eşiğe birden fazla dönemde ulaşılabilir.`;
       } else {
         const harf = HARF_PUAN.find(([, v]) => v + 1e-9 >= x);
         sag = `<b class="mono">≥ ${(Math.ceil(x * 100 - 1e-6) / 100).toFixed(2)}</b>`;
-        alt = once + `her dersten en az <b class="mono">${harf[0]}</b> alırsan yeter.`;
+        alt = once + `her dersten en az <b class="mono">${harf[0]}</b> alınması yeterlidir.`;
       }
       alt = alt.charAt(0).toUpperCase() + alt.slice(1);
     }
@@ -5679,10 +5687,10 @@ function renderGnoHedef(){
       <span class="gnoalt">${alt}</span></div>`;
   }).join("");
   kutu.innerHTML = `<div class="gnohedef">${baslik}${satirlar}
-    <div class="meta gnonot">Tahmin değil, gereken notun hesabı: GNO'n
-      transkriptinden (<span class="mono">${g.value.toFixed(2)}</span>, tahmini).
-      Tekrar aldığın dersin eski notu yerine yenisi sayıldı (İTÜ'de son not
-      geçerli); derslerin harf notlu olduğu varsayıldı.</div>
+    <div class="meta gnonot">Bu değerler gereken notun hesabıdır. GNO transkriptten
+      alınmıştır (<span class="mono">${g.value.toFixed(2)}</span>, tahmini).
+      Tekrar alınan derste eski not yerine yeni not sayılmıştır (İTÜ'de son not
+      geçerlidir); derslerin harf notlu olduğu varsayılmıştır.</div>
   </div>`;
 }
 
@@ -5699,11 +5707,11 @@ function condText(g){
       aralığında (DC+…DD): ${list}${more}. `;
   return `<b>${g.conditional.length}</b> dersin notu <b>şartlı geçer</b>
     aralığında (DC+…DD): ${list}${more}. Bu dersler
-    <b>tamamlanmış sayılıyor</b>; şart, mezuniyette genel ortalamanın
-    <b class="mono">${r.minGpa.toFixed(2)}</b> düzeyine çıkmış olması
+    <b>tamamlanmış sayılır</b>; şart, mezuniyette genel ortalamanın
+    <b class="mono">${r.minGpa.toFixed(2)}</b> düzeyine ulaşmış olmasıdır
     (${esc(r.source || "MADDE 31")}). ${r.ok === false
-      ? `<b style="color:var(--danger)">Şu anki ortalaman bunun altında.</b>`
-      : `Şu an bu şartı karşılıyorsun.`} `;
+      ? `<b style="color:var(--danger)">Mevcut ortalama bu değerin altındadır.</b>`
+      : `Mevcut durumda bu şart karşılanmaktadır.`} `;
 }
 
 /* ---------- değişim raporu ---------- */
@@ -5737,8 +5745,8 @@ function renderAcikDenklik(){
       const eklenebilir = !!CAND[k.code];
       return `<div class="denkkaynak${eklenebilir ? "" : " bilgi"}"
           data-course="${esc(k.code)}"${eklenebilir
-            ? ` role="button" tabindex="0" title="Programa eklemek için tıkla"`
-            : ` title="Aday havuzunda değil — bilgi amaçlı"`}>
+            ? ` role="button" tabindex="0" title="Programa eklemek için tıklayınız"`
+            : ` title="Aday havuzunda değildir; bilgi amaçlıdır"`}>
         <div><b class="mono">${esc(k.code)}</b>
           ${k.name ? `<span class="denkad">${esc(k.name)}</span>` : ""}
           ${k.sections.some(x => x.online) ? `<span class="chip online"
@@ -5762,8 +5770,8 @@ function renderAcikDenklik(){
       not = `<div class="denknot">${
         alinmis.length ? `<b>${alinmis.map(k => esc(k.code)).join(", ")}</b> zaten alınmış. ` : ""
         }${kapali.length ? `⚠ <b>${kapali.map(k => esc(k.code)).join(", ")}</b> bu dönem
-          kapalı — denkliğin tamamlanması için o da gerekiyor.`
-        : (alinmis.length ? "Bu açık dersi de alınca denklik tamamlanıyor." : "")}</div>`;
+          açılmamıştır; denkliğin tamamlanması için bu ders de gereklidir.`
+        : (alinmis.length ? "Bu açık ders de alındığında denklik tamamlanır." : "")}</div>`;
     }
     /* Köken çerçevesi: resmi = OBS + dilekçe; beyan = kendi bildirdiğin. */
     if (!e.declared) {
@@ -5771,17 +5779,17 @@ function renderAcikDenklik(){
         ? "bölüm/yönetim kurulu onayı gerekebilir"
         : "dilekçeyle saydırılır";
       not += `<div class="denknot">OBS resmî ders denkliği${
-        capraz ? " — <b>başka bölümden</b>" : ""}; ${onay}. Danışmanına doğrulat.</div>`;
+        capraz ? " — <b>başka bölümden</b>" : ""}; ${onay}. Danışmanınızla doğrulayınız.</div>`;
     }
     /* Başlık: OR ise "birini al", tek/AND ise "denkliği açık". */
     const baslik = e.mode === "or"
-      ? (acik.length > 1 ? "— yerine şu açık derslerden <b>birini</b> al:"
+      ? (acik.length > 1 ? "— yerine şu açık derslerden <b>biri</b> alınabilir:"
                          : "— yerine bu açık ders alınabilir:")
       : "— denkliği açık:";
     return `<div class="denkrow">
       <div class="denkhedef">
         <span class="tag ${e.needed ? "CAP" : "unknown"}">${e.needed
-          ? "gereken" : "beyanın"}</span>
+          ? "gereken" : "beyan"}</span>
         <b class="mono">${esc(e.target)}</b>
         ${e.targetName ? `<span class="denkad">${esc(e.targetName)}</span>` : ""}
         <span class="denkok">${baslik}</span></div>
@@ -5812,13 +5820,13 @@ function renderChanges(){
   if(btn){ btn.hidden = !LIVE; }
   if(!karsilastirilabilir){
     $("#changeWhen").textContent = LIVE
-      ? "Karşılaştırma için en az iki tazeleme gerekiyor."
+      ? "Karşılaştırma için en az iki veri tazelemesi gereklidir."
       : "Karşılaştırma verisi yok.";
     $("#changeBody").innerHTML = "";
     return;
   }
   $("#changeWhen").textContent =
-    `${tarihYaz(c.since)} → ${tarihYaz(c.until)} · yalnız seni ilgilendiren dersler`;
+    `${tarihYaz(c.since)} → ${tarihYaz(c.until)} · yalnızca ilgili dersler`;
   const group = (title, cls, items, line) => items.length ? `
     <div class="chipline"><span class="chip ${cls}">${title}</span>
       <span style="color:var(--ink-3);font-size:var(--fs-md)">${items.length}</span></div>
@@ -5832,7 +5840,7 @@ function renderChanges(){
     group("kontenjan doldu", "supply", c.filled, i => `CRN ${esc(i.crn)} · ${i.capacity}/${i.capacity}`) +
     group("şube kapandı", "supply", c.closed, i => `CRN ${esc(i.crn)}`);
   $("#changeBody").innerHTML = html ||
-    `<div class="empty">Seni ilgilendiren derslerde değişiklik yok.</div>`;
+    `<div class="empty">İlgili derslerde değişiklik bulunmamaktadır.</div>`;
 }
 
 /* ---------- denklik önerileri ---------- */
@@ -5902,12 +5910,12 @@ function renderSuggestions(){
   });
   if(LIVE && high.length > 1){
     html += `<div style="margin-top:14px">
-      <button class="ghost primary" id="eqAll">${high.length} yüksek güvenlinin
-        hepsini uygula</button></div>`;
+      <button class="ghost primary" id="eqAll">Yüksek güvenli ${high.length}
+        eşleşmenin tümünü uygula</button></div>`;
   }
   html += `<div class="modenote" style="margin-top:10px">Uygulanan denklikler
-    <span class="mono">config/denklikler.toml</span> dosyasına yazılır —
-    açıp görebilir, silebilirsin.</div>`;
+    <span class="mono">config/denklikler.toml</span> dosyasına yazılır; bu
+    dosyada görüntülenebilir ve silinebilir.</div>`;
   $("#suggestBody").innerHTML = html + appliedHTML();
   $("#suggestBody").querySelectorAll("[data-eq]").forEach(b =>
     b.addEventListener("click", async () => {
@@ -5973,7 +5981,7 @@ function renderSaved(){
     const hit = findSection(p.course, p.crn);
     if(!hit){ eksik++; return `<div class="savedcard">
       <b class="mono">${esc(p.course)}</b><span class="crn mono">${esc(p.crn)}</span>
-      <div class="miss">şube bu dönemin verisinde yok</div></div>`; }
+      <div class="miss">şube bu dönemin verisinde bulunmamaktadır</div></div>`; }
     kredi += hit.cand.credits || 0; akts += hit.cand.ects || 0;
     const saat = (hit.sec.meetings || []).map(m =>
       `${DAYS[m.day-1] || "?"} ${hhmm(m.start)}`).join(" · ") || "saati ilan edilmemiş";
@@ -6009,9 +6017,9 @@ function renderSaved(){
   $("#savedCrn").addEventListener("click", () => {
     const line = saved.map(p => p.crn).join(" ");
     openDialog(`<div class="eyebrow">Kayıt günü</div>
-      <h2 style="margin-bottom:4px">Kaydettiğin CRN'ler</h2>
-      <p class="modenote" style="margin:2px 0 10px">OBS'ye yazacağın numaralar.
-        Araç senin yerine kayıt YAPMAZ.</p>
+      <h2 style="margin-bottom:4px">Kaydedilen CRN'ler</h2>
+      <p class="modenote" style="margin:2px 0 10px">OBS'ye girilecek numaralar.
+        Araç, ders kaydı işlemini sizin adınıza yapmaz.</p>
       <label class="field"><span>Tümü (kopyala)</span>
         <input type="text" class="mono" readonly value="${esc(line)}"></label>
       `);
@@ -6081,16 +6089,16 @@ function wirePicks(){
 
 function paylasDialog(){
   const url = paylasBaglantisi();
-  if(!url){ openDialog(`<div class="empty">Programda ders yok.</div>`); return; }
+  if(!url){ openDialog(`<div class="empty">Programda ders bulunmamaktadır.</div>`); return; }
   openDialog(`
     <div class="eyebrow">Paylaş</div>
-    <h2 style="margin-bottom:4px">Programının bağlantısı</h2>
-    <p class="modenote" style="margin:2px 0 10px">Bağlantıda <b>yalnız CRN'ler</b>
-      var. Notların, transkriptin ve bölümün <b>girmiyor</b> — açan kişi senin
-      ızgaranı görür, verini görmez.</p>
+    <h2 style="margin-bottom:4px">Program bağlantısı</h2>
+    <p class="modenote" style="margin:2px 0 10px">Bağlantı <b>yalnızca CRN'leri</b>
+      içerir. Notlarınız, transkriptiniz ve bölüm bilginiz <b>bağlantıya eklenmez</b>;
+      bağlantıyı açan kişi yalnızca haftalık programı görür.</p>
     <label class="field"><span>Kopyala</span>
       <input type="text" id="shareUrl" class="mono" readonly value="${esc(url)}">
-      <span class="hint" id="shareCopied">Tıklayınca seçilir.</span></label>`);
+      <span class="hint" id="shareCopied">Tıklandığında seçilir.</span></label>`);
   const inp = $("#shareUrl");
   if(inp) inp.addEventListener("click", () => {
     inp.select();
@@ -6113,10 +6121,10 @@ function crnLoadDialog(){
   openDialog(`
     <div class="eyebrow">Kayıt sonrası</div>
     <h2 style="margin-bottom:4px">CRN'den program yükle</h2>
-    <p class="modenote" style="margin:2px 0 10px">OBS'de kaydını yaptıysan
-      CRN'leri buraya yapıştır — ızgarada gerçek programın görünsün.
-      Bu bir <b>görüntüleme</b>; araç OBS'ye hiçbir şey yazmaz.</p>
-    <label class="field"><span>CRN'ler (boşluk, virgül ya da satır)</span>
+    <p class="modenote" style="margin:2px 0 10px">OBS'de kayıt yapıldıysa CRN'ler
+      buraya yapıştırılarak kesinleşen program ızgarada görüntülenebilir.
+      Bu işlem yalnızca <b>görüntüleme</b> amaçlıdır; araç OBS'ye veri göndermez.</p>
+    <label class="field"><span>CRN'ler (boşluk, virgül veya satır ile ayrılmış)</span>
       <textarea id="crnIn" rows="4" class="mono"
         placeholder="12486 13524 12550"></textarea></label>
     <div class="dlgactions"><span class="msg" id="crnMsg"></span>
@@ -6140,7 +6148,7 @@ function crnLoadDialog(){
       $("#detail").close();
       if(eksik.length)
         alertLine(`${bulunan.length} ders yüklendi · ${eksik.length} CRN ` +
-                  `bu dönemin verisinde YOK: ${eksik.join(", ")}`);
+                  `bu dönemin verisinde bulunamadı: ${eksik.join(", ")}`);
     }catch(err){ not(err.message, true); }
   });
 }
@@ -6175,7 +6183,7 @@ function injectSections(bulunan){
                  alınmamış bir şartı alınmış saymak. */
               pool: "", score: 0, opens: [],
               reasons: [x.role === "PLAN_DISI"
-                        ? "plan dışı — hiçbir şartı doldurmaz" : "CRN ile eklendi"],
+                        ? "plan dışı; hiçbir şartı karşılamaz" : "CRN ile eklendi"],
               sections: [sec]};
       CAND[x.course] = cand;
       MODES.forEach(m => { if(!(m.candidates || []).some(c => c.course === x.course))
@@ -6207,17 +6215,18 @@ function katalogDialog(){
   if(!LIVE){
     openDialog(`<div class="eyebrow">Ders ara</div>
       <h2 style="margin-bottom:4px">Bu kopya salt okunur</h2>
-      <p class="modenote">Katalog araması için <span class="mono">make app</span>
-        ile aç.</p>`);
+      <p class="modenote">Katalog araması için uygulamayı <span class="mono">make app</span>
+        ile başlatınız.</p>`);
     return;
   }
   openDialog(`
     <div class="eyebrow">Katalog</div>
     <h2 style="margin-bottom:4px">Ders ara ve programa ekle</h2>
-    <p class="modenote" style="margin:2px 0 10px">Planında olmayan dersi de
-      ekleyebilirsin — <b>plan dışı</b> diye işaretlenir. Kredisi dönem yüküne
-      ve çakışma denetimine <b>girer</b>, hiçbir plan şartını <b>doldurmaz</b>.</p>
-    <label class="field"><span>Kod ya da ad</span>
+    <p class="modenote" style="margin:2px 0 10px">Planda bulunmayan dersler de
+      eklenebilir; bu dersler <b>plan dışı</b> olarak işaretlenir. Kredileri dönem
+      yüküne ve çakışma denetimine <b>dahil edilir</b>, ancak hiçbir plan şartını
+      <b>karşılamaz</b>.</p>
+    <label class="field"><span>Kod veya ad</span>
       <input type="search" id="katQ" autocomplete="off"
         placeholder="örn. MAT 271, olasılık, thermodynamics"></label>
     <div id="katSonuc" style="margin-top:10px"></div>`);
@@ -6259,14 +6268,14 @@ function katalogKrediUyarisi(it){
   if(c.earned + 1e-9 >= floor) return "";
   return `<span class="tag" style="margin-left:6px;background:var(--warn-soft);
     color:var(--warn-ink)" title="Katalog bu ders için asgari ${floor} kredi
-    ilan etmiş; şu an ${c.earned} kredin var.">${floor} kredi ister</span>`;
+    ilan etmiştir; mevcut krediniz ${c.earned}.">${floor} kredi gerekir</span>`;
 }
 
 function katalogCiz(k){
   const items = k.items || [];
   if(!items.length){
     $("#katSonuc").innerHTML = `<div class="empty">${esc(k.note
-      || "açık şubesi olan eşleşen ders yok")}</div>`;
+      || "açık şubesi olan eşleşen ders bulunamadı")}</div>`;
     return;
   }
   $("#katSonuc").innerHTML = `
@@ -6285,7 +6294,7 @@ function katalogCiz(k){
           ${it.credits} kredi<br>${it.sectionCount} şube</span>
       </button>`).join("")}</div>
     ${k.truncated ? `<div class="modenote" style="margin-top:8px">İlk ${
-      items.length} sonuç gösteriliyor — daha fazlası var, aramayı daralt.</div>` : ""}`;
+      items.length} sonuç gösterilmektedir; daha fazla sonuç için aramayı daraltınız.</div>` : ""}`;
   $("#katSonuc").querySelectorAll("[data-kat]").forEach(b =>
     b.addEventListener("click", () => katalogEkle(b.dataset.kat)));
 }
@@ -6296,7 +6305,7 @@ async function katalogEkle(course){
     const r = await api("/api/ders", {course});
     const bulunan = (r.crn || {}).found || [];
     if(!bulunan.length){
-      $("#katSonuc").innerHTML = `<div class="empty">bu dersin açık şubesi yok</div>`;
+      $("#katSonuc").innerHTML = `<div class="empty">bu dersin açık şubesi bulunmamaktadır</div>`;
       return;
     }
     injectSections(bulunan);
@@ -6365,8 +6374,8 @@ function icsMetni(){
         `DESCRIPTION:${icsKacis(
           `CRN ${p.sec.crn}${p.sec.instructor ? " · " + p.sec.instructor : ""}` +
           "\n" +
-          `Tarihler TAHMİNİ: akademik takvim bu araçta yok, ` +
-          `önümüzdeki pazartesiden başlatıldı. Dönem başına kaydır.`)}`,
+          `Tarihler tahminidir: akademik takvim bu araçta bulunmadığından ` +
+          `başlangıç olarak önümüzdeki pazartesi alınmıştır. Lütfen dönem başına göre düzenleyiniz.`)}`,
         "END:VEVENT");
     });
   });
@@ -6387,7 +6396,7 @@ function icsIndir(){
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   if(saatsiz) alertLine(
-    `${saatsiz} dersin saati ilan edilmemiş — takvim dosyasına GİRMEDİ.`);
+    `${saatsiz} dersin saati ilan edilmediğinden takvim dosyasına eklenmemiştir.`);
 }
 
 /* ---------- ★★ FAZ 61 — DANIŞMAN ÖZETİ ----------
@@ -6404,55 +6413,55 @@ const buyukBas = (m) => m ? m.charAt(0).toLocaleUpperCase("tr") + m.slice(1) : m
 function danismanSorulari(){
   const q = [], F = DATA.secondFloor, t = totals(), R = DATA.roadmap, g = DATA.gpa;
   if(DATA.maxLoad && t.load > DATA.maxLoad)
-    q.push(`Programım <b>${t.load}</b> ${esc(DATA.unitLabel)}, sınırım ${DATA.maxLoad} —
-      hangi dersi bırakmalıyım ya da sınır artırılabilir mi?`);
+    q.push(`Programım <b>${t.load}</b> ${esc(DATA.unitLabel)} olup ${DATA.maxLoad} sınırını
+      aşmaktadır. Hangi dersi bırakmam gerekir veya sınırın artırılması mümkün müdür?`);
   if(F && !F.undeclared){
     const d = tabanDurumu(F);
     if(!d.ok) q.push(`İkinci anadaldan bu dönem <b>${d.kredi}</b> kredi alıyorum; yarıyıl
-      tabanı ${F.min} (<b>${d.eksik}</b> eksik).${F.relief ? ` Tabanın ${F.relief.min}'e
-      indirilmesi için başvurabilir miyim?` : ""}`);
+      tabanı ${F.min} kredidir (<b>${d.eksik}</b> kredi eksik).${F.relief ? ` Tabanın ${F.relief.min}
+      krediye indirilmesi için başvuru yapabilir miyim?` : ""}`);
   }
   picks().filter(p => p.sec.capacity && yerSayisi(p.sec) === 0).forEach(p =>
-    q.push(`<b class="mono">${esc(p.cand.course)}</b> şubem (CRN ${esc(p.sec.crn)}) dolu —
-      kontenjan açılabilir mi, başka şubeye mi geçmeliyim?`));
+    q.push(`<b class="mono">${esc(p.cand.course)}</b> şubemin (CRN ${esc(p.sec.crn)}) kontenjanı
+      doludur. Kontenjan açılması mümkün müdür, yoksa başka bir şubeye mi geçmeliyim?`));
   picks().filter(p => !p.sec.meetings.length).forEach(p =>
-    q.push(`<b class="mono">${esc(p.cand.course)}</b> dersinin saati ilan edilmemiş —
-      çakışma olup olmadığını nereden öğrenebilirim?`));
+    q.push(`<b class="mono">${esc(p.cand.course)}</b> dersinin saati ilan edilmemiştir.
+      Çakışma olup olmadığını nasıl öğrenebilirim?`));
   if(R && R.noTranscript)
-    q.push(`Geçtiğim dersleri araca girmedim — mezuniyet planımı birlikte gözden
-      geçirebilir miyiz?`);
+    q.push(`Başarılı olduğum dersleri araca girmedim. Mezuniyet planımı birlikte
+      gözden geçirebilir miyiz?`);
   if(R && !R.error && !R.noTranscript){
     (R.programs || []).filter(p => p.jointDegree && p.remaining).forEach(p =>
-      q.push(`Ortak programdayım (${esc(p.jointDegree)}) — kalan yarıyıllarımdan hangileri
-        İTÜ'de, hangileri ortak üniversitede? Mezuniyet dönemim ne olur?`));
+      q.push(`Ortak lisans programına kayıtlıyım (${esc(p.jointDegree)}). Kalan yarıyıllarımdan
+        hangileri İTÜ'de, hangileri ortak üniversitede geçecektir? Mezuniyet dönemim nedir?`));
     (R.programs || []).forEach(p => {
       if(p.finish && p.nominal && p.finish.index > p.nominal.index)
-        q.push(`${esc(buyukBas(p.label))} tahmini bitişim <b>${esc(p.finish.label)}</b>, planımdakinden
-          ${p.finish.index - p.nominal.index} dönem geç — hangi dersleri öne almalıyım?`);
+        q.push(`${esc(buyukBas(p.label))} tahmini bitişim <b>${esc(p.finish.label)}</b> olup planımdakinden
+          ${p.finish.index - p.nominal.index} dönem geç görünmektedir. Hangi dersleri öne almalıyım?`);
       if(p.role === "ANADAL" && p.finishSemester && R.maxDuration
          && p.finishSemester > R.maxDuration.semesters)
-        q.push(`Tahmini bitişim ${p.finishSemester}. yarıyıl — azami süreyi
-          (${R.maxDuration.semesters}) aşıyor. Seçeneklerim neler?`);
+        q.push(`Tahmini bitişim ${p.finishSemester}. yarıyıl olup azami öğrenim süresini
+          (${R.maxDuration.semesters}) aşmaktadır. Seçeneklerim nelerdir?`);
     });
     (R.takeNow || []).slice(0, 2).forEach(x =>
       q.push(`<b class="mono">${esc(x.course)}</b> bu dönem alınırsa ${x.gains.map(gg =>
         `${esc(gg.label)} ${gg.terms} dönem erken`).join(", ")} bitiyor${x.drop
-        ? ` (${esc(x.drop.course)} çıkarak)` : ""} — programıma eklemeli miyim?`));
+        ? ` (${esc(x.drop.course)} çıkarılarak)` : ""}. Bu dersi programıma eklemeli miyim?`));
     (R.unplaced || []).forEach(u =>
-      q.push(`<b class="mono">${esc(u.course || u.pool)}</b> planlanamıyor: ${esc(u.reason)}.`));
+      q.push(`<b class="mono">${esc(u.course || u.pool)}</b> planlanamamaktadır: ${esc(u.reason)}.`));
     const tg = (R.terms || []).filter(x => x.floorGap);
     if(tg.length) q.push(`Yol haritasında ${tg.map(x => esc(x.label)).join(", ")} döneminde
-      ÇAP yarıyıl tabanı tutmuyor (yeterli ÇAP dersi açılmıyor) — nasıl planlamalıyım?`);
+      ÇAP yarıyıl tabanı sağlanamamaktadır (yeterli ÇAP dersi açılmamaktadır). Nasıl planlama yapmalıyım?`);
   }
   if(g && g.counted){
     const icinde = new Set(SECONDS().map(x => x.kind));
     (g.thresholds || []).filter(x => x.ok === false
         && !(x.kind === "basvuru" && icinde.has(x.scope)))
-      .forEach(x => q.push(`${esc(x.label)} için GNO ≥ ${x.min.toFixed(2)} gerekiyor;
-        tahmini GNO'm ${g.value.toFixed(2)}.`));
+      .forEach(x => q.push(`${esc(x.label)} için GNO ≥ ${x.min.toFixed(2)} gerekmektedir;
+        tahmini GNO'm ${g.value.toFixed(2)}. Bu eşiğe nasıl ulaşabilirim?`));
     if((g.conditional || []).length && g.conditionalRule && g.conditionalRule.ok === false)
-      q.push(`Şartlı geçtiğim ${g.conditional.length} ders var ve GNO'm 2.00'ın altında —
-        hangilerini tekrar almalıyım?`);
+      q.push(`Şartlı geçtiğim ${g.conditional.length} ders bulunmaktadır ve GNO'm 2.00'ın
+        altındadır. Hangi dersleri tekrar almalıyım?`);
   }
   return q;
 }
@@ -6468,7 +6477,7 @@ function danismanOzeti(){
     <td>${saat(p)}</td></tr>`).join("");
   const kontrol = [];
   if(DATA.maxLoad) kontrol.push(`Dönem yükü <b class="mono">${t.load} / ${DATA.maxLoad}</b>
-    ${esc(DATA.unitLabel)} ${t.load > DATA.maxLoad ? "— <b>aşıldı</b>" : "✓"}`);
+    ${esc(DATA.unitLabel)} ${t.load > DATA.maxLoad ? "— <b>sınır aşıldı</b>" : "✓"}`);
   if(F && !F.undeclared){
     const d = tabanDurumu(F);
     kontrol.push(`ÇAP yarıyıl tabanı <b class="mono">${d.kredi} / ${F.min}</b> ${d.ok ? "✓" : "— <b>eksik</b>"}`);
@@ -6478,7 +6487,7 @@ function danismanOzeti(){
   const bitis = R && !R.error && !R.noTranscript ? (R.programs || []).map(p => `<li><b>${esc(buyukBas(p.label))}</b>:
     ${p.finish ? `${esc(p.finish.label)}${p.finishSemester ? ` (${p.finishSemester}. yarıyıl)` : ""}`
       : p.jointDegree ? `tahmin edilmedi — ortak program (${esc(p.jointDegree)})` : "hesaplanamadı"}${p.nominal && p.finish ? (p.finish.index > p.nominal.index
-      ? ` — planındakinden ${p.finish.index - p.nominal.index} dönem geç` : " — planındakiyle aynı") : ""}</li>`)
+      ? ` — plandakinden ${p.finish.index - p.nominal.index} dönem geç` : " — plandakiyle aynı") : ""}</li>`)
     .join("") : "";
   const sorular = danismanSorulari();
   return `<div class="dozet">
@@ -6490,15 +6499,16 @@ function danismanOzeti(){
     <h3>Bu dönemin programı</h3>
     ${satirlar ? `<table><thead><tr><th>Ders</th><th>Ad</th><th>Program</th><th>Kr</th>
       <th>CRN</th><th>Saat</th></tr></thead><tbody>${satirlar}</tbody></table>`
-      : `<div class="empty">Programda ders yok.</div>`}
+      : `<div class="empty">Programda ders bulunmamaktadır.</div>`}
     <h3>Kontroller</h3><ul>${kontrol.map(k => `<li>${k}</li>`).join("")}</ul>
     ${bitis ? `<h3>Tahmini bitiş</h3><ul>${bitis}</ul>` : ""}
     <h3>Danışmana sorulacaklar</h3>
     ${sorular.length ? `<ul class="dsoru">${sorular.map(x => `<li>${x}</li>`).join("")}</ul>`
-      : `<div class="meta">Ölçülen bir sorun yok — program kurallara uyuyor.</div>`}
-    <div class="dnot">GNO ve bitiş TAHMİNİ (transkriptinden ve yol haritasının
-      varsayımlarından). Kesin bilgi OBS'de. ⚠️ Bu sayfa GNO'nu içerir — yalnız
-      danışmanınla paylaş. __AD_TAM__ ile hazırlandı; ${esc(veriYasiMetni())}.</div>
+      : `<div class="meta">Tespit edilen bir sorun bulunmamaktadır; program kurallara uygundur.</div>`}
+    <div class="dnot">GNO ve bitiş bilgileri tahminidir (transkript ve yol haritası
+      varsayımlarına dayanır). Kesin bilgi için OBS esas alınmalıdır. ⚠️ Bu sayfa GNO
+      bilgisini içerir; yalnızca danışmanınızla paylaşınız. __AD_TAM__ ile hazırlanmıştır;
+      ${esc(veriYasiMetni())}.</div>
   </div>`;
 }
 
@@ -6534,7 +6544,7 @@ function danismanDialog(){
    transkript, GNO YOK. */
 async function resimIndir(){
   const ps = picks();
-  if(!ps.length){ alertLine("Programda ders yok — resim çıkarılmadı."); return; }
+  if(!ps.length){ alertLine("Programda ders bulunmadığından resim oluşturulmadı."); return; }
   if(document.fonts && document.fonts.ready) await document.fonts.ready;
   const kok = getComputedStyle(document.documentElement);
   const j = (ad) => kok.getPropertyValue("--" + ad).trim();
@@ -6564,7 +6574,7 @@ async function resimIndir(){
   yaz(`${DATA.termLabel || ""} · ${t.n} ders · ${t.load}${DATA.maxLoad ? " / " + DATA.maxLoad : ""} ${
       DATA.unitLabel || ""}`, PAY, 58, `400 13px ${SANS}`, j("ink-2"));
   /* Ad yer tutucudan (bkz. test_ad.py — ad değişince sayfada eski ad kalmasın). */
-  yaz("__AD_TAM__ — CRN'leri kayıttan önce OBS'de doğrula", PAY, 78,
+  yaz("__AD_TAM__ — CRN'leri kayıttan önce OBS'de doğrulayınız", PAY, 78,
       `400 11px ${SANS}`, j("ink-3"));
   const sw = (G - SOL - PAY) / 5;
   const x0 = (gun) => SOL + (gun - 1) * sw;
@@ -6659,7 +6669,7 @@ function baglantidanYukle(){
     /* ⚠️ Bulunamayan CRN sessizce atılmıyor: bağlantıdaki 6 dersin 4'ü
        gelirse hangi ikisinin düştüğü yazmalı. */
     if(eksik.length) alertLine(
-      `Bağlantıdaki ${eksik.length} CRN katalogda yok: ${eksik.join(", ")}`);
+      `Bağlantıdaki ${eksik.length} CRN katalogda bulunamadı: ${eksik.join(", ")}`);
   }).catch(err => alertLine("Bağlantı yüklenemedi: " + err.message));
   return true;
 }
@@ -6681,9 +6691,9 @@ function kayitKontrol(){
 
   // 1) Kredi tavanı
   if(L.noTranscript)
-    ekle(null, "Kredi tavanı", "transkript girilmedi — tavan bilinmiyor");
+    ekle(null, "Kredi sınırı", "transkript girilmediğinden sınır bilinmemektedir");
   else
-    ekle(t.credits <= DATA.maxLoad + 1e-9, "Kredi tavanı",
+    ekle(t.credits <= DATA.maxLoad + 1e-9, "Kredi sınırı",
          `${t.credits} / ${DATA.maxLoad} ${DATA.unitLabel}`);
 
   // 2) Çakışma — ızgaradaki kuralın AYNISI
@@ -6691,14 +6701,14 @@ function kayitKontrol(){
   ps.forEach((a, i) => ps.slice(i + 1).forEach(b => {
     if(clash(a.sec, b.sec)) carpisan.push(`${a.cand.course} ↔ ${b.cand.course}`);
   }));
-  ekle(!carpisan.length, "Çakışma yok", carpisan.join(", ") || "temiz");
+  ekle(!carpisan.length, "Saat çakışması", carpisan.join(", ") || "bulunmuyor");
 
   // 3) Kontenjan
   const doluOlan = ps.filter(p => !p.sec.free).map(p => p.cand.course);
   ekle(!doluOlan.length, "Kontenjan",
        doluOlan.length ? "dolu: " + doluOlan.join(", ")
-                       : `${ps.length} şubede yer var (${esc(veriTarihi())} verisiyle —
-                          kayıtta OBS'deki güncel sayıya bak)`);
+                       : `${ps.length} şubede kontenjan mevcut (${esc(veriTarihi())} verisi;
+                          kayıt sırasında OBS'deki güncel sayıyı kontrol ediniz)`);
 
   // 4) Yarıyıl tabanı — YALNIZ ÇAP varsa ve başlangıç yarıyılı beyan edilmişse.
   // ⚠️ Beyan yoksa "tamam" değil, "bakılamıyor": yönerge tabanı başlangıç
@@ -6711,7 +6721,7 @@ function kayitKontrol(){
          `${ikinci} / ${F.min} kredi`);
   }else if(F){
     ekle(null, "İkinci anadal tabanı",
-         "ÇAP'a başladığın yarıyıl beyan edilmedi — taban iddia edilmiyor");
+         "ÇAP'a başlanan yarıyıl belirtilmediğinden taban değerlendirilmedi");
   }
 
   // 5) CRN'ler elinde mi
@@ -6725,13 +6735,14 @@ function kayitKontrol(){
       <div class="check ${sinif(r.ok)}"><span class="mark">${isaret(r.ok)}</span>
         <span><b>${esc(r.ad)}</b> <span class="meta">${r.not}</span></span></div>`).join("")}
     </div>
-    <span class="hint">&#8220;—&#8221; = buradan bakılamaz, sağlandı demek DEĞİL.
-      Kontenjan sayıları son tazelemeye ait.</span></div>`;
+    <span class="hint">&#8220;—&#8221; işareti, koşulun bu araçla denetlenemediğini
+      gösterir; koşulun sağlandığı anlamına gelmez. Kontenjan sayıları son veri
+      tazelemesine aittir.</span></div>`;
 }
 
 function crnDialog(){
   const ps = picks();
-  if(!ps.length){ openDialog(`<div class="empty">Programda ders yok.</div>`); return; }
+  if(!ps.length){ openDialog(`<div class="empty">Programda ders bulunmamaktadır.</div>`); return; }
   const list = ps.slice().sort((a, b) => a.cand.course.localeCompare(b.cand.course));
   const line = list.map(p => p.sec.crn).join(" ");
   /* ★ Faz 25/B2 — YEDEK PLAN. Eskiden yalnız "öbür CRN'ler" listeleniyordu;
@@ -6749,8 +6760,9 @@ function crnDialog(){
   openDialog(`
     <div class="eyebrow">Kayıt günü</div>
     <h2 style="margin-bottom:4px">CRN listesi</h2>
-    <p class="modenote" style="margin:2px 0 10px">OBS'ye yazacağın numaralar.
-      Araç senin yerine kayıt YAPMAZ — bu liste elle girmen için.</p>
+    <p class="modenote" style="margin:2px 0 10px">OBS'ye girilecek numaralar.
+      Araç, ders kaydını sizin adınıza yapmaz; bu liste kayıt ekranına elle
+      girilmek üzere hazırlanmıştır.</p>
     ${kayitKontrol()}
     <label class="field"><span>Tümü (kopyala)</span>
       <input type="text" id="crnLine" class="mono" readonly value="${esc(line)}">
@@ -6777,11 +6789,11 @@ function crnDialog(){
          gerçekten lazım olan şey odur. */
       list.some(p => !p.sec.free) ? " open" : ""}>
       <summary style="cursor:pointer;font-size:var(--fs-md);color:var(--seal)"
-        >Yedek plan — seçtiğin şube dolarsa</summary>
+        >Yedek plan — seçilen şubenin dolması durumunda</summary>
       <div class="scroll" style="max-height:240px">
         <table class="trtable"><tbody>${alts.map(a => `<tr>
           <td style="vertical-align:top"><b class="mono">${esc(a.course)}</b>
-            <div class="meta mono">şu an ${esc(a.sec.crn)}</div></td>
+            <div class="meta mono">mevcut: ${esc(a.sec.crn)}</div></td>
           <td>${a.others.map(o => `<div class="yedek ${
               o.carpisan.length ? "carpisir" : (o.s.free ? "uyar" : "dolu")}">
             <b class="mono">${esc(o.s.crn)}</b>
@@ -6799,9 +6811,9 @@ function crnDialog(){
     input.addEventListener("click", () => {
       input.select();
       try{ document.execCommand("copy"); $("#crnCopied").textContent = "kopyalandı ✓"; }
-      catch(e){ $("#crnCopied").textContent = "seçildi — Cmd+C ile kopyala"; }
+      catch(e){ $("#crnCopied").textContent = "seçildi; Cmd+C (Ctrl+C) ile kopyalayınız"; }
     });
-    $("#crnCopied").textContent = "tıkla, kopyalanır";
+    $("#crnCopied").textContent = "tıklandığında kopyalanır";
   }
 }
 
@@ -6815,8 +6827,8 @@ function wireRefresh(){
   if(LIVE && DATA.canRefresh === false){
     btn.hidden = true;
     const not = $("#changeWhen");
-    if(not) not.textContent = "Katalog siteyle birlikte yayınlanıyor; "
-      + "dönem başında güncelleniyor.";
+    if(not) not.textContent = "Katalog siteyle birlikte yayımlanır ve "
+      + "dönem başında güncellenir.";
     return;
   }
   if(!LIVE) return;
@@ -6840,7 +6852,7 @@ async function tazele(btn){
     const not = $("#changeWhen");
     const ek = next.obsError
       ? `⚠ OBS'ye ulaşılamadı, eski plan verisi korundu (${next.obsError})`
-      : (n ? `${n} değişiklik bulundu` : "değişiklik yok");
+      : (n ? `${n} değişiklik bulundu` : "değişiklik bulunmadı");
     if(not && !$("#changeSection").hidden) not.textContent += "  ·  " + ek;
     else say2(ek);
   }catch(err){
@@ -6861,9 +6873,9 @@ function catalogCreditHtml(info){
   if(!c || !c.enabled) return "";
   /* ⚠️ Transkript yokken "engel yok" DEMİYORUZ — bakamadığımızı yazıyoruz. */
   if(c.noTranscript)
-    return `<div class="modenote" style="margin-top:6px">Katalog bazı dersler
-      için ayrıca <b>kredi koşulu</b> ilan ediyor (95 / 60 / 30 kredi).
-      Hangilerini tuttuğun ancak transkriptin girilince görünür.</div>`;
+    return `<div class="modenote" style="margin-top:6px">Katalogda bazı dersler
+      için ayrıca <b>kredi koşulu</b> ilan edilmiştir (95 / 60 / 30 kredi).
+      Hangi koşulların sağlandığı, transkript girildikten sonra görüntülenir.</div>`;
   if(!c.blocked || !c.blocked.length) return "";
   const GOSTER = 12;
   const rows = c.blocked.slice(0, GOSTER).map(b =>
@@ -6872,14 +6884,14 @@ function catalogCreditHtml(info){
        <b class="mono">${b.missing}</b> kredi eksik</li>`).join("");
   const fazla = c.blocked.length - GOSTER;
   return `<div class="note" style="margin-top:6px">
-    Katalog bu <b>${c.blocked.length}</b> ders için ayrıca kredi koşulu ilan etmiş;
-    şu an <b>tutmuyorsun</b>, o yüzden önerilere girmiyorlar:
+    Katalogda bu <b>${c.blocked.length}</b> ders için ayrıca kredi koşulu ilan edilmiştir;
+    koşul şu anda <b>sağlanmadığından</b> bu dersler önerilere dahil edilmemiştir:
     <ul style="margin:6px 0 0 20px;padding:0">${rows}${
       fazla > 0 ? `<li>… ve ${fazla} ders daha</li>` : ""}</ul>
     <div style="margin-top:6px;color:var(--ink-3)">
       Kaynak: ${esc(c.source)}${c.verified ? ""
-        : " · ⚠ bu alanın adı kaynakta “Sınıf Kısıtı”; kredi tabanı olarak"
-          + " okumak bizim yorumumuz. Kapatmak için"
+        : " · ⚠ bu alanın kaynaktaki adı “Sınıf Kısıtı”dır; kredi tabanı olarak"
+          + " yorumlanmaktadır. Devre dışı bırakmak için"
           + " <span class=\"mono\">kurallar.toml → [katalog_kredi_kosulu] kullan = false</span>."}
     </div></div>`;
 }
@@ -6905,22 +6917,22 @@ function renderCredits(){
       <div style="flex:2;min-width:240px;font-size:var(--fs-md);color:var(--ink-2)">
         <b>${esc(r.name)}</b> — ${esc(r.note)}
         ${r.holding && r.holding.length ? `<div style="margin-top:6px;color:var(--ink-3)">
-          Şu an tuttuğu dersler: <span class="mono">${r.holding.map(esc).join(", ")}</span>
-          — önerilere girmiyorlar.</div>` : ""}
+          Bu koşula bağlı dersler: <span class="mono">${r.holding.map(esc).join(", ")}</span>
+          (önerilere dahil edilmemiştir).</div>` : ""}
       </div>
     </div>`;
   }).join("") + (info.unknown && info.unknown.length
     ? `<div class="note" style="margin-top:6px">Kredisi katalogda bulunamayan
-       <b>${info.unknown.length}</b> geçilmiş ders var
+       <b>${info.unknown.length}</b> başarılı ders bulunmaktadır
        (<span class="mono">${info.unknown.slice(0,6).map(esc).join(", ")}</span>).
-       Bunlar <b>0 kredi</b> sayıldı — yani eşik olduğundan zor gösteriliyor.</div>` : "")
+       Bu dersler <b>0 kredi</b> olarak sayıldığından eşiğe uzaklık olduğundan fazla görünebilir.</div>` : "")
     /* ★ Faz 37 — katalogda ders ders ilan edilmiş taban. Beyan edilmiş
        kuralın dışında kalan dersleri buraya yazmasak, motor onları eler ve
        kullanıcı sebebini hiçbir yerde göremezdi. */
     + catalogCreditHtml(info)
     + `<div class="modenote" style="margin-top:8px">Kural
-       <span class="mono">config/kurallar.toml</span> içinde beyan edilir; mevzuat
-       değişirse kod değil o dosya değişir.</div>`;
+       <span class="mono">config/kurallar.toml</span> dosyasında tanımlanır; mevzuat
+       değiştiğinde yalnızca bu dosyanın güncellenmesi yeterlidir.</div>`;
 }
 
 /* ---------- ilerleme panelleri ---------- */
@@ -6948,17 +6960,17 @@ function panelHTML(p, plan){
       </div>
       <div class="pctbox">
         <div class="pct mono${bilinmiyor ? " unknown" : ""}"
-          title="${bilinmiyor ? "Geçtiğin dersler girilmedi" : ""}"
+          title="${bilinmiyor ? "Başarılan dersler girilmedi" : ""}"
           >${bilinmiyor ? "—" : "%" + p.percent}</div>
         ${bilinmiyor ? "" : `<div class="pctlbl">tamamlandı</div>`}
       </div>
     </div>
     <div class="name">${esc(p.title)}</div>
     ${bilinmiyor ? `<div class="proj bilinmiyor">
-      <b>İlerleme bilinmiyor</b> — geçtiğin dersleri girmedin.
-      Aşağıdaki sayılar <b>planın tamamı</b>, senin kalanın değil.
+      <b>İlerleme bilinmemektedir</b>; başarılan dersler girilmemiştir.
+      Aşağıdaki sayılar kalan dersleri değil, <b>planın tamamını</b> göstermektedir.
       ${LIVE ? `<button class="ghost" data-setup="plan"
-        style="margin-left:8px">Dersleri gir</button>` : ""}</div>` : `
+        style="margin-left:8px">Dersleri girin</button>` : ""}</div>` : `
     <div class="meter">
       <i style="width:${Math.max(1, p.percent)}%"></i>
       <i class="plan" style="width:${Math.max(0, pctAfter - p.percent)}%"></i>
@@ -6967,7 +6979,7 @@ function panelHTML(p, plan){
       ? `bu dönem <b class="mono">${plan.slots}</b> slot dolarsa
          <span class="mono">%${p.percent}</span> <span class="arrow">→</span>
          <b class="mono">%${pctAfter}</b>`
-      : `<span class="flat">bu dönemki seçimde bu plandan ders yok</span>`}</div>`}
+      : `<span class="flat">bu dönemki seçimde bu plandan ders bulunmamaktadır</span>`}</div>`}
     <div class="stats">
       <span>${bilinmiyor ? "planda slot" : "slot"}
         <b class="mono">${bilinmiyor ? p.slotsTotal
@@ -7120,12 +7132,12 @@ function renderArzUyarisi(){
     <details class="arzdetay">
       <summary><span><b>${arz.length} ders</b> bu dönem alınamıyor</span></summary>
       <div class="arzgovde">
-        ${satir(acilmamis, "şu ana kadar ilan edilmemiş")}
-        ${satir(kapali, "şubeleri başka programlara ayrılmış")}
+        ${satir(acilmamis, "henüz ilan edilmemiştir")}
+        ${satir(kapali, "şubeleri başka programlara ayrılmıştır")}
         <div style="margin-top:6px" class="meta">Veri
-          <span class="mono">${esc(veriTarihi())}</span> itibarıyla —
-          dönem başında ilanlar kademeli yayınlanıyor.
-          <a href="#blockSection" id="arzDetay">Darboğaz bölümünde ayrıntı</a>.</div>
+          <span class="mono">${esc(veriTarihi())}</span> itibarıyladır;
+          dönem başında ilanlar kademeli olarak yayımlanır.
+          <a href="#blockSection" id="arzDetay">Ayrıntılar için Darboğaz bölümü</a>.</div>
       </div>
     </details>`;
 }
@@ -7165,18 +7177,18 @@ function renderDonemUyarisi(){
 
   kutu.hidden = false;
   const dökum = dönemler.map(t => `<b>${t}.</b> dönemden ${say[t]}`).join(" · ")
-    + (dönemsiz ? ` · plan dönemi yazmayan ${dönemsiz}` : "");
+    + (dönemsiz ? ` · dönem bilgisi olmayan ${dönemsiz}` : "");
   kutu.innerHTML = `
-    <b>Kaçıncı dönemde olduğunu bilmiyorum.</b>
-    <div style="margin-top:4px">Bu yüzden aşağıdaki program planın
-      <b>${dönemler.length}</b> ayrı döneminden ders karıştırıyor:
-      ${dökum}. Alabileceklerinin tamamı bu — <b>bu dönem almanı önerdiğim
-      liste değil</b>.</div>
+    <b>Yarıyıl bilgisi girilmemiştir.</b>
+    <div style="margin-top:4px">Bu nedenle aşağıdaki program, planın
+      <b>${dönemler.length}</b> farklı döneminden ders içermektedir:
+      ${dökum}. Liste alınabilecek derslerin tamamını gösterir;
+      <b>bu dönem için önerilen ders listesi değildir</b>.</div>
     <div class="dlgactions" style="border:0;padding:0;margin-top:8px;
       justify-content:flex-start">
-      <button class="ghost primary" id="donemUyariAc">Dönemi seç</button>
-      <span class="meta">5 saniye — sonra “N. dönem + alttan” kipi açılıyor
-        ve öneri oraya odaklanıyor.</span>
+      <button class="ghost primary" id="donemUyariAc">Yarıyılınızı seçin</button>
+      <span class="meta">Seçimden sonra “N. dönem + alttan” kipi açılır ve
+        öneri bu yarıyıla göre oluşturulur.</span>
     </div>`;
   const d = $("#donemUyariAc");
   if(d) d.addEventListener("click", () => termDialog());
@@ -7208,7 +7220,7 @@ function renderPrintCrn(){
       </tr>`).join("")}</tbody></table>
     <div style="margin-top:3mm;font-size:9pt">
       ${esc(veriYasiMetni())} · Bu liste bilgilendirme amaçlıdır;
-      kaydı OBS'den sen yaparsın.</div>`;
+      ders kaydı OBS üzerinden yapılır.</div>`;
 }
 
 /* ---------- tercihin bu programa etkisi (Faz 27) ----------
@@ -7221,9 +7233,9 @@ function tercihNotu(){
   const d = s.prefDelta || 0;
   const sebep = (s.prefReasons || []).join(" · ");
   if(!d && !sebep)
-    return `<span class="tercihnot ok">tercihlerine uyuyor</span>`;
+    return `<span class="tercihnot ok">tercihlere uygun</span>`;
   return `<span class="tercihnot ${d < 0 ? "uymaz" : "ok"}"
-    title="Tercih eleme değil sıralama: uymayan program da gösterilir.">
+    title="Tercihler eleme için değil sıralama için kullanılır; uymayan program da gösterilir.">
     tercih ${d > 0 ? "+" : ""}${d}${sebep ? " · " + esc(sebep) : ""}</span>`
     + tercihCaresi(s);
 }
@@ -7400,7 +7412,7 @@ function oneriYok(){
      kenara değiyor). Kısa sebep burada, ayrıntı + "aç" düğmeleri
      kilit şeridinde — ikisi aynı ekranda. */
   return `<span class="empty" style="color:var(--danger)"
-    >öneri üretilemedi — <b>${kl.length} kilit yüzünden</b></span>`;
+    >öneri üretilemedi — <b>${kl.length} kilit nedeniyle</b></span>`;
 }
 
 /** Bu kipte GERÇEKTEN bağlayan kilitler (aday havuzunda olanlar). ⚠️ Okunamayan
@@ -7478,7 +7490,7 @@ function oneriFarki(s, i){
    bırakırdı — o zaten sekmelerde yapabiliyordu. */
 function karsilastirDialog(){
   const list = M().schedules;
-  if(list.length < 2){ openDialog(`<div class="empty">Tek öneri var.</div>`); return; }
+  if(list.length < 2){ openDialog(`<div class="empty">Yalnızca bir öneri bulunmaktadır.</div>`); return; }
   const dersKumeleri = list.map(s => new Set(s.picks.map(p => p.course)));
   /* Hepsinde ortak olan dersler farkı GÖSTERMİYOR; ayıklanınca tabloda
      yalnız gerçekten değişen dersler kalıyor. */
@@ -7493,9 +7505,9 @@ function karsilastirDialog(){
     <div class="eyebrow">Karşılaştırma</div>
     <h2 style="margin-bottom:4px">Öneriler yan yana</h2>
     <p class="modenote" style="margin:2px 0 10px">${ortak.length
-      ? `<b class="mono">${ortak.length}</b> ders üçünde de aynı; aşağıda
-         yalnız <b>değişenler</b> var.`
-      : "Önerilerin ortak dersi yok."}</p>
+      ? `<b class="mono">${ortak.length}</b> ders tüm önerilerde ortaktır; aşağıda
+         yalnızca <b>farklılıklar</b> gösterilmektedir.`
+      : "Önerilerin ortak dersi bulunmamaktadır."}</p>
     <div class="scroll"><table class="cmp">
       <thead><tr><th></th>${list.map((s, i) =>
         `<th class="${i === active ? "secili" : ""}">Öneri ${i + 1}</th>`).join("")}</tr></thead>
@@ -7505,7 +7517,7 @@ function karsilastirDialog(){
         ${satir("Puan", s => `<b class="mono">${s.score}</b>${
           s.prefDelta ? `<div class="meta ${s.prefDelta < 0 ? "eksi" : "arti"}">
             tercih ${s.prefDelta > 0 ? "+" : ""}${s.prefDelta}</div>` : ""}`,
-          "Yüksek puan = bu dönem kaçırmak daha pahalı")}
+          "Yüksek puan, dersin bu dönem alınmamasının maliyetinin yüksek olduğunu gösterir")}
         ${satir("Dolu günler", s => (s.shape.days || [])
           .map(d => GUNAD[d - 1]).join(" ") || "—")}
         ${satir("Boş gün", s => (s.shape.freeDays || [])
@@ -7520,7 +7532,7 @@ function karsilastirDialog(){
         ${list.some(s => s.shape.timeless)
           ? satir("Saati ilan edilmemiş", s => `<span class="mono">${
               s.shape.timeless || 0}</span>`,
-              "Bu dersler ızgarada görünmüyor; çakışma denetimine de girmiyor")
+              "Bu dersler ızgarada gösterilmez ve çakışma denetimine dahil edilmez")
           : ""}
         ${satir("Değişen dersler", s => {
           const farkli = s.picks.map(p => p.course).filter(c => !ortak.includes(c));
@@ -7529,7 +7541,7 @@ function karsilastirDialog(){
             : `<span class="meta">—</span>`;
         })}
         ${satir("", (s, i) => i === active
-          ? `<span class="chip">şu an açık</span>`
+          ? `<span class="chip">görüntüleniyor</span>`
           : `<button class="ghost" data-sec="${i}">Bunu seç</button>`)}
       </tbody>
     </table></div>`);
@@ -7578,9 +7590,9 @@ function renderDayList(){
     out += `<section><h3>${DAYS[d-1]}</h3>`;
     out += items.length ? items.map((it,i) => it.busy
       ? `<button class="row mesgul${clash.has(i) ? " clash" : ""}"
-           data-busy="${esc(it.busy.raw)}" title="Kaldırmak için dokun">
+           data-busy="${esc(it.busy.raw)}" title="Kaldırmak için dokununuz">
            <span><b>${esc(it.busy.label || "meşgul")}</b>
-             <small class="mono">${hhmm(it.m.start)}–${hhmm(it.m.end)} · ders konmaz</small></span>
+             <small class="mono">${hhmm(it.m.start)}–${hhmm(it.m.end)} · ders yerleştirilmez</small></span>
            ${clash.has(i) ? '<span class="warn">çakışıyor</span>' : ""}
          </button>`
       : `<button class="row${clash.has(i) ? " clash" : ""}${
@@ -7663,7 +7675,7 @@ function render(){
     <div class="ozetsatir">${t.n} ders · <span class="mono">${ikincil}</span></div>
     ${haftaSekli()}
     ${disKredi ? `<div class="planout">bunun <b class="mono">${disKredi}</b>
-      kredisi <b>plan dışı</b> — yüke sayılır, şart doldurmaz</div>` : ""}
+      kredisi <b>plan dışıdır</b>; yüke sayılır, şart karşılamaz</div>` : ""}
     ${doluSube.length ? `<div class="ozetdolu">${doluSube.map(p => {
       const b = bosSube(p.cand.course);
       return `<div class="ozetdolusatir"><span class="yerdurum dolu">dolu</span>
@@ -7672,7 +7684,7 @@ function render(){
               data-crn="${esc(b.crn)}">boş şubeye geç</button>
             <span class="ozetnot">CRN <span class="mono">${esc(b.crn)}</span> ·
               <span class="mono">${yerSayisi(b)}</span> boş yer · çakışmıyor</span>`
-          : ` <span class="ozetnot">— uyan boş şube yok; kontenjanı izle</span>`}</div>`;
+          : ` <span class="ozetnot">— uygun boş şube bulunmamaktadır; kontenjanın izlenmesi önerilir</span>`}</div>`;
     }).join("")}</div>` : ""}
     <div class="ozetlejant">
       <span class="dot"><i style="background:var(--anadal)"></i>anadal</span>
@@ -7681,7 +7693,7 @@ function render(){
     </div>
     <div class="ozetpuan"><span class="aciklamali" title="Programdaki derslerin
       puanlarının toplamı: kritik yol, açtığı dersler, zorunluluk ve kontenjan.
-      Öneriler bu sayıya göre sıralanıyor; tek başına bir not değil.">öneri
+      Öneriler bu sayıya göre sıralanır; tek başına bir değerlendirme notu değildir.">öneri
       puanı</span> <b class="mono">${t.score}</b></div>
     ${tercihNotu()}`;
   $("#schedSummary").querySelectorAll("[data-bosa]").forEach(b =>
@@ -7761,7 +7773,7 @@ function render(){
       if(c.busy){
         html += `<td rowspan="${c.span}" class="busycell"><div class="blk mesgul"
           data-busy="${esc(c.busy.raw)}" tabindex="0" role="button"
-          title="Kaldırmak için tıkla">
+          title="Kaldırmak için tıklayınız">
           <b>${esc(c.busy.label)}</b>
           <small class="mono">${hhmm(c.busy.start)}–${hhmm(c.busy.end)}</small>
         </div></td>`;
@@ -7991,31 +8003,31 @@ function kilitNotu(course, crn, disKip, oneren){
   if(!DATA.live) return "";
   if(disKip)
     return `<div class="why" style="margin-top:8px">⚠️ Kilit <b>bu kipte
-      bağlamaz</b> — ders bu kipin aday havuzunda değil.${
-      oneren >= 0 ? ` Kilitlersen <b>${esc(MODES[oneren].label)}</b> kipinin
+      uygulanmaz</b>; ders bu kipin aday havuzunda bulunmamaktadır.${
+      oneren >= 0 ? ` Kilitlendiğinde <b>${esc(MODES[oneren].label)}</b> kipinin
       önerilerinde bu şube sabit tutulur.` : ""}</div>`;
   const l = kilitler()[course];
   if(l && l.tur === "aralik")
     return `<div class="why" style="margin-top:8px"><b>${esc(ilkBuyuk(kilitYonelme(l)))}
       kilitli</b>: öneriler bu dersi o saatlere uyan ${l.uyan.length} şubeden
-      birinde tutuyor, <b>şubeyi motor seçiyor</b>.${
-      kilitliMi(course, crn) ? "" : ` ⚠️ Ekranda duran
-      <span class="mono">CRN ${esc(crn)}</span> bu aralığın <b>dışında</b> —
-      elle değiştirdiysen öneriye dönünce kilit yine uygulanır.`}
-      "Bu saate kilitle" dersen aralık kilidi <b>bu şubeye</b> dönüşür.</div>`;
+      birinde tutar; <b>şube araç tarafından seçilir</b>.${
+      kilitliMi(course, crn) ? "" : ` ⚠️ Ekrandaki
+      <span class="mono">CRN ${esc(crn)}</span> bu aralığın <b>dışındadır</b>;
+      elle yapılan değişiklikten sonra öneriye dönüldüğünde kilit yeniden uygulanır.`}
+      "Bu saate kilitle" seçildiğinde aralık kilidi <b>bu şubeye</b> dönüştürülür.</div>`;
   if(l && l.crn !== crn)
     return `<div class="why" style="margin-top:8px">Bu ders
-      <span class="mono">CRN ${esc(l.crn)}</span> şubesine kilitli; ekranda
-      duran <span class="mono">CRN ${esc(crn)}</span>. Kilitlersen kilit
-      <b>bu şubeye taşınır</b> — bir derste tek kilit olabilir.</div>`;
+      <span class="mono">CRN ${esc(l.crn)}</span> şubesine kilitlidir; ekrandaki
+      şube <span class="mono">CRN ${esc(crn)}</span>. Kilitlendiğinde kilit
+      <b>bu şubeye taşınır</b>; bir derste yalnızca bir kilit bulunabilir.</div>`;
   if(l)
     return `<div class="why" style="margin-top:8px">Saate kilitli: öneriler
-      bu dersi <b>bu şubede</b> tutup <b>etrafında</b> kuruluyor.</div>`;
-  return `<div class="why" style="margin-top:8px">Kilitlersen motor bu dersi
-    <b>bu şubede</b> tutar ve programın kalanını etrafında kurar. Kilitlemezsen
-    ders programda kalabilir ama <b>şubesi (dolayısıyla saati) kayabilir</b>.
-    Şube değil yalnız saat önemliyse <b>sabaha</b> ya da <b>öğleden sonraya</b>
-    kilitle — motor o saatlerdeki bütün şubeleri dener.</div>`;
+      bu dersi <b>bu şubede</b> tutarak kalan programı <b>buna göre</b> oluşturur.</div>`;
+  return `<div class="why" style="margin-top:8px">Kilitlendiğinde araç bu dersi
+    <b>bu şubede</b> tutar ve kalan programı buna göre oluşturur. Kilitlenmezse
+    ders programda kalabilir; ancak <b>şubesi (dolayısıyla saati) değişebilir</b>.
+    Yalnızca saat önemliyse <b>sabah</b> veya <b>öğleden sonra</b> kilidi
+    kullanılabilir; bu durumda o saatlerdeki bütün şubeler denenir.</div>`;
 }
 
 /** Izgara/gün listesi için: "sabaha kilitli" · "CRN 13601 şubesine kilitli".
@@ -8067,12 +8079,12 @@ function renderKilitNot(){
   if(!DATA.live){
     el.innerHTML = `<b>${uygulanan.length} ders saate kilitli</b>
       (${uygulanan.map(l => `${ad(l)} · ${esc(kilitEtiketi(l))}`).join(", ")}).
-      Öneriler bunların etrafında kuruldu.${okunmayan.length ? ` ⚠️
-      ${okunmayan.length} kilit satırı <b>uygulanmıyor</b>
-      (${okunmayan.map(satirAd).join(", ")}).` : ""} Kilidi açmak için
-      <span class="mono">make app</span> ile aç ya da
-      <span class="mono">settings.toml</span> içindeki
-      <span class="mono">kilitli</span> satırını düzenle.`;
+      Öneriler bu derslere göre oluşturulmuştur.${okunmayan.length ? ` ⚠️
+      ${okunmayan.length} kilit satırı <b>uygulanmamaktadır</b>
+      (${okunmayan.map(satirAd).join(", ")}).` : ""} Kilidi kaldırmak için
+      uygulamayı <span class="mono">make app</span> ile başlatınız veya
+      <span class="mono">settings.toml</span> dosyasındaki
+      <span class="mono">kilitli</span> satırını düzenleyiniz.`;
     return;
   }
   const kirik = uygulanan.filter(l => !l.ok);
@@ -8113,30 +8125,30 @@ function renderKilitNot(){
     return i >= 0 ? MODES[i].label : "";
   };
   const bosSonuc = !(M().schedules || []).length;
-  const neden = (l) => l.neden === "sube" ? `CRN ${esc(l.crn)} bu kipte açık değil`
+  const neden = (l) => l.neden === "sube" ? `CRN ${esc(l.crn)} bu kipte açık değildir`
     : l.neden === "aralik" ? `bu dersin <b>${esc(kilitEtiketi(l))}</b> saatlerine
-        bütünüyle uyan şubesi yok`
-    : "bu ders artık aday listesinde yok";
+        tamamen uyan şubesi bulunmamaktadır`
+    : "bu ders artık aday listesinde bulunmamaktadır";
   el.innerHTML = `${uygulanan.length ? `<b>${uygulanan.length} ders saate kilitli.</b>` : ""}
     ${/* ⚠️ Giriş cümlesi KOŞULLU: kilitlerin hepsi bu kipin havuzu dışındaysa
           "etrafında kuruluyor" demek düpedüz yanlış olurdu — motor onları bu
           kipte hiç görmüyor (Faz 49). */ ""}
     ${!uygulanan.length ? "" : bagli.length ? `Öneriler ${bagli.length < uygulanan.length
         ? `bu kipte bağlayan <b>${bagli.length}</b> dersin`
-        : "bu derslerin"} saatini sabit tutup <b>etrafında</b> kuruluyor.`
-      : `<b>Bu kipte hiçbiri bağlamıyor.</b>`}
+        : "bu derslerin"} saatini sabit tutarak <b>buna göre</b> oluşturulmaktadır.`
+      : `<b>Bu kipte hiçbir kilit uygulanmamaktadır.</b>`}
     ${bosSonuc && bagli.length ? `<div style="margin-top:6px;color:var(--danger)">
-      <b>Bu kipte hiçbir program kurulamadı</b> — bu kipte bağlayan
-      ${bagli.length} kilit (${bagli.map(ad).join(", ")})
-      birbiriyle ya da meşgul saatinle çakışıyor. Aşağıdan birini aç.
+      <b>Bu kipte program oluşturulamadı.</b> Bu kipte uygulanan
+      ${bagli.length} kilit (${bagli.map(ad).join(", ")}) birbiriyle veya
+      meşgul saatlerle çakışmaktadır. Aşağıdan bir kilidi kaldırınız.
       </div>` : ""}
     ${kirik.length ? `<div style="margin-top:6px;color:var(--danger)">
-      ${kirik.map(l => `${ad(l)} kilidi <b>tutmuyor</b> — ${neden(l)}.`).join("<br>")}
+      ${kirik.map(l => `${ad(l)} kilidi <b>uygulanamıyor</b>: ${neden(l)}.`).join("<br>")}
       </div>` : ""}
     ${okunmayan.length ? `<div style="margin-top:6px;color:var(--danger)">
-      ${okunmayan.map(l => `${satirAd(l)} <b>uygulanmıyor</b> — ${l.tur === "golge"
-        ? `aynı derse sonra yazılan kilit geçerli`
-        : `okunamadı; biçim <span class="mono">DERS@CRN</span> ya da
+      ${okunmayan.map(l => `${satirAd(l)} <b>uygulanmamaktadır</b>: ${l.tur === "golge"
+        ? `aynı ders için sonradan yazılan kilit geçerlidir`
+        : `satır okunamadı; geçerli biçim <span class="mono">DERS@CRN</span> veya
            <span class="mono">DERS@SS:DD-SS:DD</span>`}.`).join("<br>")}
       </div>` : ""}
     ${/* ★★ FAZ 49 — KAPSAM DIŞI KİLİT. Motor kilidi yalnız o kipin
@@ -8146,22 +8158,22 @@ function renderKilitNot(){
           söylenmeden bırakılamaz, ama HATA da değil — öbür kipte
           çalışıyor, o yüzden kırmızı değil. */ ""}
     ${kapsamDisi.length ? `<div style="margin-top:6px">
-      ${kapsamDisi.map(l => `${ad(l)} kilidi <b>bu kipte bağlamıyor</b> —
-        ders bu kipin aday havuzunda değil${
-        kipAdi(l.course) ? `; <b>${esc(kipAdi(l.course))}</b> kipinde bağlıyor`
+      ${kapsamDisi.map(l => `${ad(l)} kilidi <b>bu kipte uygulanmamaktadır</b>;
+        ders bu kipin aday havuzunda bulunmamaktadır${
+        kipAdi(l.course) ? `. Kilit <b>${esc(kipAdi(l.course))}</b> kipinde uygulanır`
                          : ""}.`).join("<br>")}
       </div>` : ""}
     ${kayan.length ? `<div style="margin-top:6px">
       ${kayan.map(k => `${ad(k.l)} ekranda <span class="mono">CRN ${esc(k.crn)}</span>,
         kilit <span class="mono">${esc(kilitEtiketi(k.l))}</span>${k.l.tur === "aralik"
-          ? " — ekrandaki şube bu saatlerin dışında" : ""} —
+          ? " (ekrandaki şube bu saatlerin dışındadır)" : ""} —
         <button class="ghost mini" data-tasi="${esc(k.l.course)}"
           data-crn="${esc(k.crn)}">${k.l.tur === "aralik"
             ? "kilidi bu şubeye çevir" : "kilidi buraya taşı"}</button>`).join("<br>")}
       </div>` : ""}
     <div class="kilitsatir">${rozet}
       ${list.length > 1 ? `<button class="ghost mini" id="kilitHepsi"
-        >hepsini aç</button>` : ""}</div>`;
+        >tüm kilitleri kaldır</button>` : ""}</div>`;
   el.querySelectorAll("[data-ac]").forEach(b =>
     b.addEventListener("click", () => kilitYaz(b.dataset.ac, "", b)));
   el.querySelectorAll("[data-satir]").forEach(b =>
@@ -8275,7 +8287,7 @@ function puanKirilimi(cand){
         <span class="mono deger">${p.points > 0 ? "+" : ""}${p.points}</span>
       </div>`).join("")}</div>
     <div class="puantoplam">toplam <b class="mono">${Math.round(toplam * 10) / 10}</b>
-      · yüksek puan = <b>bu dönem kaçırmak daha pahalı</b>, "daha iyi ders" değil</div>
+      · yüksek puan, dersin <b>bu dönem alınmamasının maliyetinin yüksek</b> olduğunu gösterir; dersin niteliğine ilişkin bir değerlendirme değildir</div>
   </details>`;
 }
 
@@ -8333,10 +8345,10 @@ function notDagilimi(cand){
      anlatmıyor. Ölçüm: 176 dersin 36'sında güz verisi yok. */
   const yanlisMevsim = !!g.wantedSeason && donem.season !== g.wantedSeason;
   const uyari = yanlisMevsim ? `<div class="ndmevsim">⚠ Bu ders için
-    <b>${esc(g.wantedSeason)}</b> dönemi dağılımı elimizde yok;
-    <b>${esc(donem.season)}</b> dönemi gösteriliyor. Farklı yarıyılda dersi
-    çoğunlukla <b>tekrar alanlar</b> alır — bu dağılım dersin normal
-    dönemini anlatmayabilir.</div>` : "";
+    <b>${esc(g.wantedSeason)}</b> dönemine ait dağılım bulunmamaktadır;
+    <b>${esc(donem.season)}</b> dönemi gösterilmektedir. Dersin olağan yarıyılı
+    dışında dersi çoğunlukla <b>tekrar alan öğrenciler</b> aldığından bu dağılım
+    dersin olağan dönemini yansıtmayabilir.</div>` : "";
 
   return `<details class="puan" data-ndbox="${esc(cand.course)}">
     <summary>Not dağılımı — <b class="mono">${donem.n}</b> kişi,
@@ -8346,30 +8358,30 @@ function notDagilimi(cand){
     <div class="ndozet">
       <span>ortalama <b class="mono">${donem.meanPoints ?? "—"}</b></span>
       <span>FF <b class="mono">%${donem.failRate}</b></span>
-      <span title="Devamsızlıktan kalma — dersin zorluğu hakkında bir şey söylemez">
+      <span title="Devamsızlık nedeniyle başarısızlık; dersin zorluğu hakkında bilgi vermez">
         VF <b class="mono">%${donem.absentRate}</b></span>
       <span>${esc(donem.yearName)} ${esc(donem.season)}</span>
       <button class="ghost mini" data-ndplus="${esc(cand.course)}"
         >${artili ? "artıları birleştir" : "artıları ayır"}</button>
     </div>
     <div class="puantoplam">
-      ${artili ? "15 harf ayrı gösteriliyor."
-        : "<b>Artılar temel harfle birlikte</b> sayıldı (BA+ → BA); şeklin "
-          + "okunabilmesi için. Ayrıntı için üstteki düğme; <b>ortalama her "
-          + "zaman 15 harften</b> hesaplanıyor."}
+      ${artili ? "15 harf notu ayrı ayrı gösterilmektedir."
+        : "Okunabilirlik için <b>artılı notlar temel harfle birlikte</b> "
+          + "sayılmıştır (BA+ → BA). Ayrıntı üstteki düğmeyle görüntülenebilir; "
+          + "<b>ortalama her zaman 15 harf notundan</b> hesaplanır."}
       <br>Kaynak: İTÜ ÖBS Ders Not Dağılımı · <b>${g.codes.map(esc).join(" + ")}</b>
-      birlikte (OBS Türkçe ve İngilizce kodu ayırmıyor)${
-      g.terms.length > 1 ? ` · elimizde ${g.terms.length} dönem var` : ""}.${
+      birlikte (OBS, Türkçe ve İngilizce kodları ayırmamaktadır)${
+      g.terms.length > 1 ? ` · ${g.terms.length} döneme ait veri mevcut` : ""}.${
       /* ⚠️ Kaynağın kendi toplamı harflerin toplamına her zaman eşit değil
          (ölçüm: MAT 103 güz 2988/2987). Farkı yazmamak, sayıyı olduğundan
          kesin gösterirdi. */
       donem.gap ? `<br>OBS toplamı <b class="mono">${donem.announced}</b>;
-        harflerin toplamı <b class="mono">${donem.n}</b> — ${donem.gap} kişi
-        listelenen 15 harfin dışında (BL/BZ/muafiyet olabilir).` : ""}
-      <br>⚠️ <b>Geçmiş</b> bir döneme ait: hoca, sınav ve kontenjan değişmiş
-      olabilir. Öneri puanına <b>girmiyor</b> — hangi dersin değdiği senin
-      kararın. Ortalama aracın kendi GNO ölçeğiyle: <b>FF</b> de <b>VF</b> de
-      sıfır puan. <b>VF devamsızlıktır</b>, dersin zorluğu değil.
+        harf notlarının toplamı <b class="mono">${donem.n}</b>; ${donem.gap} öğrenci
+        listelenen 15 harf notunun dışındadır (BL/BZ/muafiyet olabilir).` : ""}
+      <br>⚠️ Veriler <b>geçmiş</b> bir döneme aittir; öğretim üyesi, sınav ve
+      kontenjan değişmiş olabilir. Bu bilgi öneri puanına <b>dahil edilmez</b>.
+      Ortalama, aracın GNO ölçeğiyle hesaplanır: <b>FF</b> ve <b>VF</b> sıfır
+      puandır. <b>VF devamsızlığı</b> gösterir, dersin zorluğunu göstermez.
     </div>
   </details>`;
 }
@@ -8448,9 +8460,9 @@ function courseDialog(course){
       ${cand.credits} kredi · ${cand.ects} AKTS
       ${cand.reasons.length ? "<br>" + cand.reasons.map(esc).join("; ") : ""}</div>
     ${disKip ? `<div class="why" style="margin-top:8px">Bu ders
-      <b>${esc(M().label || "bu kip")}</b> kipinin aday havuzunda değil —
-      programında duruyor ve buradan şubesini değiştirebilirsin, ama bu kip
-      onu <b>kendiliğinden önermez</b>: çıkarırsan geri getirmez.
+      <b>${esc(M().label || "bu kip")}</b> kipinin aday havuzunda bulunmamaktadır.
+      Ders programda yer almakta olup şubesi buradan değiştirilebilir; ancak bu kip
+      dersi <b>kendiliğinden önermez</b> ve ders çıkarıldığında geri eklenmez.
       ${onerenKip >= 0 ? `Öneren kip: <b>${esc(MODES[onerenKip].label)}</b>.`
         : ""}</div>` : ""}
     ${puanKirilimi(cand)}
@@ -8459,10 +8471,10 @@ function courseDialog(course){
       <span style="color:var(--ink-3);font-size:var(--fs-sm)">${fits.length} seçenek</span></div>
       <div class="optlist">${fits.map(s => optionRow(cand, s, "")).join("")}</div>` : ""}
     ${busy ? `<div style="color:var(--ink-3);font-size:var(--fs-sm);margin-top:10px">
-      ${busy} şube daha var ama programınla çakışıyor.</div>` : ""}
+      ${busy} şube daha bulunmaktadır; ancak bu şubeler programla çakışmaktadır.</div>` : ""}
     <div class="chipline"><span class="chip unknown">yerine başka ders</span></div>
     <div class="optlist">${swaps.join("") ||
-      `<div class="empty">bu saatlere uyan başka aday yok</div>`}</div>
+      `<div class="empty">bu saatlere uyan başka aday ders bulunmamaktadır</div>`}</div>
     <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="ghost danger" id="removeCourse">Programdan çıkar</button>
       ${kilitButonu(cand.course, cur.crn)}
@@ -8503,13 +8515,13 @@ function watchNote(course){
   if(list.has(course))
     return `<div class="why" style="margin-top:8px">İzlenenler:
       <span class="mono">${[...list].map(esc).join(", ")}</span>.
-      <span class="mono">make watch</span> çalışınca bunlar taranır
+      <span class="mono">make watch</span> çalıştırıldığında bu dersler taranır
       (arka planda: <span class="mono">make watch-kur</span>).</div>`;
   if(list.size === 0)
-    return `<div class="why" style="margin-top:8px">Şu an izleme listesi <b>boş</b>,
-      yani <b>nöbet planındaki tüm açık dersleri</b> tarıyor — her turda bir şey
-      değişir, bildirim gürültüye döner. Bu dersi eklersen nöbet
-      <b>yalnız ona</b> bakar.</div>`;
+    return `<div class="why" style="margin-top:8px">İzleme listesi şu anda <b>boştur</b>;
+      bu nedenle nöbet <b>plandaki tüm açık dersleri</b> taramaktadır. Her turda
+      değişiklik olacağından bildirimler ayırt edilemez hâle gelebilir. Bu ders
+      eklendiğinde nöbet <b>yalnızca bu dersi</b> izler.</div>`;
   return `<div class="why" style="margin-top:8px">İzlenenler:
     <span class="mono">${[...list].map(esc).join(", ")}</span>.</div>`;
 }
@@ -8588,7 +8600,7 @@ function slotDialog(day, min){
          bozmasına yol açardı. Kullanıcı bilerek ekliyor. */
       const notlar = [];
       if(drop.length) notlar.push("çıkarılır: " + drop.join(", "));
-      if(disinda(cand.course)) notlar.push("üst dönem — bu kipte önerilmez");
+      if(disinda(cand.course)) notlar.push("üst dönem; bu kipte önerilmez");
       rows.push([-(drop.length * 10000) - dist % 10000 + cand.score / 1000
                  - (disinda(cand.course) ? 5 : 0),   // kip içi önce sıralanır
         optionRow(cand, pick, notlar.join(" · ")),
@@ -8632,22 +8644,22 @@ function slotDialog(day, min){
     <div class="eyebrow">Boş saat</div>
     <h2>${DAYS[day-1]} ${hhmm(min)}</h2>
     ${hicTemiz && varTakas ? `<div class="note" style="margin-bottom:12px">
-        <b>Bu saate çakışmadan sığan ders yok.</b>
+        <b>Bu saate çakışmadan yerleştirilebilecek ders bulunmamaktadır.</b>
         <div style="margin-top:4px">Aşağıdaki <b>${varTakas}</b> dersten biri
-        için programında <b>yer açman</b> gerekiyor — her birinin altında
-        hangi dersin çıkacağı yazılı.</div></div>` : ""}
-    ${grup("buraya sığıyor", "", nearT)}
-    ${grup(DAYS[day-1] + " günü, başka saatte sığıyor", "", restT)}
-    ${grup("yer açman gerekiyor — bu saat civarı", "unknown", nearX)}
-    ${grup("yer açman gerekiyor — " + DAYS[day-1] + " günü", "unknown", restX)}
+        için programda <b>yer açılması</b> gerekmektedir; her birinin altında
+        çıkarılacak ders belirtilmiştir.</div></div>` : ""}
+    ${grup("bu saate uygun", "", nearT)}
+    ${grup(DAYS[day-1] + " günü, başka saatte uygun", "", restT)}
+    ${grup("yer açılması gerekir — bu saat civarı", "unknown", nearX)}
+    ${grup("yer açılması gerekir — " + DAYS[day-1] + " günü", "unknown", restX)}
     ${(!near.length && !rest.length)
-      ? `<div class="empty">bu güne uyan aday ders yok</div>` : ""}
+      ? `<div class="empty">bu güne uyan aday ders bulunmamaktadır</div>` : ""}
     ${LIVE ? `<div style="margin-top:14px;padding-top:12px;
          border-top:1px solid var(--border)">
       <button class="ghost" id="busyAdd">Bu saati derse kapat</button>
-      <div class="why" style="margin-top:6px">Okul dışı bir işin varsa
-        (staj, antrenman, servis) bu saati kapatabilirsin — motor buraya
-        ders koymaz.</div></div>` : ""}`);
+      <div class="why" style="margin-top:6px">Okul dışı bir yükümlülük (staj,
+        antrenman, servis vb.) bulunuyorsa bu saat kapatılabilir; araç bu saate
+        ders yerleştirmez.</div></div>` : ""}`);
   const ba = $("#busyAdd");
   if(ba) ba.addEventListener("click", () => {
     $("#detail").close();
@@ -8671,7 +8683,7 @@ function busyDialog(day, min, remove){
       <h2>${esc(b.label || "meşgul")}</h2>
       <div class="meta" style="color:var(--ink-2);font-size:var(--fs-md);margin:4px 0 14px">
         ${b.ok ? `${DAYS[b.day-1]} ${hhmm(b.start)}–${hhmm(b.end)}`
-               : `<span class="mono">${esc(remove)}</span> — okunamadı`}
+               : `<span class="mono">${esc(remove)}</span> — satır okunamadı`}
       </div>
       <button class="ghost danger" id="busyDel">Bu saati aç</button>`);
     $("#busyDel").addEventListener("click", async () => {
@@ -8689,8 +8701,8 @@ function busyDialog(day, min, remove){
   openSetup(`
     <div class="eyebrow">Kurulum</div>
     <h2 style="margin-bottom:4px">Bu saati derse kapat</h2>
-    <p class="modenote" style="margin:2px 0 10px">Motor bu aralığa ders
-      koymayacak. Kaldırmak için ızgaradaki taralı bloğa tıkla.</p>
+    <p class="modenote" style="margin:2px 0 10px">Araç bu aralığa ders
+      yerleştirmez. Kaldırmak için ızgaradaki taralı bloğa tıklayınız.</p>
     <label class="field"><span>Gün</span>
       <div class="terms" id="fGun">
         ${DAYS.map((d, i) => `<button data-d="${i+1}"
@@ -8703,9 +8715,9 @@ function busyDialog(day, min, remove){
         <span style="color:var(--ink-3)">–</span>
         <input type="time" id="fBit" value="${hhmm(bit)}" step="900">
       </div></label>
-    <label class="field" style="margin-top:12px"><span>Ne için?</span>
+    <label class="field" style="margin-top:12px"><span>Açıklama</span>
       <input type="text" id="fAd" maxlength="40" placeholder="iş, antrenman, servis…">
-      <span class="hint">İsteğe bağlı — ızgarada bu yazacak.</span></label>`, () => {
+      <span class="hint">İsteğe bağlıdır; ızgarada bu metin gösterilir.</span></label>`, () => {
     let gun = day;
     $("#fGun").querySelectorAll("button").forEach(b =>
       b.addEventListener("click", () => {
@@ -8794,7 +8806,7 @@ function doluluk(sections){
     title="Kontenjan ilan edilmemiş">${sections.length} şube · kontenjan yok</span>`;
   const oran = Math.min(1, dolu / cap);
   const sinif = bos === 0 ? "full" : (bos <= 3 ? "tight" : "");
-  return `<span class="cap ${sinif}" title="${esc(veriTarihi())} itibarıyla — güncel doluluk OBS'de">
+  return `<span class="cap ${sinif}" title="${esc(veriTarihi())} itibarıyla; güncel doluluk bilgisi OBS'dedir">
       <span class="capbar"><i style="width:${(oran * 100).toFixed(0)}%"></i></span>
       <span class="mono">${bos === 0 ? "dolu" : bos + " boş"}</span>
       <span class="mono capsub">${sections.length} şube</span></span>`;
@@ -8814,7 +8826,7 @@ function yerDurumu(sec){
   if(!cap) return "";
   const bos = Math.max(0, typeof sec.free === "number"
     ? sec.free : cap - (sec.enrolled || 0));
-  const not = `${veriTarihi()} itibarıyla — güncel doluluk OBS'de`;
+  const not = `${veriTarihi()} itibarıyla; güncel doluluk bilgisi OBS'dedir`;
   if(bos === 0) return ` <span class="yerdurum dolu" title="Kontenjan dolu · ${esc(not)}">dolu</span>`;
   if(bos <= 3) return ` <span class="yerdurum az" title="${bos} yer kaldı · ${esc(not)}">son ${bos}</span>`;
   return "";
@@ -8860,15 +8872,15 @@ function renderCandidates(){
     const free = Math.max(0, ...c.sections.map(s => s.free));
     const inPlan = chosen.has(c.course);
     return `<tr data-course="${esc(c.course)}" style="cursor:pointer"
-        title="${inPlan ? "programında" : "programa ekle"}">
+        title="${inPlan ? "programda" : "programa ekle"}">
       <td class="mono score">${c.score}</td>
       <td><b class="mono">${esc(c.course)}</b>
         ${inPlan ? `<span class="chip" style="margin-left:6px;color:var(--ok)">programda</span>` : ""}
         ${c.critical ? `<span class="chip supply" style="margin-left:6px">kritik yol</span>` : ""}
         ${c.prereqUnknown ? `<span class="chip unknown"
-          style="margin-left:6px" title="Önşart metni var ama okunamadı — danışmanına sor">önşart okunamadı</span>`
+          style="margin-left:6px" title="Önşart metni bulunmakla birlikte okunamamıştır; danışmanınıza danışınız">önşart okunamadı</span>`
           : (c.prereqMissing ? `<span class="chip unknown" style="margin-left:6px"
-              title="Katalogda önşart metni yok — 'önşartı yok' demek DEĞİL. OBS'den doğrula.">önşart bilgisi yok</span>` : "")}
+              title="Katalogda önşart metni bulunmamaktadır; bu, dersin önşartı olmadığı anlamına gelmez. OBS'den doğrulayınız.">önşart bilgisi yok</span>` : "")}
         ${c.sections.every(s => s.online)
           ? `<span class="chip online" style="margin-left:6px">çevrimiçi</span>`
           : (c.sections.some(s => s.online)
@@ -8888,11 +8900,11 @@ function renderCandidates(){
        havuz baştan boşsa NEDEN boş olduğunu söyle. Tek bir "aday ders yok"
        ikisini de aynı çıkmaza sokuyordu. */
     (FILT.q || FILT.role || FILT.free)
-      ? `süzgece uyan ders yok — <a href="#" id="candClear">süzgeci temizle</a>`
+      ? `süzgece uyan ders bulunmamaktadır — <a href="#" id="candClear">süzgeci temizle</a>`
       : (M().candidates.length
-          ? "aday ders yok"
+          ? "aday ders bulunmamaktadır"
           : (DATA.emptyReason
-             || "aday ders yok — bölümünü ve geçtiğin dersleri girdiğinden emin ol"))
+             || "aday ders bulunmamaktadır; bölüm ve başarılan ders bilgilerini kontrol ediniz"))
   }</td></tr>`;
   $("#cands tbody").querySelectorAll("tr[data-course]").forEach(tr =>
     tr.addEventListener("click", () => addDialog(tr.dataset.course)));
@@ -8980,14 +8992,14 @@ function addDialog(course){
     <h2 class="mono">${esc(cand.course)}</h2>
     <div style="color:var(--ink-2);font-size:var(--fs-md);margin:2px 0 6px">${esc(cand.name)}</div>
     ${pool ? `<div class="note" style="margin-top:8px">Aynı havuzdan
-      <b class="mono">${esc(pool.cand.course)}</b> seçili — bunu eklersen o çıkar.</div>` : ""}
+      <b class="mono">${esc(pool.cand.course)}</b> seçilidir; bu ders eklendiğinde o ders çıkarılır.</div>` : ""}
     <div class="optlist">${rows.map(r => r[1]).join("")}</div>`);
 }
 
 /* ---------- darboğaz ---------- */
 const LABELS = {
   KREDI_ESIGI:["kredi eşiği dolmamış","credit"],
-  PROGRAMA_KAPALI:["şubeleri programına kapalı","supply"],
+  PROGRAMA_KAPALI:["şubeleri programa kapalı","supply"],
   ACILMAMIS:["bu dönem açılmamış","supply"],
   ONSART:["önşart eksik","prereq"],
   /* ★★ FAZ 42 — önşartı katalogda OLMAYAN bir dersi isteyen ders.
@@ -9052,7 +9064,7 @@ function renderHero(){
         ? `<span class="chip" style="color:var(--ok)">tamam</span>`
         : (LIVE && s !== sonraki
             ? `<button class="ghost" data-act="${s.action}"
-                 ${kilitli ? "disabled title='Önce bölümünü seç'" : ""}
+                 ${kilitli ? "disabled title='Önce bölüm seçiniz'" : ""}
                  >${esc(s.cta)}</button>`
             : (s === sonraki
                ? `<span class="chip" style="color:var(--seal)">şimdi ↑</span>` : ""))}
@@ -9061,22 +9073,22 @@ function renderHero(){
 
   box.innerHTML = `
     <div class="sechead"><div class="eyebrow">Başlangıç</div><div class="rule"></div></div>
-    <h2>${!acik ? "Hoş geldin — tek adımda başla"
-      : (calisiyorMu() ? "Araç çalışıyor — istersen daha da iyileştir"
-                       : "Bir şey ters gitti")}</h2>
+    <h2>${!acik ? "Hoş geldiniz"
+      : (calisiyorMu() ? "Program oluşturuldu"
+                       : "Program oluşturulamadı")}</h2>
     <p class="lead">${acik
       ? (calisiyorMu()
-        ? `Aşağıdaki haftalık program <b>şu an çalışıyor</b>. Aşağıdaki iki şey
-           <b>isteğe bağlı</b>; girersen öneriler senin durumuna göre kurulur.`
+        ? `Haftalık program oluşturulmuştur. Aşağıdaki adımlar <b>isteğe
+           bağlıdır</b>; tamamlandığında öneriler durumunuza göre yeniden oluşturulur.`
         /* ★★ İnceleme B1: bu cümle ızgara BOŞ ve "öneri üretilemedi" yazarken
            de duruyordu. Başlık motorun ÇIKTISINA bakmalı, ayarın varlığına
            değil. */
         : `<b>Öneri üretilemedi.</b> ${esc(DATA.emptyReason
-            || "Aday ders bulunamadı — geçtiğin dersleri ve dönemini girmeyi dene.")}`)
-      : `İTÜ'nün açık derslerinden sana <b>çakışmasız bir haftalık program</b>
-         kuruyor: önşartın tutuyor mu, kontenjan var mı, hangi ders hangi
-         kapıyı açıyor. <b>Tek zorunlu şey bölümünü seçmen</b> — çift anadal
-         ya da yandal yapmıyorsan da kullanabilirsin.`}</p>
+            || "Aday ders bulunamadı. Başarılan dersleri ve yarıyıl bilgisini giriniz.")}`)
+      : `Bu araç, İTÜ'de bu dönem açılan derslerden <b>çakışmasız bir haftalık
+         program</b> oluşturur; önşart, kontenjan ve kredi koşullarını denetler.
+         Başlamak için <b>yalnızca bölüm seçimi gereklidir</b>. Çift anadal veya
+         yandal programına kayıtlı olmayan öğrenciler de aracı kullanabilir.`}</p>
 
     ${sonraki && LIVE ? `
       <div class="heroCta">
@@ -9084,30 +9096,30 @@ function renderHero(){
           >${esc(sonraki.cta)}</button>
         <span class="meta">${esc(sonraki.sure)}${
           sonraki.required ? "" : " · isteğe bağlı"}</span>
-        ${acik ? `<a href="#schedSection" class="heroSkip">Programı gör ↓</a>
+        ${acik ? `<a href="#schedSection" class="heroSkip">Programa git ↓</a>
           <button class="ghost heroDismiss" data-kapat="1"
-            >Şimdilik böyle kalsın</button>` : ""}
+            >Bu adımları atla</button>` : ""}
       </div>` : ""}
 
     <div class="steps">${zorunlu.map(s => stepHTML(s, false)).join("")}</div>
     ${istege.length ? `
-      <div class="stepsplit">Daha iyi öneri için ${
-        acik ? "" : "(bölümü seçtikten sonra)"}</div>
+      <div class="stepsplit">Öneriyi iyileştirmek için ${
+        acik ? "" : "(bölüm seçiminden sonra)"}</div>
       <div class="steps">${istege.map(s => stepHTML(s, !acik)).join("")}</div>` : ""}
 
     <div class="herofoot">
-      Seçebileceğin <b class="mono">${O.planCount}</b> bölüm ve
-      <b class="mono">${O.lessonCount}</b> açık şube var.
-      ${LIVE ? "" : `Bu <b>salt okunur</b> bir kopya —
-        düzenlemek için <span class="mono">make app</span>.`}
+      Seçilebilecek <b class="mono">${O.planCount}</b> bölüm ve
+      <b class="mono">${O.lessonCount}</b> açık şube bulunmaktadır.
+      ${LIVE ? "" : `Bu kopya <b>salt okunurdur</b>; düzenleme için uygulamayı
+        <span class="mono">make app</span> ile başlatınız.`}
       <div style="margin-top:6px">${siteMi()
-        ? "Girdiğin hiçbir şey sunucuya gitmiyor; veri tarayıcında kalıyor."
-        : "Girdiğin her şey bu bilgisayarda kalıyor (<span class=\"mono\">data/</span>)."}</div>
+        ? "Girilen bilgiler hiçbir sunucuya gönderilmez; veriler tarayıcıda saklanır."
+        : "Girilen bilgiler bu bilgisayarda saklanır (<span class=\"mono\">data/</span>)."}</div>
       ${/* ★ Faz 54: YENİ CİHAZDA yedekten devam — Ayar görünümü kurulum
             bitmeden gizli, yedeği yüklemenin tek yolu burası. */ ""}
       ${siteMi() && window.__ITUCAP_YEDEK__ ? `<div class="heroyedek">Başka bir
-        tarayıcıda çalıştıysan:
-        <button class="ghost mini" id="heroYedek">yedeğinden devam et…</button>
+        tarayıcıda çalışılmışsa:
+        <button class="ghost mini" id="heroYedek">yedekten devam et…</button>
         <div class="veriyedek" id="heroYedekDurum" role="status" aria-live="polite"></div>
       </div>` : ""}
     </div>`;
@@ -9147,15 +9159,15 @@ function renderSonraki(){
      ⚠️ Zaten tercih girmiş kişiye "tercihlerini söyle" demiyoruz. */
   const tercihGoster = !tercihSayisi();
   el.innerHTML = `
-    <b>Programın hazır. Şimdi:</b>
+    <b>Program hazırdır. Sonraki adımlar:</b>
     <div class="sonrakiliste">
-      <button class="ghost" data-go="schedSection">Haftalık programa bak</button>
+      <button class="ghost" data-go="schedSection">Haftalık program</button>
       <button class="ghost" data-go="candSection">Ders ekle / değiştir</button>
       ${tercihGoster ? `<button class="ghost" data-go="tercih"
-        title="Erken başlamak istemiyorsan, bir gün boş kalsın istiyorsan…
-Hiçbir dersi elemez; yalnız sıralamayı değiştirir."
-        >Nasıl bir program istediğini söyle</button>` : ""}
-      <button class="ghost" data-go="crn">Kayıt günü listesini al</button>
+        title="Başlangıç saati, boş gün gibi tercihler.
+Hiçbir dersi elemez; yalnızca sıralamayı değiştirir."
+        >Program tercihleri</button>` : ""}
+      <button class="ghost" data-go="crn">Kayıt günü listesi</button>
       <button class="ghost kapat" data-kapat="1">Kapat</button>
     </div>`;
   el.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", () => {
@@ -9198,23 +9210,23 @@ function localStorage_set(k, v){
    ⚠️ SIRA ÖNEMLİ: ilk uygun görünüm açılış görünümüdür. Haftalık program
    başta duruyor çünkü aracın ÜRETTİĞİ şey o. */
 const SECTIONS = [
-  ["schedSection", "Haftalık programım", "PLANLA", "Program", false],
-  ["candSection", "Alabileceğim dersler", "PLANLA", "Dersler", false],
-  ["blockSection", "Neden alamıyorum", "PLANLA", "Neden", false],
-  ["savedSection", "Kaydettiğim", "PLANLA", "Kayıtlı", true],
-  ["panels", "İlerlemem", "DURUM", "İlerlemem", false],
+  ["schedSection", "Haftalık program", "PLANLA", "Program", false],
+  ["candSection", "Alınabilecek dersler", "PLANLA", "Dersler", false],
+  ["blockSection", "Alınamayan dersler", "PLANLA", "Engeller", false],
+  ["savedSection", "Kaydedilen program", "PLANLA", "Kayıtlı", true],
+  ["panels", "İlerleme durumu", "DURUM", "İlerleme", false],
   /* Faz 57 — mezuniyet yol haritası. Telefonda "Daha" altında: dönemde
      birkaç kez bakılan bir şey, kayıt haftasının dört işinden biri değil. */
   ["roadmapSection", "Yol haritası", "DURUM", "Harita", true],
-  ["creditSection", "Kredi sınırım", "DURUM", "Kredi", true],
-  ["suggestSection", "Sayılan derslerim", "DURUM", "Sayılan", true],
-  ["denklikSection", "Denkliği açık", "DURUM", "Denklik", true],
+  ["creditSection", "Kredi ve not eşikleri", "DURUM", "Kredi", true],
+  ["suggestSection", "Sayılabilecek dersler", "DURUM", "Sayılan", true],
+  ["denklikSection", "Denk dersler", "DURUM", "Denklik", true],
   ["changeSection", "Son değişiklikler", "DURUM", "Değişen", true],
   ["basvuruSection", "Başvuru", "DURUM", "Başvuru", true],
   ["tierSection", "Kademeler", "DURUM", "Kademe", true],
   /* ★ Kurulum çubuğu da bir görünüm (Faz 46): her ziyarette bakılan bir
      şey değil, ama kaybolmamalı — bölüm/dönem/not düzeltmenin tek yeri. */
-  ["setupbar", "Bölüm, dönem, notlar", "AYAR", "Ayar", true],
+  ["setupbar", "Bölüm, yarıyıl, notlar", "AYAR", "Ayar", true],
 ];
 
 /* Görünümü olan bölümler: DOM'da var ve veri yokluğundan gizli DEĞİL.
@@ -9352,9 +9364,9 @@ function senaryoFarki(p, T){
   const a = b && b.finish, y = p.finish;
   if(!a || !y) return y || !a ? "" : `<div class="yhgec">bu senaryoda bitiş hesaplanamadı</div>`;
   const d = y.index - a.index;
-  return d > 0 ? `<div class="yhgec">bugünkü plana göre <span class="mono">${d}</span> dönem geç</div>`
-    : d < 0 ? `<div class="yhzamaninda">bugünkü plana göre ${-d} dönem erken</div>`
-    : `<div class="yhzamaninda">bugünkü planla aynı</div>`;
+  return d > 0 ? `<div class="yhgec">mevcut plana göre <span class="mono">${d}</span> dönem geç</div>`
+    : d < 0 ? `<div class="yhzamaninda">mevcut plana göre ${-d} dönem erken</div>`
+    : `<div class="yhzamaninda">mevcut planla aynı</div>`;
 }
 
 function yariyilSatiri(p, md){
@@ -9364,11 +9376,11 @@ function yariyilSatiri(p, md){
   const baslik = md ? esc([md.source, md.verified ? "" : "doğrulanmadı", md.note]
     .filter(Boolean).join(" · ")) : "";
   const asti = anadal && md && p.finishSemester > md.semesters;
-  return `<div class="yhalt"><span class="mono">${p.finishSemester}</span>. yarıyılında${
+  return `<div class="yhalt"><span class="mono">${p.finishSemester}</span>. yarıyıl${
     anadal && md ? ` · <span class="aciklamali" title="${baslik}">azami ${
       md.semesters}${isaret}</span>` : ""}</div>${asti ? `<div class="yhgec">azami öğrenim
       süresini <span class="mono">${p.finishSemester - md.semesters}</span> yarıyıl
-      aşıyor — danışmanınla konuş</div>` : ""}`;
+      aşmaktadır; danışmanınızla görüşmeniz önerilir</div>` : ""}`;
 }
 
 /* ★★ FAZ 61 — SENARYO: daha hafif dönem yükü, boş dönem (Erasmus/staj).
@@ -9394,7 +9406,7 @@ async function yhSenaryoKur(){
     YH_SENARYO = r.senaryo;
   }catch(err){
     YH_SENARYO = null;
-    if(kutu) kutu.textContent = "senaryo kurulamadı — " + (err.message || err);
+    if(kutu) kutu.textContent = "senaryo oluşturulamadı: " + (err.message || err);
     return;
   }
   renderRoadmap();
@@ -9409,8 +9421,8 @@ function yhSenaryoPaneli(T){
     <span class="eyebrow">Senaryo</span>
     <label>Dönem başına en çok <select id="yhYuk">${yukler.map(v =>
       `<option value="${v}"${v === A.maxLoad ? " selected" : ""}>${v}${
-        v === T.maxLoad ? " (sınırın)" : ""}</option>`).join("")}</select> kredi</label>
-    <span class="yhbosetiket">Boş bırak (Erasmus, staj):</span>
+        v === T.maxLoad ? " (mevcut sınır)" : ""}</option>`).join("")}</select> kredi</label>
+    <span class="yhbosetiket">Boş bırakılacak dönemler (Erasmus, staj):</span>
     ${donemler.map(t => `<button class="ghost mini" data-bos="${t.index}"
       aria-pressed="${A.bos.has(t.index)}">${A.bos.has(t.index) ? "✓ " : ""}${
         esc(t.label)}</button>`).join("")}
@@ -9425,10 +9437,11 @@ function renderRoadmap(){
   if(!T) return;
   if(T.noTranscript){
     $("#roadmapBody").innerHTML = `<div class="proj bilinmiyor"><b>Bitiş tahmini
-      yapılamıyor</b> — <b class="mono">${T.donem}.</b> yarıyılda olduğunu söyledin ama
-      geçtiğin dersleri girmedin; harita planın <b>tamamını</b> kalan sayardı ve
-      yanlış bir bitiş gösterirdi.${LIVE || window.__ITUCAP_API__ ? ` <button class="ghost"
-      data-setup="plan" style="margin-left:8px">Dersleri gir</button>` : ""}</div>`;
+      yapılamamaktadır.</b> <b class="mono">${T.donem}.</b> yarıyılda olduğunuz
+      belirtilmiş, ancak başarılan dersler girilmemiştir. Bu durumda planın
+      <b>tamamı</b> kalan ders olarak sayılacağından hatalı bir bitiş tarihi
+      hesaplanır.${LIVE || window.__ITUCAP_API__ ? ` <button class="ghost"
+      data-setup="plan" style="margin-left:8px">Dersleri girin</button>` : ""}</div>`;
     $("#roadmapBody").querySelectorAll("[data-setup]").forEach(b =>
       b.addEventListener("click", () => checklistDialog()));
     return;
@@ -9436,8 +9449,8 @@ function renderRoadmap(){
   const R = (YH_SENARYO && !T.error) ? YH_SENARYO : T;
   const body = $("#roadmapBody");
   if(R.error){
-    body.innerHTML = `<div class="note ayarhata">Yol haritası kurulamadı —
-      <span class="mono">${esc(R.error)}</span>. Programın geri kalanı etkilenmedi.</div>`;
+    body.innerHTML = `<div class="note ayarhata">Yol haritası oluşturulamadı:
+      <span class="mono">${esc(R.error)}</span>. Aracın diğer bölümleri bu durumdan etkilenmez.</div>`;
     return;
   }
   const rolTag = (r) => r ? `<span class="tag ${r === "ANADAL" || r === "CAP"
@@ -9449,56 +9462,57 @@ function renderRoadmap(){
       <div class="yhbitis">${p.remaining === 0 ? "tamamlanmış"
         : (p.finish ? esc(p.finish.label) : p.jointDegree ? "tahmin edilmedi" : "hesaplanamadı")}</div>
       ${p.jointDegree ? `<div class="yhalt"><span class="uyari">ortak program (UOLP ·
-        ${esc(p.jointDegree)})</span> — ortak üniversitedeki dönemler veride yok; sıralama
-        yalnız İTÜ dersleri için</div>` : ""}
+        ${esc(p.jointDegree)})</span> — ortak üniversitedeki dönemler veride bulunmamaktadır;
+        sıralama yalnızca İTÜ dersleri içindir</div>` : ""}
       <div class="yhalt">${p.remaining ? `tahmini bitiş · ${p.remaining} ders,
-        <span class="mono">${p.remainingCredits}</span> kredi kaldı` : "kalan ders yok"}${
+        <span class="mono">${p.remainingCredits}</span> kredi kaldı` : "kalan ders bulunmamaktadır"}${
         p.unplaced ? ` · <span class="uyari">${p.unplaced} ders yerleşmedi</span>` : ""}${
         p.externalAssumed ? ` · <span class="uyari">${p.externalAssumed} dersin dış önşartı
           varsayıldı</span>` : ""}</div>
       ${gec === null ? "" : (gec > 0
-        ? `<div class="yhgec">planındaki bitişten ${gec} dönem geç
+        ? `<div class="yhgec">plandaki bitişten ${gec} dönem geç
              (${esc(p.nominal.label)})</div>`
-        : `<div class="yhzamaninda">planındaki bitişle aynı ✓</div>`)}
+        : `<div class="yhzamaninda">plandaki bitişle aynı ✓</div>`)}
       ${yariyilSatiri(p, R.maxDuration)}
       ${R === T ? "" : senaryoFarki(p, T)}
     </article>`;
   }).join("");
   const simdi = (R.takeNow || []).length ? `<div class="note yhsimdi">
-      <b>Bu dönem fark yaratacak ${R.takeNow.length > 1 ? "dersler" : "ders"}</b>
+      <b>Bu dönem alınması bitişi öne çekecek ${R.takeNow.length > 1 ? "dersler" : "ders"}</b>
       ${R.takeNow.map(x => `<div class="yhsatir"><b class="mono">${esc(x.course)}</b>
-        <span>${esc(x.name)}</span> — bu dönem alırsan ${x.gains.map(g =>
+        <span>${esc(x.name)}</span> — bu dönem alınırsa ${x.gains.map(g =>
           `<span>${esc(g.label)} <b>${g.terms} dönem erken</b> biter
            (${esc(g.finish.label)})</span>`).join(", ")}${x.overLoad ? (x.drop
-          ? ` <span class="uyari">· yük sınırını aşıyor</span> — <b class="mono">${
-              esc(x.drop.course)}</b> çıkarsa ${x.drop.lossTerms
-              ? `kazancın <b>${x.drop.lossTerms} dönemi</b> gidiyor`
-              : "kazanç <b>korunuyor</b>"} (o ders sonraki dönemlere yerleşiyor)`
-          : ` <span class="uyari">· yük sınırını aşıyor; tek bir ders çıkarmak yetmiyor
-              ya da ÇAP tabanını bozuyor</span>`) : ""}
+          ? ` <span class="uyari">· yük sınırı aşılmaktadır</span> — <b class="mono">${
+              esc(x.drop.course)}</b> çıkarılırsa ${x.drop.lossTerms
+              ? `kazancın <b>${x.drop.lossTerms} dönemi</b> kaybedilir`
+              : "kazanç <b>korunur</b>"} (çıkarılan ders sonraki dönemlere yerleştirilir)`
+          : ` <span class="uyari">· yük sınırı aşılmaktadır; tek bir dersin çıkarılması
+              yeterli değildir veya ÇAP tabanını bozmaktadır</span>`) : ""}
         <span class="yhdugmeler">${x.drop ? `<button class="ghost mini" data-dene="${esc(x.course)}"
-            data-cikar="${esc(x.drop.course)}">${esc(x.drop.course)} çıkar, dene</button>` : ""}
+            data-cikar="${esc(x.drop.course)}">${esc(x.drop.course)} çıkarılarak dene</button>` : ""}
         <button class="ghost mini" data-dene="${esc(x.course)}">Programda dene</button></span></div>`).join("")}
-      <div class="meta" style="margin-top:6px">Saat çakışması burada hesaplanmadı —
-        "Programda dene" şubeleri ve çıkarılacak dersi gösteriyor.</div></div>` : "";
+      <div class="meta" style="margin-top:6px">Saat çakışması bu bölümde hesaplanmamıştır;
+        "Programda dene" seçeneği şubeleri ve çıkarılacak dersi gösterir.</div></div>` : "";
   /* ★★ FAZ 58 — YAZ OKULU. Geçmişte yazın GERÇEKTEN açılmış ders (not
      dağılımı) ilk yazda alınırsa bitiş değişiyor mu. Düğme yok: yaz okulu
      bu dönemin programına eklenemez; kararın ne kazandırdığını söylüyoruz. */
   const yaz = (R.summerGains || []).length ? `<div class="note yhyaz">
-      <b>Yaz okulu fırsatı</b>
+      <b>Yaz okulu seçeneği</b>
       ${R.summerGains.map(x => `<div class="yhsatir"><b class="mono">${esc(x.course)}</b>
         <span>${esc(x.name)}</span> — ${x.history.map(h => `${esc(h.label)}'da açıldı
           (<span class="mono">${h.n}</span> öğrenci)`).join(", ")}; <b>${esc(x.term)}</b>
-        alırsan ${x.gains.map(g => `${esc(g.label)} <b>${g.terms} dönem erken</b> biter
+        döneminde alınırsa ${x.gains.map(g => `${esc(g.label)} <b>${g.terms} dönem erken</b> biter
           (${esc(g.finish.label)})`).join(", ")}</div>`).join("")}
-      <div class="meta" style="margin-top:6px">Geçen yaz açılması bu yaz açılacağı
-        demek değil; yaz okulunun ücreti, kontenjanı ve kredi sınırı bu hesapta yok.</div>
+      <div class="meta" style="margin-top:6px">Dersin geçen yaz açılmış olması bu yaz da
+        açılacağı anlamına gelmez; yaz okulunun ücreti, kontenjanı ve kredi sınırı bu
+        hesaba dahil değildir.</div>
     </div>` : "";
-  const varsayim = `<div class="note yhvarsayim"><b>Bu bir plan, kehanet değil.</b>
-      Şunlar varsayıldı:<ul>${(R.assumptions || []).map(a => `<li>${esc(a)}</li>`).join("")}</ul></div>`;
+  const varsayim = `<div class="note yhvarsayim"><b>Hesaplama varsayımları</b>
+      <ul>${(R.assumptions || []).map(a => `<li>${esc(a)}</li>`).join("")}</ul></div>`;
   const zincir = (R.longest || []).length > 1 ? `<div class="yhzincir">En uzun önşart
       zinciri: ${R.longest.map(c => `<b class="mono">${esc(c)}</b>`).join(" → ")} —
-      bu zincir en az <b>${R.longest.length} dönem</b> sürüyor.</div>` : "";
+      bu zincir en az <b>${R.longest.length} dönem</b> sürer.</div>` : "";
   const donemler = `<div class="yhdonemler">${(R.terms || []).map(t => `
     <section class="yhdonem${t.current ? " simdi" : ""}${t.summer ? " yaz" : ""}${
       t.items.length ? "" : " bos"}${t.skipped ? " atlandi" : ""}">
@@ -9508,43 +9522,43 @@ function renderRoadmap(){
       <div class="yhkredi"><span class="mono">${t.credits}</span> kredi${
         t.current ? ` · ${esc(R.source || "")}` : ""}</div>
       ${t.floorGap ? `<div class="yhuyari">ÇAP yarıyıl tabanına
-        <span class="mono">${t.floorGap}</span> kredi eksik — o dönem alınabilir
-        yeterli ÇAP dersi yok</div>` : ""}
+        <span class="mono">${t.floorGap}</span> kredi eksik; bu dönemde alınabilecek
+        yeterli ÇAP dersi bulunmamaktadır</div>` : ""}
       ${t.items.length ? `<ul>${t.items.map(i => `<li>
           <b class="mono">${esc(i.course || i.pool)}</b>${(i.roles || []).map(rolTag).join("")}
           <span class="mono" style="color:var(--ink-3)"> · ${i.credits} kr</span>
           ${i.course && i.name ? `<span class="yhad">${esc(i.name)}</span>` : ""}
-          ${i.pool ? `<span class="yhad">seçmeli havuz — hangi ders olacağı senin seçimin</span>` : ""}
+          ${i.pool ? `<span class="yhad">seçmeli havuz — ders seçimi öğrenciye aittir</span>` : ""}
           ${!t.current && i.course && !i.season && !i.seasonSource ? `<span class="yhad uyari"
-            title="Hiçbir planda ve geçmiş dağılımda bulunamadı — her dönem açılır sayıldı"
+            title="Hiçbir planda ve geçmiş dağılımda bulunamadı; her dönem açıldığı varsayıldı"
             >mevsimi bilinmiyor</span>` : ""}
           ${i.seasonSource === "gecmis" ? `<span class="yhad"
-            title="Planlarda yok; geçmiş not dağılımında gerçek sınıfın olduğu yarıyıl"
+            title="Planlarda bulunmamaktadır; geçmiş not dağılımında sınıf açılan yarıyıl esas alındı"
             >mevsimi geçmiş dönemlerden</span>` : ""}
           ${i.alsoSeasonSource === "gecmis" ? `<span class="yhad"
-            title="Plan başka mevsim diyor; geçmişte bu mevsimde de gerçek bir sınıf vardı"
+            title="Plan farklı bir yarıyıl belirtmektedir; ders geçmişte bu yarıyılda da açılmıştır"
             >geçmişte ${i.alsoSeason === "10" ? "Güz'de" : "Bahar'da"} da verildi</span>` : ""}
-          ${i.unparsed ? `<span class="yhad uyari">önşartı okunamadı — danışmanına sor</span>` : ""}
+          ${i.unparsed ? `<span class="yhad uyari">önşartı okunamadı; danışmanınıza danışınız</span>` : ""}
           ${(i.externalPrereq || []).length ? `<span class="yhad uyari"
-            title="Bu ders planlarında olmayan bir önşart istiyor; geçtiğin ya da muaf olduğun varsayıldı"
+            title="Bu dersin önşartı planlarda bulunmamaktadır; önşartın sağlandığı veya muafiyet olduğu varsayıldı"
             >önşart varsayıldı: ${i.externalPrereq.slice(0, 2).map(esc).join(", ")}</span>` : ""}
         </li>`).join("")}</ul>`
-        : t.skipped ? `<div class="empty">Boş bıraktın — Erasmus, staj ya da izin;
-            bu dönem İTÜ dersi yok.</div>`
-        : `<div class="empty">Bu dönem yerleşen ders yok — bekleyenler bu mevsimde
-            açılmıyor ya da önşartları henüz bitmiyor.</div>`}
+        : t.skipped ? `<div class="empty">Boş bırakılan dönem (Erasmus, staj veya izin);
+            bu dönemde İTÜ dersi planlanmamıştır.</div>`
+        : `<div class="empty">Bu döneme yerleştirilen ders bulunmamaktadır; kalan dersler
+            bu yarıyılda açılmamakta veya önşartları henüz tamamlanmamaktadır.</div>`}
     </section>`).join("")}</div>`;
   const kalan = (R.unplaced || []).length ? `<div class="note" style="margin-top:14px">
-      <b>${R.unplaced.length} ders yerleşmedi</b> — bitiş bu yüzden hesaplanamadı:
+      <b>${R.unplaced.length} ders yerleştirilemedi</b>; bu nedenle bitiş hesaplanamamıştır:
       ${R.unplaced.map(u => `<div><b class="mono">${esc(u.course || u.pool)}</b>
         <span class="meta">${esc(u.reason)}</span></div>`).join("")}</div>` : "";
   const serit = R === T ? "" : `<div class="note yhseritsenaryo" role="status">
-      <b>Senaryo gösteriliyor — kaydedilmedi.</b> ${[
+      <b>Senaryo görüntülenmektedir (kaydedilmedi).</b> ${[
         R.scenario.maxLoad !== T.maxLoad ? `dönem başına en çok <b class="mono">${
           R.scenario.maxLoad}</b> kredi` : "",
         R.scenario.empty.length ? `boş: ${(R.terms || []).filter(t => t.skipped)
           .map(t => esc(t.label)).join(", ")}` : ""].filter(Boolean).join(" · ")}
-      <button class="ghost mini" id="yhSenaryoKapat">Bugünkü plana dön</button></div>`;
+      <button class="ghost mini" id="yhSenaryoKapat">Mevcut plana dön</button></div>`;
   body.innerHTML = `${yhSenaryoPaneli(T)}${serit}<div class="yhprogramlar">${programlar}</div>${
     simdi}${yaz}${varsayim}${zincir}${donemler}${kalan}`;
   const yuk = $("#yhYuk");
@@ -9625,11 +9639,11 @@ function renderBasvuru(){
   const satirlar = BASVURU_KINDS.filter(([k]) => all[k]).map(([k, lbl, btn]) => {
     const s = all[k];
     const iyi = s.eligible;
-    const durum = !iyi ? "bir şart sağlanmıyor"
-      : s.unknownCount ? `bakılabilenler tamam · ${s.unknownCount} şart buradan görülemiyor`
-      : "bakılabilen tüm şartlar sağlanıyor";
-    const sayi = s.planTypeAvailable === false ? "OBS'de plan yayınlanmamış"
-      : s.optionCount ? `${s.optionCount} program açık` : "sana açık plan yok";
+    const durum = !iyi ? "bir şart sağlanmamaktadır"
+      : s.unknownCount ? `denetlenebilen şartlar sağlanmaktadır · ${s.unknownCount} şart bu araçla denetlenemez`
+      : "denetlenebilen tüm şartlar sağlanmaktadır";
+    const sayi = s.planTypeAvailable === false ? "OBS'de plan yayımlanmamıştır"
+      : s.optionCount ? `${s.optionCount} program açık` : "uygun plan bulunmamaktadır";
     return `<div class="basvuruitem">
       <span class="mark" style="color:${iyi ? "var(--ok)" : "var(--danger)"}"
         >${iyi ? "✓" : "✗"}</span>
@@ -9677,11 +9691,11 @@ function renderBasvuruBody(){
 
   const verdict = !s.eligible
     ? `<b style="color:var(--danger)">Bilinen şartlardan en az biri
-       şu an sağlanmıyor.</b>`
+       şu anda sağlanmamaktadır.</b>`
     : s.unknownCount
-      ? `<b style="color:var(--ok)">Bakılabilen şartlar tamam.</b>
-         ${s.unknownCount} şart bu araçtan doğrulanamıyor — yukarıda “—” ile işaretli.`
-      : `<b style="color:var(--ok)">Bakılabilen tüm şartlar sağlanıyor.</b>`;
+      ? `<b style="color:var(--ok)">Denetlenebilen şartlar sağlanmaktadır.</b>
+         ${s.unknownCount} şart bu araçla doğrulanamamaktadır (yukarıda “—” ile işaretlidir).`
+      : `<b style="color:var(--ok)">Denetlenebilen tüm şartlar sağlanmaktadır.</b>`;
 
   /* ⚠️ Kalan KREDİ sütunu YOK ve bu bilinçli (22.08.2026).
      Kullanıcı sayının yanlış çıktığını bildirdi; iki sebebi vardı — kendi
@@ -9713,45 +9727,44 @@ function renderBasvuruBody(){
     <div class="note" style="margin:12px 0">${verdict}</div>
     <div class="blocklist" style="margin-bottom:16px">${checks}</div>
     ${s.optionCount ? `
-      <div class="chipline"><span class="eyebrow">Sana açık programlar</span>
+      <div class="chipline"><span class="eyebrow">Başvurulabilecek programlar</span>
         <span class="chip credit">${s.optionCount}</span>
         ${cb && s.options.length > 1 ? `<button class="ghost mini" id="basvuruSira"
-          >${BASVURU_SIRA === "bitis" ? "Sende sayılana göre sırala"
+          >${BASVURU_SIRA === "bitis" ? "Sayılan derse göre sırala"
                                       : "Bitişe göre sırala"}</button>` : ""}</div>
       <div style="overflow-x:auto"><table class="list">
         <thead><tr><th>Kod</th><th>Program</th><th>Ders sayısı</th>
-          <th>Sende sayılan</th>${bitisVar ? "<th>Tahmini ÇAP bitişi</th>" : ""}</tr></thead>
+          <th>Sayılan ders</th>${bitisVar ? "<th>Tahmini ÇAP bitişi</th>" : ""}</tr></thead>
         <tbody>${rows}</tbody></table></div>
       ${bitisVar ? `<div class="why" id="capBitisNot" style="margin-top:8px">${capBitisNotu()}</div>` : ""}
-      <div class="why" style="margin-top:8px">“Sende sayılan” = bu planda
-        <b>birebir kodu tutan</b>, geçtiğin ders. Kalan kredi yazmıyoruz:
-        havuz slotlarının nasıl sayıldığı programdan programa değişiyor,
-        duramayacağımız bir sayı olurdu.</div>` : `
-      <div class="empty">Anadalına açık ${basvuruKind === "cap" ? "ÇAP" : "yandal"}
+      <div class="why" style="margin-top:8px">“Sayılan ders”: bu planda
+        <b>ders kodu birebir eşleşen</b> başarılı dersler. Kalan kredi
+        gösterilmemektedir; havuz slotlarının sayılma biçimi programdan programa
+        değiştiğinden güvenilir bir değer hesaplanamaz.</div>` : `
+      <div class="empty">Anadalınıza açık ${basvuruKind === "cap" ? "ÇAP" : "yandal"}
         planı bulunamadı.</div>`}
     ${s.otherHost ? `
       <div class="why" style="margin-top:8px">${s.otherHost} plan
         <b>başka anadalların</b> ${basvuruKind === "cap" ? "ÇAP" : "yandal"}'ı
-        olduğu için listelenmedi — ÇAP planları (anadal, hedef) çiftine göre
-        tanımlı, başka bölümün planına başvuramazsın.</div>` : ""}
+        olduğundan listelenmemiştir. ÇAP planları (anadal, hedef) çiftine göre
+        tanımlanır; başka bir anadala ait plana başvuru yapılamaz.</div>` : ""}
     ${s.planTypeAvailable === false ? `
       <div class="note" style="margin-top:14px;border-left-color:var(--warn)">
         <b>İTÜ ${basvuruKind === "cap" ? "ÇAP" : "yandal"} ders planlarını
-        OBS'de yayınlamıyor.</b>
-        Uç çalışıyor ve doğru sorgulanıyor; OBS
-        <i>“Akademik programa bağlı ders planı bulunmamaktadır”</i> diyor —
-        128 programın hiçbirinde plan yok (doğrulandı 22.08.2026).
-        <div style="margin-top:6px">Yukarıdaki <b>şartlar</b> yönergeden
-        geliyor ve geçerli; ama plan olmadan “kaç ders kalır” sorusunu
-        <b>cevaplayamayız</b> ve uydurmayız. Yandal düşünüyorsan planı
-        bölümünden iste.</div>
+        OBS'de yayımlanmamaktadır.</b>
+        Sorgu doğru biçimde yapılmakta; ancak OBS
+        <i>“Akademik programa bağlı ders planı bulunmamaktadır”</i> yanıtını
+        vermektedir. 128 programın hiçbirinde plan bulunmamaktadır (doğrulama: 22.08.2026).
+        <div style="margin-top:6px">Yukarıdaki <b>şartlar</b> yönergeye dayanır
+        ve geçerlidir; ancak plan bulunmadan kalan ders sayısı <b>hesaplanamaz</b>.
+        Yandal planı için ilgili bölüme başvurunuz.</div>
       </div>` : (s.missingCount ? `
       <div class="note" style="margin-top:14px">
         <b>${s.missingCount}</b> programın ${basvuruKind === "cap" ? "ÇAP" : "yandal"}
-        planı henüz çekilmemiş, o yüzden listede yoklar.
-        <b>Lisans planından tahmin YAPILMIYOR</b> — ${basvuruKind === "cap" ? "ÇAP" : "yandal"}
-        planı lisansın küçük bir alt kümesi, oradan hesaplamak kalan işi
-        iki katından fazla şişirirdi. Doldurmak için:
+        planı henüz alınmadığından bu programlar listede yer almamaktadır.
+        <b>Lisans planından tahmin yapılmamaktadır</b>; ${basvuruKind === "cap" ? "ÇAP" : "yandal"}
+        planı lisans planının küçük bir alt kümesi olduğundan bu yöntem kalan
+        iş yükünü olduğundan fazla gösterir. Planları almak için:
         <span class="mono">make all-plans</span>.
       </div>` : "")}`;
   const sira = $("#basvuruSira");
@@ -9809,12 +9822,12 @@ function capBitisHucre(planId){
   const r = CAP_BITIS.veri.results[String(planId)];
   if(!r) return `<span class="why">—</span>`;
   if(!r.finish) return `<span class="uyari">hesaplanamadı</span><div class="why">${
-    r.unplaced} ders yerleşmedi (önşartı planlarında yok ya da ufuk dışı)</div>`;
+    r.unplaced} ders yerleştirilemedi (önşartı planlarda bulunmuyor veya planlama süresinin dışında)</div>`;
   /* ⚠️ Kalan KREDİ yok — bu pencerenin 22.08.2026 kararı (havuz slotlarının
      kredisi programdan programa farklı sayılıyor). Ders sayısı sağlam. */
   const notlar = [`${r.remaining} ders kaldı`];
-  if(r.anadalDelay > 0) notlar.push(`<span class="uyari">anadalı ${r.anadalDelay} dönem geciktiriyor</span>`);
-  if(r.floorShort) notlar.push(`<span class="uyari">${r.floorShort} dönemde yarıyıl tabanı tutmuyor</span>`);
+  if(r.anadalDelay > 0) notlar.push(`<span class="uyari">anadalı ${r.anadalDelay} dönem geciktirir</span>`);
+  if(r.floorShort) notlar.push(`<span class="uyari">${r.floorShort} dönemde yarıyıl tabanı sağlanamıyor</span>`);
   if(r.unknownSeason) notlar.push(`${r.unknownSeason} dersin mevsimi bilinmiyor`);
   return `<b>${esc(r.finish.label)}</b>${r.finishSemester ? ` <span class="why">(${
     r.finishSemester}. yarıyıl)</span>` : ""}<div class="why">${notlar.join(" · ")}</div>`;
@@ -9822,11 +9835,12 @@ function capBitisHucre(planId){
 function capBitisNotu(){
   const v = CAP_BITIS && CAP_BITIS.veri;
   return `<b>Tahmini ÇAP bitişi</b>: ÇAP'a <b>${v && v.startTerm ? v.startTerm + ". yarıyılda" :
-    "bir sonraki yarıyılda"}</b> başlarsan${v && v.floor ? ` (yarıyıl tabanı
+    "bir sonraki yarıyılda"}</b> başlanacağı${v && v.floor ? ` (yarıyıl tabanı
     <span class="mono">${v.floor}</span> kredi)` : ""} ve bu dönem yol haritasındaki
-    dersleri alırsan. Yol haritasının varsayımları geçerli; <b>başvurunun kabulü,
-    kontenjan ve sıralama şartı bu hesapta yok</b>. Şu anki ÇAP/yandal programın
-    hesaba girmedi — soru "onun yerine bu olsaydı".`;
+    derslerin alınacağı varsayılmıştır. Yol haritasının varsayımları geçerlidir;
+    <b>başvurunun kabulü, kontenjan ve sıralama şartı bu hesaba dahil değildir</b>.
+    Mevcut ÇAP/yandal programı hesaba katılmamıştır; her satır, mevcut programın
+    yerine ilgili programın seçilmesi durumunu gösterir.`;
 }
 
 function renderBlockers(){
@@ -9860,14 +9874,14 @@ let bhtml = "";
 });
 const supply = (groups.ACILMAMIS||[]).length + (groups.PROGRAMA_KAPALI||[]).length;
 if(supply > (groups.ONSART||[]).length){
-  bhtml += `<div class="note" style="margin-top:20px">Engelin çoğu önşart değil,
-    <b>arz</b>: ders açılmıyor ya da şubeler başka programlara ayrılmış. Bölümle
-    veya danışmanla konuşmak, sıralamayı iyileştirmekten daha çok işe yarar.</div>`;
+  bhtml += `<div class="note" style="margin-top:20px">Engellerin çoğu önşarttan değil,
+    <b>ders arzından</b> kaynaklanmaktadır: ders açılmamakta veya şubeler başka
+    programlara ayrılmaktadır. Bu konuda bölüm veya danışman ile görüşülmesi önerilir.</div>`;
 }
 if(DATA.lessonCount < 5000){
-  bhtml += `<div class="note" style="margin-top:10px">Ders programında şu an
-    <span class="mono">${DATA.lessonCount}</span> şube var. Dönem başlarında ilanlar
-    kademeli yayınlanıyor — "açılmamış" dersler sonradan çıkabilir.</div>`;
+  bhtml += `<div class="note" style="margin-top:10px">Ders programında şu anda
+    <span class="mono">${DATA.lessonCount}</span> şube bulunmaktadır. Dönem başlarında
+    ilanlar kademeli olarak yayımlanır; "açılmamış" görünen dersler sonradan açılabilir.</div>`;
 }
 $("#blockers").innerHTML = bhtml || `<div class="empty">Engel yok.</div>`;
 $("#blockers").querySelectorAll(".watchmini").forEach(b =>
@@ -9953,7 +9967,7 @@ function renderTierGroup(grup, i){
             ? `<span class="dep">önce <b>${c.needs.map(esc).join("</b> · <b>")}</b></span>` : ""}
         ${(c.outside && c.outside.length)
             ? `<span class="dispre" role="button" tabindex="0" aria-expanded="false"
-                 title="Plan dışından önşart — anadalda almış olabilirsin">+${c.outside.length} dış önşart</span>
+                 title="Plan dışından önşart (anadalda alınmış olabilir)">+${c.outside.length} dış önşart</span>
                <span class="disout" hidden>plan dışı: <span class="mono">${c.outside.map(esc).join(" · ")}</span></span>` : ""}
       </li>`).join("")}</ul>
     </div>`).join("");
@@ -9998,9 +10012,9 @@ function renderTierGroup(grup, i){
   const disari = new Set();
   grup.tiers.forEach(t => t.courses.forEach(c => (c.outside||[]).forEach(x => disari.add(x))));
   $("#tierFoot" + i).innerHTML =
-    `${bagli} ders plan içinden bir önşarta bağlı` +
-    (disari.size ? ` · ${disari.size} önşart plan DIŞINDAN geliyor (anadalda almış olabilirsin)` : "") +
-    ` · kademe 0 = hemen alınabilir.`;
+    `${bagli} ders plan içinden bir önşarta bağlıdır` +
+    (disari.size ? ` · ${disari.size} önşart plan dışındandır (anadalda alınmış olabilir)` : "") +
+    ` · kademe 0: hemen alınabilir.`;
 }
 
 function drawTierLinks(){
@@ -10188,8 +10202,8 @@ let SETUP_KIRLI = false;
       if(!gecerli) return;
       if(d.id === "setup" && SETUP_KIRLI && !uyarildi){
         uyarildi = true;
-        say("Kaydedilmemiş değişiklik var — saklamak için Kaydet. "
-            + "Bırakmak için dışarıya bir kez daha tıkla ya da Kapat.", true);
+        say("Kaydedilmemiş değişiklikler bulunmaktadır. Saklamak için Kaydet düğmesini, "
+            + "vazgeçmek için pencere dışına ikinci kez tıklayınız veya Kapat düğmesini kullanınız.", true);
         return;
       }
       /* Faz 57 — yalnız kapat. Olay burada duruyor: belge düzeyindeki

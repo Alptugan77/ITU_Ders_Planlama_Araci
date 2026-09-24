@@ -187,17 +187,17 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     # Y.1 — vitrinin ikinci ÇAP seçeneği INS: 4 halkalık zincir, 10. yarıyıl.
     assert c["CAPBITIS"].startswith("2028-2029 Bahar (10. yarıyıl)"), c["CAPBITIS"]
     assert "5 ders kaldı" in c["CAPBITIS"] and "kredi" not in c["CAPBITIS"]
-    assert "yarıyıl tabanı tutmuyor" in c["CAPBITIS"]
+    assert "yarıyıl tabanı sağlanamıyor" in c["CAPBITIS"]
     assert "6. yarıyılda" in c["CAPNOT"] and "kabulü, kontenjan ve sıralama" in c["CAPNOT"]
 
     # Y.7 — azami süre ⚠ ile; aşınca uyarı; ÇAP kartında azami YOK.
-    assert "10. yarıyılında · azami 14" in c["KART1"] and "⚠" not in c["KART1"], c["KART1"]
-    assert "aşıyor" not in c["KART1"]
-    assert "azami öğrenim süresini 1 yarıyıl aşıyor" in c["KART2"], c["KART2"]
-    assert "yarıyılında" in c["CAPKART"] and "azami" not in c["CAPKART"], c["CAPKART"]
+    assert "10. yarıyıl · azami 14" in c["KART1"] and "⚠" not in c["KART1"], c["KART1"]
+    assert "aşmaktadır" not in c["KART1"]
+    assert "azami öğrenim süresini 1 yarıyıl aşmaktadır" in c["KART2"], c["KART2"]
+    assert ". yarıyıl" in c["CAPKART"] and "azami" not in c["CAPKART"], c["CAPKART"]
 
     # §3.6 — önizleme: değişen şube, şekil, tercih puanı; AYAR DOSYASI AYNI.
     assert "BLG 223E şubesi 22301 → 22302" in c["ONIZLE"], c["ONIZLE"]
-    assert "Tercih puanı -44" in c["ONIZLE"] and "Kaydedilmedi" in c["ONIZLE"]
+    assert "Tercih puanı -44" in c["ONIZLE"] and "Değişiklikler kaydedilmedi" in c["ONIZLE"]
     assert c["DUGME"] == "Kaydetmeden dene", "düğme meşgul hâlinde kaldı"
     assert c["AYAR"] == "True", "önizleme ayar dosyasını değiştirdi"

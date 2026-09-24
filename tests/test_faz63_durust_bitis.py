@@ -62,7 +62,7 @@ def test_UOLP_bitis_TAHMIN_EDILMIYOR(tmp_path):
     assert p["finish"] is None and p["nominal"] is None and p["finishSemester"] is None
     # Dersler yine yerleşiyor (sıra işe yarıyor), yalnız bitiş yazılmıyor.
     assert p["unplaced"] == 0 and p["remaining"] == 2
-    assert any("Ortak program (UOLP · Saraybosna-IUS)" in a and "TAHMİN EDİLMEDİ" in a
+    assert any("Ortak program (UOLP · Saraybosna-IUS)" in a and "bitiş tahmini yapılmamıştır" in a
                for a in h["assumptions"])
 
 
@@ -77,9 +77,9 @@ def test_OLAGAN_program_ETKILENMIYOR(tmp_path):
 def test_UOLP_arayuzde_yaziyor():
     r = _js("renderRoadmap")
     assert 'p.jointDegree ? "tahmin edilmedi" : "hesaplanamadı"' in r
-    assert "ortak üniversitedeki dönemler veride yok" in r
+    assert "ortak üniversitedeki dönemler veride bulunmamaktadır" in r
     assert "tahmin edilmedi — ortak program" in _js("danismanOzeti")
-    assert "Ortak programdayım" in _js("danismanSorulari")
+    assert "Ortak lisans programına kayıtlıyım" in _js("danismanSorulari")
 
 
 # ------------------------------------------------------------------ transkript
@@ -168,11 +168,11 @@ def test_UCTAN_UCA_transkriptsiz_vitrin(tmp_path, monkeypatch):
     c = dict(s.split(":", 1) for s in satirlar if s.split(":", 1)[0].isupper())
     assert c["HATA"].startswith("0"), c["HATA"]
     assert json.loads(c["R"]) == {"noTranscript": True, "donem": 5}
-    assert red == ["geçtiğin dersler girilmedi — bitiş tahmini yapılamıyor"] * 2, red
-    assert c["YH"].startswith("Bitiş tahmini yapılamıyor — 5. yarıyılda"), c["YH"]
-    assert "Dersleri gir" in c["YH"] and "yarıyılında" not in c["YH"]
+    assert red == ["başarılan dersler girilmediği için bitiş tahmini yapılamıyor"] * 2, red
+    assert c["YH"].startswith("Bitiş tahmini yapılamamaktadır. 5. yarıyılda"), c["YH"]
+    assert "Dersleri girin" in c["YH"] and "yarıyılında" not in c["YH"]
     assert c["DLG"] == "setup"
     soru = json.loads(c["SORU"])
-    assert any(s.startswith("Geçtiğim dersleri araca girmedim") for s in soru), soru
+    assert any(s.startswith("Başarılı olduğum dersleri araca girmedim") for s in soru), soru
     assert not any("tahmini bitişim" in s or "azami süre" in s for s in soru), soru
     assert c["BITIS"] == "False" and c["CAPB"] == "False"

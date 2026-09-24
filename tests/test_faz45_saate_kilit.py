@@ -22,7 +22,7 @@ kilit tuttu, ortalama 1.0 başka ders kaydı.
 1. **Kilit SERT kısıt.** Yumuşak olsaydı motor onu sessizce yok sayabilirdi.
    Sert olduğu için çelişen kilitler SONUÇ BOŞ verir — ölçüldü: `BLG 212E`
    ve `ATA 121` çakışan şubelere kilitlenince DEPAR kipinde 0 program çıktı.
-   Arayüz bunu "kilit yüzünden" demek zorunda; yoksa kullanıcı "bu dönem
+   Arayüz bunu "kilit nedeniyle" demek zorunda; yoksa kullanıcı "bu dönem
    çakışmasız program yok" sanır.
 2. **Kilit yalnız O KİPİN havuzundaki derse bağlanır.** Arayüzün iki kipi
    ayrı aday havuzu kuruyor. Aynı ölçümde `ATA 121` "5. dönem + alttan"
@@ -213,11 +213,11 @@ def test_BOS_SONUCUN_SEBEBI_yaziliyor():
     üretilemedi" tek başına yanlış yönlendirir: kullanıcı kendi koyduğu
     kısıtı değil, dönemi suçlar. (Faz 25 ve Faz 44'ün aynı dersi.)"""
     fn = re.search(r"function oneriYok\(\)\{(.*?)\n\}", KAYNAK, re.S).group(1)
-    assert "kilit yüzünden" in fn
+    assert "kilit nedeniyle" in fn
     assert "kilitliBuKipte()" in fn, "kipte bağlamayan kilit suçlanmamalı"
     serit = re.search(r"function renderKilitNot\(\)\{(.*?)\n\}\n", KAYNAK,
                       re.S).group(1)
-    assert "Bu kipte hiçbir program kurulamadı" in serit
+    assert "Bu kipte program oluşturulamadı." in serit
     assert "data-ac=" in serit, "tek tıkla açma yok"
 
 

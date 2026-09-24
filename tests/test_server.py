@@ -459,7 +459,7 @@ def test_concurrent_refresh_is_refused(live, monkeypatch):
     state.busy = True
     try:
         code, body = post("/api/refresh", {})
-        assert code == 400 and "sürüyor" in body["error"]
+        assert code == 400 and "devam etmektedir" in body["error"]
     finally:
         state.busy = False
 
