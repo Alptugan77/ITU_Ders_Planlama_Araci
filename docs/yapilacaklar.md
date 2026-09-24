@@ -391,6 +391,38 @@ her maddeden önce gelen tek iş.
 > Geri alma deneyi: 11/11 kırmızı. Renk değerleri bilerek DEĞİŞMEDİ.
 > ➜ Ayrıntı ve ölçümler: `docs/faz56-tasarim-sistemi-v2.md`
 >
+> **Faz 57'de kapananlar (23.09.2026 — yol haritası):** kullanıcı: *"improve
+> and add necessary features for a program like this … and also when a
+> window opens and to close mouse is clicked out of the window just close
+> the window do not interact with background"*. Dış tıklama artık **yalnız
+> kapatıyor** — Faz 55'in arkaya geçirmesi kaldırıldı, üç güvence duruyor ✅
+> · ★★ **Mezuniyet yol haritası** (`src/itucap/yolharitasi.py`, fikirler
+> §2.1): kalan dersler dönem dönem, önşart sırası + kredi sınırı + mevsim +
+> ÇAP yarıyıl tabanı; program başına tahmini bitiş ve plandaki bitişle
+> farkı; varsayımlar planın üstünde ✅ · ★★ "bu dönem şunu alırsan": vitrinde
+> öneri 1 GEO 341E'yi dışarıda bırakıp anadalı **bir yıl** geciktiriyordu,
+> hiçbir yerde yazmıyordu ✅ · ★ GNO hedefi: eşikte kalmak için bu dönem
+> gereken ortalama, tekrar alınan dersin eski notu düşülerek ✅ · dolu
+> şubeden boş şubeye tek dokunuş ✅ · özette haftanın şekli ✅ · kampüs
+> tercihinin veri kapsamı (F.2) ✅ · çevrimiçi şube kampüs değişimi
+> sayılıyordu ✅ · vitrinin **hiç mevzuatı yoktu** ✅
+> Geri alma deneyi: 12/12 kırmızı. Benzer araçlarla karşılaştırma ve kalan
+> fikirler: `docs/fikirler.md` "Faz 57 araştırması".
+> ➜ Ayrıntı: `docs/faz57-yol-haritasi.md`
+>
+> **Faz 58'de kapananlar (24.09.2026 — geçmiş ve yaz okulu):** kullanıcı:
+> *"continue your work to improve"*. ★★ Dersin açıldığı yarıyıl geçmiş not
+> dağılımından (plan susuyorsa); ⚠️ bütünlemeci tuzağı eşikle ayıklanıyor
+> (yıl içinde ≥5 öğrenci ve en kalabalık yarıyılın ¼'ü) ✅ · vitrinde ÇAP
+> bitişi bir dönem geç ama doğru, ve gizli bir ÇAP tabanı sorunu görünür
+> oldu ✅ · ★★ yaz okulu "ya yazın alsaydım": GEO 341E geçen yaz açılmış,
+> ilk yazda alınırsa anadal 2 dönem erken ✅ · ★ yük aşılıyorsa hangi ders
+> çıksın — ÇAP tabanını bozan öneri yok (koruma olmasa BLG 222E önerilirdi)
+> ✅ · GNO hedefi ÇAP'ın kendi ortalaması için ✅ · programın resmi (PNG),
+> tarayıcıda, notsuz ✅ · vitrin dağılım yılları bir yıl kaymıştı ✅
+> Geri alma deneyi: 9/9 kırmızı.
+> ➜ Ayrıntı: `docs/faz58-gecmis-ve-yaz-okulu.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

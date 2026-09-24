@@ -35,7 +35,7 @@ from pathlib import Path
 KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK / "src"))
 
-DONEM = "202610"          # 2026-2027 Güz
+DONEM = "202610"          # 2025-2026 Güz (bkz. config.donem_adi, Faz 38)
 
 # (kod, ad, kredi, AKTS, önşart metni) — önşart metni OBS'nin biçiminde.
 DERSLER = [
@@ -206,6 +206,17 @@ DAGILIMLAR = [
                            "CC": 9, "DC": 7, "DD": 5, "FF": 10, "VF": 4}),
     ("GEO 321", "202420", {"AA": 3, "BA": 4, "BB": 6, "CB": 5, "CC": 3,
                            "DD": 2, "FF": 1}),
+    # Faz 58 — yol haritası için geçmiş: GEO 341E geçen YAZ da açılmış;
+    # BLG 335E Güz dersi ve Baharda 3 bütünlemeci var (açılış SAYILMAMALI);
+    # BLG 336E Bahar dersi. İki ÇAP dersinin mevsimi hiçbir planda yok.
+    ("GEO 341", "202510", {"AA": 6, "BA": 8, "BB": 12, "CB": 10, "CC": 9,
+                           "DC": 4, "DD": 3, "FF": 3}),
+    ("GEO 341", "202530", {"AA": 2, "BA": 3, "BB": 4, "CB": 2, "CC": 2, "FF": 1}),
+    ("BLG 335", "202510", {"AA": 9, "BA": 11, "BB": 16, "CB": 14, "CC": 12,
+                           "DC": 7, "DD": 5, "FF": 6}),
+    ("BLG 335", "202520", {"DD": 1, "FF": 2}),
+    ("BLG 336", "202520", {"AA": 7, "BA": 9, "BB": 12, "CB": 10, "CC": 8,
+                           "DC": 4, "DD": 3, "FF": 5}),
 ]
 
 
@@ -217,6 +228,13 @@ def kur(kok: Path) -> Path:
 
     (kok / "config").mkdir(parents=True, exist_ok=True)
     (kok / "data").mkdir(parents=True, exist_ok=True)
+    # ★ Mevzuat dosyaları da (Faz 57'de fark edildi): `policy` onları
+    # `config.ROOT` altından okuyor ve kök buraya çevrildiği için vitrin
+    # öğrencisinin HİÇ mevzuatı yoktu — GNO eşiği, kredi basamakları, ÇAP
+    # yarıyıl tabanı. Yayınlanan site bu iki dosyayı taşıyor; vitrin de.
+    import shutil
+    for ad in ("kurallar.toml", "katalog-duzeltmeleri.toml"):
+        shutil.copy(KOK / "config" / ad, kok / "config" / ad)
     (kok / "config" / "settings.toml").write_text(
         "[student]\n"
         'anadal_program = "HTAE"\n'
@@ -310,14 +328,16 @@ def kur(kok: Path) -> Path:
             con.execute("INSERT INTO lesson_snapshot(taken_at,crn,course_code,capacity,"
                         "enrolled) VALUES (?,?,?,?,?)", (stamp, crn, kod, kon, eski))
 
-    yil = {"202510": "2025-2026", "202410": "2024-2025", "202420": "2024-2025"}
-    ad = {"10": "Fall Semester", "20": "Spring Semester"}
+    # ⚠️ Kodun yılı akademik yılın BİTİŞİ (Faz 38): 202510 = 2024-2025 Güz.
+    # Eski elle yazılmış tablo bir yıl kaymıştı.
+    def yil(d): return f"{int(d[:4]) - 1}-{d[:4]}"
+    ad = {"10": "Fall Semester", "20": "Spring Semester", "30": "Summer Semester"}
     for anahtar, donem, sayilar in DAGILIMLAR:
         top = sum(sayilar.values())
         for harf, n in sayilar.items():
             con.execute("INSERT INTO grade_distribution(course_key,term,grade,students,"
                         "announced,term_name,year_name) VALUES (?,?,?,?,?,?,?)",
-                        (anahtar, donem, harf, n, top, ad[donem[-2:]], yil[donem]))
+                        (anahtar, donem, harf, n, top, ad[donem[-2:]], yil(donem)))
         for kod in (anahtar + "E", anahtar):
             con.execute("INSERT OR IGNORE INTO grade_distribution_alias(course_code,"
                         "course_key) VALUES (?,?)", (kod, anahtar))
@@ -348,7 +368,7 @@ def ac(kok: Path | None = None) -> tuple[str, object]:
     return f"http://127.0.0.1:{h.server_address[1]}/", h
 
 
-GORUNUMLER = ["schedSection", "panels", "candSection", "tierSection",
+GORUNUMLER = ["schedSection", "panels", "roadmapSection", "candSection", "tierSection",
               "blockSection", "creditSection", "changeSection", "basvuruSection"]
 
 

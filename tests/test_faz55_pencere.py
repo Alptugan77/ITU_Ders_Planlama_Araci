@@ -3,8 +3,14 @@
 oraya geçip açılan kısım kapansın"*).
 
 Üç pencere de kipli `<dialog>`; arka plan tıklamayı yutuyordu, kapatmanın
-tek yolu "Kapat" ya da Esc idi. Artık perdeye tıklamak pencereyi kapatıyor ve
-tıklama ALTINDAKİ yere geçiyor.
+tek yolu "Kapat" ya da Esc idi. Artık perdeye tıklamak pencereyi kapatıyor.
+
+★★ Faz 57 (kullanıcı 23.09.2026: *"just close the window do not interact
+with background"*): Faz 55'te tıklama kapattıktan sonra ALTINDAKİ yere de
+geçiyordu (ray bağlantısı, ızgaradaki başka ders). Kapatmak için tıklanan
+yer çoğu zaman rastgeleydi ve arkada bir şey açılıyordu. Artık dış tıklama
+YALNIZ kapatıyor; testler iki yönü de tutuyor: kapandı VE arkada hiçbir şey
+olmadı.
 
 ⚠️ Üç tuzak, üçü de uçtan uca test ediliyor:
 * pencerede başlayıp dışarıda biten sürükleme (metin seçerken) kapatmamalı;
@@ -49,10 +55,12 @@ def test_KAYDEDILMEMIS_is_SESSIZCE_silinmiyor():
     assert "SETUP_KIRLI = false;" in KAYNAK[KAYNAK.index("function openSetup("):][:200]
 
 
-def test_TIKLAMA_altindaki_yere_GECIYOR():
-    b = _blok()
-    assert b.index("d.close();") < b.index("document.elementFromPoint(")
-    assert 'alt.dispatchEvent(new MouseEvent("click"' in b
+def test_DIS_TIKLAMA_yalniz_KAPATIYOR():
+    """Faz 57 — tıklama altındaki öğeye İLETİLMİYOR ve belgeye yayılmıyor."""
+    b = re.sub(r"/\*.*?\*/", " ", _blok(), flags=re.S)
+    assert "elementFromPoint" not in b and "dispatchEvent" not in b, \
+        "dış tıklama yine arkaya iletiliyor"
+    assert b.index("e.stopPropagation();") < b.index("d.close();")
 
 
 _CANLI = r'''
@@ -171,9 +179,11 @@ def test_UCTAN_UCA_disari_tiklama(tmp_path, monkeypatch):
     c = dict(s.split(":", 1) for s in r.stdout.strip().splitlines()
              if ":" in s and s.split(":", 1)[0].isupper())
     assert c["ACIK1"] == "detail", c
-    assert c["RAY"] == "-|candSection", f"dışarı tıklama kapatmadı ya da raya geçmedi: {c['RAY']}"
+    # Faz 57: kapanıyor ama raydaki bağlantı ÇALIŞMIYOR — görünüm aynı kalıyor.
+    assert c["RAY"] == "-|schedSection", f"dışarı tıklama kapatmadı ya da arkaya geçti: {c['RAY']}"
     assert c["HEDEF_DISARIDA"] == "True", "deney düzeneği: hedef blok pencerenin altında kaldı"
-    assert c["IZGARA"].startswith("detail|AAA 101E"), f"tıklama ızgaraya geçmedi: {c['IZGARA']}"
+    # Faz 57: ızgaradaki başka dersin penceresi AÇILMIYOR.
+    assert c["IZGARA"].startswith("-|"), f"tıklama ızgaraya geçti: {c['IZGARA']}"
     assert c["SURUKLE"] == "detail", "içeriden başlayan sürükleme pencereyi kapattı"
     assert c["KENAR"] == "detail", "pencerenin kenarı kapattı"
     assert c["KIRLI1"].startswith("setup|Kaydedilmemiş"), f"kaydedilmemiş iş sessizce gitti: {c['KIRLI1']}"

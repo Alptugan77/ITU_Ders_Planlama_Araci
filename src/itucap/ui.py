@@ -34,6 +34,7 @@ from . import rules as R
 from . import sequence as SEQ
 from . import student as S
 from . import tasarim as TASARIM
+from . import yolharitasi as YH
 # ★★ Faz 38 — not dağılımı yalnız OKUNUYOR. İlk yazımda bu satır
 # `from .sources import obs_notdagilimi` idi ve YAYINLANAN SİTE AÇILMADI:
 # `site_kur.py` tarayıcıya `sources/` kopyalamıyor (scraper bağımlılıkları).
@@ -358,6 +359,54 @@ def _threshold_info(con: sqlite3.Connection, ucon: sqlite3.Connection,
                          "ok": against + 1e-9 >= t.minimum})
             out.append(item)
             gorulen[t.key] = item
+    return out
+
+
+def _tekrar_notlari(con: sqlite3.Connection, graded: dict[str, str],
+                    havuz: set[str]) -> dict[str, dict]:
+    """Faz 57 — bu dönem TEKRAR alınabilecek derslerin ortalamadaki payı.
+
+    GNO hedefi ("2.50'de kalmak için bu dönem kaç ortalama gerekir") tekrar
+    alınan dersi YENİ ders gibi sayarsa yanlış çıkar: İTÜ'de son alınan not
+    geçerli (Faz 9), eski notun puanı ve kredisi ortalamadan ÇIKIYOR. FF'yi
+    tekrar eden öğrenci için fark büyük — FF'nin sıfırı gidiyor.
+    Yalnız GNO'ya giren notlar (`POL.gpa` ile aynı süzgeç).
+    """
+    out = {}
+    for code in sorted(havuz & set(graded)):
+        g = str(graded[code] or "").upper()
+        if g in POL.GPA_EXCLUDED or g not in PRQ.GRADE_POINTS:
+            continue
+        row = con.execute("SELECT credits FROM course WHERE code=?", (code,)).fetchone()
+        kredi = float((row[0] if row else 0) or 0)
+        if kredi > 0:
+            out[code] = {"grade": g, "credits": kredi,
+                         "points": round(PRQ.GRADE_POINTS[g] * kredi, 4)}
+    return out
+
+
+def _ikinci_gno_tabani(con: sqlite3.Connection, ucon: sqlite3.Connection,
+                       student_id: int, seconds: list[dict]) -> list[dict]:
+    """Faz 58 — ÇAP'ın KENDİ ortalamasının hedef hesabı için tabanı.
+
+    "ÇAP mezuniyeti — ikinci anadal ortalaması ≥ 2.00" genel GNO'yu değil,
+    yalnız ÇAP planındaki derslerin ortalamasını soruyor (`_threshold_info`,
+    2. incelik). Faz 57'nin GNO hedefi bu eşiği dışarıda bırakıp "burada
+    yok" diyordu. Aynı alt küme (`R.plan_codes`, dil eşi dahil) ve aynı
+    `POL.gpa`; arayüz bu dönemki programdan yalnız bu kodları sayıyor.
+    Yalnız ÇAP — yandalın böyle bir eşiği yok (Faz 23.08.2026 notu).
+    """
+    graded = S.graded(ucon, student_id)
+    uncertain = S.uncertain_grades(ucon, student_id)
+    out = []
+    for s2 in seconds:
+        if s2.get("kind") != "cap" or not s2.get("planId"):
+            continue
+        kodlar = R.plan_codes(con, s2["planId"])
+        g2 = POL.gpa(con, {c: g for c, g in graded.items() if c in kodlar}, uncertain)
+        out.append({"label": s2["label"], "program": s2["program"],
+                    "points": g2.points, "credits": g2.credits,
+                    "codes": sorted(kodlar)})
     return out
 
 
@@ -768,6 +817,10 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         "noCredit": gpa.skipped_no_credit, "notGraded": gpa.skipped_not_graded,
         "uncertain": gpa.uncertain, "conditional": gpa.conditional,
         "thresholds": _threshold_info(con, ucon, student_id, gpa, seconds),
+        "points": gpa.points,
+        "retake": _tekrar_notlari(con, S.graded(ucon, student_id),
+                                  {c.course for c in [*cands, *term_cands]}),
+        "secondGpa": _ikinci_gno_tabani(con, ucon, student_id, seconds),
     }
     # ★ Şartlı başarı (MADDE 20/2-b + MADDE 31/1). Faz 11'de "şart bilinmiyor"
     # deniyordu; 22.08.2026'da yönetmelikten bulundu: şart, mezuniyet anındaki
@@ -929,6 +982,11 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                     "program": s["program"], "planId": s["planId"],
                     "tiers": _tiers_of(s["planId"])} for s in seconds]
 
+    yol_haritasi = _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds,
+                                 grades, equivalences, donem, limit_credits, load_rule,
+                                 _floor, [*cands, *term_cands],
+                                 term_scheds if term_scheds else schedules)
+
     return {
         # ★★ İLK ZİYARET (23.08.2026). Program seçilmemişse araç RAPOR
         # ÜRETMİYOR, karşılama ekranı gösteriyor.
@@ -1034,6 +1092,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             gereken_dersler, settings.allowed_programs, names, section_json),
         # Her ikinci programın KENDİ kademe zinciri.
         "tierGroups": tier_groups,
+        # ★★ Faz 57 — mezuniyet yol haritası (çok dönemli plan, §2.1).
+        "roadmap": yol_haritasi,
         "lessonCount": con.execute("SELECT COUNT(*) FROM lesson").fetchone()[0],
         "uncertain": S.uncertain_grades(ucon, student_id),
     }
@@ -1201,6 +1261,143 @@ def _onboarding(con, ucon, student_id, settings, anadal_id, seconds) -> dict | N
             "WHERE plan_type='lisans'").fetchone()[0],
         "lessonCount": con.execute("SELECT COUNT(*) FROM lesson").fetchone()[0],
     }
+
+
+def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
+                  equivalences, donem, limit_credits, load_rule, taban, havuz,
+                  acilis_programlari) -> dict | None:
+    """Faz 57 — mezuniyet yol haritası (`yolharitasi.kur`).
+
+    "Bu dönem" ne sayılıyor: KAYDEDİLEN program varsa o (kayıt haftasında
+    gerçekten alacağın şey), yoksa açılışta gösterilen kipin 1. önerisi.
+    Hangisinin kullanıldığı haritanın üstünde YAZIYOR.
+
+    ⚠️ Kredi sınırı KREDİ cinsinden olmalı: birim AKTS ise yönetmelik
+    tavanına (MADDE 17) bakılıyor, o da yoksa harita KURULMUYOR — AKTS'yi
+    krediye çevirmek uydurma olurdu.
+    """
+    if not anadal_id or not settings.term or len(str(settings.term)) != 6:
+        return None
+    sinir = limit_credits or (load_rule.maximum if load_rule else 0)
+    if not sinir:
+        return None
+    ders = {c.course: c for c in havuz}
+    kredi = {r[0]: r[1] for r in con.execute("SELECT code, credits FROM course")}
+    kayitli = S.load_picks(ucon, student_id, settings.term).get("picks") or []
+    if kayitli:
+        bu = [{"course": p["course"],
+               "credits": (ders[p["course"]].credits if p["course"] in ders
+                           else float(kredi.get(p["course"]) or 0)),
+               "slotId": ders[p["course"]].slot_id if p["course"] in ders else 0,
+               "role": ders[p["course"]].role if p["course"] in ders else "PLAN_DISI"}
+              for p in kayitli]
+        kaynak = f"kaydettiğin program ({len(bu)} ders)"
+    elif acilis_programlari:
+        bu = [{"course": pk.candidate.course, "credits": pk.candidate.credits,
+               "slotId": pk.candidate.slot_id, "role": pk.candidate.role}
+              for pk in acilis_programlari[0].picks]
+        kaynak = f"açılıştaki öneri 1 ({len(bu)} ders)"
+    else:
+        bu, kaynak = [], "hiçbir ders (program boş)"
+    planlar = [{"planId": anadal_id, "role": "ANADAL", "label": "anadal",
+                "program": settings.anadal_program}]
+    planlar += [{"planId": s["planId"], "role": s["role"], "label": s["label"],
+                 "program": s["program"]} for s in seconds if s.get("planId")]
+    def kur(bu_donem, yaz=None):
+        return YH.kur(con, grades, planlar, term=str(settings.term), donem=donem or 0,
+                      max_load=float(sinir), bu_donem=bu_donem, bu_donem_kaynagi=kaynak,
+                      equivalences=equivalences, taban=taban, yaz=yaz)
+
+    def bitisler(h):
+        return {p["role"]: (p["finish"] or {}).get("index") for p in h["programs"]}
+
+    def kazanc_olc(once: dict, yeni: dict) -> list[dict]:
+        out = []
+        for p in yeni["programs"]:
+            a, b = once.get(p["role"]), (p["finish"] or {}).get("index")
+            if a is not None and b is not None and b < a:
+                out.append({"role": p["role"], "label": p["label"],
+                            "terms": a - b, "finish": p["finish"]})
+        return out
+
+    try:
+        sonuc = kur(bu)
+        # ★ "BU DÖNEM ŞUNU ALIRSAN" — haritanın asıl işe yarayan cevabı.
+        # Bu dönem aday havuzunda olup programda OLMAYAN, arkasından zincir
+        # gelen dersler için harita yeniden kuruluyor ve bitiş dönemi
+        # karşılaştırılıyor. Yalnız ölçülen kazanç yazılıyor; saat çakışması
+        # ve yük sınırı burada ÇÖZÜLMÜYOR, ekranda söyleniyor.
+        # ⚠️ En çok 5 aday: statik sitede her kurulum Pyodide'da çalışıyor.
+        simdiki = bitisler(sonuc)
+        yuk = sum(float(x["credits"] or 0) for x in bu)
+        adaylar = [h for h in sonuc.get("heads", [])
+                   if h["course"] in ders and ders[h["course"]].sections
+                   and h["chain"] >= 2][:5]
+        etki = []
+        for h in adaylar:
+            c = ders[h["course"]]
+            bas = {"course": c.course, "credits": c.credits,
+                   "slotId": c.slot_id, "role": c.role}
+            yeni = kur([*bu, bas])
+            kazanc = kazanc_olc(simdiki, yeni)
+            if kazanc:
+                etki.append({"course": c.course, "name": c.name, "credits": c.credits,
+                             "role": c.role, "gains": kazanc,
+                             "overLoad": yuk + c.credits > float(sinir) + 1e-9,
+                             "_bas": bas, "_yeni": bitisler(yeni)})
+        # ★★ Faz 58 — YÜK AŞILIYORSA HANGİ DERS ÇIKSIN. "Bir dersi çıkarman
+        # gerekir" deyip bırakmak, kararı en zor yerinde kullanıcıya
+        # bırakıyordu. Programdaki her ders tek tek çıkarılıp harita yeniden
+        # kuruluyor; kazancı KORUYAN ve yükü sınıra indiren çıkarma öneriliyor.
+        # Kazancı tam koruyan yoksa en az kaybettiren — kayıp YAZIYOR.
+        # ⚠️ En çok 2 aday × programdaki ders sayısı kurulum (Pyodide).
+        # ⚠️ ÇAP yarıyıl tabanını bu dönem BOZAN çıkarma önerilmiyor — yük
+        # sınırını tutturmak için yönetmelik ihlali önermek olurdu.
+        def cap_kredi(liste):
+            return sum(float(y["credits"] or 0) for y in liste if y.get("role") == "CAP")
+        for e in [x for x in etki if x["overLoad"]][:2]:
+            fazla = yuk + e["credits"] - float(sinir)
+            en_iyi = None
+            for x in bu:
+                if float(x["credits"] or 0) + 1e-9 < fazla:
+                    continue                    # tek başına yetmiyor
+                sonra = [y for y in bu if y is not x] + [e["_bas"]]
+                if taban and cap_kredi(sonra) + 1e-9 < taban.minimum <= cap_kredi(bu) + 1e-9:
+                    continue
+                dene = bitisler(kur(sonra))
+                kayip = sum((dene.get(r) if dene.get(r) is not None else 99) - v
+                            for r, v in e["_yeni"].items() if v is not None)
+                anahtar = (max(0, kayip), x["role"] == "ANADAL", x["course"])
+                if en_iyi is None or anahtar < en_iyi[0]:
+                    en_iyi = (anahtar, x, max(0, kayip))
+            if en_iyi:
+                _, x, kayip = en_iyi
+                ad = (ders[x["course"]].name if x["course"] in ders else
+                      (con.execute("SELECT name FROM course WHERE code=?",
+                                   (x["course"],)).fetchone() or [""])[0])
+                e["drop"] = {"course": x["course"], "name": ad, "lossTerms": kayip}
+        for e in etki:
+            e.pop("_bas", None), e.pop("_yeni", None)
+        sonuc["takeNow"] = etki
+        # ★★ Faz 58 — YAZ OKULU. Geçmişte yazın gerçekten açılmış (not
+        # dağılımı, en az `YH.GECMIS_TABAN` öğrenci) ders ilk yazda alınırsa
+        # bitiş değişiyor mu? Yalnız değişenler yazılıyor.
+        yazlar = []
+        for a in sonuc.get("summerCandidates", [])[:8]:
+            yeni = kur(bu, yaz=a["course"])
+            if not (yeni.get("summer") or {}).get("placed"):
+                continue
+            kazanc = kazanc_olc(simdiki, yeni)
+            if kazanc:
+                yazlar.append({"course": a["course"], "name": a["name"],
+                               "credits": a["credits"], "history": a["history"],
+                               "term": yeni["summer"]["label"], "gains": kazanc})
+        sonuc["summerGains"] = yazlar
+        return sonuc
+    except Exception as exc:                            # noqa: BLE001
+        # Harita yardımcı bir görünüm: kurulamazsa sayfanın geri kalanı
+        # açılmalı — ama sessiz değil, sebebi görünümde yazıyor.
+        return {"error": f"{type(exc).__name__}: {exc}"}
 
 
 def _plan_uyarisi(con, settings) -> str:
@@ -2055,6 +2252,10 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--focus);outline-o
 .ozetsatir{color:var(--ink-2)}
 .ozetdolu{font-size:var(--fs-sm);line-height:var(--lh-normal);color:var(--ink)}
 .ozetdolu .yerdurum{margin:0 4px 0 0}
+.ozetsekil{font-size:var(--fs-sm);color:var(--ink-2);line-height:var(--lh-normal);margin-top:2px}
+.ozetdolusatir+.ozetdolusatir{margin-top:6px}
+.ozetdolusatir .ozetnot{display:block}
+.ozetdolusatir button{margin-left:4px}
 .ozetnot{color:var(--ink-3)}
 .ozetlejant{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:var(--fs-sm);
   padding-top:6px;border-top:1px solid var(--border)}
@@ -2447,7 +2648,7 @@ table.list tr:hover td{background:var(--surface-2)}
 .ozet.ok{border-color:var(--ok);color:var(--ok)}
 .ozet.uyari{border-color:var(--warn);color:var(--warn)}
 /* Satır içi uyarı yazısı (katalogda olmayan ders, planı olmayan program). */
-.meta .uyari,td .uyari,.ckname .uyari{color:var(--warn)}
+.meta .uyari,td .uyari,.ckname .uyari,#roadmapSection .uyari{color:var(--warn)}
 .ozet.kotu{border-color:var(--danger);color:var(--danger)}
 /* Puan kırılımı — "neden bu puan". Eksi katkı da aynı görsel dilde. */
 .puan{margin-top:10px;border-top:1px solid var(--border);padding-top:8px}
@@ -2631,6 +2832,58 @@ table.cmp .meta.arti{color:var(--ok)}
 .tiergroup > h3{font-size:var(--fs-md);margin-bottom:12px;display:flex;gap:8px;align-items:center}
 .tiergroup > h3 .tag{font-size:var(--fs-xs)}
 
+/* ★★ FAZ 57 — mezuniyet yol haritası. Özet önce (program başına bitiş), sonra
+   bu dönem fark yaratacak ders, varsayımlar, dönem kartları. */
+.yhprogramlar{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:12px;margin-top:14px}
+.yhprogram{border:1px solid var(--border);border-top:6px solid var(--accent);
+  padding:12px 14px;background:var(--surface)}
+.yhprogram[data-role="ANADAL"]{--accent:var(--anadal)}
+.yhprogram[data-role="CAP"]{--accent:var(--cap)}
+.yhprogram[data-role="YANDAL"]{--accent:var(--yandal)}
+.yhbitis{font-family:var(--font-display);font-size:var(--fs-xl);font-weight:800;
+  line-height:var(--lh-tight);margin-top:6px}
+.yhalt{font-size:var(--fs-sm);color:var(--ink-2);margin-top:4px}
+.yhgec{font-size:var(--fs-sm);color:var(--warn);font-weight:600;margin-top:6px}
+.yhzamaninda{font-size:var(--fs-sm);color:var(--ok);margin-top:6px}
+.yhsimdi{margin-top:14px}
+.yhsatir{margin-top:8px;line-height:var(--lh-normal)}
+.yhsatir .yhdugmeler .ghost{margin-left:0}
+.yhvarsayim{margin-top:14px;border-left-color:var(--seal)}
+.yhvarsayim ul{margin:6px 0 0;padding-left:20px;font-size:var(--fs-sm);
+  line-height:var(--lh-normal)}
+.yhzincir{margin-top:14px;font-size:var(--fs-md);color:var(--ink-2)}
+.yhdonemler{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+  gap:12px;margin-top:14px}
+.yhdonem{border:1px solid var(--border);padding:10px 12px;background:var(--surface-2)}
+.yhdonem.simdi{border-color:var(--seal);background:var(--seal-soft)}
+.yhdonem.bos{background:transparent;border-style:dashed}
+.yhdonem.yaz{border-style:dashed;border-color:var(--warn)}
+.yhyaz{margin-top:14px}
+.yhdugmeler{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.yhdonem>h3{font-size:var(--fs-xs);letter-spacing:var(--ls-eyebrow);color:var(--seal);
+  padding-bottom:6px;border-bottom:2px solid var(--border-strong);display:flex;
+  gap:6px;align-items:center;flex-wrap:wrap}
+.yhdonem .yhkredi{font-size:var(--fs-sm);color:var(--ink-3);margin-top:6px}
+.yhdonem ul{list-style:none;margin:8px 0 0;padding:0;display:flex;
+  flex-direction:column;gap:6px}
+.yhdonem li{font-size:var(--fs-sm);line-height:var(--lh-snug)}
+.yhdonem li .yhad{display:block;color:var(--ink-3)}
+.yhdonem li .tag{margin-left:4px}
+.yhdonem .empty{padding:8px 0;text-align:left}
+/* Faz 57 — GNO hedefi (Kredi sınırım). */
+.gnohedef{margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.gnobaslik{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin-bottom:6px}
+.gnosatir{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;
+  padding:8px 0;border-top:1px solid var(--border);font-size:var(--fs-md)}
+.gnosatir .gereken{text-align:right;white-space:nowrap}
+.gnosatir .gnoalt{grid-column:1/-1;font-size:var(--fs-sm);color:var(--ink-3)}
+.gnook{color:var(--ok);font-weight:600}
+.gnoyok{color:var(--danger);font-weight:600}
+.gnohedef .meta{font-size:var(--fs-sm);color:var(--ink-3);line-height:var(--lh-normal)}
+.gnonot{margin-top:8px}
+.yhuyari{font-size:var(--fs-sm);color:var(--warn);margin-top:6px}
+
 /* Bölüm çubuğu — yapışkan, tek satır, dar ekranda yana kayıyor. */
 /* ⚠️ `var(--bg)` diye bir jeton YOK — doğrusu `--ground`. Yanlış ad
    çözümlenmeyince arka plan ŞEFFAF kalıyor ve kartlar çubuğun içinden
@@ -2770,6 +3023,7 @@ body.kurulum #candSection,
 body.kurulum #blockSection,
 body.kurulum #basvuruSection,
 body.kurulum #tierSection,
+body.kurulum #roadmapSection,
 /* ★ Faz 26 — kurulum çubuğu da gizli. Karşılama kartındaki adımlarla AYNI
    üç işi yapan dört düğme daha koymak, "yedi düğme üç iş" karmaşasının
    kaynağıydı: kullanıcı hangisine basacağını seçmek zorunda kalıyordu.
@@ -2968,7 +3222,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
      hepsi birden açıktı, şimdi hangi görünümdeysen o kâğıda sızıyordu —
      aynı Cmd+P aynı kâğıdı vermeli. */
   #panels,#savedSection,
-  #tierSection,#creditSection,.tabs,#notime .blockitem button,
+  #tierSection,#roadmapSection,#creditSection,.tabs,#notime .blockitem button,
   #arzUyari,#ayarHatasi,dialog,
   /* ★★ FAZ 48 — Faz 46/47'nin KABUĞU KÂĞIDA SIZIYORDU (taramada ölçüldü).
      `.govde` iki sütunlu ızgara: ray `display:none` olsa bile 216px'lik
@@ -3148,6 +3402,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
       <button class="ghost" id="reset" hidden>Öneriye dön</button>
       <button class="ghost" id="crnBtn">Kayıt günü</button>
       <button class="ghost" id="icsBtn">Takvime aktar</button>
+      <button class="ghost" id="pngBtn">Resim (PNG)</button>
       <button class="ghost" id="shareBtn">Bağlantı</button>
       <button class="ghost" id="crnLoad">CRN'den yükle</button>
       <span id="savedMark" class="chip" style="color:var(--ok)" hidden></span>
@@ -3161,6 +3416,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
   <div class="sechead"><div class="eyebrow">Mevzuat kısıtı</div><div class="rule"></div></div>
   <h2 style="margin-bottom:14px">Kredi ve not eşikleri</h2>
   <div id="gpaBody"></div>
+  <div id="gnoHedefBody"></div>
   <div id="loadBody"></div>
   <div id="floorBody"></div>
   <div id="creditBody"></div>
@@ -3260,6 +3516,18 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
     <button class="ghost" data-close>Kapat</button>
   </div>
 </div></dialog>
+
+<!-- ★★ FAZ 57 — MEZUNİYET YOL HARİTASI (yol haritası §2.1). Kademeler
+     "en az kaç dönem" diyordu; burada kalan dersler dönem dönem yerleşiyor
+     ve her programın tahmini bitişi yazıyor. Varsayımlar planın ÜSTÜNDE. -->
+<section class="card pad" id="roadmapSection" hidden>
+  <div class="sechead"><div class="eyebrow">Mezuniyet</div><div class="rule"></div></div>
+  <h2>Yol haritası</h2>
+  <div class="aciklama">Kalan derslerin dönem dönem yerleşimi: önşart sırası,
+    dönem kredi sınırın ve dersin açıldığı mevsim hesaba katıldı. <b>Bir plan,
+    kehanet değil</b> — neye dayandığı hemen aşağıda.</div>
+  <div id="roadmapBody"></div>
+</section>
 
 <section class="card pad" id="tierSection">
   <div class="sechead"><div class="eyebrow">Önşart zinciri</div><div class="rule"></div></div>
@@ -4220,6 +4488,23 @@ const TERCIH_GUN = [[1, "Pzt"], [2, "Sal"], [3, "Çar"], [4, "Per"], [5, "Cum"]]
 const TERCIH_SAAT = [[0, "önemsiz"], [510, "08:30"], [570, "09:30"],
                      [630, "10:30"], [690, "11:30"]];
 
+/* ★★ FAZ 57 — KAMPÜS TERCİHİ NE KADAR VERİYLE ÇALIŞIYOR (fikirler.md F.2).
+   Ölçüm (Faz 37, iki kez): buluşmaların %42,5'inde bina ilan edilmemiş.
+   Kampüsü bilinmeyen buluşma kampüs değişimi SAYILMIYOR — yani tercih o
+   derslerde hiç uygulanmıyor. Kutuyu işaretleyen bunu bilmeli; kendi
+   adaylarında ölçülüp yazılıyor. Hepsi biliniyorsa hiçbir şey yazmıyor. */
+function kampusKapsami(){
+  let top = 0, yok = 0;
+  (M().candidates || []).forEach(c => (c.sections || []).forEach(s => {
+    if(s.online) return;
+    (s.meetings || []).forEach(m => { top++; if(!m.campus) yok++; });
+  }));
+  if(!top || !yok) return "";
+  return `<span class="hint" style="display:block">Adaylarının
+    <b class="mono">${top}</b> yüz yüze ders saatinin <b class="mono">${yok}</b>
+    tanesinde bina/kampüs ilan edilmemiş — bu tercih onlarda uygulanamıyor.</span>`;
+}
+
 function tercihDialog(){
   const P = (SETUP && SETUP.prefs) || {};
   let erken = P.enErken || 0;
@@ -4248,7 +4533,8 @@ function tercihDialog(){
 
     <div class="grid2" style="margin-top:14px">
       <label class="tickbox"><input type="checkbox" id="fKampus"
-        ${P.kampus ? "checked" : ""}> Aynı gün kampüs değiştirmek istemiyorum</label>
+        ${P.kampus ? "checked" : ""}> Aynı gün kampüs değiştirmek istemiyorum${
+        kampusKapsami()}</label>
       <label class="tickbox"><input type="checkbox" id="fOnline"
         ${P.cevrimici ? "checked" : ""}> Çevrimiçi şubeyi yeğlerim</label>
     </div>
@@ -4974,6 +5260,123 @@ function renderGpa(){
     </div>` : ""}`;
 }
 
+/* ★★ FAZ 57 — GNO HEDEFİ: "eşikte kalmak için bu dönem kaç ortalama?"
+   Eşik çipleri bugünü söylüyordu (✓/✗); asıl soru yarındı: ÇAP'a devam
+   2.50 isteyen öğrenci 2.61'deyken bu dönem 21 kredi alırsa kaça kadar
+   düşebilir? Cevap bir TAHMİN değil (fikirler.md "GNO'n şu kadar olur"u
+   reddediyor — alacağın nottan bağımsız sayı): alacağın notun EŞİĞİ.
+     gereken = (hedef × (C' + T) − P') / T
+   C', P': ortalamaya giren kredi ve puan; tekrar alınan dersin ESKİ notu
+   çıkarılmış (İTÜ'de son not geçerli, Faz 9). T: programdaki kredi.
+   ⚠️ Puan toplamı Python'dan yuvarlanmadan geliyor (`gpa.points`);
+   value × credits 2 haneli yuvarlamayı gereken ortalamaya taşırdı. */
+const HARF_PUAN = [["FF",0],["DD",1],["DD+",1.25],["DC",1.5],["DC+",1.75],["CC",2],
+  ["CC+",2.25],["CB",2.5],["CB+",2.75],["BB",3],["BB+",3.25],["BA",3.5],["BA+",3.75],["AA",4]];
+function gnoHedefleri(){
+  const g = DATA.gpa, out = [], gor = new Map();
+  /* ★ Faz 58: anahtar TABAN + eşik. Faz 57'de yalnız eşikti; ÇAP'ın kendi
+     ortalaması (2.00) ile genel mezuniyet (2.00) aynı satıra birleşirdi —
+     iki ayrı ortalamanın iki ayrı şartı. */
+  const ekle = (min, ad, taban) => {
+    const k = taban + ":" + min.toFixed(2);
+    if(gor.has(k)){ gor.get(k).adlar.push(ad); return; }
+    const h = {min, adlar: [ad], taban};
+    gor.set(k, h); out.push(h);
+  };
+  /* Zaten girilmiş programın BAŞVURU eşiği hedef değil: ÇAP öğrencisine
+     "ÇAP başvurusu için 3.71 gerekir" demek yanlış bir kaygı üretirdi. */
+  const icinde = new Set(SECONDS().map(x => x.kind));
+  (g.thresholds || []).filter(t => t.basis === "genel" && t.min > 0
+      && !(t.kind === "basvuru" && icinde.has(t.scope)))
+    .forEach(t => ekle(t.min, t.label, "genel"));
+  const L = DATA.load;
+  if(L && L.next && L.next.minGpa) ekle(L.next.minGpa,
+    `dönem sınırı ${L.next.max} kredi olsun`, "genel");
+  if((g.secondGpa || []).length)
+    (g.thresholds || []).filter(t => t.basis === "ikinci anadal" && t.min > 0)
+      .forEach(t => ekle(t.min, t.label, "ikinci"));
+  return out.sort((a, b) => (a.taban === "ikinci") - (b.taban === "ikinci") || a.min - b.min);
+}
+/* Bir ortalamanın bu dönemki hesabı: C', P' tekrar alınan dersin eski notu
+   düşülmüş kredi ve puan; T bu ortalamaya giren programdaki kredi. */
+function gnoTabani(C0, P0, secili){
+  const g = DATA.gpa;
+  const T = secili.reduce((a, p) => a + p.cand.credits, 0);
+  const tekrar = secili.filter(p => (g.retake || {})[p.cand.course])
+    .map(p => ({course: p.cand.course, ...g.retake[p.cand.course]}));
+  const C = C0 - tekrar.reduce((a, r) => a + r.credits, 0);
+  const P = P0 - tekrar.reduce((a, r) => a + r.points, 0);
+  return {T, C, P, tekrar};
+}
+function renderGnoHedef(){
+  const kutu = $("#gnoHedefBody");
+  if(!kutu) return;
+  const g = DATA.gpa;
+  if(!g || !g.counted || typeof g.points !== "number"){ kutu.innerHTML = ""; return; }
+  const hedefler = gnoHedefleri();
+  if(!hedefler.length){ kutu.innerHTML = ""; return; }
+  const secili = picks().filter(p => (p.cand.credits || 0) > 0);
+  const tabanlar = {genel: gnoTabani(g.credits, g.points, secili)};
+  const ik = (g.secondGpa || [])[0];
+  if(ik){
+    const kod = new Set(ik.codes);
+    tabanlar.ikinci = gnoTabani(ik.credits, ik.points,
+      secili.filter(p => kod.has(p.cand.course)));
+  }
+  const {T, tekrar} = tabanlar.genel;
+  const baslik = `<div class="gnobaslik"><b>Bu dönem hangi ortalama yeter?</b>
+    <span class="meta">programdaki <b class="mono">${T}</b> kredi üzerinden${
+      tekrar.length ? ` · tekrar: ${tekrar.map(r => `<span class="mono">${esc(r.course)}</span>
+        (${esc(r.grade)})`).join(", ")}` : ""}</span></div>`;
+  if(!T){
+    kutu.innerHTML = `<div class="gnohedef">${baslik}<div class="meta">Programda kredili
+      ders yok — hesap için ders seç.</div></div>`;
+    return;
+  }
+  const satirlar = hedefler.map(h => {
+    const {T, C, P} = tabanlar[h.taban];
+    const ikinci = h.taban === "ikinci";
+    const once = ikinci ? `Yalnız ${esc(ik.label)} dersleri (bu dönem
+      <b class="mono">${T}</b> kredi): ` : "";
+    let sag, alt;
+    if(!T){
+      const simdi = C ? P / C : null;
+      sag = `<span class="${simdi !== null && simdi + 1e-9 >= h.min ? "gnook" : "meta"}">${
+        simdi === null ? "henüz yok" : "bu dönem değişmiyor"}</span>`;
+      alt = simdi === null ? `Bu dönem ${esc(ik.label)} dersi yok ve notlu
+          ${esc(ik.label)} dersin de yok — ortalama henüz hesaplanamıyor.`
+        : `Bu dönem ${esc(ik.label)} dersi yok; ${esc(ik.label)} ortalaman
+          <b class="mono">${simdi.toFixed(2)}</b> olarak kalıyor.`;
+    } else {
+      const x = (h.min * (C + T) - P) / T;
+      const enIyi = (P + 4 * T) / (C + T);
+      if(x <= 1e-9){
+        sag = `<span class="gnook">her durumda ✓</span>`;
+        alt = once + "bu dönemin bütün derslerinden FF alsan bile eşiğin üstünde kalıyorsun.";
+      } else if(x > 4 + 1e-9){
+        sag = `<span class="gnoyok">bu dönem yetmez</span>`;
+        alt = once + `hepsi AA olsa bile ortalama en çok <b class="mono">${enIyi.toFixed(2)}</b>
+          olur — eşiğe birden fazla dönemde çıkılır.`;
+      } else {
+        const harf = HARF_PUAN.find(([, v]) => v + 1e-9 >= x);
+        sag = `<b class="mono">≥ ${(Math.ceil(x * 100 - 1e-6) / 100).toFixed(2)}</b>`;
+        alt = once + `her dersten en az <b class="mono">${harf[0]}</b> alırsan yeter.`;
+      }
+      alt = alt.charAt(0).toUpperCase() + alt.slice(1);
+    }
+    return `<div class="gnosatir" data-taban="${h.taban}">
+      <span><b class="mono">${h.min.toFixed(2)}</b> — ${h.adlar.map(esc).join(" · ")}</span>
+      <span class="gereken">${sag}</span>
+      <span class="gnoalt">${alt}</span></div>`;
+  }).join("");
+  kutu.innerHTML = `<div class="gnohedef">${baslik}${satirlar}
+    <div class="meta gnonot">Tahmin değil, gereken notun hesabı: GNO'n
+      transkriptinden (<span class="mono">${g.value.toFixed(2)}</span>, tahmini).
+      Tekrar aldığın dersin eski notu yerine yenisi sayıldı (İTÜ'de son not
+      geçerli); derslerin harf notlu olduğu varsayıldı.</div>
+  </div>`;
+}
+
 /* Şartlı geçer dersler (DC+…DD) — MADDE 20/2-b.
    ★ İki ayrı soruyu ayrı cümlede tutuyor: ders tamamlandı mı (evet), mezun
    olunabilir mi (genel ortalamaya bağlı). Faz 11'de "şart bilinmiyor"
@@ -5359,6 +5762,8 @@ function wirePicks(){
   if(yukle) yukle.onclick = crnLoadDialog;
   const ics = $("#icsBtn");
   if(ics) ics.onclick = icsIndir;
+  const png = $("#pngBtn");
+  if(png) png.onclick = () => resimIndir().catch(err => hataBildir(png, err));
   const pay = $("#shareBtn");
   if(pay) pay.onclick = paylasDialog;
 }
@@ -5672,6 +6077,120 @@ function icsIndir(){
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   if(saatsiz) alertLine(
     `${saatsiz} dersin saati ilan edilmemiş — takvim dosyasına GİRMEDİ.`);
+}
+
+/* ---------- ★★ FAZ 58 — PROGRAMIN RESMİ (PNG) ----------
+   Ders programı kurucularının (Coursicle, Schedule Builder) en çok
+   paylaşılan çıktısı haftanın resmi; bizde bağlantı ve `.ics` vardı, resim
+   yoktu — öğrenci ekran görüntüsü alıp kırpıyordu (telefonda ızgara zaten
+   gün listesine dönüyor, resim hiç çıkmıyordu).
+   `<canvas>`a tarayıcıda çiziliyor; dış kütüphane yok (gizlilik denetimi
+   dış kaynağı reddediyor), hiçbir yere gönderilmiyor.
+   Renkler SAYFANIN: jetonlar `:root`tan, blok zemini ve yazısı ızgaradaki
+   bloğun HESAPLANMIŞ renginden (ton merdiveni dahil) — resim ekrandaki
+   temayla aynı. ⚠️ İçinde yalnız ders, şube, saat ve bina var; not,
+   transkript, GNO YOK. */
+async function resimIndir(){
+  const ps = picks();
+  if(!ps.length){ alertLine("Programda ders yok — resim çıkarılmadı."); return; }
+  if(document.fonts && document.fonts.ready) await document.fonts.ready;
+  const kok = getComputedStyle(document.documentElement);
+  const j = (ad) => kok.getPropertyValue("--" + ad).trim();
+  const SANS = j("font-sans") || "sans-serif", MONO = j("font-mono") || "monospace";
+  const mesgul = (DATA.busy || []).filter(b => b.ok);
+  const saatli = ps.filter(p => p.sec.meetings.length);
+  const saatsiz = ps.filter(p => !p.sec.meetings.length);
+  const dk = [...saatli.flatMap(p => p.sec.meetings), ...mesgul];
+  const bas = Math.floor(Math.min(...dk.map(m => m.start), 8 * 60 + 30) / 60) * 60;
+  const son = Math.ceil(Math.max(...dk.map(m => m.end), 12 * 60) / 60) * 60;
+  const O = 2, G = 1100, SOL = 56, UST = 92, GUN_UST = 28, DK = 1.1, PAY = 16;
+  const altSatir = (saatsiz.length ? 22 : 0) + 40;
+  const Y = UST + GUN_UST + (son - bas) * DK + altSatir;
+  const tuval = document.createElement("canvas");
+  tuval.width = G * O; tuval.height = Math.ceil(Y) * O;
+  const c = tuval.getContext("2d");
+  c.scale(O, O);
+  c.fillStyle = j("ground"); c.fillRect(0, 0, G, Y);
+  const yaz = (metin, x, y, font, renk, genislik) => {
+    c.font = font; c.fillStyle = renk;
+    let m = String(metin);
+    if(genislik) while(m.length > 1 && c.measureText(m).width > genislik) m = m.slice(0, -2) + "…";
+    c.fillText(m, x, y);
+  };
+  const t = totals();
+  yaz("Haftalık ders programı", PAY, 34, `700 20px ${SANS}`, j("ink"));
+  yaz(`${DATA.termLabel || ""} · ${t.n} ders · ${t.load}${DATA.maxLoad ? " / " + DATA.maxLoad : ""} ${
+      DATA.unitLabel || ""}`, PAY, 58, `400 13px ${SANS}`, j("ink-2"));
+  /* Ad yer tutucudan (bkz. test_ad.py — ad değişince sayfada eski ad kalmasın). */
+  yaz("__AD_TAM__ — CRN'leri kayıttan önce OBS'de doğrula", PAY, 78,
+      `400 11px ${SANS}`, j("ink-3"));
+  const sw = (G - SOL - PAY) / 5;
+  const x0 = (gun) => SOL + (gun - 1) * sw;
+  const y0 = (dak) => UST + GUN_UST + (dak - bas) * DK;
+  c.strokeStyle = j("border"); c.lineWidth = 1;
+  DAYS.forEach((d, i) => yaz(d, x0(i + 1) + 6, UST + 18, `600 12px ${SANS}`, j("ink-2")));
+  for(let m = bas; m <= son; m += 60){
+    c.beginPath(); c.moveTo(SOL, y0(m) + .5); c.lineTo(G - PAY, y0(m) + .5); c.stroke();
+    if(m < son) yaz(hhmm(m), PAY, y0(m) + 12, `400 11px ${MONO}`, j("ink-3"));
+  }
+  for(let d = 1; d <= 6; d++){
+    const x = Math.round(x0(d)) + .5;
+    c.beginPath(); c.moveTo(x, UST + GUN_UST); c.lineTo(x, y0(son)); c.stroke();
+  }
+  const kutu = (x, y, w, h, zemin, serit) => {
+    c.fillStyle = zemin; c.fillRect(x, y, w, h);
+    if(serit){ c.fillStyle = serit; c.fillRect(x, y, 3, h); }
+  };
+  mesgul.forEach(b => {
+    const x = x0(b.day) + 2, y = y0(b.start) + 1, w = sw - 4, h = (b.end - b.start) * DK - 2;
+    kutu(x, y, w, h, j("surface-2"));
+    c.save(); c.beginPath(); c.rect(x, y, w, h); c.clip();
+    c.strokeStyle = j("border");
+    for(let k = -h; k < w; k += 10){ c.beginPath(); c.moveTo(x + k, y + h); c.lineTo(x + k + h, y); c.stroke(); }
+    c.restore();
+    yaz(b.label || "meşgul", x + 8, y + 16, `600 12px ${SANS}`, j("ink-2"), w - 12);
+  });
+  const rolRenk = {ANADAL: "anadal", CAP: "cap", YANDAL: "yandal"};
+  saatli.forEach(p => {
+    const blk = document.querySelector(`#grid .blk[data-course="${CSS.escape(p.cand.course)}"]`);
+    const hs = blk ? getComputedStyle(blk) : null;
+    const rol = rolRenk[p.cand.role];
+    p.sec.meetings.forEach(m => {
+      const x = x0(m.day) + 2, y = y0(m.start) + 1, w = sw - 4, h = (m.end - m.start) * DK - 2;
+      /* Önce jeton (her tarayıcı okur), sonra bloğun hesaplanmış rengi:
+         `color-mix()` sonucunu okuyamayan tarayıcıda atama sessizce
+         düşer ve jeton kalır. */
+      c.fillStyle = rol ? j(rol + "-soft") : j("surface-2");
+      if(hs) c.fillStyle = hs.backgroundColor;
+      const zemin = c.fillStyle;
+      c.fillStyle = rol ? j(rol + "-ink") : j("ink");
+      if(hs) c.fillStyle = hs.color;
+      const yazi = c.fillStyle;
+      kutu(x, y, w, h, zemin, rol ? j(rol) : j("ink-3"));
+      c.save(); c.beginPath(); c.rect(x, y, w, h); c.clip();
+      yaz(p.cand.course, x + 9, y + 16, `700 12px ${MONO}`, yazi, w - 14);
+      if(h > 34) yaz(p.cand.name || "", x + 9, y + 31, `400 11px ${SANS}`, yazi, w - 14);
+      if(h > 50) yaz(`CRN ${p.sec.crn} · ${p.sec.online ? "çevrimiçi" : yerYazi(m.building)}`,
+                     x + 9, y + 46, `400 10px ${MONO}`, yazi, w - 14);
+      c.restore();
+    });
+  });
+  let ay = y0(son) + 24;
+  if(saatsiz.length){
+    yaz(`Saati ilan edilmemiş: ${saatsiz.map(p => p.cand.course + " (CRN " + p.sec.crn + ")").join(", ")}`,
+        PAY, ay, `400 12px ${SANS}`, j("ink-2"), G - 2 * PAY);
+    ay += 22;
+  }
+  yaz(`Oluşturuldu: ${tarihYaz(new Date().toISOString())} · kontenjan ve saatler değişebilir`,
+      PAY, ay, `400 11px ${SANS}`, j("ink-3"));
+  const blob = await new Promise(r => tuval.toBlob(r, "image/png"));
+  if(!blob) throw new Error("tarayıcı resmi oluşturamadı");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "ders-programi.png";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  return {genislik: tuval.width, yukseklik: tuval.height};
 }
 
 /* ---------- paylaşılabilir bağlantı (Faz 25/B4) ----------
@@ -6293,6 +6812,68 @@ function totals(){
 function conflictsWith(section, exceptCourse){
   return picks().filter(p => p.cand.course !== exceptCourse && clash(section, p.sec));
 }
+/* ★★ FAZ 57 — HAFTANIN ŞEKLİ ÖZETTE. Karşılaştırma ekranı (Faz 27) iki
+   önerinin şeklini yan yana koyuyordu ama ELLE düzenlenen programın şekli
+   hiçbir yerde yazmıyordu: bir şube değiştirince "kampüse kaç gün
+   gidiyorum, en uzun boşluğum ne" sorusu ızgarayı saymakla cevaplanıyordu.
+   Kampüs günü = YÜZ YÜZE buluşması olan gün; çevrimiçi şube gün eklemiyor.
+   Ara: aynı gün iki ders arasındaki boşluk (en uzunu, günüyle). */
+function haftaSekli(){
+  const gun = {};
+  picks().forEach(p => {
+    if(p.sec.online) return;
+    p.sec.meetings.forEach(m => (gun[m.day] = gun[m.day] || []).push([m.start, m.end]));
+  });
+  const gunler = Object.keys(gun).map(Number).sort((a, b) => a - b);
+  if(!gunler.length) return "";
+  let ilk = Infinity, son = -Infinity, ara = 0, araGun = 0;
+  gunler.forEach(d => {
+    const s = gun[d].sort((a, b) => a[0] - b[0]);
+    ilk = Math.min(ilk, s[0][0]);
+    let bitis = s[0][1];
+    for(let i = 1; i < s.length; i++){
+      if(s[i][0] - bitis > ara){ ara = s[i][0] - bitis; araGun = d; }
+      bitis = Math.max(bitis, s[i][1]);
+    }
+    son = Math.max(son, bitis);
+  });
+  /* İTÜ saatleri :29'da bitip :30'da başlıyor; ham fark "2 sa 1 dk" yazıyordu.
+     5 dakikaya yuvarlanıyor. */
+  const saat = dk => { dk = Math.round(dk / 5) * 5;
+    return dk % 60 ? (dk >= 60 ? `${Math.floor(dk / 60)} sa ` : "") + `${dk % 60} dk`
+                   : `${dk / 60} sa`; };
+  return `<div class="ozetsekil"><span class="aciklamali" title="Yüz yüze dersin
+    olduğu günler (çevrimiçi şube sayılmıyor)"><b class="mono">${gunler.length}</b>
+    gün kampüste</span> · ${gunler.map(d => DAYS[d - 1]).join(" ")} ·
+    <span class="mono">${hhmm(ilk)}–${hhmm(son)}</span>${ara >= 60
+      ? ` · en uzun ara <span class="mono">${saat(ara)}</span> (${DAYS[araGun - 1]})` : ""}</div>`;
+}
+
+/* ★★ FAZ 57 — DOLU ŞUBEDEN BOŞ ŞUBEYE TEK DOKUNUŞ.
+   Özet "dolu" diyordu, sonra kullanıcı dersin penceresini açıp şubeleri tek
+   tek okuyup doluluğuna ve saatine bakmak zorundaydı. Vitrinde açılış
+   önerisi GEO 331E'yi dolu şubesine (70/70) koyuyor; öbür şubesinde 15 yer
+   var ama GEO 385E ile çakışıyor → "uyan boş şube yok". GEO 385E çıkınca
+   aynı satır tek dokunuşla geçiriyor.
+   Seçilen şube: başka şube, kontenjanı İLAN EDİLMİŞ ve boş yeri olan
+   (bilinmeyen kontenjan "boş" sayılmıyor), programındaki derslerle ve meşgul
+   saatlerinle çakışmayan; birden çoksa en çok boş yeri olan.
+   Geçiş `choose()` ile — geri alınabilir, ızgaradaki değişiklikle aynı yol. */
+function yerSayisi(s){
+  return s && s.capacity
+    ? Math.max(0, typeof s.free === "number" ? s.free : s.capacity - (s.enrolled || 0)) : 0;
+}
+function mesgulCakisir(s){
+  return (DATA.busy || []).filter(b => b.ok).some(b => (s.meetings || []).some(m =>
+    m.day === b.day && m.start < b.end && b.start < m.end));
+}
+function bosSube(course){
+  const cand = candOf(course), cur = sel.find(x => x.course === course);
+  if(!cand || !cur) return null;
+  return cand.sections.filter(s => s.crn !== cur.crn && yerSayisi(s) > 0
+      && !conflictsWith(s, course).length && !mesgulCakisir(s))
+    .sort((a, b) => yerSayisi(b) - yerSayisi(a))[0] || null;
+}
 function poolBlocker(cand, exceptCourse){
   if(!cand.pool) return null;
   return picks().find(p => p.cand.course !== exceptCourse && p.cand.pool &&
@@ -6638,11 +7219,19 @@ function render(){
       aria-label="dönem yükü ${t.load} / ${DATA.maxLoad} ${esc(DATA.unitLabel)}${
         over ? " — sınır aşıldı" : ""}"><i style="width:${(oran * 100).toFixed(0)}%"></i></div>` : ""}
     <div class="ozetsatir">${t.n} ders · <span class="mono">${ikincil}</span></div>
+    ${haftaSekli()}
     ${disKredi ? `<div class="planout">bunun <b class="mono">${disKredi}</b>
       kredisi <b>plan dışı</b> — yüke sayılır, şart doldurmaz</div>` : ""}
-    ${doluSube.length ? `<div class="ozetdolu"><span class="yerdurum dolu">dolu</span>
-      ${doluSube.map(p => `<b class="mono">${esc(p.cand.course)}</b>`).join(", ")}
-      <span class="ozetnot">— başka şubeye bak ya da kontenjanı izle</span></div>` : ""}
+    ${doluSube.length ? `<div class="ozetdolu">${doluSube.map(p => {
+      const b = bosSube(p.cand.course);
+      return `<div class="ozetdolusatir"><span class="yerdurum dolu">dolu</span>
+        <b class="mono">${esc(p.cand.course)}</b>${b
+          ? ` <button class="ghost mini" data-bosa="${esc(p.cand.course)}"
+              data-crn="${esc(b.crn)}">boş şubeye geç</button>
+            <span class="ozetnot">CRN <span class="mono">${esc(b.crn)}</span> ·
+              <span class="mono">${yerSayisi(b)}</span> boş yer · çakışmıyor</span>`
+          : ` <span class="ozetnot">— uyan boş şube yok; kontenjanı izle</span>`}</div>`;
+    }).join("")}</div>` : ""}
     <div class="ozetlejant">
       <span class="dot"><i style="background:var(--anadal)"></i>anadal</span>
       ${SECONDS().map(x => `<span class="dot"><i style="background:var(--${
@@ -6653,10 +7242,13 @@ function render(){
       Öneriler bu sayıya göre sıralanıyor; tek başına bir not değil.">öneri
       puanı</span> <b class="mono">${t.score}</b></div>
     ${tercihNotu()}`;
+  $("#schedSummary").querySelectorAll("[data-bosa]").forEach(b =>
+    b.addEventListener("click", () => choose(b.dataset.bosa, b.dataset.crn)));
   $("#editState").hidden = !edited();
   $("#reset").hidden = !edited();
   renderSaveState();
   renderFloor();
+  renderGnoHedef();          // Faz 57 — seçim değişince gereken ortalama da
   renderArzUyarisi();
   renderDonemUyarisi();
   renderGeri();
@@ -8169,6 +8761,9 @@ const SECTIONS = [
   ["blockSection", "Neden alamıyorum", "PLANLA", "Neden", false],
   ["savedSection", "Kaydettiğim", "PLANLA", "Kayıtlı", true],
   ["panels", "İlerlemem", "DURUM", "İlerlemem", false],
+  /* Faz 57 — mezuniyet yol haritası. Telefonda "Daha" altında: dönemde
+     birkaç kez bakılan bir şey, kayıt haftasının dört işinden biri değil. */
+  ["roadmapSection", "Yol haritası", "DURUM", "Harita", true],
   ["creditSection", "Kredi sınırım", "DURUM", "Kredi", true],
   ["suggestSection", "Sayılan derslerim", "DURUM", "Sayılan", true],
   ["denklikSection", "Denkliği açık", "DURUM", "Denklik", true],
@@ -8294,6 +8889,122 @@ function renderSecNav(){
     m.focus();
   });
 })();
+
+/* ★★ FAZ 57 — MEZUNİYET YOL HARİTASI (`yolharitasi.kur`).
+   Kademeler görünümü "ÇAP en az kaç dönem" diyordu; bu görünüm kalan
+   dersleri dönem dönem yerleştirip her programın tahmini bitişini yazıyor.
+   Asıl işe yarayan satır "bu dönem şunu alırsan": vitrin verisinde öneri 1
+   GEO 341E'yi (Güz dersi, arkasında 2 derslik zincir) çakışma yüzünden
+   dışarıda bırakıyordu ve bu anadalı BİR YIL geciktiriyordu — ekranda
+   hiçbir yerde yazmıyordu.
+   ⚠️ Varsayımlar planın ÜSTÜNDE ve görünür: gelecek dönemlerin arzı
+   bilinmiyor; bilinmeyeni bilinen gibi göstermemenin tek yolu söylemek. */
+function renderRoadmap(){
+  const sec = $("#roadmapSection"), R = DATA.roadmap;
+  if(!sec) return;
+  sec.hidden = !R;
+  if(!R) return;
+  const body = $("#roadmapBody");
+  if(R.error){
+    body.innerHTML = `<div class="note ayarhata">Yol haritası kurulamadı —
+      <span class="mono">${esc(R.error)}</span>. Programın geri kalanı etkilenmedi.</div>`;
+    return;
+  }
+  const rolTag = (r) => r ? `<span class="tag ${r === "ANADAL" || r === "CAP"
+    || r === "YANDAL" ? r : "PLAN_DISI"}">${esc(r === "PLAN_DISI" ? "plan dışı" : r)}</span>` : "";
+  const programlar = (R.programs || []).map(p => {
+    const gec = p.finish && p.nominal ? p.finish.index - p.nominal.index : null;
+    return `<article class="yhprogram" data-role="${esc(p.role)}">
+      <div class="eyebrow">${esc(p.label)}${p.program ? " · " + esc(p.program) : ""}</div>
+      <div class="yhbitis">${p.remaining === 0 ? "tamamlanmış"
+        : (p.finish ? esc(p.finish.label) : "hesaplanamadı")}</div>
+      <div class="yhalt">${p.remaining ? `tahmini bitiş · ${p.remaining} ders,
+        <span class="mono">${p.remainingCredits}</span> kredi kaldı` : "kalan ders yok"}${
+        p.unplaced ? ` · <span class="uyari">${p.unplaced} ders yerleşmedi</span>` : ""}</div>
+      ${gec === null ? "" : (gec > 0
+        ? `<div class="yhgec">planındaki bitişten ${gec} dönem geç
+             (${esc(p.nominal.label)})</div>`
+        : `<div class="yhzamaninda">planındaki bitişle aynı ✓</div>`)}
+    </article>`;
+  }).join("");
+  const simdi = (R.takeNow || []).length ? `<div class="note yhsimdi">
+      <b>Bu dönem fark yaratacak ${R.takeNow.length > 1 ? "dersler" : "ders"}</b>
+      ${R.takeNow.map(x => `<div class="yhsatir"><b class="mono">${esc(x.course)}</b>
+        <span>${esc(x.name)}</span> — bu dönem alırsan ${x.gains.map(g =>
+          `<span>${esc(g.label)} <b>${g.terms} dönem erken</b> biter
+           (${esc(g.finish.label)})</span>`).join(", ")}${x.overLoad ? (x.drop
+          ? ` <span class="uyari">· yük sınırını aşıyor</span> — <b class="mono">${
+              esc(x.drop.course)}</b> çıkarsa ${x.drop.lossTerms
+              ? `kazancın <b>${x.drop.lossTerms} dönemi</b> gidiyor`
+              : "kazanç <b>korunuyor</b>"} (o ders sonraki dönemlere yerleşiyor)`
+          : ` <span class="uyari">· yük sınırını aşıyor; tek bir ders çıkarmak yetmiyor
+              ya da ÇAP tabanını bozuyor</span>`) : ""}
+        <span class="yhdugmeler">${x.drop ? `<button class="ghost mini" data-dene="${esc(x.course)}"
+            data-cikar="${esc(x.drop.course)}">${esc(x.drop.course)} çıkar, dene</button>` : ""}
+        <button class="ghost mini" data-dene="${esc(x.course)}">Programda dene</button></span></div>`).join("")}
+      <div class="meta" style="margin-top:6px">Saat çakışması burada hesaplanmadı —
+        "Programda dene" şubeleri ve çıkarılacak dersi gösteriyor.</div></div>` : "";
+  /* ★★ FAZ 58 — YAZ OKULU. Geçmişte yazın GERÇEKTEN açılmış ders (not
+     dağılımı) ilk yazda alınırsa bitiş değişiyor mu. Düğme yok: yaz okulu
+     bu dönemin programına eklenemez; kararın ne kazandırdığını söylüyoruz. */
+  const yaz = (R.summerGains || []).length ? `<div class="note yhyaz">
+      <b>Yaz okulu fırsatı</b>
+      ${R.summerGains.map(x => `<div class="yhsatir"><b class="mono">${esc(x.course)}</b>
+        <span>${esc(x.name)}</span> — ${x.history.map(h => `${esc(h.label)}'da açıldı
+          (<span class="mono">${h.n}</span> öğrenci)`).join(", ")}; <b>${esc(x.term)}</b>
+        alırsan ${x.gains.map(g => `${esc(g.label)} <b>${g.terms} dönem erken</b> biter
+          (${esc(g.finish.label)})`).join(", ")}</div>`).join("")}
+      <div class="meta" style="margin-top:6px">Geçen yaz açılması bu yaz açılacağı
+        demek değil; yaz okulunun ücreti, kontenjanı ve kredi sınırı bu hesapta yok.</div>
+    </div>` : "";
+  const varsayim = `<div class="note yhvarsayim"><b>Bu bir plan, kehanet değil.</b>
+      Şunlar varsayıldı:<ul>${(R.assumptions || []).map(a => `<li>${esc(a)}</li>`).join("")}</ul></div>`;
+  const zincir = (R.longest || []).length > 1 ? `<div class="yhzincir">En uzun önşart
+      zinciri: ${R.longest.map(c => `<b class="mono">${esc(c)}</b>`).join(" → ")} —
+      bu zincir en az <b>${R.longest.length} dönem</b> sürüyor.</div>` : "";
+  const donemler = `<div class="yhdonemler">${(R.terms || []).map(t => `
+    <section class="yhdonem${t.current ? " simdi" : ""}${t.summer ? " yaz" : ""}${
+      t.items.length ? "" : " bos"}">
+      <h3><span>${esc(t.label)}</span>${t.current
+        ? '<span class="chip credit">bu dönem</span>'
+        : t.summer ? '<span class="chip">yaz okulu</span>' : ""}</h3>
+      <div class="yhkredi"><span class="mono">${t.credits}</span> kredi${
+        t.current ? ` · ${esc(R.source || "")}` : ""}</div>
+      ${t.floorGap ? `<div class="yhuyari">ÇAP yarıyıl tabanına
+        <span class="mono">${t.floorGap}</span> kredi eksik — o dönem alınabilir
+        yeterli ÇAP dersi yok</div>` : ""}
+      ${t.items.length ? `<ul>${t.items.map(i => `<li>
+          <b class="mono">${esc(i.course || i.pool)}</b>${(i.roles || []).map(rolTag).join("")}
+          <span class="mono" style="color:var(--ink-3)"> · ${i.credits} kr</span>
+          ${i.course && i.name ? `<span class="yhad">${esc(i.name)}</span>` : ""}
+          ${i.pool ? `<span class="yhad">seçmeli havuz — hangi ders olacağı senin seçimin</span>` : ""}
+          ${!t.current && i.course && !i.season && !i.seasonSource ? `<span class="yhad uyari"
+            title="Hiçbir planda ve geçmiş dağılımda bulunamadı — her dönem açılır sayıldı"
+            >mevsimi bilinmiyor</span>` : ""}
+          ${i.seasonSource === "gecmis" ? `<span class="yhad"
+            title="Planlarda yok; geçmiş not dağılımında gerçek sınıfın olduğu yarıyıl"
+            >mevsimi geçmiş dönemlerden</span>` : ""}
+          ${i.alsoSeasonSource === "gecmis" ? `<span class="yhad"
+            title="Plan başka mevsim diyor; geçmişte bu mevsimde de gerçek bir sınıf vardı"
+            >geçmişte ${i.alsoSeason === "10" ? "Güz'de" : "Bahar'da"} da verildi</span>` : ""}
+          ${i.unparsed ? `<span class="yhad uyari">önşartı okunamadı — danışmanına sor</span>` : ""}
+        </li>`).join("")}</ul>`
+        : `<div class="empty">Bu dönem yerleşen ders yok — bekleyenler bu mevsimde
+            açılmıyor ya da önşartları henüz bitmiyor.</div>`}
+    </section>`).join("")}</div>`;
+  const kalan = (R.unplaced || []).length ? `<div class="note" style="margin-top:14px">
+      <b>${R.unplaced.length} ders yerleşmedi</b> — bitiş bu yüzden hesaplanamadı:
+      ${R.unplaced.map(u => `<div><b class="mono">${esc(u.course || u.pool)}</b>
+        <span class="meta">${esc(u.reason)}</span></div>`).join("")}</div>` : "";
+  body.innerHTML = `<div class="yhprogramlar">${programlar}</div>${simdi}${yaz}${varsayim}${zincir}${donemler}${kalan}`;
+  body.querySelectorAll("[data-dene]").forEach(b => b.addEventListener("click", () => {
+    gorunumAc("schedSection", true);
+    /* Çıkarma önerisi: önce çıkar (geri alınabilir), sonra şube seçimi. */
+    if(b.dataset.cikar && sel.some(x => x.course === b.dataset.cikar))
+      removeCourse(b.dataset.cikar);
+    addDialog(b.dataset.dene);
+  }));
+}
 
 /* ★★ Sayfa içi bölüm bağlantıları da GÖRÜNÜM AÇAR (Faz 46).
    Metin içinde "Darboğaz bölümünde ayrıntı" gibi bağlantılar var; eskiden
@@ -8743,6 +9454,7 @@ function boot(onceki){
   renderSonraki();
   renderBasvuru();
   renderTiers();
+  renderRoadmap();
   if(!onceki){
     useMode(0);
   }else{
@@ -8778,9 +9490,16 @@ function seciliGeriKoy(onceki){
 
    Üç pencere de (`detail`, `setup`, `basvuruDlg`) kipli `<dialog>`: arka
    plan tıklamayı yutuyordu, kapatmanın tek yolu "Kapat" ya da Esc idi.
-   Artık perdeye tıklamak pencereyi kapatıyor VE tıklama altındaki yere
-   geçiyor — raydaki "Alabileceğim dersler"e tıklayan oraya gidiyor,
-   ızgaradaki başka derse tıklayan onun penceresini açıyor.
+   Artık perdeye tıklamak pencereyi kapatıyor.
+
+   ★★ FAZ 57 — TIKLAMA ARTIK ALTINA GEÇMİYOR (kullanıcı 23.09.2026: *"when a
+   window opens and to close mouse is clicked out of the window just close
+   the window do not interact with background"*). Faz 55'te dış tıklama
+   pencereyi kapatıp ALTINDAKİ öğeye de iletiliyordu (ray bağlantısı,
+   ızgaradaki başka ders). Pratikte kapatmak için tıklanan yer çoğu zaman
+   rastgele bir yerdi: pencere kapanırken ızgarada başka bir dersin
+   penceresi açılıyor ya da görünüm değişiyordu — kullanıcı yalnız kapatmak
+   istemişti. Dış tıklamanın TEK işi artık kapatmak; olay orada duruyor.
 
    ⚠️ Üç tuzak, üçü de ölçüldü:
    · Pencere İÇİNDE başlayıp DIŞINDA biten sürükleme (kutudaki metni
@@ -8824,14 +9543,11 @@ let SETUP_KIRLI = false;
             + "Bırakmak için dışarıya bir kez daha tıkla ya da Kapat.", true);
         return;
       }
+      /* Faz 57 — yalnız kapat. Olay burada duruyor: belge düzeyindeki
+         dinleyiciler (sayfa içi bağlantı, açıklamaya dokunma) onu görmesin. */
+      e.preventDefault();
+      e.stopPropagation();
       d.close();
-      /* Tıklama altındaki yere geçsin. Kapandıktan SONRA bakılıyor: açıkken
-         noktadaki öğe perde. */
-      const alt = document.elementFromPoint(e.clientX, e.clientY);
-      if(!alt || alt.closest("dialog[open]")) return;
-      if(alt.matches("input, textarea, select")) alt.focus();
-      alt.dispatchEvent(new MouseEvent("click", {bubbles: true, cancelable: true,
-        view: window, clientX: e.clientX, clientY: e.clientY}));
     });
   });
 })();

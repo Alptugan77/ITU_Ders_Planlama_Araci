@@ -1,5 +1,19 @@
 # Kalan eksikler ve geliştirilmesi gerekenler
 
+> **Faz 58'de kapananlar (24.09.2026):** Y.2 mevsim geçmişten ✅ (bütünlemeci
+> tuzağına eşikle) · Y.3 yaz okulu "ya yazın alsaydım" ✅ · Y.4 hangi ders
+> çıksın ✅ (ÇAP tabanını bozan öneri yok) · Y.5 programın resmi ✅ · Y.6
+> ÇAP ortalaması için GNO hedefi ✅. Açık kalan: Y.1, Y.7, Y.8.
+> Ayrıntı: `docs/faz58-gecmis-ve-yaz-okulu.md`.
+
+> **Faz 57'de kapananlar (23.09.2026):** ★★ §2.1 **çok dönemli plan** —
+> mezuniyet yol haritası ve "bu dönem şunu alırsan" ✅ · F.2'nin önerisi
+> (kampüs tercihinin veri kapsamı tercih ekranında) ✅ · GNO hedefi ✅ ·
+> dolu şubeden boş şubeye tek dokunuş ✅ · özette haftanın şekli ✅ —
+> ve yolda: vitrin öğrencisinin **hiç mevzuatı yoktu**, çevrimiçi şube
+> kampüs değişimi sayılıyordu. Benzer araçlarla karşılaştırma ve kalanlar
+> aşağıda "Faz 57 araştırması". Ayrıntı: `docs/faz57-yol-haritasi.md`.
+
 > **Faz 37'de kapananlar (02.09.2026):** §1.3 `class_restr` ölçümü ✅ ·
 > §3.5 "tercih karşılanamıyorsa ne bırakmalı" ✅ · F.2 yeniden ölçüldü ✅
 > — ve ölçüm sırasında **yeni bir kör nokta** çıktı: katalogdaki kredi
@@ -93,11 +107,16 @@ değerleri sınıf değil **kredi tabanı**, ve motor onları hiç okumuyordu.
 
 ## 2. Motorun sıçraması (eski liste, hâlâ geçerli)
 
-### 2.1 Çok dönemli plan · **L**
-Araç **bu dönemi** planlıyor. "ÇAP kaç dönemde biter" sorusuna kademe
+### 2.1 ~~Çok dönemli plan~~ · ✅ **Faz 57'de kapandı**
+`src/itucap/yolharitasi.py` + "Yol haritası" görünümü. Arz belirsizliği
+gizlenmedi: varsayımlar planın ÜSTÜNDE yazıyor, mevsimi bilinmeyen ders
+sayısı dahil. Kalan: yaz okulu (§2.3) ve mevsimin veriden öğrenilmesi
+(aşağıda Y.2).
+
+~~Araç **bu dönemi** planlıyor. "ÇAP kaç dönemde biter" sorusuna kademe
 sayısıyla bir *alt sınır* veriyor ama bir *plan* vermiyor.
 ⚠️ Arz belirsizliği belirleyici: 14 ÇAP dersinden 11'i arz sorunlu. Plan
-veriden çok varsayıma dayanacak; bunu gizlememek gerek.
+veriden çok varsayıma dayanacak; bunu gizlememek gerek.~~
 
 ### 2.2 ~~Tercih ağırlıkları~~ · ✅ **Faz 27'de kapandı**
 ★★ İlk denemem çalışmadı ve bu öğreticiydi: tercihi ayrı bir sıralama
@@ -151,6 +170,71 @@ günlük otomatik release, siteyi kendiliğinden tazelerdi.
 
 ---
 
+## Faz 57 araştırması — benzer araçlarda olup bizde olmayanlar
+
+23.09.2026. Derece denetimi / planlama yazılımları (Degree Works, Stellic)
+ve ders programı kurucuları (Coursicle, Schedule Builder) ile
+karşılaştırıldı. Bizde zaten olanlar: kontenjan nöbeti, meşgul saat,
+program karşılaştırma, yedek plan, paylaşım bağlantısı, `.ics`, önşart ve
+kademe analizi. Faz 57'de kapanan: çok dönemli plan + "şunu alırsan"
+(onların "what-if" + "graduation timeline"ı), GNO hedefi.
+
+### Y.1 ★★ "Ya ÇAP'ı şu bölümde yapsaydım?" · **M**
+Derece planlayıcılarının en çok kullanılan özelliği: program değiştirmeden
+önce bitiş tarihini görmek. Elimizde her şey var — `yolharitasi.kur`
+herhangi bir plan listesiyle çalışıyor, ÇAP başvuru bölümü aday programları
+zaten listeliyor. **Ne:** başvuru satırına "bu programla tahmini bitiş".
+⚠️ Kabul edilmemiş programın ÇAP planı başlangıç yarıyılına bağlı; hangi
+yarıyıl varsayıldığı yazmalı.
+
+### Y.2 ~~Mevsimi veriden öğren~~ · ✅ **Faz 58'de kapandı**
+Eşik yıl içinde: ≥5 öğrenci ve o yılın en kalabalık yarıyılının ¼'ü
+(bütünlemeci ayıklansın). Vitrinde ÇAP bitişi bir dönem geç — ama doğru.
+
+~~**S**~~
+Yol haritası mevsimi plan paritesinden okuyor; vitrinde 6 ÇAP dersinin
+mevsimi hiçbir planda yok ve "her dönem açılır" sayılıyor. Not dağılımı
+(Faz 38) dersin **hangi dönemlerde verildiğini** taşıyor. **Ne:** son iki
+yılda yalnız Güz'de verilmiş dersi Güz dersi say, kaynağını ("geçmiş
+dönemler") yaz. ⚠️ "Geçen yıl açıldı" ≠ "bu yıl açılacak" — varsayım
+kutusuna girmeli.
+
+### Y.3 ~~Yaz okulu yol haritasında~~ · ✅ **Faz 58'de kapandı** (tek ders)
+Kalan: iki dersin birlikte yazda alınması ve yaz okulu kredi sınırı
+(mevzuattan doğrulanmadı).
+
+~~**M**~~
+§2.3'ün yol haritasına bağlanması: alttan kalan dersi yaza koymak bir
+dönem kazandırıyorsa söyle. Not dağılımı yaz dönemlerini (`…30`) veriyor.
+
+### Y.4 ~~"Programda dene" hangi dersi çıkaracağını önersin~~ · ✅ **Faz 58'de kapandı**
+Bugün "yük sınırını aşıyor, bir dersi çıkarman gerekir" diyor.
+`Schedule.pref_relief()`'in yaptığının aynısı: bitişi GECİKTİRMEYEN en
+ucuz çıkarma — yol haritası bunu ölçebiliyor (her aday için yeniden kur).
+
+### Y.5 ~~Programı görsel olarak paylaş (PNG)~~ · ✅ **Faz 58'de kapandı**
+Coursicle ve Schedule Builder'da var. Bizde bağlantı ve
+`.ics` var, görsel yok. Tarayıcıda `<canvas>`'a ızgarayı çizmek yeter;
+dış kütüphane gerekmez (gizlilik denetimi dış kaynağı reddediyor).
+
+### Y.6 ~~ÇAP'ın kendi ortalaması için GNO hedefi~~ · ✅ **Faz 58'de kapandı**
+"ÇAP mezuniyeti — ikinci anadal ortalaması ≥ 2.00" eşiği GNO hedefinde
+yok (ekranda yazıyor). `_threshold_info` o ortalamayı zaten hesaplıyor;
+yalnız ÇAP planındaki dersler üzerinden aynı formül.
+
+### Y.7 Azami öğrenim süresi uyarısı · **S (önce mevzuat)**
+Yol haritasının bitişi yönetmelikteki azami süreyi aşıyorsa söylemeli.
+⚠️ Sayıyı **tahmin etme**: önce yönetmelikten madde bulunup
+`kurallar.toml`'a `dogrulandi` ile beyan edilmeli.
+
+### Y.8 Kayıt günü çevrimdışı · **M**
+Statik site kayıt günü OBS yavaşken de açılmalı: bir service worker son
+katalog dosyasını ve sayfayı önbelleğe alabilir. ⚠️ Önbellekteki kontenjan
+eski — "veri yaşı" (Faz 25) zaten yazıyor, çevrimdışıyken daha görünür
+olmalı.
+
+---
+
 ## Yapmamayı önerdiklerim (değişmedi)
 
 Projenin ana kuralıyla çelişiyorlar: **bilinmeyeni bilinen gibi
@@ -161,7 +245,7 @@ göstermemek.**
 | ~~"Bu dersin ortalaması AA" / geçme oranı~~ | ✅ **Faz 38'de yapıldı** — gerekçe ("veri yok") düştü: kullanıcı 02.09.2026'da `obs.itu.edu.tr/public/DersNotDagilimi`'yi hatırlattı. Veri herkese açık, tokensiz ve yaz dönemi dahil. **Ama puanlamaya girmiyor** (aşağıdaki satıra bak) |
 | **Yeni:** not dağılımını öneri puanına katmak | Aracı "kolay ders bulucu"ya çevirirdi. Hangi dersin zorluğuna değdiği öğrencinin değer yargısı; motor onu yerine veremez. Gösteriyoruz, karar vermiyoruz |
 | Hoca puanı / yorumu | Kaynak yok; olsa da kişiselleştirilmiş bir iddia olurdu. ⚠️ Faz 38'den sonra da geçerli: not dağılımı **ders** düzeyinde yayınlanıyor, hoca kırılımı YOK. Şubenin hocasıyla dersin dağılımını yan yana koymak, veride olmayan bir nedensellik iddia etmek olurdu |
-| "GNO'n şu kadar olur" tahmini | Alacağı nottan bağımsız bir sayı üretmek olurdu |
+| "GNO'n şu kadar olur" tahmini | Alacağı nottan bağımsız bir sayı üretmek olurdu. ⚠️ Faz 57'nin **GNO hedefi** bunun tersi ve bu satırla çelişmiyor: "2.50'de kalmak için bu dönem en az şu ortalama" — alacağın notun eşiği, tahmin değil |
 | Otomatik OBS kaydı | Baştan beri sınır: araç senin yerine kayıt YAPMAZ |
 | Kredi aralığını tek sayıya indirmek | Faz 23'te bilerek reddedildi |
 | Yarıyıl tabanını "indirimli" varsaymak | Yönerge "düşürülebilir" diyor: talep + koordinatör + FYK |
@@ -196,6 +280,10 @@ yarısı yersiz kalacak ve "kampüs değişimi" tercihi de o kadar veriyle
 ★ **Faz 37 ölçümü: 1542/3630 = %42.5 — bir hafta sonra DEĞİŞMEMİŞ.** Kalıcı
 görünüyor. "Kampüs değişimi" tercihinin verisinin yarısı yok demektir; bunu
 tercih ekranında yazmak gerekebilir.
+
+✅ **Faz 57:** tercih penceresinde, öğrencinin kendi adaylarında sayılarak
+yazıyor ("N yüz yüze ders saatinin K tanesinde bina/kampüs ilan
+edilmemiş"). Oranın kayıt haftasında yeniden ölçülmesi hâlâ açık.
 
 ### F.3 Kayıt 6,9 saniye sürüyor · **M**
 ÇAP + yandal birlikte kaydedilince sunucu **her şeyi** baştan hesaplıyor.

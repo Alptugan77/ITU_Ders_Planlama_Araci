@@ -62,6 +62,11 @@ CIFTLER = [
     ("yandal-ink", "ground", YAZI_TABANI, "çevrimiçi yandal bloğu"),
     ("yandal-ink", "yandal-soft", YAZI_TABANI, "yandal bloğu yazısı"),
     ("ground", "seal",      YAZI_TABANI, "seçili sekmede yazı (ters)"),
+    # Faz 57 — yol haritası: dönem kartı surface-2, "bu dönem" kartı seal-soft.
+    ("warn",   "surface-2", YAZI_TABANI, "dönem kartında uyarı"),
+    ("warn",   "seal-soft", YAZI_TABANI, "bu dönem kartında uyarı"),
+    ("ink-3",  "seal-soft", YAZI_TABANI, "bu dönem kartında ders adı"),
+    ("anadal", "surface",   YAZI_TABANI, "\"planındaki bitişle aynı ✓\" (--ok = --anadal)"),
     # Kenar ve halka — 3:1
     ("border-strong", "ground",  KENAR_TABANI, "cetvel, tablo çizgisi"),
     ("border-strong", "surface", KENAR_TABANI, "kart kenarı"),
