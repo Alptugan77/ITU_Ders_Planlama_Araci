@@ -266,7 +266,9 @@ def test_karsilastirma_ORTAK_dersleri_ayikliyor(dbs):
 
 def test_karsilastirma_TEK_oneride_gosterilmiyor(dbs):
     html = UI.render(_collect(dbs))
-    assert "M().schedules.length > 1" in html
+    # Faz 78: sütunlar öneriler + ızgara + kaydedilen + alternatifler; aynı
+    # program tek sütun. Karşılaştırılacak ikinci program yoksa sekme yok.
+    assert "if(karsilastirmaSutunlari().length > 1)" in html
 
 
 # ================================================== 6. yazdırma §3.2

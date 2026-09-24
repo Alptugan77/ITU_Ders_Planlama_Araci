@@ -311,7 +311,7 @@ def _threshold_info(con: sqlite3.Connection, ucon: sqlite3.Connection,
     """
     graded = S.graded(ucon, student_id)
     uncertain = S.uncertain_grades(ucon, student_id)
-    kapsamlar = ([(s["kind"], s["label"], s["planId"]) for s in seconds]
+    kapsamlar = ([(s["kind"], s["label"], s.get("planId")) for s in seconds]
                  or [("genel", "", None)])
 
     # ★ 4. incelik (23.08.2026): ÇAP ve yandal AYNI ANDA olabiliyor ve
@@ -332,6 +332,14 @@ def _threshold_info(con: sqlite3.Connection, ucon: sqlite3.Connection,
                     second_gpa = g2
 
         for t in POL.load_thresholds(program=scope):
+            # ★★ Faz 79 — İKİNCİ PROGRAMI OLMAYAN öğrenci. "genel" kapsam
+            # `applies_to` ile BÜTÜN eşikleri alıyordu: gerçek sitede ÇAP'sız
+            # 7. yarıyıl öğrencisi "ÇAP'a devam ≥ 2.50 ✗", "ÇAP mezuniyeti ✗"
+            # görüyor, danışman özeti ona dört ÇAP sorusu yazıyordu. Kayıtlı
+            # olmadığı programın DEVAM ve MEZUNİYET eşiği ona uygulanmaz;
+            # BAŞVURU eşiği ise bir seçenek olarak kalıyor.
+            if scope == "genel" and t.program not in ("genel", "") and t.kind != "basvuru":
+                continue
             if t.key in gorulen:
                 # İki kapsamda da çıkan eşik GENEL bir kuraldır (ör. mezuniyet
                 # GNO 2.00). İki kez göstermek, iki ayrı şart varmış izlenimi
@@ -875,7 +883,9 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         "partial": gpa.partial,
         "noCredit": gpa.skipped_no_credit, "notGraded": gpa.skipped_not_graded,
         "uncertain": gpa.uncertain, "conditional": gpa.conditional,
-        "thresholds": _threshold_info(con, ucon, student_id, gpa, seconds),
+        # Faz 79 — planı bulunamayan ama BEYAN edilen ikinci program da kapsam:
+        # ÇAP öğrencisinin ÇAP eşikleri planı çekilmemiş diye kaybolmasın.
+        "thresholds": _threshold_info(con, ucon, student_id, gpa, seconds + plansiz),
         "points": gpa.points,
         "retake": _tekrar_notlari(con, S.graded(ucon, student_id),
                                   {c.course for c in [*cands, *term_cands]}),
@@ -1541,13 +1551,25 @@ def _harita_girdisi(con, ucon, student_id: int, settings, bu_donem, max_load) ->
     grades = S.grades(ucon, student_id)
     if _transkript_eksik(int(settings.donem or 0), grades):
         raise ValueError("başarılan dersler girilmediği için bitiş tahmini yapılamıyor")
+
+    def _slot(x):
+        # ★★ Faz 79 — seçmeli dersin doldurduğu HAVUZ YUVASI. Eskiden 0'a
+        # sabitti: sayfadaki harita yuvayı biliyordu (`_yol_haritasi`), istek
+        # üzerine kurulanlar bilmiyordu → bu dönem alınan seçmelinin yuvası
+        # BOŞ sayılıp ileri bir döneme bir ders daha konuyordu. Gerçek sitede
+        # (ENDE, 3 seçmeli): kalma riskinin tabanı 2027-2028 Bahar, sayfadaki
+        # harita 2027-2028 Güz — aynı program için iki bitiş.
+        try:
+            return max(0, int(x.get("slotId") or 0))
+        except (TypeError, ValueError):
+            return 0
     return {
         "anadal_id": anadal_id, "term": term, "max_load": max_load,
         "grades": grades,
         "equivalences": R.load_equivalences(con, ucon=ucon),
         "donem": int(settings.donem or 0),
         "bu": [{"course": str(x.get("course") or ""), "credits": float(x.get("credits") or 0),
-                "slotId": 0, "role": str(x.get("role") or "")}
+                "slotId": _slot(x), "role": str(x.get("role") or "")}
                for x in (bu_donem or [])[:20] if x.get("course")],
         "anadal": {"planId": anadal_id, "role": "ANADAL", "label": "anadal",
                    "program": settings.anadal_program},
@@ -6122,7 +6144,7 @@ function renderNotSenaryo(odak){
 let KALMA = null;          // {anahtar, veri, hata, yukleniyor}
 function kalmaGirdi(){
   return {bu: picks().map(p => ({course: p.cand.course, credits: p.cand.credits,
-                                 role: p.cand.role})),
+                                 role: p.cand.role, slotId: p.cand.slotId || 0})),
           maxLoad: (DATA.roadmap || {}).maxLoad};
 }
 function kalmaAnahtari(){
@@ -6640,7 +6662,8 @@ function renderAlternatifler(){
   if(!alts.length){ kutu.innerHTML = ""; return; }
   const simdi = currentKey();
   kutu.innerHTML = `<div class="altbaslik"><h3>Alternatif programlar</h3>
-      <span class="meta">${alts.length} / ${DATA.alternativesMax || alts.length}</span></div>
+      <span class="meta">${alts.length} / ${DATA.alternativesMax || alts.length}</span>
+      <button class="ghost mini" id="altKarsilastir">Yan yana karşılaştır</button></div>
     ${alts.map((a, i) => {
       const o = altOzet(a.picks);
       const when = (a.savedAt || "").replace("T", " ").slice(0, 16);
@@ -6660,6 +6683,8 @@ function renderAlternatifler(){
           ${LIVE ? `<button class="ghost mini" data-altsil="${i}">Sil</button>` : ""}</div>
       </div>`;
     }).join("")}`;
+  const kk = $("#altKarsilastir");
+  if(kk) kk.addEventListener("click", karsilastirDialog);
   kutu.querySelectorAll("[data-altyukle]").forEach(b =>
     b.addEventListener("click", () => altYukle(alts[+b.dataset.altyukle])));
   kutu.querySelectorAll("[data-altcrn]").forEach(b => b.addEventListener("click", () => {
@@ -8200,7 +8225,7 @@ function renderTabs(){
   }).join("") || oneriYok();
   /* ★ Faz 27 — yan yana karşılaştırma. Sekmeler arasında geçiş vardı ama
      farkı görmek için ızgarayı iki kez ezberlemek gerekiyordu. */
-  if(M().schedules.length > 1)
+  if(karsilastirmaSutunlari().length > 1)         // Faz 78 — alternatifler de sayılıyor
     $("#tabs").innerHTML += `<button class="tab" id="karsilastir">Karşılaştır</button>`;
   $("#tabs").querySelectorAll(".tab[data-i]").forEach(b =>
     b.addEventListener("click", () => { active = +b.dataset.i; resetTo(active); }));
@@ -8297,68 +8322,140 @@ function oneriFarki(s, i){
    günler dolu, ne zaman başlıyor, kaç boş gün, arada ne kadar bekleme.
    Ders kodlarını üç kolonda dökmek, farkı bulmayı yine kullanıcıya
    bırakırdı — o zaten sekmelerde yapabiliyordu. */
+/* ★★ FAZ 78 — KARŞILAŞTIRMA HER PROGRAMI KAPSIYOR.
+   Karşılaştırma yalnız motorun önerilerini yan yana koyuyordu; öğrencinin
+   elle düzenlediği ızgara, kaydettiği program ve alternatifleri (Faz 77)
+   dışarıdaydı — "Plan B mi Plan C mi" sorusu iki sekmeyi ezberlemek
+   demekti. Artık her sütun AYNI işlevle ölçülüyor (`programOlcu`): şekil
+   tanımı sunucunun `_program_sekli` ve `campus_changes`iyle aynı (test
+   öneriler için ikisini karşılaştırıyor). Aynı programın iki adı varsa
+   (ör. kaydedilen = Öneri 1) tek sütun, iki ad. */
+function programOlcu(liste){
+  const hits = liste.map(p => ({p, hit: findSection(p.course, p.crn)})).filter(x => x.hit);
+  const gunler = {};
+  let online = 0, saatsiz = 0;
+  hits.forEach(({hit}) => {
+    if(hit.sec.online) online++;
+    if(!(hit.sec.meetings || []).length) saatsiz++;
+    (hit.sec.meetings || []).forEach(m => (gunler[m.day] = gunler[m.day] || []).push([m.start, m.end]));
+  });
+  const gun = Object.keys(gunler).map(Number).sort((a, b) => a - b);
+  const hepsi = gun.flatMap(d => gunler[d]);
+  let bekleme = 0;
+  gun.forEach(d => {
+    const s = gunler[d].slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    for(let i = 1; i < s.length; i++) bekleme += Math.max(0, s[i][0] - s[i - 1][1]);
+  });
+  let kampus = 0;
+  const kgun = {};
+  hits.forEach(({hit}) => { if(hit.sec.online) return;
+    (hit.sec.meetings || []).forEach(m => (kgun[m.day] = kgun[m.day] || []).push([m.start, m.campus])); });
+  Object.values(kgun).forEach(s => { s.sort((a, b) => a[0] - b[0]);
+    for(let i = 1; i < s.length; i++) if(s[i - 1][1] && s[i][1] && s[i - 1][1] !== s[i][1]) kampus++; });
+  const carpisan = [];
+  hits.forEach((a, i) => hits.slice(i + 1).forEach(b => {
+    if(clash(a.hit.sec, b.hit.sec)) carpisan.push(`${a.p.course} ↔ ${b.p.course}`); }));
+  return {
+    courses: liste.map(p => p.course), eksik: liste.length - hits.length,
+    credits: +hits.reduce((a, x) => a + (x.hit.cand.credits || 0), 0).toFixed(1),
+    score: +hits.reduce((a, x) => a + (x.hit.cand.score || 0), 0).toFixed(1),
+    shape: {days: gun, freeDays: [1, 2, 3, 4, 5].filter(g => !gun.includes(g)),
+            earliest: hepsi.length ? Math.min(...hepsi.map(x => x[0])) : null,
+            latest: hepsi.length ? Math.max(...hepsi.map(x => x[1])) : null,
+            online, timeless: saatsiz, gaps: bekleme},
+    campusChanges: kampus, carpisan,
+    dolu: hits.filter(x => x.hit.sec.capacity && yerSayisi(x.hit.sec) === 0).map(x => x.p.course),
+  };
+}
+function karsilastirmaSutunlari(){
+  const sutun = [];
+  const ekle = (ad, liste, tur, veri) => {
+    const k = programAnahtari(liste);
+    const var_ = sutun.find(s => s.anahtar === k);
+    if(var_){ var_.adlar.push(ad); return; }
+    sutun.push({adlar: [ad], anahtar: k, liste, tur, veri, olcu: programOlcu(liste)});
+  };
+  M().schedules.forEach((s, i) => ekle(`Öneri ${i + 1}`,
+    s.picks.map(p => ({course: p.course, crn: p.section.crn})), "oneri", {i, s}));
+  if(sel.length) ekle("Izgaradaki", sel.slice(), "izgara", null);
+  const kay = (DATA.savedPicks && DATA.savedPicks.picks) || [];
+  if(kay.length) ekle("Kaydedilen", kay, "program", {name: "Kaydedilen", picks: kay});
+  (DATA.alternatives || []).forEach(a => ekle(a.name, a.picks, "program", a));
+  return sutun;
+}
 function karsilastirDialog(){
-  const list = M().schedules;
-  if(list.length < 2){ openDialog(`<div class="empty">Yalnızca bir öneri bulunmaktadır.</div>`); return; }
-  const dersKumeleri = list.map(s => new Set(s.picks.map(p => p.course)));
+  const list = karsilastirmaSutunlari();
+  if(list.length < 2){ openDialog(`<div class="empty">Karşılaştırılacak ikinci bir program
+    bulunmamaktadır.</div>`); return; }
+  const simdi = currentKey();
+  const dersKumeleri = list.map(s => new Set(s.olcu.courses));
   /* Hepsinde ortak olan dersler farkı GÖSTERMİYOR; ayıklanınca tabloda
      yalnız gerçekten değişen dersler kalıyor. */
   const ortak = [...dersKumeleri[0]].filter(c => dersKumeleri.every(k => k.has(c)));
+  const secili = (s) => s.anahtar === simdi;
   const satir = (baslik, hucre, ipucu) => `<tr>
     <th${ipucu ? ` title="${esc(ipucu)}"` : ""}>${baslik}</th>
-    ${list.map((s, i) => `<td class="${i === active ? "secili" : ""}">${hucre(s, i)}</td>`).join("")}
+    ${list.map((s, i) => `<td class="${secili(s) ? "secili" : ""}">${hucre(s.olcu, s, i)}</td>`).join("")}
   </tr>`;
   const dk = (m) => m === null || m === undefined ? "—"
     : `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
   openDialog(`
     <div class="eyebrow">Karşılaştırma</div>
-    <h2 style="margin-bottom:4px">Öneriler yan yana</h2>
-    <p class="modenote" style="margin:2px 0 10px">${ortak.length
-      ? `<b class="mono">${ortak.length}</b> ders tüm önerilerde ortaktır; aşağıda
+    <h2 style="margin-bottom:4px">Programlar yan yana</h2>
+    <p class="modenote" style="margin:2px 0 10px">Öneriler, ızgaradaki program,
+      kaydedilen program ve alternatifler aynı ölçüyle karşılaştırılır. ${ortak.length
+      ? `<b class="mono">${ortak.length}</b> ders tüm programlarda ortaktır; aşağıda
          yalnızca <b>farklılıklar</b> gösterilmektedir.`
-      : "Önerilerin ortak dersi bulunmamaktadır."}</p>
+      : "Programların ortak dersi bulunmamaktadır."}</p>
     <div class="scroll"><table class="cmp">
-      <thead><tr><th></th>${list.map((s, i) =>
-        `<th class="${i === active ? "secili" : ""}">Öneri ${i + 1}</th>`).join("")}</tr></thead>
+      <thead><tr><th></th>${list.map(s =>
+        `<th class="${secili(s) ? "secili" : ""}">${s.adlar.map(esc).join(" = ")}</th>`).join("")}</tr></thead>
       <tbody>
-        ${satir("Kredi", s => `<b class="mono">${s.credits}</b>`)}
-        ${satir("Ders", s => `<b class="mono">${s.picks.length}</b>`)}
-        ${satir("Puan", s => `<b class="mono">${s.score}</b>${
-          s.prefDelta ? `<div class="meta ${s.prefDelta < 0 ? "eksi" : "arti"}">
-            tercih ${s.prefDelta > 0 ? "+" : ""}${s.prefDelta}</div>` : ""}`,
+        ${satir("Kredi", o => `<b class="mono">${o.credits}</b>`)}
+        ${satir("Ders", o => `<b class="mono">${o.courses.length}</b>${o.eksik
+          ? `<div class="meta uyari">${o.eksik} şube bulunamadı</div>` : ""}`)}
+        ${satir("Puan", (o, s) => `<b class="mono">${o.score}</b>${
+          s.tur === "oneri" && s.veri.s.prefDelta ? `<div class="meta ${s.veri.s.prefDelta < 0 ? "eksi" : "arti"}">
+            tercih ${s.veri.s.prefDelta > 0 ? "+" : ""}${s.veri.s.prefDelta}</div>` : ""}`,
           "Yüksek puan, dersin bu dönem alınmamasının maliyetinin yüksek olduğunu gösterir")}
-        ${satir("Dolu günler", s => (s.shape.days || [])
-          .map(d => GUNAD[d - 1]).join(" ") || "—")}
-        ${satir("Boş gün", s => (s.shape.freeDays || [])
-          .map(d => `<b>${GUNAD[d - 1]}</b>`).join(" ") || "—")}
-        ${satir("En erken", s => `<span class="mono">${dk(s.shape.earliest)}</span>`)}
-        ${satir("En geç", s => `<span class="mono">${dk(s.shape.latest)}</span>`)}
-        ${satir("Ders arası bekleme", s => `<span class="mono">${
-          Math.round((s.shape.gaps || 0) / 60 * 10) / 10} sa</span>`,
+        ${satir("Dolu günler", o => (o.shape.days || []).map(d => GUNAD[d - 1]).join(" ") || "—")}
+        ${satir("Boş gün", o => (o.shape.freeDays || []).map(d => `<b>${GUNAD[d - 1]}</b>`).join(" ") || "—")}
+        ${satir("En erken", o => `<span class="mono">${dk(o.shape.earliest)}</span>`)}
+        ${satir("En geç", o => `<span class="mono">${dk(o.shape.latest)}</span>`)}
+        ${satir("Ders arası bekleme", o => `<span class="mono">${
+          Math.round((o.shape.gaps || 0) / 60 * 10) / 10} sa</span>`,
           "Aynı gün içindeki toplam boşluk")}
-        ${satir("Kampüs değişimi", s => `<span class="mono">${s.campusChanges}</span>`)}
-        ${satir("Çevrimiçi", s => `<span class="mono">${s.shape.online || 0}</span>`)}
-        ${list.some(s => s.shape.timeless)
-          ? satir("Saati ilan edilmemiş", s => `<span class="mono">${
-              s.shape.timeless || 0}</span>`,
+        ${satir("Kampüs değişimi", o => `<span class="mono">${o.campusChanges}</span>`)}
+        ${satir("Çevrimiçi", o => `<span class="mono">${o.shape.online || 0}</span>`)}
+        ${list.some(s => s.olcu.shape.timeless)
+          ? satir("Saati ilan edilmemiş", o => `<span class="mono">${o.shape.timeless || 0}</span>`,
               "Bu dersler ızgarada gösterilmez ve çakışma denetimine dahil edilmez")
           : ""}
-        ${satir("Değişen dersler", s => {
-          const farkli = s.picks.map(p => p.course).filter(c => !ortak.includes(c));
+        ${list.some(s => s.olcu.dolu.length)
+          ? satir("Dolu şube", o => o.dolu.length
+              ? o.dolu.map(c => `<div class="mono uyari">${esc(c)}</div>`).join("")
+              : `<span class="meta">—</span>`) : ""}
+        ${list.some(s => s.olcu.carpisan.length)
+          ? satir("Çakışma", o => o.carpisan.length
+              ? o.carpisan.map(c => `<div class="mono uyari">${esc(c)}</div>`).join("")
+              : `<span class="meta">—</span>`) : ""}
+        ${satir("Değişen dersler", o => {
+          const farkli = o.courses.filter(c => !ortak.includes(c));
           return farkli.length
             ? farkli.map(c => `<div class="mono">${esc(c)}</div>`).join("")
             : `<span class="meta">—</span>`;
         })}
-        ${satir("", (s, i) => i === active
+        ${satir("", (o, s, i) => secili(s)
           ? `<span class="chip">görüntüleniyor</span>`
-          : `<button class="ghost" data-sec="${i}">Bunu seç</button>`)}
+          : `<button class="ghost" data-kyas="${i}">${s.tur === "oneri" ? "Bunu seç" : "Programa yükle"}</button>`)}
       </tbody>
     </table></div>`);
-  $("#detailBody").querySelectorAll("[data-sec]").forEach(b =>
+  $("#detailBody").querySelectorAll("[data-kyas]").forEach(b =>
     b.addEventListener("click", () => {
+      const s = list[+b.dataset.kyas];
       $("#detail").close();
-      active = +b.dataset.sec;
-      resetTo(active);
+      if(s.tur === "oneri"){ active = s.veri.i; resetTo(active); }
+      else altYukle({name: s.adlar[0], picks: s.liste});
     }));
 }
 
@@ -10690,7 +10787,8 @@ function capBitisHesaplanabilir(){
 function capBitisGirdi(){
   const R = DATA.roadmap;
   return {bu: R.terms[0].items.map(i => ({course: i.course, credits: i.credits,
-                                          role: (i.roles || [])[0] || ""})),
+                                          role: (i.roles || [])[0] || "",
+                                          slotId: i.slotId || 0})),      // Faz 79
           maxLoad: R.maxLoad};
 }
 function capBitisAnahtari(){

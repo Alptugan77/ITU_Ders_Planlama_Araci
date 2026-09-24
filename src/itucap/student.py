@@ -20,9 +20,16 @@ from .prereq import GRADE_POINTS, PASSING_MIN
 # 'MAT 103E AA' | 'MAT103E,AA' | 'MAT 103E' | 'MAT 103E  BA+  2024-2025 Güz'
 # ★ Not deseni ARTI notları da almalı (BA+, CC+ …) ve tek harfli
 #   işaretleri de (M, T, E) — yönetmelik MADDE 20.
+# ★★ Faz 79 — not parçası bir AYRAÇLA bitmeli (`_NOT_SONU`). Eskiden
+# "TUR 121 Türk Dili I 0 2 BL" satırında "Türk"ün "T"si (ü ASCII değil) not
+# sanılıyordu: T = dersten çekilme → ders BAŞARISIZ kaydediliyor ve yeniden
+# öneriliyordu (gerçek sitede, 7. yarıyıl öğrencisi). "Mühendislik" → "M"
+# (muaf) aynı tuzak. Not ancak ardından boşluk, satır sonu ya da , ; |
+# geliyorsa not.
+_NOT_SONU = r"(?=$|[\s,;|])"
 _LINE_RE = re.compile(
     r"^\s*(?P<code>[A-ZÇĞİÖŞÜ]{2,4}\s*\d{3,4}[A-Za-z]{0,2})"
-    r"(?:\s*[,;|\t ]\s*(?P<grade>[A-Za-z]{1,2}\+?|--|\?)?)?"
+    r"(?:\s*[,;|\t ]\s*(?P<grade>(?:[A-Za-z]{1,2}\+?|--|\?)" + _NOT_SONU + r")?)?"
     r"(?P<rest>.*)$",
     re.IGNORECASE,      # elle girişte küçük harf normal: 'mat 103e cc'
 )
@@ -30,7 +37,7 @@ _LINE_RE = re.compile(
 # kullanıcı yazımlarında kodu metnin içinden yakalamak için.
 _LINE_SEARCH_RE = re.compile(
     r"\b(?P<code>[A-ZÇĞİÖŞÜ]{2,4}\s*\d{3,4}[A-Za-z]{0,2})"
-    r"(?:\s*[,;|\t ]\s*(?P<grade>[A-Za-z]{1,2}\+?|--|\?)?)?"
+    r"(?:\s*[,;|\t ]\s*(?P<grade>(?:[A-Za-z]{1,2}\+?|--|\?)" + _NOT_SONU + r")?)?"
     r"(?P<rest>.*)$",
     re.IGNORECASE,
 )
