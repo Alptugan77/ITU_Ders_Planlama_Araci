@@ -554,6 +554,13 @@ her maddeden önce gelen tek iş.
 > kurulan haritalar havuz yuvasını bilmiyordu (iki farklı bitiş) ✅
 > ➜ Ayrıntı: `docs/faz78-79-karsilastirma-ve-son-sinif.md`
 >
+> **Faz 80–82 (24.09.2026):** kademelerin tasarımı (ders adı, dönem etiketi,
+> katlanan tamamlanmış kademe, telefonda çizgisiz dinlenme) ve tercihlerde üst
+> üste binen onay kutuları ✅ · seçmeli uyduğu her havuz yuvasına (eşleştirme)
+> ✅ · yol haritası saat çakışması, meşgul saatler ve haftalık saat bütçesi ✅
+> ➜ Ayrıntı: `docs/faz80-kademe-ve-tercih.md`, `docs/faz81-coklu-havuz-yuvasi.md`,
+> `docs/faz82-yol-haritasi-saat.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

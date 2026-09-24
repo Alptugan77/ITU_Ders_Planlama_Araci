@@ -1437,7 +1437,8 @@ def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
     def kur(bu_donem, yaz=None):
         return YH.kur(con, grades, planlar, term=term, donem=donem or 0,
                       max_load=float(sinir), bu_donem=bu_donem, bu_donem_kaynagi=kaynak,
-                      equivalences=equivalences, taban=taban, yaz=yaz)
+                      equivalences=equivalences, taban=taban, yaz=yaz,
+                      mesgul=REC.busy_sections(settings.mesgul))          # Faz 82
 
     def bitisler(h):
         return {p["role"]: (p["finish"] or {}).get("index") for p in h["programs"]}
@@ -1630,7 +1631,8 @@ def kalma_riski(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: i
     def kur(bu):
         return YH.kur(con, g["grades"], planlar, term=g["term"], donem=g["donem"],
                       max_load=g["max_load"], bu_donem=bu, bu_donem_kaynagi="senaryo",
-                      equivalences=g["equivalences"], taban=taban)
+                      equivalences=g["equivalences"], taban=taban,
+                      mesgul=REC.busy_sections(settings.mesgul))
 
     def bitisler(h):
         return {p["role"]: p for p in h.get("programs") or []}
@@ -1677,7 +1679,7 @@ def yol_senaryosu(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id:
     h = YH.kur(con, g["grades"], planlar, term=g["term"], donem=g["donem"],
                max_load=g["max_load"], bu_donem=g["bu"],
                bu_donem_kaynagi="senaryo", equivalences=g["equivalences"],
-               taban=taban, bos=bos)
+               taban=taban, bos=bos, mesgul=REC.busy_sections(settings.mesgul))
     az = POL.load_max_duration()
     h["maxDuration"] = ({"semesters": az.semesters, "verified": az.verified,
                          "source": az.source, "note": az.note} if az else None)
@@ -1711,7 +1713,8 @@ def cap_bitisleri(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id:
 
     def kur(planlar):
         return YH.kur(con, grades, planlar, term=term, donem=donem, max_load=max_load,
-                      bu_donem=bu, equivalences=equivalences, taban=taban)
+                      bu_donem=bu, equivalences=equivalences, taban=taban,
+                      mesgul=REC.busy_sections(settings.mesgul))
 
     def bitis(h, rol):
         p = next((p for p in h["programs"] if p["role"] == rol), None)
@@ -2613,6 +2616,8 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--focus);outline-o
 .tickliste .tickbox{white-space:normal;align-items:flex-start;flex-wrap:wrap}
 .tickliste .tickbox .hint{flex-basis:100%;margin-left:32px}
 .yhkalma{margin-top:14px}
+.yhsaat{font-size:var(--fs-xs);color:var(--ink-3);margin:2px 0 4px;line-height:var(--lh-snug)}
+.yhsaat .ok{color:var(--ok)}
 .altbaslik{display:flex;align-items:baseline;gap:8px;margin-top:16px;padding-top:12px;
   border-top:1px solid var(--border)}
 .altsatir{padding:8px 0;border-bottom:1px solid var(--border);font-size:var(--fs-sm)}
@@ -10586,6 +10591,17 @@ function renderRoadmap(){
         : t.summer ? '<span class="chip">yaz okulu</span>' : ""}</h3>
       <div class="yhkredi"><span class="mono">${t.credits}</span> kredi${
         t.current ? ` · ${esc(R.source || "")}` : ""}</div>
+      ${!t.current && t.timeCheck ? `<div class="yhsaat">≈ <span class="mono">${
+        Math.round((t.weeklyMinutes || 0) / 60)}</span> sa/hafta ders${t.items.length
+        ? (t.timeCheck === "var"
+            ? ` · <span class="ok">bu dönemin şube saatleriyle çakışmasız program kurulabiliyor</span>`
+            : ` · <span title="Bu yarıyılın ders saatleri henüz bilinmemektedir">saatler bilinmiyor; yalnız haftalık saat denetlendi</span>`)
+        : ""}</div>` : ""}
+      ${(t.timeDeferred || []).length ? `<div class="yhuyari">Saat çakışması nedeniyle bu döneme
+        konamadı: <span class="mono">${t.timeDeferred.map(esc).join(", ")}</span></div>` : ""}
+      ${(t.hourDeferred || []).length ? `<div class="yhuyari">Haftalık boş saat
+        (meşgul saatler dışında) yetmediğinden bu döneme konamadı:
+        <span class="mono">${t.hourDeferred.map(esc).join(", ")}</span></div>` : ""}
       ${t.floorGap ? `<div class="yhuyari">ÇAP yarıyıl tabanına
         <span class="mono">${t.floorGap}</span> kredi eksik; bu dönemde alınabilecek
         yeterli ÇAP dersi bulunmamaktadır</div>` : ""}

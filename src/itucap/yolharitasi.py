@@ -18,7 +18,12 @@ bilinmiyor. O yüzden:
   o da yoksa ders "her dönem açılır" sayılıyor ve bu SAYILIP yazılıyor;
 * yerleştirilemeyen ders sessizce düşmüyor: `yerlesmeyen` listesinde
   sebebiyle duruyor (planlarında olmayan bir önşart, kredi eşiği, ufuk);
-* kontenjan, şube, saat çakışması YOK — bunlar yalnız bu dönem için
+* ★ Faz 82 — SAAT: bu dönemle AYNI mevsimdeki gelecek dönemlerde (Güz ise
+  sonraki Güz'ler) dersler, bu dönemin şube saatleriyle ÇAKIŞMASIZ bir program
+  kurulabiliyorsa aynı döneme konuyor; kurulamıyorsa ders sonraki uygun
+  döneme kalıyor. Öbür mevsimin saati bilinmiyor — orada denetim yok ve
+  kart bunu söylüyor.
+* kontenjan, şube, saat çakışması (öbür mevsimde) YOK — bunlar yalnız bu dönem için
   hesaplanabiliyor. Plan bunu da yazıyor.
 
 Kurallar (hepsi motorun var olan parçalarından):
@@ -42,6 +47,7 @@ from typing import Iterable, Mapping
 
 from . import config
 from . import policy as POL
+from . import recommend as REC
 from . import prereq as P
 from . import rules as R
 
@@ -211,7 +217,7 @@ def kur(con: sqlite3.Connection, grades: Mapping[str, str], planlar: list[dict],
         term: str, donem: int, max_load: float, bu_donem: Iterable[dict],
         bu_donem_kaynagi: str = "", equivalences=None,
         taban: POL.SecondFloor | None = None, ufuk: int = UFUK,
-        yaz: str | None = None, bos: Iterable[int] = ()) -> dict:
+        yaz: str | None = None, bos: Iterable[int] = (), mesgul: Iterable = ()) -> dict:
     """Yol haritası.
 
     `planlar`: `[{"planId", "role", "label", "program"}]` — anadal önce.
@@ -232,12 +238,13 @@ def kur(con: sqlite3.Connection, grades: Mapping[str, str], planlar: list[dict],
         return _kur(con, grades, planlar, term=term, donem=donem, max_load=max_load,
                     bu_donem=bu_donem, bu_donem_kaynagi=bu_donem_kaynagi,
                     equivalences=equivalences, taban=taban, ufuk=ufuk, yaz=yaz,
-                    bos=frozenset(int(x) for x in bos))
+                    bos=frozenset(int(x) for x in bos), mesgul=tuple(mesgul))
     finally:
         con.row_factory = eski
 
 
 def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kaynagi,
+         mesgul=(),
          equivalences, taban, ufuk, yaz=None, bos=frozenset()) -> dict:
     equivalences = list(equivalences or [])
     names = {r[0]: r[1] for r in con.execute("SELECT code, name FROM course")}
@@ -400,6 +407,89 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     if term[4:] == "20":
         yaz_yerlestir(0, term)
 
+    # ---------------------------------------------- ★★ Faz 82 — saat gerçekliği
+    # Kullanıcı: "yol haritasında derslerin saatlerinin toplamı alabileceğim
+    # saatlere sığmıyor gibi geldi, biraz imkânsız bir tahmin". Harita her
+    # dönemi yalnız KREDİ sınırına kadar dolduruyordu; o derslerin aynı hafta
+    # içinde çakışmadan alınıp alınamayacağına hiç bakmıyordu. Bu dönemin
+    # şube saatleri aynı mevsimin sonraki dönemleri için en iyi bilgi
+    # (İTÜ'de ders saatleri yıldan yıla çoğunlukla korunuyor) — o dönemlerde
+    # bir ders ancak çakışmasız bir şube kombinasyonu varsa konuyor.
+    # Saati hiç bilinmeyen ders (bu dönem şubesi yok) denetimi DARALTMIYOR:
+    # bilinmeyen, bilinen gibi gösterilmez — kısıt da uydurulmaz.
+    izinli = {str(p.get("program") or "").upper() for p in planlar if p.get("program")}
+    _subeler: dict = {}
+
+    def subeler(ders: str) -> list:
+        """Saatli şubeler; MEŞGUL saatlerinle çakışanlar sayılmıyor."""
+        if ders not in _subeler:
+            hepsi = [s for s in REC.load_sections(con, ders, izinli) if s.meetings]
+            _subeler[ders] = (hepsi, [s for s in hepsi if not any(
+                REC.section_conflict(s, m) for m in mesgul)])
+        return _subeler[ders][1] if _subeler[ders][0] else []
+
+    def saatli(ders: str) -> bool:
+        subeler(ders)
+        return bool(_subeler[ders][0])
+
+    # ★ Haftalık saat bütçesi — BÜTÜN dönemlerde (öbür mevsimde de). Ders
+    # penceresi Pzt–Cum 08:30–17:30 (2700 dk) eksi meşgul saatlerin bu
+    # penceredeki kısmı. Dersin haftalık saati: bu dönem şubesi varsa en kısa
+    # şubesinin toplamı, yoksa kredisi × ölçülen dakika/kredi oranı (şubesi
+    # olan derslerin ortancası; ölçülemezse 60). Sığmayan ders sonraki
+    # döneme — meşgul saat yoksa bu sınır pratikte hiç bağlamıyor.
+    PENCERE = (510, 1050)
+    bos_dk = 5 * (PENCERE[1] - PENCERE[0]) - sum(
+        max(0, min(m.end, PENCERE[1]) - max(m.start, PENCERE[0]))
+        for s in mesgul for m in s.meetings if 1 <= m.day <= 5)
+    _dk: dict = {}
+
+    def ders_dk(ders: str) -> int | None:
+        if ders not in _dk:
+            hepsi = [s for s in REC.load_sections(con, ders, izinli) if s.meetings] \
+                if ders else []
+            _dk[ders] = min((sum(m.end - m.start for m in s.meetings) for s in hepsi),
+                            default=None)
+        return _dk[ders]
+
+    oranlar = sorted(ders_dk(b.ders) / b.kredi for b in birimler
+                     if b.ders and b.kredi and ders_dk(b.ders))
+    dk_kredi = oranlar[len(oranlar) // 2] if oranlar else 60.0
+
+    def haftalik_dk(b) -> float:
+        d = ders_dk(b.ders) if b.ders else None
+        return float(d) if d is not None else b.kredi * dk_kredi
+
+    _sigar: dict = {}
+
+    def cakismasiz(dersler: list) -> bool:
+        anahtar = frozenset(dersler)
+        if anahtar in _sigar:
+            return _sigar[anahtar]
+        # Saatli ama meşgul saatler yüzünden HİÇ şubesi kalmayan ders: sığmaz.
+        if any(saatli(d) and not subeler(d) for d in dersler):
+            _sigar[anahtar] = False
+            return False
+        listeler = sorted((subeler(d) for d in dersler if subeler(d)), key=len)
+        butce = [20000]
+
+        def ara(i: int, secili: list) -> bool:
+            if i == len(listeler):
+                return True
+            for s in listeler[i]:
+                butce[0] -= 1
+                if butce[0] < 0:
+                    return True                  # bütçe bitti → bilinmiyor, kısıtlama yok
+                if not any(REC.section_conflict(s, x) for x in secili):
+                    secili.append(s)
+                    if ara(i + 1, secili):
+                        return True
+                    secili.pop()
+            return False
+
+        _sigar[anahtar] = ara(0, [])
+        return _sigar[anahtar]
+
     def alinabilir(b: Birim, t: int, kod: str, kredi_var: float) -> bool:
         if t < b.en_erken:
             return False
@@ -415,6 +505,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
                          siniflama.get(b.ders), katalog_kurali).ok
 
     kod = term
+    hep_saat, hep_butce = set(), set()          # Faz 82 — gerekçe için
     for t in range(1, ufuk + 1):
         kod = sonraki_donem(kod)
         if not kalan:
@@ -432,6 +523,9 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
                 kalan = [b for b in kalan if b.yer is None]
             continue
         uygun = [b for b in kalan if alinabilir(b, t, kod, kazanilan)]
+        saat_bilinir = kod[4:] == term[4:]          # Faz 82 — aynı mevsim
+        ertelenen_saat: list = []
+        ertelenen_butce: list = []
         # Öncelik: en uzun zinciri başlatan önce (kritik yol), sonra planın
         # dönem sırası, zorunlu ders seçmeli havuzdan önce.
         uygun.sort(key=lambda b: (-b.yukseklik, b.donem_no or 99,
@@ -445,6 +539,19 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             if "CAP" in b.roller:
                 cap_kredi += b.kredi
 
+        def saate_sigar(b: Birim) -> bool:
+            """Faz 82 — b eklenince (1) haftalık saat bütçesi aşılmıyor mu,
+            (2) aynı mevsimde çakışmasız program kurulabiliyor mu."""
+            if sum(haftalik_dk(x) for x in secilen) + haftalik_dk(b) > bos_dk + 1e-9:
+                ertelenen_butce.append(b.ders or b.havuz)
+                return False
+            if not saat_bilinir or not b.ders or not saatli(b.ders):
+                return True
+            ok = cakismasiz([x.ders for x in secilen if x.ders and saatli(x.ders)] + [b.ders])
+            if not ok:
+                ertelenen_saat.append(b.ders)
+            return ok
+
         # İki geçiş: ÇAP yarıyıl tabanı varsa önce ÇAP dersleri TABAN
         # DOLANA KADAR (öncelik sırasıyla), sonra herkes öncelik sırasıyla.
         # Hepsini ÇAP'a vermek anadalın kritik yolunu gereksiz geciktirirdi.
@@ -452,14 +559,18 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             for b in uygun:
                 if cap_kredi + 1e-9 >= taban.minimum:
                     break
-                if "CAP" in b.roller and toplam + b.kredi <= max_load + 1e-9:
+                if ("CAP" in b.roller and toplam + b.kredi <= max_load + 1e-9
+                        and saate_sigar(b)):
                     al(b)
         for b in uygun:
-            if b not in secilen and toplam + b.kredi <= max_load + 1e-9:
+            if (b not in secilen and b.ders not in ertelenen_saat
+                    and toplam + b.kredi <= max_load + 1e-9 and saate_sigar(b)):
                 al(b)
         for b in secilen:
             b.yer = t
             varsayilan |= b.kodlar
+        hep_saat.update(ertelenen_saat)
+        hep_butce.update(x for x in ertelenen_butce if x)
         kazanilan += toplam
         kalan = [b for b in kalan if b.yer is None]
         # Taban eksiği yalnız ÇAP SÜRERKEN söyleniyor: son ÇAP döneminde
@@ -477,6 +588,13 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
                        "unparsed": b.ders in okunamayan,
                        "externalPrereq": b.dis_onsart}
                       for b in secilen],
+            # Faz 82 — saat denetimi: "var" (aynı mevsim, çakışmasız program
+            # bulundu) / "yok" (öbür mevsim, saat bilinmiyor).
+            "timeCheck": "var" if saat_bilinir else "yok",
+            "timeDeferred": sorted(set(ertelenen_saat)),
+            "hourDeferred": sorted(set(x for x in ertelenen_butce if x)),
+            "weeklyMinutes": round(sum(haftalik_dk(b) for b in secilen)),
+            "availableMinutes": bos_dk,
             # ÇAP tabanı tutmuyorsa SÖYLENİYOR (yeterli alınabilir ÇAP dersi yok).
             "floorGap": (round(taban.minimum - cap_kredi, 1)
                          if taban and cap_kalan and cap_kredi < taban.minimum else None),
@@ -494,12 +612,27 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             eksik = sorted({n.course for n in agac.missing(
                 R.prereq_view({c: GECER for c in varsayilan}))})
             if eksik:
-                sebep = ("önşartı planlarda bulunmayan ders(ler)dir: "
-                         + ", ".join(eksik[:4]))
+                # Faz 82 — önşart PLANDA ama kendisi yerleştirilemediyse bu
+                # "planlarda bulunmayan" değil (meşgul saatlerle görülen hata).
+                kalan_kod = {k for x in kalan for k in x.kodlar}
+                if set(eksik) <= kalan_kod:
+                    sebep = ("önşartı yerleştirilemeyen ders(ler)e bağlıdır: "
+                             + ", ".join(eksik[:4]))
+                else:
+                    sebep = ("önşartı planlarda bulunmayan ders(ler)dir: "
+                             + ", ".join(eksik[:4]))
         if b.ders and not POL.check(b.ders, kazanilan, kurallar,
                                     names.get(b.ders, ""), siniflama.get(b.ders),
                                     katalog_kurali).ok:
             sebep = "kredi eşiği sağlanmamaktadır"
+        # ★ Faz 82 — saat gerekçeleri, en somutundan.
+        elif b.ders and mesgul and saatli(b.ders) and not subeler(b.ders):
+            sebep = ("bu dönemin bütün şubeleri meşgul saatlerinizle çakışmaktadır; "
+                     "ders saatleri yıldan yıla korunursa aynı yarıyılda da alınamaz")
+        elif b.ders and b.ders in hep_saat:
+            sebep = "her denendiği dönemde öbür derslerle saat çakışması oluşmaktadır"
+        elif (b.ders or b.havuz) in hep_butce:
+            sebep = "haftalık boş saat (meşgul saatler dışında) yetmemektedir"
         yerlesmeyen.append({"course": b.ders, "name": b.ad, "pool": b.havuz,
                             "credits": b.kredi, "roles": sorted(b.roller),
                             "reason": sebep})
@@ -573,8 +706,15 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
         "Derslerin, plandaki dönemin yarıyılında açılacağı varsayılmıştır (tek dönem: Güz, "
         "çift dönem: Bahar); ÇAP/yandal dersinin yarıyılı ilgili programın lisans planından "
         "alınmıştır. Bu dönem şubesi bulunan dersin bu yarıyılda da açılacağı kabul edilmiştir.",
-        "Kontenjan, şube ve saat çakışması bu planda dikkate alınmamıştır; bu bilgiler "
-        "yalnızca içinde bulunulan dönem için bilinmektedir. Yaz okulu hesaba katılmamıştır.",
+        f"Saat çakışması: {config.donem_adi(term).split()[-1] if config.donem_adi(term) else 'bu'} "
+        "dönemlerinde bu dönemin şube saatleri esas alınarak her döneme çakışmasız bir "
+        "programın kurulabileceği dersler konmuştur (ders saatlerinin yıldan yıla korunduğu "
+        "varsayılmıştır); öbür yarıyılın saatleri bilinmediğinden orada denetlenmemiştir. "
+        "Kontenjan dikkate alınmamıştır. Yaz okulu hesaba katılmamıştır.",
+        *([f"Meşgul saatleriniz (haftada {round((2700 - bos_dk) / 60)} saat, "
+           "Pzt–Cum 08:30–17:30 içinde) dikkate alınmıştır: bu saatlerle çakışan şubeler "
+           "sayılmamış, her dönemin ders saati kalan boş saatlere sığdırılmıştır."]
+          if mesgul else []),
         "Seçmeli havuzdan hangi dersin seçileceği bilinmediğinden havuz dersleri için önşart "
         "aranmamıştır.",
     ]
