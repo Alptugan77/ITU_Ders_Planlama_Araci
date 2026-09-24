@@ -688,6 +688,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         out = []
         for sched in scheds:
             alts = REC.alternatives(sched, pool)
+            _yuva = dict(zip((p.candidate.course for p in sched.picks),
+                             _yuvalar_ata([p.candidate for p in sched.picks])))
             out.append({
                 "ects": sched.ects, "credits": sched.credits, "load": sched.load,
                 "score": sched.score,
@@ -717,7 +719,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                     "ects": p.candidate.ects, "credits": p.candidate.credits,
                     "score": p.candidate.score,
                     "reasons": p.candidate.reasons,
-                    "slotId": p.candidate.slot_id, "pool": p.candidate.pool_label,
+                    "slotId": _yuva.get(p.candidate.course, p.candidate.slot_id),
+                    "pool": p.candidate.pool_label,
                     "section": section_json(p.section),
                     "alternatives": alts.get(p.candidate.course, []),
                 } for p in sorted(sched.picks, key=lambda x: -x.candidate.score)],
@@ -823,6 +826,7 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             "course": c.course, "name": c.name, "altName": _diger_dil(c.course),
             "role": c.role, "ects": c.ects,
             "credits": c.credits, "slotId": c.slot_id, "planId": c.plan_id,
+            "slotIds": list(c.yuvalar),                       # Faz 81
             "termNo": c.term_no, "pool": c.pool_label,
             "score": c.score, "unlocks": c.unlocks, "critical": c.critical,
             "prereqUnknown": c.prereq_unknown, "prereqMissing": c.prereq_missing,
@@ -1374,6 +1378,18 @@ def _aktif_donem(con: sqlite3.Connection, settings) -> str:
     return donemler[0] if len(donemler) == 1 and len(donemler[0]) == 6 else ""
 
 
+def _yuvalar_ata(adaylar) -> list[int]:
+    """Faz 81 — her adaya AYRI bir slot (eşleştirme); olmuyorsa birincil slot.
+    `None` (plan dışı ders) için 0. Yol haritası bu dönem doldurulan yuvaları
+    böyle öğreniyor: iki Functional-MT dersi iki ayrı yuvayı dolduruyor."""
+    gercek = [(i, a) for i, a in enumerate(adaylar) if a is not None]
+    atama = REC.yuva_ata([a for _, a in gercek]) or {}
+    out = [0] * len(adaylar)
+    for k, (i, a) in enumerate(gercek):
+        out[i] = atama.get(k, a.slot_id)
+    return out
+
+
 def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
                   equivalences, donem, limit_credits, load_rule, taban, havuz,
                   acilis_programlari) -> dict | None:
@@ -1397,17 +1413,20 @@ def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
     kredi = {r[0]: r[1] for r in con.execute("SELECT code, credits FROM course")}
     kayitli = S.load_picks(ucon, student_id, settings.term).get("picks") or []
     if kayitli:
+        yuva = _yuvalar_ata([ders.get(p["course"]) for p in kayitli])
         bu = [{"course": p["course"],
                "credits": (ders[p["course"]].credits if p["course"] in ders
                            else float(kredi.get(p["course"]) or 0)),
-               "slotId": ders[p["course"]].slot_id if p["course"] in ders else 0,
+               "slotId": yuva[k],
                "role": ders[p["course"]].role if p["course"] in ders else "PLAN_DISI"}
-              for p in kayitli]
+              for k, p in enumerate(kayitli)]
         kaynak = f"kaydedilen program ({len(bu)} ders)"
     elif acilis_programlari:
+        secim = acilis_programlari[0].picks
+        yuva = _yuvalar_ata([pk.candidate for pk in secim])
         bu = [{"course": pk.candidate.course, "credits": pk.candidate.credits,
-               "slotId": pk.candidate.slot_id, "role": pk.candidate.role}
-              for pk in acilis_programlari[0].picks]
+               "slotId": yuva[k], "role": pk.candidate.role}
+              for k, pk in enumerate(secim)]
         kaynak = f"açılıştaki öneri 1 ({len(bu)} ders)"
     else:
         bu, kaynak = [], "hiçbir ders (program boş)"
@@ -1457,8 +1476,10 @@ def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
         etki = []
         for h in adaylar:
             c = ders[h["course"]]
+            # Faz 81 — eklenen ders, bu dönemin dersleriyle çakışmayan yuvaya.
+            yuva = _yuvalar_ata([ders.get(x["course"]) for x in bu] + [c])[-1]
             bas = {"course": c.course, "credits": c.credits,
-                   "slotId": c.slot_id, "role": c.role}
+                   "slotId": yuva, "role": c.role}
             yeni = kur([*bu, bas])
             kazanc = kazanc_olc(simdiki, yeni)
             if kazanc:
@@ -3160,7 +3181,7 @@ table.cmp .meta.arti{color:var(--ok)}
 .tier li .tad{font-size:var(--fs-xs);color:var(--ink-2);font-weight:400;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tier > h3 .tierdonem{float:right;color:var(--ink-3);font-weight:600;letter-spacing:var(--ls-0);
-  text-transform:none;font-family:var(--font-body)}
+  text-transform:none;font-family:var(--font-sans)}
 .tier.bitti > h3{color:var(--ink-3);border-bottom-width:1px}
 .tierbitti{font-size:var(--fs-sm);color:var(--ink-3);line-height:var(--lh-normal)}
 .tier li[data-s="DONE"] .top{text-decoration:line-through}
@@ -6161,8 +6182,10 @@ function renderNotSenaryo(odak){
    otomatik tetik yokken elle hesaplamak için duruyor. */
 let KALMA = null;          // {anahtar, veri, hata, yukleniyor}
 function kalmaGirdi(){
-  return {bu: picks().map(p => ({course: p.cand.course, credits: p.cand.credits,
-                                 role: p.cand.role, slotId: p.cand.slotId || 0})),
+  const ps = picks();
+  const atama = yuvaAta(ps.map(p => p.cand)) || ps.map(p => p.cand.slotId || 0);   // Faz 81
+  return {bu: ps.map((p, i) => ({course: p.cand.course, credits: p.cand.credits,
+                                 role: p.cand.role, slotId: atama[i] || p.cand.slotId || 0})),
           maxLoad: (DATA.roadmap || {}).maxLoad};
 }
 function kalmaAnahtari(){
@@ -7776,9 +7799,13 @@ function panelHTML(p, plan){
 function planned(planId){
   const seen = new Set();
   let slots = 0, credits = 0, ects = 0, required = 0;
-  for(const p of picks()){
-    if(p.cand.planId !== planId || seen.has(p.cand.slotId)) continue;
-    seen.add(p.cand.slotId);
+  const ps = picks();
+  // Faz 81 — iki seçmeli iki AYRI yuvayı doldurabiliyor (eşleştirme).
+  const atama = yuvaAta(ps.map(p => p.cand)) || ps.map(p => p.cand.slotId);
+  for(const [i, p] of ps.entries()){
+    const yuva = atama[i] || p.cand.slotId;
+    if(p.cand.planId !== planId || seen.has(yuva)) continue;
+    seen.add(yuva);
     slots++; credits += p.cand.credits; ects += p.cand.ects;
     if(p.cand.required) required++;
   }
@@ -8180,10 +8207,38 @@ function tekrarOzeti(){
         <b class="mono">${x.yuk}</b> / ${DATA.maxLoad} ile sınırı aşar` : ""}${x.tabanBozar
         ? `; ${esc(LBL)} yarıyıl tabanı (${DATA.secondFloor.min} kredi) sağlanamaz` : ""}</span></div>`).join("")}</div>`;
 }
+/* ★★ FAZ 81 — HAVUZ YUVALARI EŞLEŞTİRMEYLE (motorun `yuva_ata`sıyla aynı).
+   Seçmeli, uyduğu HERHANGİ bir boş yuvaya girebiliyor; yalnız birincil yuvası
+   doluysa "yerine geçer" demek, ENDE'de dört Functional-MT yuvası boşken
+   ikinci dersi engelliyordu. Dönen dizi: her adaya bir slot; olmuyorsa null. */
+const yuvalariOf = (c) => (c.slotIds && c.slotIds.length) ? c.slotIds
+  : (c.slotId ? [c.slotId] : []);
+function yuvaAta(adaylar){
+  const sahip = new Map();
+  const dene = (i, gorulen) => {
+    for(const s of yuvalariOf(adaylar[i])){
+      if(gorulen.has(s)) continue;
+      gorulen.add(s);
+      if(!sahip.has(s) || dene(sahip.get(s), gorulen)){ sahip.set(s, i); return true; }
+    }
+    return false;
+  };
+  for(let i = 0; i < adaylar.length; i++)
+    if(yuvalariOf(adaylar[i]).length && !dene(i, new Set())) return null;
+  const out = new Array(adaylar.length).fill(0);
+  sahip.forEach((i, s) => { out[i] = s; });
+  return out;
+}
 function poolBlocker(cand, exceptCourse){
   if(!cand.pool) return null;
-  return picks().find(p => p.cand.course !== exceptCourse && p.cand.pool &&
-                           p.cand.slotId === cand.slotId) || null;
+  const digerleri = picks().filter(p => p.cand.course !== exceptCourse);
+  if(yuvaAta([...digerleri.map(p => p.cand), cand])) return null;   // boş yuva var
+  /* Yerine geçeceği ders: çıkarılınca eşleşmenin kurulduğu, yuvası ortak ilk
+     seçmeli. */
+  const ortak = digerleri.filter(p => p.cand.pool &&
+    yuvalariOf(p.cand).some(s => yuvalariOf(cand).includes(s)));
+  return ortak.find(p => yuvaAta([...digerleri.filter(q => q !== p).map(q => q.cand), cand]))
+    || ortak[0] || null;
 }
 function resetTo(i){
   const sc = M().schedules[i];

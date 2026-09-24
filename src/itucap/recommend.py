@@ -99,7 +99,13 @@ class Candidate:
     critical: bool            # ikinci programın kritik yolunda mı
     required: bool
     sections: list[Section]
-    slot_id: int = 0          # dersin doldurduğu plan slotu
+    slot_id: int = 0          # dersin doldurduğu plan slotu (birincil)
+    # ★★ Faz 81 — dersin uyabildiği BÜTÜN slotlar (birincisi `slot_id`).
+    # Gerçek katalogda havuzdaki (plan, ders) çiftlerinin %38'i birden çok
+    # yuvaya uyuyor (ENDE: "Functional-MT" dersleri 5–8. yarıyılın dört
+    # yuvasına). Yalnız ilk yuva tutulunca motor bir dönemde o gruptan en çok
+    # BİR ders önerebiliyordu — dört yuva boşken.
+    slot_ids: tuple = ()
     plan_id: int = 0          # hangi planın slotu (ilerleme projeksiyonu için)
     term_no: int | None = None   # planın kaçıncı dönemi; dönemsiz planda None
     pool_label: str = ""      # ELECTIVE_POOL ise havuzun adı
@@ -126,6 +132,34 @@ class Candidate:
     def load(self) -> float:
         """Dönem yükü — İTÜ kredisi (varsayılan) ya da AKTS."""
         return self.credits if self.unit == "kredi" else self.ects
+
+    @property
+    def yuvalar(self) -> tuple:
+        """Doldurabileceği slotlar; eski tek-slot adaylar için `slot_id`."""
+        return self.slot_ids or ((self.slot_id,) if self.slot_id else ())
+
+
+def yuva_ata(adaylar) -> dict | None:
+    """Faz 81 — her adayı AYRI bir slota yerleştir (iki taraflı eşleştirme,
+    Kuhn). `{aday indeksi: slot}`; olmuyorsa `None`. Slotu olmayan aday
+    (plan dışı) serbest. Aynı dersin iki dili (EEF 110 / EEF 110E) tek slota
+    bağlı olduğundan ikisi birlikte eşleşmiyor — eski kural korunuyor."""
+    sahip: dict = {}                              # slot -> aday indeksi
+
+    def dene(i, gorulen):
+        for s in adaylar[i].yuvalar:
+            if s in gorulen:
+                continue
+            gorulen.add(s)
+            if s not in sahip or dene(sahip[s], gorulen):
+                sahip[s] = i
+                return True
+        return False
+
+    for i, a in enumerate(adaylar):
+        if a.yuvalar and not dene(i, set()):
+            return None
+    return {i: s for s, i in sahip.items()}
 
 
 # ------------------------------------------------------------------ yardımcı
@@ -309,9 +343,14 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
                 ))
     # aynı ders iki slottan gelmişse teki kalsın (ikinci program öncelikli)
     unique: dict[str, Candidate] = {}
+    yuvalari: dict[str, list] = {}
     for cand in out:
+        yuvalari.setdefault(cand.course, []).append(cand.slot_id)
         if cand.course not in unique or cand.role != "ANADAL":
             unique[cand.course] = cand
+    # ★ Faz 81 — ama uyduğu BÜTÜN slotlar tutuluyor; birincil ilk sırada.
+    for kod, cand in unique.items():
+        cand.slot_ids = tuple(dict.fromkeys([cand.slot_id, *yuvalari[kod]]))
     return score_all(list(unique.values()))
 
 
@@ -867,15 +906,6 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
                 cost += other.score
         return cost
 
-    def slots_used(chosen: list[Pick]) -> set[int]:
-        """Doldurulmuş plan slotları.
-
-        ★ Eskiden yalnız HAVUZ slotlarına bakıyordu. Zorunlu slot da tek dersle
-        dolar ve artık iki aday üretebiliyor: aynı dersin Türkçe ve İngilizce
-        kodu (EEF 110 / EEF 110E). İkisini birden programa koymak, öğrenciye
-        aynı dersi iki kez aldırmak olurdu."""
-        return {p.candidate.slot_id for p in chosen if p.candidate.slot_id}
-
     def search(index: int, chosen: list[Pick], load: float) -> None:
         if len(results) >= ust[-1] or budget[0] <= taban[-1]:
             return
@@ -891,7 +921,11 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
         must = cand.course in pinned
         # ★ Bir seçmeli havuz slotu TEK ders ile dolar. Bu kontrol olmadan motor
         # aynı ITB havuzu için HUK 217 + HUK 218'i birlikte öneriyordu (20.08.2026).
-        pool_taken = bool(cand.slot_id) and cand.slot_id in slots_used(chosen)
+        # ★★ Faz 81 — "dolu" artık EŞLEŞTİRME: seçilenlerin her biri ayrı bir
+        # slota yerleşebiliyorsa aday da girer (ENDE'de dört Functional-MT
+        # yuvası boşken yalnız birinci yuvaya bakılıyordu).
+        pool_taken = bool(cand.yuvalar) and yuva_ata(
+            [p.candidate for p in chosen] + [cand]) is None
         if not pool_taken and load + cand.load <= max_load:
             # Önce en az değer yakan şube; eşitlikte en boş olan (kontenjan riski).
             # Saati ilan edilmemiş şube hiçbir şeyle çakışmadığı için ileriye
