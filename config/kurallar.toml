@@ -182,14 +182,15 @@ aciklama   = "Ağırlıklı genel not ortalamasını en az 2.00 düzeyine çıka
 # 2547 sayılı Yükseköğretim Kanunu Madde 44/c: lisans öğrenimi kayda göre
 # azami 7 yıl → 14 yarıyıl. İTÜ'nün kendi uygulaması (hazırlığın sayılıp
 # sayılmadığı, süre dolunca ek sınav hakkı) Lisans Yönetmeliği ve Senato
-# esaslarında. 24.09.2026'da bu ortamdan sis.itu.edu.tr'ye ulaşılamadı; İTÜ
-# madde numarası DOĞRULANMADI. Arayüz sayıyı ⚠ ile gösteriyor. Teyit edince
-# `kaynak`ı İTÜ maddesiyle değiştirip `dogrulandi = true` yap.
+# esaslarında. 24.09.2026'da bu ortamdan sis.itu.edu.tr'ye ulaşılamadı;
+# aynı gün KULLANICI TEYİT ETTİ: "14 yarıyıl çoğu durumda doğru". İstisnalar
+# (hazırlık, kayıt dondurma, ek sınav hakları) `aciklama`da yazıyor ve
+# arayüz onları ipucunda gösteriyor — sayı kesin bir son gün DEĞİL.
 [azami_sure]
 yariyil    = 14
-dogrulandi = false
-kaynak     = "2547 sayılı Kanun Madde 44/c (lisans: 7 yıl)"
-aciklama   = "Süre dolunca ek sınav hakkı tanınabiliyor; ayrıntı İTÜ ÖİDB'de."
+dogrulandi = true
+kaynak     = "2547 sayılı Kanun Madde 44/c (lisans: 7 yıl) — kullanıcı teyidi 24.09.2026"
+aciklama   = "Çoğu durumda geçerli; hazırlık sınıfı ve kayıt dondurma sayılmayabilir, süre dolunca ek sınav hakkı tanınabiliyor — kesin durum için İTÜ ÖİDB."
 
 # ---------------------------------------------------------------------------
 # ŞARTLI BAŞARMIŞ — MADDE 20/2-b ve MADDE 31/1

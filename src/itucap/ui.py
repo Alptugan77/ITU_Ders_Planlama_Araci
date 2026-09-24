@@ -2966,6 +2966,8 @@ table.cmp .meta.arti{color:var(--ok)}
 .gnoyok{color:var(--danger);font-weight:600}
 .gnohedef .meta{font-size:var(--fs-sm);color:var(--ink-3);line-height:var(--lh-normal)}
 .gnonot{margin-top:8px}
+/* Faz 60 — çevrimdışı şeridi (kopyadan açılan sayfa canlı değil). */
+.note.cevrimdisi{border-left-color:var(--warn);margin:8px 0}
 /* Faz 59 — tercih önizlemesi. */
 .tercihonizle{margin-top:14px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
 .tercihsonuc{margin-top:6px;align-self:stretch;display:flex;flex-direction:column;gap:6px}
@@ -3312,7 +3314,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
      aynı Cmd+P aynı kâğıdı vermeli. */
   #panels,#savedSection,
   #tierSection,#roadmapSection,#creditSection,.tabs,#notime .blockitem button,
-  #arzUyari,#ayarHatasi,dialog,
+  #arzUyari,#ayarHatasi,#cevrimdisiNot,dialog,
   /* ★★ FAZ 48 — Faz 46/47'nin KABUĞU KÂĞIDA SIZIYORDU (taramada ölçüldü).
      `.govde` iki sütunlu ızgara: ray `display:none` olsa bile 216px'lik
      SÜTUN duruyordu; `.prgduzen` de 240px'lik bağlam sütununu ayırıyordu.
@@ -3383,6 +3385,8 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 
 <!-- D1: bozuk ayar dosyası. Sayfa açılıyor ama ne olduğu yazıyor. -->
 <div class="note ayarhata" id="ayarHatasi" hidden></div>
+<!-- Faz 60: çevrimdışı ya da cihazdaki kopyadan açıldı — veri canlı değil. -->
+<div class="note cevrimdisi" id="cevrimdisiNot" role="status" hidden></div>
 
 <!-- ★ İLK ZİYARET. Program seçilmemişken rapor GÖSTERİLMİYOR: seçilmemiş
      bir bölümün dolu haftalık programı, aracın söyleyebileceği en yanlış şey. -->
@@ -3864,6 +3868,26 @@ function veriYasiMetni(){
   const g = t === 0 ? "bugün" : (t === 1 ? "dün" : `${t} gün önce`);
   return `şube/kontenjan verisi ${g} tazelendi (${A.raw})`;
 }
+
+/* ★★ FAZ 60 — ÇEVRİMDIŞI AÇILDIYSA SÖYLE (fikirler Y.8).
+   Statik site artık cihazdaki kopyadan da açılıyor (`sw.js`). Kayıt günü
+   bu hayat kurtarır — ama kontenjan sayısı kopyanın tazelendiği ana ait.
+   Onu canlıymış gibi göstermek, bu aracın baştan beri yapmadığı şey:
+   katalog kopyadan geldiyse ya da bağlantı yoksa şerit tarihiyle yazıyor.
+   Yalnız statik sitede (`make app` her zaman canlı veriyle çalışıyor). */
+function cevrimdisiDurumu(){
+  const el = $("#cevrimdisiNot");
+  if(!el) return;
+  const kopya = !!window.__ITUCAP_ONBELLEK__;
+  const agYok = !!window.__ITUCAP_API__ && navigator.onLine === false;
+  el.hidden = !(kopya || agYok);
+  if(el.hidden) return;
+  el.innerHTML = `<b>${agYok ? "Bağlantı yok" : "Cihazdaki kopyadan açıldı"}</b> —
+    planın, CRN'lerin ve yedeklerin burada; ama ${esc(veriYasiMetni())}.
+    Kontenjan kayıt ekranında değişmiş olabilir: <b>CRN'leri OBS'de doğrula</b>.`;
+}
+addEventListener("online", cevrimdisiDurumu);
+addEventListener("offline", cevrimdisiDurumu);
 
 /* ---------- kısa bildirim ----------
    ★ Bölüm gizliyken sonucun yazılacağı bir yer gerekiyordu. `alert` iki
@@ -9703,6 +9727,7 @@ function boot(onceki){
   renderBasvuru();
   renderTiers();
   renderRoadmap();
+  cevrimdisiDurumu();       // Faz 60
   if(!onceki){
     useMode(0);
   }else{

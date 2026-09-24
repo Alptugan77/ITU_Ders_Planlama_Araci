@@ -52,7 +52,7 @@ ders hangisine sayılıyor, hangi önşart açık, bu dönem hangi kombinasyon
   mevsimi olmayan dersin mevsimi geçmiş not dağılımından okunuyor
   (bütünleme için açılan birkaç kişilik not listesi sayılmadan); geçen yaz
   açılmış ders için **"yazın alırsan"** hesabı da var. Bitişin kaçıncı
-  yarıyıl olduğu ve azami öğrenim süresi (⚠ doğrulanmamış) kartta yazıyor;
+  yarıyıl olduğu ve azami öğrenim süresi (14 yarıyıl) kartta yazıyor;
   ÇAP başvuru penceresi her program için **"bu ÇAP'la ne zaman bitirirsin"**
   sorusunu da cevaplıyor. ⚠️ Bir plan, kehanet
   değil: varsayımları (her ders ilk denemede geçilir, gelecek dönemlerin
@@ -111,6 +111,11 @@ paketinin parçası. Gerekçe ve ölçümler: `docs/faz56-tasarim-sistemi-v2.md`
   ya da cihaz değiştirirsen gider — Ayar görünümündeki **Yedeğini indir**
   bir JSON dosyası veriyor, yeni cihazda ilk karttan "yedeğinden devam et"
   ile geri yükleniyor (ikisi de tamamen tarayıcıda).
+* **Kayıt günü bağlantı yoksa da açılıyor.** Web sürümü bir kez açıldıktan
+  sonra kendi dosyalarının (sayfa, motor, katalog, Pyodide) kopyasını
+  tarayıcıda tutuyor; başka hiçbir yere dokunmuyor. Kopyadan açılınca sayfa
+  bunu **verinin tarihiyle** söylüyor — eski kontenjan canlıymış gibi
+  gösterilmiyor.
 * Yerel sürümde notların yalnız `data/user.sqlite3` dosyasında; `data/`
   klasörünün tamamı **`.gitignore`da**.
 * Ders kataloğu (`data/reference.sqlite3`) herkese açık veri, ayrı dosyada.

@@ -309,6 +309,9 @@ def build(pyodide_dir: Path | None = None) -> Path:
         print(f"   ⚠️  pyodide paketlenmedi — çalışma anında CDN'den "
               f"({PYODIDE_VERSION}) indirilecek.")
         print("      Yayında bunu yapma: her ziyaretçi üçüncü tarafa istek atar.")
+    # Faz 60 — çevrimdışı katman EN SONDA: dosya listesi ve sürüm özeti
+    # sitede gerçekten olanlardan (Pyodide dahil) çıkarılıyor.
+    cevrimdisi_katman(SITE)
 
     print(f"✅ {SITE}")
     print(f"   katalog {raw/1e6:.1f} MB → gzip {gz/1e6:.1f} MB · "
@@ -318,6 +321,33 @@ def build(pyodide_dir: Path | None = None) -> Path:
           f"(`make notdagilimi` ile artar; katalog boyutunu büyütür)")
     print(f"   dene: python -m http.server -d {SITE} 8000")
     return SITE
+
+
+def cevrimdisi_katman(site: Path) -> Path:
+    """Faz 60 — `web/sw.js`i siteye yazar (fikirler Y.8, kayıt günü çevrimdışı).
+
+    * `__SURUM__`: sitedeki dosyaların (Pyodide hariç) içerik özeti. Katalog ya
+      da motor değişince önbellek adı değişiyor, eski kopya siliniyor — eski
+      kataloğu yeni sürüm sanmak olmasın.
+    * `__PYODIDE__`: sürüm; Pyodide önbelleği ancak sürüm değişince yenileniyor.
+    * `__DOSYALAR__`: önbelleğe alınacak dosyalar — sitede GERÇEKTEN olanlar.
+    """
+    import hashlib
+    dosyalar, ozet = ["./"], hashlib.sha256()
+    for yol in sorted(p for p in site.rglob("*") if p.is_file()):
+        goreli = yol.relative_to(site).as_posix()
+        if goreli in ("sw.js", ".nojekyll"):
+            continue
+        dosyalar.append(goreli)
+        if not goreli.startswith("pyodide/"):
+            ozet.update(goreli.encode() + b"\0" + yol.read_bytes())
+    metin = (ROOT / "web" / "sw.js").read_text(encoding="utf-8")
+    metin = (metin.replace("__SURUM__", ozet.hexdigest()[:12])
+                  .replace("__PYODIDE__", PYODIDE_VERSION)
+                  .replace("__DOSYALAR__", json.dumps(dosyalar, ensure_ascii=False)))
+    hedef = site / "sw.js"
+    hedef.write_text(metin, encoding="utf-8")
+    return hedef
 
 
 def kabuk(UI) -> str:

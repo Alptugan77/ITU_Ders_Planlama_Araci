@@ -435,6 +435,16 @@ her maddeden önce gelen tek iş.
 > Geri alma deneyi: 7/7 kırmızı.
 > ➜ Ayrıntı: `docs/faz59-cap-secimi-ve-tercih.md`
 >
+> **Faz 60'ta kapananlar (24.09.2026 — çevrimdışı):** kullanıcı: *"14 semester
+> limit is correct for most cases. can you continue improving and then create
+> a PR"*. Azami süre teyitli, istisnaları ipucunda ✅ · ★★ statik site kayıt
+> günü **çevrimdışı açılıyor** (`web/sw.js`) ve kopyadan açıldığını, verinin
+> tarihiyle söylüyor ✅ · test iki gerçek hata yakaladı: HTTP önbelleği
+> (GitHub Pages max-age=600) kopyayı İŞARETSİZ veriyordu, yeni sürüm ESKİ
+> kataloğu saklıyordu ✅
+> Geri alma deneyi: 10/10 kırmızı.
+> ➜ Ayrıntı: `docs/faz60-cevrimdisi.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

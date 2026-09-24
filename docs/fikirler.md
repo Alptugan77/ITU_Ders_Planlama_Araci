@@ -1,9 +1,16 @@
 # Kalan eksikler ve geliştirilmesi gerekenler
 
+> **Faz 60'ta kapananlar (24.09.2026):** ★★ Y.8 kayıt günü çevrimdışı —
+> statik site cihazdaki kopyadan açılıyor ve kopyadan açıldığını tarihiyle
+> söylüyor ✅ · Y.7 azami süre kullanıcı tarafından teyit edildi ✅.
+> "Faz 57 araştırması" listesinin tamamı kapandı. Ayrıntı:
+> `docs/faz60-cevrimdisi.md`.
+
 > **Faz 59'da kapananlar (24.09.2026):** ★★ Y.1 "ya ÇAP'ı şurada yapsaydım" —
 > başvuru penceresinde her ÇAP programının tahmini bitişi ✅ · Y.7 azami
 > öğrenim süresi ✅ (⚠ doğrulanmamış, yalnız anadal) · §3.6 tercihi
-> kaydetmeden dene ✅. Açık: Y.8, Y.7'nin İTÜ maddesi.
+> kaydetmeden dene ✅. Açık: Y.8. (Y.7'nin 14 yarıyılı kullanıcı
+> tarafından teyit edildi, 24.09.2026.)
 > Ayrıntı: `docs/faz59-cap-secimi-ve-tercih.md`.
 
 > **Faz 58'de kapananlar (24.09.2026):** Y.2 mevsim geçmişten ✅ (bütünlemeci
@@ -236,7 +243,7 @@ dış kütüphane gerekmez (gizlilik denetimi dış kaynağı reddediyor).
 yok (ekranda yazıyor). `_threshold_info` o ortalamayı zaten hesaplıyor;
 yalnız ÇAP planındaki dersler üzerinden aynı formül.
 
-### Y.7 ~~Azami öğrenim süresi uyarısı~~ · ✅ **Faz 59'da kapandı** (⚠ doğrulanmadı)
+### Y.7 ~~Azami öğrenim süresi uyarısı~~ · ✅ **Faz 59'da kapandı** (24.09.2026 kullanıcı teyidi: 14 yarıyıl çoğu durumda doğru)
 14 yarıyıl, kaynak 2547 s. Kanun m. 44/c; `dogrulandi = false`. **Kalan:**
 İTÜ Lisans Yönetmeliği'ndeki madde numarası ve hazırlığın sayılıp
 sayılmadığı teyit edilmeli (bu ortamdan `sis.itu.edu.tr` kapalıydı); ÇAP'ın
@@ -247,7 +254,11 @@ Yol haritasının bitişi yönetmelikteki azami süreyi aşıyorsa söylemeli.
 ⚠️ Sayıyı **tahmin etme**: önce yönetmelikten madde bulunup
 `kurallar.toml`'a `dogrulandi` ile beyan edilmeli.
 
-### Y.8 Kayıt günü çevrimdışı · **M**
+### Y.8 ~~Kayıt günü çevrimdışı~~ · ✅ **Faz 60'ta kapandı**
+`web/sw.js`: kabuk ağ önce, Pyodide önbellek önce; kopyadan açılan sayfa
+"cihazdaki kopyadan açıldı — kontenjan şu tarihte tazelendi" diyor.
+
+~~**M**~~
 Statik site kayıt günü OBS yavaşken de açılmalı: bir service worker son
 katalog dosyasını ve sayfayı önbelleğe alabilir. ⚠️ Önbellekteki kontenjan
 eski — "veri yaşı" (Faz 25) zaten yazıyor, çevrimdışıyken daha görünür

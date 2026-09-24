@@ -38,10 +38,13 @@ def _js(ad):
 
 
 # ------------------------------------------------------------------ Y.7 — azami süre
-def test_AZAMI_SURE_beyan_edilmis_ama_DOGRULANMAMIS():
+def test_AZAMI_SURE_teyitli_ve_ISTISNALARI_yazili():
     az = POL.load_max_duration()
     assert az.semesters == 14
-    assert az.verified is False, "İTÜ maddesi teyit edilmeden doğrulandı işaretlenmiş"
+    # 24.09.2026 kullanıcı teyidi: "14 yarıyıl çoğu durumda doğru". İstisnalar
+    # açıklamada kalmalı — sayı kesin son gün gibi sunulmasın.
+    assert az.verified is True
+    assert "hazırlık" in az.note and "ÖİDB" in az.note
     assert "2547" in az.source and "44/c" in az.source
 
 
@@ -185,7 +188,7 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     assert "6. yarıyılda" in c["CAPNOT"] and "kabulü, kontenjan ve sıralama" in c["CAPNOT"]
 
     # Y.7 — azami süre ⚠ ile; aşınca uyarı; ÇAP kartında azami YOK.
-    assert "10. yarıyılında · azami 14 ⚠" in c["KART1"], c["KART1"]
+    assert "10. yarıyılında · azami 14" in c["KART1"] and "⚠" not in c["KART1"], c["KART1"]
     assert "aşıyor" not in c["KART1"]
     assert "azami öğrenim süresini 1 yarıyıl aşıyor" in c["KART2"], c["KART2"]
     assert "yarıyılında" in c["CAPKART"] and "azami" not in c["CAPKART"], c["CAPKART"]
