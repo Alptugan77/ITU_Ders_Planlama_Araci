@@ -40,7 +40,7 @@ def test_UC_SALT_OKUNUR_ve_AYNI_GIRDI():
 
 def test_ARAYUZ():
     # Taban ızgaradaki program; sonuç program + sınır + durum sürümüne bağlı.
-    assert "bu: picks().map(p =>" in _js("kalmaGirdi")
+    assert "const ps = picks();" in _js("kalmaGirdi") and "bu: ps.map((p, i) =>" in _js("kalmaGirdi")
     assert "DURUM_SURUMU" in _js("kalmaAnahtari")
     assert "DURUM_SURUMU++;" in _js("applyState")
     # Yalnız yer tutucular yeniden doluyor (not senaryosunun odağı korunuyor).

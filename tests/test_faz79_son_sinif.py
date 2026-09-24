@@ -64,10 +64,11 @@ def test_ESIK_ve_YUVA_kurallari():
     assert 'if scope == "genel" and t.program not in ("genel", "") and t.kind != "basvuru":' in k
     assert "_threshold_info(con, ucon, student_id, gpa, seconds + plansiz)" in KAYNAK
     assert '"slotId": _slot(x),' in KAYNAK
-    assert "slotId: p.cand.slotId || 0" in _js("kalmaGirdi")
+    # (Faz 81: yuva artık eşleştirmeden — birincil yuva yedek.)
+    assert "slotId: atama[i] || p.cand.slotId || 0" in _js("kalmaGirdi")
     assert "slotId: i.slotId || 0" in _js("capBitisGirdi")
     yh = (pathlib.Path(UI.__file__).parent / "yolharitasi.py").read_text(encoding="utf-8")
-    assert '"slotId": p.get("slotId") or 0}' in yh
+    assert '"slotId": p.get("slotId") or 0,' in yh      # (Faz 85: ardından zorluk alanı)
 
 
 _CANLI = r'''

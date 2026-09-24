@@ -554,6 +554,25 @@ her maddeden önce gelen tek iş.
 > kurulan haritalar havuz yuvasını bilmiyordu (iki farklı bitiş) ✅
 > ➜ Ayrıntı: `docs/faz78-79-karsilastirma-ve-son-sinif.md`
 >
+> **Faz 80–82 (24.09.2026):** kademelerin tasarımı (ders adı, dönem etiketi,
+> katlanan tamamlanmış kademe, telefonda çizgisiz dinlenme) ve tercihlerde üst
+> üste binen onay kutuları ✅ · seçmeli uyduğu her havuz yuvasına (eşleştirme)
+> ✅ · yol haritası saat çakışması, meşgul saatler ve haftalık saat bütçesi ✅
+> ➜ Ayrıntı: `docs/faz80-kademe-ve-tercih.md`, `docs/faz81-coklu-havuz-yuvasi.md`,
+> `docs/faz82-yol-haritasi-saat.md`
+>
+> **Faz 83–84 (24.09.2026):** dersin geçmişte açıldığı dönemler (not
+> dağılımından, doğruluğu belirsiz notuyla) ✅ · gerçek sitede 1. dönem
+> transkriptsiz öğrenci: başvuruda boş "✓ şartlar sağlanmaktadır" ve
+> "0 alttan (1–0. dönem)" ✅
+> ➜ Ayrıntı: `docs/faz83-gecmis-donemler.md`, `docs/faz84-ilk-donem.md`
+>
+> **Faz 85 (24.09.2026):** derslerin tahmini zorluğu (olağan dönemlerin VF'siz
+> not ortalaması, katalogda beşte birlik dilim) — aday listesi, sıralama,
+> ders penceresi, program özeti, yol haritası ✅ · BL/BZ derslerinde yanlış
+> ortalama ve BZ'nin "geçti" sayılması ✅
+> ➜ Ayrıntı: `docs/faz85-tahmini-zorluk.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
