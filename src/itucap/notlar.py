@@ -421,9 +421,20 @@ def summarise(counts: dict[str, int], announced: int | None = None) -> dict:
 # dağılımına göre tahmini zorluk derecelendirilmesi yapabilir misin ve bunu
 # kullanıcıya uygun bir şekilde sunar mısın"*.
 #
-# Ölçüt TEK ve açıklanabilir: dersin **olağan dönemlerindeki** harf notu
-# ortalaması, katalogdaki öbür derslerin ortalamalarıyla karşılaştırılıyor.
-# Beş kademe = beşte birlik dilimler (en düşük ortalamalı %20 "çok zor").
+# Ölçüt: dersin **olağan dönemlerindeki** harf notlarından iki sayı —
+# **geçme oranı** (ağırlık %70) ve **not ortalaması** (%30). İkisi de
+# katalogdaki öbür derslere göre yüzdeliğe çevrilip birleştiriliyor; beş
+# kademe = birleşik puanın beşte birlik dilimleri.
+#
+# ★★ Faz 86 — GEÇME ORANI ÖNDE (kullanıcı 24.09.2026): *"zorluk düzeyi
+# hesaplamasında geçilme yüzdesini geçilme notunun üstüne koyar mısın bazen
+# çan dağılımı yüzünden kolay dersler orta zorlukta veya zor diye
+# anlaşılabilir"*. Faz 85 yalnız ortalamaya bakıyordu. Bağıl (çan)
+# değerlendirmede ortalama hocanın dağıtımıyla belirlenir; sınıfın çoğu
+# geçse de ortalama düşük kalır. Ölçüldü (gerçek katalog, 2025-2026):
+# ortalaması < 2.40 ama FF oranı < %4 olan 21 ders vardı ve hepsi "zor" ya da
+# "çok zor" çıkıyordu — GMI 214: ortalama 2.18, FF %1.1, n=95 → "çok zor".
+# Öğrencinin asıl sorusu "bu dersten kalır mıyım"; ortalama ikincil.
 #
 # ⚠️ Kararlar ve gerekçeleri:
 #   * **VF hariç.** Devamsızlık dersin zorluğu hakkında bir şey söylemez
@@ -442,14 +453,24 @@ ZORLUK_MIN_N = 20
 ZORLUK_AZ_VERI = 60
 ZORLUK_ASIL_PAY = 0.25
 ZORLUK_ETIKET = {1: "çok kolay", 2: "kolay", 3: "orta", 4: "zor", 5: "çok zor"}
+ZORLUK_AGIRLIK_GECME = 0.7
+ZORLUK_AGIRLIK_ORT = 0.3
 # Canlı karşılaştırma için katalogda en az bu kadar derecelenebilir ders
 # olmalı; yoksa (kısmi çekim, vitrin) yüzdelik anlamsız — aşağıdaki SABİT
-# sınırlara düşülüyor.
+# tablolara düşülüyor.
 ZORLUK_CANLI_MIN = 300
-# Sabit sınırlar: gerçek katalogda (2025-2026, OBS) aynı yöntemle ölçülen
-# beşte birlik dilim sınırları — 24.09.2026, derecelenebilen 1187 ders.
-# Ortalama bu sınırların ALTINDAYSA zorluk artıyor.
-ZORLUK_SABIT_SINIRLAR = (2.28, 2.59, 2.94, 3.42)
+# Sabit tablolar: gerçek katalogda (2025-2026, OBS; 24.09.2026, derecelenebilen
+# 1187 ders) aynı yöntemle ölçülen %0, %5, …, %100 yüzdelik noktaları.
+# `tools/zorluk_olcegi.py` yeniden üretir.
+ZORLUK_SABIT = {
+    "ff": (0.0, 0.0, 0.0, 0.0, 0.0, 1.4, 2.0, 2.7, 3.3, 3.9, 4.6, 5.4, 6.5, 7.6,
+           8.8, 10.0, 12.0, 14.3, 18.2, 24.0, 68.0),
+    "ort": (0.88, 1.83, 2.01, 2.14, 2.28, 2.36, 2.43, 2.52, 2.59, 2.68, 2.78,
+            2.85, 2.94, 3.02, 3.15, 3.27, 3.42, 3.53, 3.66, 3.81, 4.0),
+    "skor": (0.071, 0.096, 0.134, 0.174, 0.219, 0.269, 0.313, 0.357, 0.398,
+             0.442, 0.483, 0.539, 0.58, 0.619, 0.674, 0.734, 0.781, 0.831, 0.88,
+             0.941, 1.0),
+}
 _HARFLER = tuple(g for g in GRADES if g not in ABSENT_GRADES)       # AA … FF
 
 
@@ -494,9 +515,61 @@ def _imza(con: sqlite3.Connection) -> tuple:
             con.execute("SELECT MAX(rowid) FROM grade_distribution").fetchone()[0])
 
 
-def zorluk_olcegi(con: sqlite3.Connection) -> list[float]:
-    """Katalogda derecelenebilen (n ≥ ZORLUK_MIN_N) derslerin ortalamaları,
-    sıralı. Veri değişmedikçe bir kez hesaplanıyor (tarayıcıda her durum
+@dataclass(frozen=True)
+class ZorlukOlcegi:
+    """Karşılaştırma tabanı. `kaynak="katalog"`: listeler katalogdaki BÜTÜN
+    derecelenebilen derslerin değerleri (sıralı). `kaynak="sabit"`: listeler
+    21 noktalık yüzdelik tabloları."""
+    ff: tuple
+    ort: tuple
+    skor: tuple
+    kaynak: str
+    n: int = 0
+
+
+def _pay(tablo: tuple, x: float, kaynak: str) -> float:
+    """`x`ten KÜÇÜK değerlerin payı (0–1), eşitlerin yarısıyla (orta sıra).
+
+    ⚠️ Eşitler önemli: derslerin %20'sinde FF oranı 0 — orta sıra olmasa
+    hepsi "en kolay" uca yığılırdı."""
+    import bisect
+    if not tablo:
+        return 0.5
+    alt = bisect.bisect_left(tablo, x)
+    ust = bisect.bisect_right(tablo, x)
+    if kaynak == "katalog":
+        return (alt + (ust - alt) / 2) / len(tablo)
+    # Yüzdelik tablosu: nokta k, %5·k'ya karşılık geliyor.
+    adim = 1 / (len(tablo) - 1)
+    if ust > alt:                                   # tabloda eşit nokta(lar)
+        return ((alt + ust - 1) / 2) * adim
+    if alt == 0:
+        return 0.0
+    if alt >= len(tablo):
+        return 1.0
+    a, b = tablo[alt - 1], tablo[alt]
+    return ((alt - 1) + (x - a) / (b - a)) * adim
+
+
+def zorluk_skoru(ff: float, ort: float, olcek: ZorlukOlcegi) -> tuple[float, float, float]:
+    """(birleşik zorluk 0–1, FF yüzdeliği, ortalama yüzdeliği).
+
+    FF oranı YÜKSEK ve ortalama DÜŞÜK oldukça zorluk artıyor."""
+    p_ff = _pay(olcek.ff, ff, olcek.kaynak)
+    p_ort = _pay(olcek.ort, ort, olcek.kaynak)
+    return (ZORLUK_AGIRLIK_GECME * p_ff + ZORLUK_AGIRLIK_ORT * (1 - p_ort),
+            p_ff, p_ort)
+
+
+def _yuzdelikler(degerler: list[float]) -> tuple:
+    d = sorted(degerler)
+    return tuple(d[min(len(d) - 1, round(k * (len(d) - 1) / 20))] for k in range(21))
+
+
+def zorluk_olcegi(con: sqlite3.Connection) -> ZorlukOlcegi:
+    """Katalogda derecelenebilen (n ≥ ZORLUK_MIN_N) derslerin FF oranları,
+    ortalamaları ve birleşik puanları. Yeterli ders yoksa sabit tablolar.
+    Veri değişmedikçe bir kez hesaplanıyor (tarayıcıda her durum
     değişikliğinde 39 bin satırı yeniden okumamak için)."""
     anahtar = _imza(con)
     if anahtar in _OLCEK_CACHE:
@@ -505,43 +578,48 @@ def zorluk_olcegi(con: sqlite3.Connection) -> list[float]:
     for k, t, g, n in con.execute(
             "SELECT course_key, term, grade, students FROM grade_distribution"):
         hepsi.setdefault(k, {}).setdefault(t, {})[g] = n
-    ortalar = []
+    ciftler = []
     for terms in hepsi.values():
         z = zorluk_ortalamasi(terms)
         if z and z["n"] >= ZORLUK_MIN_N:
-            ortalar.append(z["mean"])
-    ortalar.sort()
+            ciftler.append((z["failRate"], z["mean"]))
+    if len(ciftler) >= ZORLUK_CANLI_MIN:
+        taban = ZorlukOlcegi(tuple(sorted(f for f, _ in ciftler)),
+                             tuple(sorted(o for _, o in ciftler)), (), "katalog")
+        skor = tuple(sorted(zorluk_skoru(f, o, taban)[0] for f, o in ciftler))
+        olcek = ZorlukOlcegi(taban.ff, taban.ort, skor, "katalog", len(ciftler))
+    else:
+        olcek = SABIT_OLCEK
     _OLCEK_CACHE.clear()
-    _OLCEK_CACHE[anahtar] = ortalar
-    return ortalar
+    _OLCEK_CACHE[anahtar] = olcek
+    return olcek
 
 
-def zorluk_kademesi(ort: float, olcek: list[float]) -> tuple[int, float | None, str]:
-    """(kademe 1–5, bu dersten DÜŞÜK ortalamalı derslerin payı %, kaynak).
-
-    Kaynak "katalog" (canlı yüzdelik) ya da "sabit" (ölçülmüş sınırlar)."""
-    import bisect
-    if len(olcek) >= ZORLUK_CANLI_MIN:
-        alt = bisect.bisect_left(olcek, ort)
-        esit = bisect.bisect_right(olcek, ort) - alt
-        pay = (alt + esit / 2) / len(olcek)
-        return 5 - min(4, int(pay * 5)), round(100 * pay), "katalog"
-    kademe = 5 - sum(1 for s in ZORLUK_SABIT_SINIRLAR if ort >= s)
-    return kademe, None, "sabit"
+def zorluk_kademesi(ff: float, ort: float, olcek: ZorlukOlcegi) -> dict:
+    """Kademe 1–5 ve açıklamada kullanılan paylar (%)."""
+    skor, p_ff, p_ort = zorluk_skoru(ff, ort, olcek)
+    p = _pay(olcek.skor, skor, olcek.kaynak)
+    kademe = 1 + min(4, int(p * 5))
+    canli = olcek.kaynak == "katalog"
+    return {"level": kademe, "scale": olcek.kaynak,
+            "catalog": olcek.n if canli else None,
+            # Geçme oranı bundan DÜŞÜK olan derslerin payı = FF'si yüksek olanlar.
+            "passLowerShare": round(100 * (1 - p_ff)) if canli else None,
+            "meanLowerShare": round(100 * p_ort) if canli else None}
 
 
 _ZORLUK_CACHE: dict = {}
 
 
 def zorluk(con: sqlite3.Connection, code: str,
-           olcek: list[float] | None = None) -> dict | None:
+           olcek: ZorlukOlcegi | None = None) -> dict | None:
     """Bir dersin tahmini zorluğu. Dağılımı hiç yoksa `None`; varsa ama
     derecelenemiyorsa `level=None` ve `reason`.
 
     Sonuç önbellekte: kalma riski haritayı ders başına yeniden kuruyor ve
     her kurulum aynı dersleri soruyor (tarayıcıda Pyodide'de pahalı)."""
     olcek = zorluk_olcegi(con) if olcek is None else olcek
-    anahtar = (*_imza(con), code, len(olcek))
+    anahtar = (*_imza(con), code, olcek.kaynak, olcek.n)
     if anahtar not in _ZORLUK_CACHE:
         if len(_ZORLUK_CACHE) > 5000:
             _ZORLUK_CACHE.clear()
@@ -549,7 +627,7 @@ def zorluk(con: sqlite3.Connection, code: str,
     return _ZORLUK_CACHE[anahtar]
 
 
-def _zorluk(con: sqlite3.Connection, code: str, olcek: list[float]) -> dict | None:
+def _zorluk(con: sqlite3.Connection, code: str, olcek: ZorlukOlcegi) -> dict | None:
     key = lookup(con, code)
     if not key:
         return None
@@ -564,14 +642,17 @@ def _zorluk(con: sqlite3.Connection, code: str, olcek: list[float]) -> dict | No
                            "harf notu ortalaması yoktur." if bl
                            else "Harf notu verisi bulunmamaktadır.")}
     donem_adi = [config.donem_adi(t) or t for t in z["terms"]]
-    temel = {"mean": z["mean"], "n": z["n"], "failRate": z["failRate"],
+    temel = {"passRate": round(100.0 - z["failRate"], 1),
+             "mean": z["mean"], "n": z["n"], "failRate": z["failRate"],
              "terms": z["terms"], "termLabels": donem_adi}
     if z["n"] < ZORLUK_MIN_N:
         return {**temel, "level": None,
                 "reason": f"Olağan dönemlerde yalnızca {z['n']} harf notu vardır; "
                           f"derecelendirme için en az {ZORLUK_MIN_N} gerekir."}
-    kademe, pay, kaynak = zorluk_kademesi(z["mean"], olcek)
-    return {**temel, "level": kademe, "label": ZORLUK_ETIKET[kademe],
-            "lowerShare": pay, "scale": kaynak,
-            "catalog": len(olcek) if kaynak == "katalog" else None,
+    k = zorluk_kademesi(z["failRate"], z["mean"], olcek)
+    return {**temel, **k, "label": ZORLUK_ETIKET[k["level"]],
             "lowData": z["n"] < ZORLUK_AZ_VERI}
+
+
+SABIT_OLCEK = ZorlukOlcegi(ZORLUK_SABIT["ff"], ZORLUK_SABIT["ort"],
+                           ZORLUK_SABIT["skor"], "sabit")

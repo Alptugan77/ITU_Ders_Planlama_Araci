@@ -2664,6 +2664,8 @@ td .zorluk,.yhdonem li>.zorluk{margin-left:6px}
   font-size:var(--fs-sm);color:var(--ink-2)}
 .zorlukkutu .zorlukust .zorluk{font-size:var(--fs-sm)}
 .zorlukkutu .why{margin-top:6px}
+.zorlukkutu .zorlukana{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;
+  font-size:var(--fs-sm);color:var(--ink-2)}
 .zorlukkutu .zorluknot{margin-top:6px;font-size:var(--fs-xs);color:var(--ink-3);
   line-height:var(--lh-snug)}
 .ozetzorluk{font-size:var(--fs-sm);color:var(--ink-2);margin-top:6px;line-height:var(--lh-snug)}
@@ -9346,13 +9348,21 @@ const zorlukOf = c => {
   const z = c && c.grades && c.grades.difficulty;
   return z && z.level ? z : null;
 };
-function zorlukCumlesi(z){
+/* ★★ Faz 86 — GEÇME ORANI ÖNCE (kullanıcı 24.09.2026): kademe ağırlıklı
+   olarak geçme oranından (%70), ikincil olarak ortalamadan (%30). Çan
+   eğrisiyle not verilen derste ortalama düşük olsa da sınıfın çoğu geçer;
+   yalnız ortalamaya bakmak o dersi "zor" gösteriyordu. Metin de aynı sırayla. */
+function zorlukCumlesi(z, sayisiz){
   const donem = (z.termLabels || []).map(kisaDonem).join(", ");
-  return `Olağan dönemlerde${donem ? ` (${donem})` : ""} ${z.n} öğrencinin harf notu `
-    + `ortalaması ${z.mean.toFixed(2)} (VF hariç)`
-    + (z.lowerShare != null && z.catalog
-        ? `; not dağılımı bilinen ${z.catalog} ders içinde ortalaması bundan düşük olanların payı %${z.lowerShare}.`
-        : "; kademe, İTÜ'nün 2025-2026 not dağılımlarından ölçülen dilim sınırlarına göre belirlenmiştir.");
+  /* `sayisiz`: pencerede sayılar hemen üstteki satırda — tekrar yazılmıyor. */
+  return (sayisiz
+      ? `Olağan dönemler${donem ? `: ${donem}` : ""}; VF hariç.`
+      : `Olağan dönemlerde${donem ? ` (${donem})` : ""} ${z.n} öğrenci: `
+        + `geçme oranı %${z.passRate}, harf notu ortalaması ${z.mean.toFixed(2)} (VF hariç).`)
+    + (z.passLowerShare != null && z.catalog
+        ? ` Not dağılımı bilinen ${z.catalog} ders içinde geçme oranı bundan düşük olanların`
+          + ` payı %${z.passLowerShare}, ortalaması bundan düşük olanların payı %${z.meanLowerShare}.`
+        : " Kademe, İTÜ'nün 2025-2026 not dağılımlarından ölçülen tablolara göre belirlenmiştir.");
 }
 function zorlukRozet(z){
   if(!z || !z.level) return "";
@@ -9372,9 +9382,15 @@ function zorlukKutusu(cand){
   return `<div class="zorlukkutu">
     <div class="zorlukust"><b>Tahmini zorluk</b> ${zorlukRozet(z)}
       <span class="mono">${z.level} / 5</span></div>
-    <div class="why">${esc(zorlukCumlesi(z))} FF oranı <b class="mono">%${z.failRate}</b>.${
+    <div class="zorlukana"><span>geçme oranı <b class="mono">%${z.passRate}</b></span>
+      <span>ortalama <b class="mono">${z.mean.toFixed(2)}</b></span>
+      <span>n=<b class="mono">${z.n}</b></span></div>
+    <div class="why">${esc(zorlukCumlesi(z, true))}${
       z.lowData ? " <b>Az veriye dayanmaktadır.</b>" : ""}</div>
-    <div class="zorluknot">Tahmindir: not ortalaması dersin zorluğunun yanında öğretim
+    <div class="zorluknot">Kademe ağırlıklı olarak <b>geçme oranından</b> (%70), ikincil
+      olarak not ortalamasından (%30) belirlenir: bağıl (çan eğrisi) değerlendirmede
+      ortalama düşük olsa da öğrencilerin çoğu dersi geçebilir.
+      Tahmindir: notlar dersin zorluğunun yanında öğretim
       üyesinin not verme eğilimini ve dersi alan öğrencilerin yapısını da yansıtır.
       Tekrar/bütünleme niteliğindeki küçük sınıflar ve devamsızlık (VF) hesaba katılmaz.
       Bu bilgi öneri puanına <b>dahil edilmez</b>.</div>
@@ -9920,11 +9936,13 @@ function siralanmis(l){
     const x = gecmisOzet(a), y = gecmisOzet(b);
     return (y ? y.ort : -1) - (x ? x.ort : -1) || i - j;
   }).map(([c]) => c);
-  /* Faz 85 — kolaydan zora; aynı kademede ortalaması yüksek önce; verisi
+  /* Faz 85 — kolaydan zora; aynı kademede geçme oranı (Faz 86), sonra
+     ortalaması yüksek önce; verisi
      olmayan sonda (sırası korunarak). */
   if(FILT.sort === "zor") return l.map((c, i) => [c, i]).sort(([a, i], [b, j]) => {
     const x = zorlukOf(a), y = zorlukOf(b);
-    return (x ? x.level : 9) - (y ? y.level : 9) || (y ? y.mean : 0) - (x ? x.mean : 0) || i - j;
+    return (x ? x.level : 9) - (y ? y.level : 9) || (y ? y.passRate : 0) - (x ? x.passRate : 0)
+      || (y ? y.mean : 0) - (x ? x.mean : 0) || i - j;
   }).map(([c]) => c);
   if(FILT.sort === "bos") return l.map((c, i) => [c, i])
     .sort(([a, i], [b, j]) => bosYer(b) - bosYer(a) || i - j).map(([c]) => c);

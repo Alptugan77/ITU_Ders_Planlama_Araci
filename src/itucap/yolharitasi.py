@@ -383,7 +383,10 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             except Exception:                                  # noqa: BLE001
                 z = None
             _zk[kod] = ({"level": z["level"], "label": z["label"],
-                         "mean": z["mean"], "n": z["n"], "lowData": z["lowData"]}
+                         "passRate": z["passRate"], "mean": z["mean"], "n": z["n"],
+                         "termLabels": z["termLabels"], "lowData": z["lowData"],
+                         "catalog": z["catalog"], "passLowerShare": z["passLowerShare"],
+                         "meanLowerShare": z["meanLowerShare"]}
                         if z and z.get("level") else None)
         return _zk[kod]
 

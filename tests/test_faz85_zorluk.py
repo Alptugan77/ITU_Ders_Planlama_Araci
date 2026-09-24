@@ -49,19 +49,14 @@ def test_ORTALAMA_VFsiz_ve_tekrar_sinifi_haric():
     assert ND.zorluk_ortalamasi({"202610": {"BL": 9, "VF": 2}}) is None
 
 
-def test_KADEME_sabit_sinirlar_ve_canli_yuzdelik():
-    # Az ders (vitrin, kısmi çekim) → ölçülmüş sabit sınırlar.
-    assert ND.zorluk_kademesi(1.9, [])[0::2] == (5, "sabit")
-    assert ND.zorluk_kademesi(2.4, [])[0] == 4
-    assert ND.zorluk_kademesi(2.7, [])[0] == 3
-    assert ND.zorluk_kademesi(3.0, [])[0] == 2
-    assert ND.zorluk_kademesi(3.6, [])[0] == 1
-    # Yeterli katalog → canlı yüzdelik: 400 ders, ortalamalar 0.00–3.99.
-    olcek = [i / 100 for i in range(400)]
-    k, pay, kaynak = ND.zorluk_kademesi(0.5, olcek)
-    assert (k, pay, kaynak) == (5, 13, "katalog")
-    assert ND.zorluk_kademesi(3.9, olcek)[0] == 1
-    assert ND.zorluk_kademesi(2.0, olcek)[0] == 3
+def test_KADEME_sabit_tablolar_ve_canli_yuzdelik():
+    """(Faz 86: kademe geçme oranı + ortalamadan; ayrıntı test_faz86.)"""
+    S = ND.SABIT_OLCEK
+    assert ND.zorluk_kademesi(25.0, 1.8, S)["level"] == 5
+    assert ND.zorluk_kademesi(0.0, 3.8, S)["level"] == 1
+    assert ND.zorluk_kademesi(5.0, 2.7, S)["level"] == 3
+    k = ND.zorluk_kademesi(25.0, 1.8, S)
+    assert k["scale"] == "sabit" and k["passLowerShare"] is None and k["catalog"] is None
 
 
 def _ref(tmp_path, dagilim):
@@ -89,8 +84,9 @@ def test_ZORLUK_ucu(tmp_path):
     az = ND.zorluk(con, "SEM 101")
     assert az["level"] is None and "yalnızca 10 harf notu" in az["reason"]
     m = ND.zorluk(con, "MAT 103")
-    assert (m["level"], m["label"], m["mean"], m["n"], m["failRate"]) == (5, "çok zor", 1.67, 60, 33.3)
-    assert m["scale"] == "sabit" and m["lowerShare"] is None and m["lowData"] is False
+    assert (m["level"], m["label"], m["mean"], m["n"], m["failRate"], m["passRate"]) == (
+        5, "çok zor", 1.67, 60, 33.3, 66.7)
+    assert m["scale"] == "sabit" and m["passLowerShare"] is None and m["lowData"] is False
     assert m["termLabels"] == ["2025-2026 Güz"]
     i = ND.zorluk(con, "ING 100")
     assert (i["level"], i["label"]) == (1, "çok kolay")
@@ -126,6 +122,12 @@ with sync_playwright() as p:
         .filter(x => x[1]))"""), ensure_ascii=False))
     pg.select_option("#candSort", "zor"); pg.wait_for_timeout(200)
     print("SIRA:" + json.dumps(pg.evaluate("() => [...document.querySelectorAll('#cands tbody tr')].map(r => r.dataset.course)")))
+    # Faz 86 — aynı kademede geçme oranı ortalamadan önce gelir.
+    print("ESIT:" + json.dumps(pg.evaluate("""() => siralanmis([
+        {course: 'A', grades: {difficulty: {level: 3, passRate: 90, mean: 3.4}}},
+        {course: 'B', grades: {difficulty: {level: 3, passRate: 97, mean: 2.2}}},
+        {course: 'C', grades: {difficulty: {level: 3, passRate: 97, mean: 2.9}}},
+        {course: 'D', grades: null}]).map(c => c.course)""")))
     print("OZET:" + pg.evaluate("() => (document.querySelector('#schedSummary .ozetzorluk')||{textContent:''}).textContent.replace(/\\s+/g,' ')"))
     pg.evaluate("() => addDialog('MAT 210E')"); pg.wait_for_timeout(300)
     print("KUTU:" + pg.evaluate("() => (document.querySelector('#detail .zorlukkutu')||{textContent:''}).textContent.replace(/\\s+/g,' ')"))
@@ -164,12 +166,15 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     assert rozet["BLG 223E"] == "tahmini zorluk: zor"
     assert rozet["GEO 321E"] == "tahmini zorluk: orta · az veri"   # n=24 < 60
     sira = json.loads(c["SIRA"])
-    # Kolaydan zora; verisi olmayan sonda.
-    assert sira[:5] == ["GEO 321E", "GEO 315E", "GEO 341E", "BLG 223E", "MAT 210E"], sira
-    assert c["OZET"].startswith("tahmini zorluk: 1 zor · 2 orta · 5 ders için veri yok"), c["OZET"]
+    # Kolaydan zora; verisi olmayan sonda. (Faz 86: GEO 315E FF ≈ %8 → zor.)
+    assert sira[:5] == ["GEO 321E", "GEO 341E", "GEO 315E", "BLG 223E", "MAT 210E"], sira
+    assert json.loads(c["ESIT"]) == ["C", "B", "A", "D"]
+    # (Faz 86: GEO 315E FF ≈ %8 → orta'dan zor'a)
+    assert c["OZET"].startswith("tahmini zorluk: 2 zor · 1 orta · 5 ders için veri yok"), c["OZET"]
     k = c["KUTU"]
-    assert "Tahmini zorluk" in k and "5 / 5" in k and "ortalaması 1.83 (VF hariç)" in k, k
-    assert "FF oranı %20.8" in k and "dahil edilmez" in k
+    assert "Tahmini zorluk" in k and "5 / 5" in k, k
+    assert "geçme oranı %79.2 ortalama 1.83 n=106" in k and "dahil edilmez" in k
+    assert "Olağan dönemler: 2025-26 Güz; VF hariç." in k
     yh = json.loads(c["YH"])
     bahar = [x for x in yh if x[0] == "2026-2027 Bahar"][0]
     assert bahar[1] == "tahmini zorluk: 1 zor ders" and "MAT 210E" in bahar[2], bahar
