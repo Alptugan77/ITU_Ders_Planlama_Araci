@@ -2681,6 +2681,8 @@ td .zorluk,.yhdonem li>.zorluk{margin-left:6px}
 .ozetzorluk .yogun{color:var(--warn)}
 .yhzorluk{font-size:var(--fs-xs);color:var(--ink-3);margin:2px 0 4px}
 .yhzorluk b{color:var(--warn)}
+.kalmariskli{color:var(--warn)}
+.kalmariskli b{color:var(--ink)}
 .altbaslik{display:flex;align-items:baseline;gap:8px;margin-top:16px;padding-top:12px;
   border-top:1px solid var(--border)}
 .altsatir{padding:8px 0;border-bottom:1px solid var(--border);font-size:var(--fs-sm)}
@@ -6150,6 +6152,14 @@ function bantSiniri(gno){
   const tutan = B.filter(b => gno + 1e-9 >= b.minGpa);
   return tutan.length ? Math.max(...tutan.map(b => b.max)) : null;
 }
+/* ★★ Faz 88 — "geçmişteki ortanca notla doldur". Derecelenebilen (Faz 87:
+   yeterli veri, harf notlu) dersin olağan dönemlerindeki ortanca harf notu.
+   Kişisel tahmin DEĞİL; öğrencinin "tipik bir sonuçla GNO'm ne olur"
+   sorusuna başlangıç noktası. */
+let NS_ORTANCA = null;          // son "ortanca" uygulamasının özeti (oturumluk)
+const ortancaNot = (c) => { const z = zorlukOf(c); return z && z.median in NS_PUAN ? z.median : null; };
+const ortancaIpucu = (c) => { const m = ortancaNot(c);
+  return m ? ` <span class="meta nsortanca" title="Geçmişte dersi alan öğrencilerin ortanca harf notu (olağan dönemler, VF hariç)">ortanca <b class="mono">${m}</b></span>` : ""; };
 function renderNotSenaryo(odak){
   const kutu = $("#notSenaryoBody");
   if(!kutu) return;
@@ -6168,7 +6178,7 @@ function renderNotSenaryo(odak){
       <td>${esc(p.cand.name || "")}${rt ? ` <span class="chip unknown"
         title="Eski not ortalamadan düşülür; son alınan not geçerlidir">tekrar · eski ${
         esc(rt.grade)}</span>` : ""}</td>
-      <td class="mono sayi">${p.cand.credits}</td><td>${secim(p.cand.course)}</td></tr>`;
+      <td class="mono sayi">${p.cand.credits}</td><td>${secim(p.cand.course)}${ortancaIpucu(p.cand)}</td></tr>`;
   }).join("");
   const ok = (v, min) => yuvarla2(v) + 1e-9 >= min;
   const esikler = !r.T ? [] : (g.thresholds || [])
@@ -6209,7 +6219,13 @@ function renderNotSenaryo(odak){
     <div class="nsust"><label>Tümüne uygula:
       <select id="nsHepsi" aria-label="Tüm derslere aynı notu uygula"><option value="">seçiniz</option>
         ${HARF_PUAN.slice().reverse().map(([h]) => `<option>${h}</option>`).join("")}
+        ${secili.some(p => ortancaNot(p.cand)) ? `<option value="ortanca">geçmişteki ortanca not</option>` : ""}
         <option value="temizle">temizle</option></select></label></div>
+    ${NS_ORTANCA ? `<div class="meta nsortancanot" role="status">${NS_ORTANCA.uygulanan} derse
+      geçmişteki ortanca harf notu yazılmıştır${NS_ORTANCA.eksik ? `; <b>${NS_ORTANCA.eksik}</b>
+      ders için geçmiş veri bulunmadığından notu elle seçiniz` : ""}. Ortanca not, dersi
+      geçmişte alan öğrencilerin ortasındaki notudur (olağan dönemler, VF hariç); kişisel
+      bir tahmin değildir.</div>` : ""}
     <div class="nskaydir"><table class="nstablo"><thead><tr><th>Ders</th><th>Ad</th>
       <th class="sayi">Kredi</th><th>Beklenen not</th></tr></thead>
       <tbody>${satirlar}</tbody></table></div>
@@ -6219,6 +6235,7 @@ function renderNotSenaryo(odak){
       Öğretim Yönetmeliği MADDE 17'deki GNO bantlarından hesaplanır.</div>
   </div>`;
   kutu.querySelectorAll(".nssec").forEach(s => s.addEventListener("change", () => {
+    NS_ORTANCA = null;                       // tek tek seçim: toplu uygulamanın notu eskidi
     if(s.value) notlar[s.dataset.ns] = s.value; else delete notlar[s.dataset.ns];
     localStorage_set("notSenaryo", JSON.stringify(notlar));
     renderNotSenaryo(s.dataset.ns);        // yeniden çizim odağı kaybettirmesin
@@ -6231,8 +6248,16 @@ function renderNotSenaryo(odak){
   kalmaBagla(); kalmaOto();        // Faz 75 — FF seçilince kendiliğinden
   const hep = $("#nsHepsi");
   if(hep) hep.addEventListener("change", () => {
-    secili.forEach(p => { if(hep.value === "temizle") delete notlar[p.cand.course];
-                          else if(hep.value) notlar[p.cand.course] = hep.value; });
+    NS_ORTANCA = null;
+    if(hep.value === "ortanca"){
+      /* Faz 88 — verisi olan derse ortanca; olmayanın seçimine DOKUNULMUYOR
+         (bilinmeyen, bilinen gibi doldurulmaz) ve sayısı söyleniyor. */
+      NS_ORTANCA = {uygulanan: 0, eksik: 0};
+      secili.forEach(p => { const m = ortancaNot(p.cand);
+        if(m){ notlar[p.cand.course] = m; NS_ORTANCA.uygulanan++; } else NS_ORTANCA.eksik++; });
+    }
+    else secili.forEach(p => { if(hep.value === "temizle") delete notlar[p.cand.course];
+                               else if(hep.value) notlar[p.cand.course] = hep.value; });
     localStorage_set("notSenaryo", JSON.stringify(notlar));
     renderNotSenaryo("*");
   });
@@ -6340,21 +6365,35 @@ function kalmaPanelIcerik(){
   if(KALMA.hata) return `<div class="note yhkalma">${bas}<div class="meta">Hesaplanamadı:
     ${esc(KALMA.hata)}</div></div>`;
   const V = KALMA.veri;
+  /* ★★ Faz 88 — "kalırsam ne olur"un yanına "kalma ihtimali ne kadar":
+     geçmişte kalma oranı = FF + VF (Faz 87: VF, vize barajı nedeniyle final
+     hakkını kaybedenleri de gösteriyor). Aynı gecikmede kalma oranı yüksek
+     ders önde. Oranı bilinmeyen dersin oranı UYDURULMUYOR. */
+  const kalmaOrani = c => { const z = zorlukOf(candOf(c.course)); return z ? +(100 - z.passRate).toFixed(1) : null; };
+  const gecikme = c => Math.max(...c.programs.map(p => p.delay || 0));
   const etkili = V.courses.filter(c => c.programs.some(p => p.delay !== 0))
-    .sort((a, b) => Math.max(...b.programs.map(p => p.delay || 0))
-                  - Math.max(...a.programs.map(p => p.delay || 0)));
+    .sort((a, b) => gecikme(b) - gecikme(a) || (kalmaOrani(b) ?? -1) - (kalmaOrani(a) ?? -1));
   const etkisiz = V.courses.length - etkili.length;
+  const RISK_ORAN = 20;
+  const riskli = etkili.filter(c => gecikme(c) > 0 && (kalmaOrani(c) ?? 0) >= RISK_ORAN);
   return `<div class="note yhkalma">${bas}
-    ${etkili.map(c => `<div class="yhsatir"><b class="mono">${esc(c.course)}</b> —
-      ${c.programs.filter(p => p.delay !== 0).map(p => gecikmeYazi(p, c)).join("; ")}</div>`).join("")}
+    ${riskli.length ? `<div class="yhsatir kalmariskli"><b>Öncelik:</b> ${riskli.map(c =>
+      `<b class="mono">${esc(c.course)}</b>`).join(", ")} — hem mezuniyeti geciktirebilir hem
+      de geçmişte öğrencilerin en az %${RISK_ORAN}'si bu dersi geçememiştir.</div>` : ""}
+    ${etkili.map(c => { const o = kalmaOrani(c);
+      return `<div class="yhsatir"><b class="mono">${esc(c.course)}</b> —
+      ${c.programs.filter(p => p.delay !== 0).map(p => gecikmeYazi(p, c)).join("; ")}<span class="meta"> ·
+      ${o === null ? "geçmiş kalma oranı bilinmemektedir"
+        : `geçmişte kalma oranı <b class="mono">%${o}</b> (FF + VF)`}</span></div>`; }).join("")}
     ${etkisiz ? `<div class="yhsatir">${etkili.length ? "Diğer " : ""}<b>${etkisiz}</b> dersten
       kalınması bitişi değiştirmemektedir.</div>` : ""}
     <div class="meta" style="margin-top:6px">Taban: programdaki ${V.courses.length} dersin
       geçildiği varsayımı — ${V.base.map(b => `${esc(b.label)} ${b.finish
         ? esc(b.finish.label) : "bitiş hesaplanamamaktadır"}`).join(", ")}. Kalınan ders
       sonraki uygun döneme yerleştirilmiştir; önşart zinciri, dersin açıldığı yarıyıl ve
-      dönem kredi sınırı yol haritasındaki kurallarla hesaplanmıştır. GNO etkisi için
-      "Kredi ve not" bölümündeki not senaryosu kullanılabilir.</div></div>`;
+      dönem kredi sınırı yol haritasındaki kurallarla hesaplanmıştır. Kalma oranı OBS not
+      dağılımının olağan dönemlerinden alınmıştır; kişisel bir tahmin değildir. GNO etkisi
+      için "Kredi ve not" bölümündeki not senaryosu kullanılabilir.</div></div>`;
 }
 /* Not senaryosunda FF seçilen dersler için aynı sonuç. */
 function kalmaNsIcerik(){
@@ -8507,7 +8546,25 @@ function programOlcu(liste){
             online, timeless: saatsiz, gaps: bekleme},
     campusChanges: kampus, carpisan,
     dolu: hits.filter(x => x.hit.sec.capacity && yerSayisi(x.hit.sec) === 0).map(x => x.p.course),
+    zorluk: programZorlugu(hits.map(x => x.hit.cand)),
   };
+}
+/* ★★ Faz 88 — programın tahmini zorluğu: derslerin genel puanlarının (10
+   üzerinden, Faz 87) KREDİ AĞIRLIKLI ortalaması. 4 kredilik çok zor ders,
+   1 kredilik laboratuvardan fazla yük getirir. Verisi olmayan ders ortalamaya
+   GİRMİYOR ve sayısı ayrıca yazılıyor — ortalamayı "bilinen derslerin"
+   ortalaması olarak okumak gerekiyor. Hiçbir dersin verisi yoksa `ort` null. */
+function programZorlugu(adaylar){
+  let top = 0, agirlik = 0, zor = 0, yok = 0;
+  adaylar.forEach(c => {
+    const z = zorlukOf(c);
+    if(!z){ yok++; return; }
+    const w = c.credits > 0 ? c.credits : 1;
+    top += z.score * w; agirlik += w;
+    if(z.level >= 4) zor++;
+  });
+  return {ort: agirlik ? Math.round(top / agirlik * 10) / 10 : null, zor, yok,
+          bilinen: adaylar.length - yok};
 }
 function karsilastirmaSutunlari(){
   const sutun = [];
@@ -8560,6 +8617,21 @@ function karsilastirDialog(){
           s.tur === "oneri" && s.veri.s.prefDelta ? `<div class="meta ${s.veri.s.prefDelta < 0 ? "eksi" : "arti"}">
             tercih ${s.veri.s.prefDelta > 0 ? "+" : ""}${s.veri.s.prefDelta}</div>` : ""}`,
           "Yüksek puan, dersin bu dönem alınmamasının maliyetinin yüksek olduğunu gösterir")}
+        ${list.some(s => s.olcu.zorluk.ort !== null) ? satir("Tahmini zorluk", o => {
+          const z = o.zorluk;
+          if(z.ort === null) return `<span class="meta">veri yok</span>`;
+          const enHafif = Math.min(...list.map(s => s.olcu.zorluk.ort ?? Infinity));
+          const fark = list.some(s => (s.olcu.zorluk.ort ?? -Infinity) >= enHafif + 0.5);
+          /* "En hafif" yalnız her sütunda derslerin EN AZ YARISI biliniyorsa:
+             8 dersin 3'ünden çıkan ortalamayla sıralamak, bilinmeyeni bilinen
+             gibi göstermek olurdu. */
+          const yeterli = list.every(s => s.olcu.zorluk.bilinen >= s.olcu.zorluk.yok);
+          return `<b class="mono">${zp(z.ort)}</b> / 10${z.ort === enHafif && fark && yeterli
+              ? ` <span class="chip" style="color:var(--ok)">en hafif</span>` : ""}
+            <div class="meta">${z.zor ? `<b class="mono">${z.zor}</b> zor ders` : "zor ders yok"}${
+              z.yok ? ` · ${z.yok} ders için veri yok` : ""}</div>`;
+        }, "Derslerin genel zorluk puanlarının (10 üzerinden) kredi ağırlıklı ortalaması; "
+           + "geçmiş not dağılımından tahmin, öneri puanına dahil değildir") : ""}
         ${satir("Dolu günler", o => (o.shape.days || []).map(d => GUNAD[d - 1]).join(" ") || "—")}
         ${satir("Boş gün", o => (o.shape.freeDays || []).map(d => `<b>${GUNAD[d - 1]}</b>`).join(" ") || "—")}
         ${satir("En erken", o => `<span class="mono">${dk(o.shape.earliest)}</span>`)}
@@ -9433,8 +9505,10 @@ function zorlukOzeti(){
   const parca = [5, 4, 3, 2, 1].filter(l => k.say[l])
     .map(l => `<b class="mono">${k.say[l]}</b> ${ZORLUK_AD[l]}`);
   if(!parca.length) return "";
-  return `<div class="ozetzorluk aciklamali" title="Geçmiş not ortalamasından tahmin; öneri puanına dahil değildir">tahmini zorluk: ${
-    parca.join(" · ")}${k.yok ? ` · ${k.yok} ders için veri yok` : ""}${k.zor >= 3
+  /* Faz 88 — karşılaştırmadaki sayıyla AYNI (kredi ağırlıklı ortalama). */
+  const pz = programZorlugu(ps.map(p => p.cand));
+  return `<div class="ozetzorluk aciklamali" title="Derslerin genel zorluk puanlarının kredi ağırlıklı ortalaması; geçmiş not dağılımından tahmin, öneri puanına dahil değildir">tahmini zorluk <b class="mono">${
+    zp(pz.ort)}</b>/10: ${parca.join(" · ")}${k.yok ? ` · ${k.yok} ders için veri yok` : ""}${k.zor >= 3
       ? ` — <span class="yogun">zor ders sayısı yüksek; yükün dengelenmesi değerlendirilebilir</span>` : ""}</div>`;
 }
 const ZORLUK_AD = {1: "çok kolay", 2: "kolay", 3: "orta", 4: "zor", 5: "çok zor"};
@@ -9448,7 +9522,10 @@ const ZORLUK_AD = {1: "çok kolay", 2: "kolay", 3: "orta", 4: "zor", 5: "çok zo
    iddia eder:
      1. Dağılım TR+EN kodun İKİSİNİ birden kapsıyor (kaynak öyle yayınlıyor).
      2. GEÇMİŞ bir döneme ait; hocası, sınavı, kontenjanı değişmiş olabilir.
-     3. VF (devamsızlık) FF'ten AYRI — devamsızlık dersin zorluğu değil.
+     3. VF FF'ten AYRI yazılıyor. ★ Faz 88: VF yalnız devamsızlık değil —
+        final sınavına girme koşulunu (devam, vize/ödev barajı) sağlayamayan
+        öğrenci (kullanıcı, Faz 87). Tahmini zorlukta geçemeyenlere sayılıyor;
+        "zorluğu göstermez" demek o hesapla çelişiyordu.
      4. Ortalama yalnız harf notu alanlardan; VF ölçeğe girmiyor. */
 function notDagilimi(cand){
   const g = cand && cand.grades;
@@ -9507,7 +9584,7 @@ function notDagilimi(cand){
     <div class="ndozet">
       <span>ortalama <b class="mono">${donem.meanPoints ?? "—"}</b></span>
       <span>FF <b class="mono">%${donem.failRate}</b></span>
-      <span title="Devamsızlık nedeniyle başarısızlık; dersin zorluğu hakkında bilgi vermez">
+      <span title="Final sınavına girme koşulunu sağlayamayan öğrenciler (devamsızlık ya da vize/ödev barajı); tahmini zorlukta geçemeyenlere sayılır">
         VF <b class="mono">%${donem.absentRate}</b></span>
       <span>${esc(donem.yearName)} ${esc(donem.season)}</span>
       <button class="ghost mini" data-ndplus="${esc(cand.course)}"
@@ -9530,7 +9607,8 @@ function notDagilimi(cand){
       <br>⚠️ Veriler <b>geçmiş</b> bir döneme aittir; öğretim üyesi, sınav ve
       kontenjan değişmiş olabilir. Bu bilgi öneri puanına <b>dahil edilmez</b>.
       Ortalama, aracın GNO ölçeğiyle hesaplanır: <b>FF</b> ve <b>VF</b> sıfır
-      puandır. <b>VF devamsızlığı</b> gösterir, dersin zorluğunu göstermez.
+      puandır. <b>VF</b>, final sınavına girme koşulunu sağlayamayan öğrencileri
+      gösterir (devamsızlık ya da vize/ödev barajı); tahmini zorlukta geçemeyenlere sayılır.
     </div>
   </details>`;
 }
