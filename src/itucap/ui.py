@@ -1936,7 +1936,11 @@ def _term_note(cands: list[REC.Candidate], donem: int, second_label: str) -> str
     now = sum(1 for c in cands if c.term_no == donem)
     below = sum(1 for c in cands if c.term_no is not None and c.term_no < donem)
     free = sum(1 for c in cands if c.term_no is None)
-    parts = [f"{now} dönemlik ({donem}. dönem)", f"{below} alttan (1–{donem - 1}. dönem)"]
+    parts = [f"{now} dönemlik ({donem}. dönem)"]
+    # ★ Faz 84 — 1. dönemde "alttan" diye bir şey yok: gerçek sitede
+    # "0 alttan (1–0. dönem)" yazıyordu.
+    if donem > 1:
+        parts.append(f"{below} alttan (1–{donem - 1}. dönem)")
     if free:
         parts.append(f"{free} {second_label or 'ikinci program'} (planda dönem bilgisi yok; tüm dersler dahil)")
     return " · ".join(parts)
@@ -10740,6 +10744,16 @@ function raySayilari(){
 const BASVURU_KINDS = [["cap", "Çift anadal", "ÇAP planları"],
                        ["yandal", "Yandal", "Yandal planları"]];
 
+/* ★ Faz 84 — Kredi penceresi değerlendirilemediğinde (transkript yok) beyan
+   edilen dönem yine bir şey söylüyor: pencere 30 krediden (2. sınıf, 3.
+   yarıyıl) açılıyor. Yalnız BİLGİ — transfer/intibak öğrencisinin kredisi
+   dönemden fazla olabilir, o yüzden ✗ değil. */
+function basvuruDonemNotu(s){
+  const k = (s.checks || []).find(c => c.key === "kredi_penceresi");
+  if(!k || k.ok !== null || !DATA.donem || DATA.donem >= 3) return "";
+  return `başvuru penceresi genellikle 3. yarıyıldan (30 kredi) itibaren açılır; şu an ${DATA.donem}. dönemdesiniz`;
+}
+
 /* Sayfada duran KISA hâl: iki satır, her birinde pencereyi açan düğme.
    Ayrıntı (şartlar + program tablosu) pencerede — dönemde birkaç kez
    bakılan bir şey sayfanın en uzun bölümü olmamalı. */
@@ -10750,14 +10764,22 @@ function renderBasvuru(){
   const satirlar = BASVURU_KINDS.filter(([k]) => all[k]).map(([k, lbl, btn]) => {
     const s = all[k];
     const iyi = s.eligible;
+    /* ★ Faz 84 — HİÇBİR şart değerlendirilemiyorsa (transkript yok) "✓
+       denetlenebilen şartlar sağlanmaktadır" boş bir doğruydu: gerçek sitede
+       1. dönemdeki, dersi girilmemiş öğrenci ÇAP için yeşil onay görüyordu.
+       Bilinmeyen, bilinen gibi gösterilmez — işaret nötr, metin nedenini söylüyor. */
+    const bilinen = (s.checks || []).filter(c => c.ok !== null).length;
+    const belirsiz = iyi && !bilinen;
     const durum = !iyi ? "bir şart sağlanmamaktadır"
+      : belirsiz ? `şartlar değerlendirilememektedir${DATA.load && DATA.load.noTranscript
+          ? " (başarılan dersler girilmemiştir)" : ""}${basvuruDonemNotu(s) ? " · " + basvuruDonemNotu(s) : ""}`
       : s.unknownCount ? `denetlenebilen şartlar sağlanmaktadır · ${s.unknownCount} şart bu araçla denetlenemez`
       : "denetlenebilen tüm şartlar sağlanmaktadır";
     const sayi = s.planTypeAvailable === false ? "OBS'de plan yayımlanmamıştır"
       : s.optionCount ? `${s.optionCount} program açık` : "uygun plan bulunmamaktadır";
     return `<div class="basvuruitem">
-      <span class="mark" style="color:${iyi ? "var(--ok)" : "var(--danger)"}"
-        >${iyi ? "✓" : "✗"}</span>
+      <span class="mark" style="color:${belirsiz ? "var(--ink-3)" : iyi ? "var(--ok)" : "var(--danger)"}"
+        >${belirsiz ? "—" : iyi ? "✓" : "✗"}</span>
       <span class="what"><b>${lbl}</b><span class="why">${esc(durum)} · ${esc(sayi)}</span></span>
       <button class="ghost" data-k="${k}">${btn}</button></div>`;
   }).join("");
@@ -10803,6 +10825,9 @@ function renderBasvuruBody(){
   const verdict = !s.eligible
     ? `<b style="color:var(--danger)">Bilinen şartlardan en az biri
        şu anda sağlanmamaktadır.</b>`
+    : !s.checks.some(c => c.ok !== null)            /* Faz 84 — boş onay yok */
+      ? `<b>Şartların hiçbiri değerlendirilememektedir.</b>
+         Başarılan dersler girildiğinde GNO ve kredi şartları denetlenir.${basvuruDonemNotu(s) ? " Not: " + esc(basvuruDonemNotu(s)) + "." : ""}`
     : s.unknownCount
       ? `<b style="color:var(--ok)">Denetlenebilen şartlar sağlanmaktadır.</b>
          ${s.unknownCount} şart bu araçla doğrulanamamaktadır (yukarıda “—” ile işaretlidir).`
