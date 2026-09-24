@@ -301,9 +301,16 @@ def gpa(con: sqlite3.Connection, graded: Mapping[str, str],
     """Transkriptten ağırlıklı GNO.
 
     ⚠️ Bu bir **tahmin**, OBS'nin resmi GNO'su değil. Üç kaynaktan sapabilir:
-    kredisi bilinmeyen ders, notu girilmemiş ders (DD varsayılıyor), ve
-    tekrar edilen derste hangi notun sayıldığı. Üçü de ayrıca raporlanıyor
-    ki arayüz sayıyı olduğundan kesin göstermesin.
+    kredisi bilinmeyen ders, notu girilmemiş ders, ve tekrar edilen derste
+    hangi notun sayıldığı. Üçü de ayrıca raporlanıyor ki arayüz sayıyı
+    olduğundan kesin göstermesin.
+
+    ★★ Faz 68 — NOTU GİRİLMEMİŞ DERS ORTALAMAYA GİRMİYOR. Önşart için DD
+    varsaymak doğru (en kötü durum; "MIN CC" yanlışlıkla sağlanmaz), ama
+    GNO'ya DD yazmak ÖLÇÜLMEMİŞ bir sayı üretiyordu: gerçek sitede plandan
+    tikleyen 5. yarıyıl öğrencisi 26 notsuz dersle "GNO 1.00" gördü, bütün
+    eşikler ✗, kredi sınırı 22'ye düştü. Artık GNO yalnız notu bilinen
+    derslerden; hiç yoksa `counted == 0` → arayüz "bilinmiyor" diyor.
     """
     unknown_grade = set(uncertain)
     total_points = total_credits = 0.0
@@ -312,6 +319,8 @@ def gpa(con: sqlite3.Connection, graded: Mapping[str, str],
     not_graded: list[str] = []
     conditional: list[str] = []
     for code, grade in graded.items():
+        if code in unknown_grade:
+            continue                     # notu bilinmiyor → ortalamaya girmez
         g = str(grade or "").upper()
         if g in GPA_EXCLUDED or g not in GRADE_POINTS:
             not_graded.append(code)
@@ -324,10 +333,7 @@ def gpa(con: sqlite3.Connection, graded: Mapping[str, str],
         total_points += GRADE_POINTS[g] * credits
         total_credits += credits
         counted += 1
-        # ★ Notu GİRİLMEMİŞ ders DD varsayılıyor (en kötü durum). Onu
-        # "şartlı geçer" diye raporlamak, kullanıcıya var olmayan bir sorun
-        # göstermek olurdu — gerçek not girilince çoğu yukarı çıkacak.
-        if g in CONDITIONAL_PASS and code not in unknown_grade:
+        if g in CONDITIONAL_PASS:
             conditional.append(code)
     value = round(total_points / total_credits, 2) if total_credits else 0.0
     return Gpa(value, round(total_credits, 1), counted,

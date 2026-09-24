@@ -501,6 +501,13 @@ her maddeden önce gelen tek iş.
 > İTÜ Helper araçlarına bağlantı ✅ · kayıt "OBS'de" değil Kepler'de ✅
 > ➜ Ayrıntı: `docs/faz67-dis-baglantilar.md`
 >
+> **Faz 68 (24.09.2026 — notsuz GNO):** gerçek sitede ÇAP'lı öğrenci gezisi.
+> ★★ Plandan işaretlenen notsuz dersler GNO'ya DD giriyordu: "GNO 1.00",
+> bütün eşikler ✗, kredi sınırı 22 → notu bilinmeyen ders ortalamaya
+> girmiyor; not yoksa GNO "bilinmiyor", eşikler "—" ✅ (önşartta DD aynen)
+> Geri alma deneyi: 5/5 kırmızı.
+> ➜ Ayrıntı: `docs/faz68-notsuz-gno.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

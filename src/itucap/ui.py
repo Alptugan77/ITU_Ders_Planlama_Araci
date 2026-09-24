@@ -344,6 +344,14 @@ def _threshold_info(con: sqlite3.Connection, ucon: sqlite3.Connection,
                     "verified": t.verified, "note": t.note,
                     "kind": t.kind, "source": t.source,
                     "scope": scope, "scopeLabel": scope_label}
+            if t.key != "cap_mezuniyet_ikinci" and not gpa.counted:
+                # ★ Faz 68 — harf notu yoksa GNO ölçülmedi: ✗ değil "—".
+                item.update({"basis": "genel", "ok": None,
+                             "why": "Harf notu girilmiş ders bulunmadığından GNO "
+                                    "bilinmemektedir."})
+                out.append(item)
+                gorulen[t.key] = item
+                continue
             if t.key == "cap_mezuniyet_ikinci":
                 if second_gpa is None:
                     item.update({"basis": "ikinci anadal", "ok": None,
@@ -857,7 +865,12 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             # ★ Transkript yokken GNO 0.00 bir ÖLÇÜM değil, veri yokluğu.
             # Tavanı "GNO'ndan hesaplandı" diye sunmak yanlış olurdu:
             # en düşük bandı VARSAYIYORUZ ve bunu yazıyoruz.
-            "noTranscript": not gpa.counted,
+            # ⚠️ Faz 68: "transkript yok" (hiç ders girilmemiş) ile "not yok"
+            # (dersler var, hiçbirinin harf notu yok) AYRI. İlkinde ilerleme de
+            # bilinmiyor; ikincisinde yalnız GNO — ilerleme panelleri bu bayrağa
+            # bakıyor, karıştırılırsa "İlerleme bilinmiyor" yanlış çıkardı.
+            "noTranscript": not S.graded(ucon, student_id),
+            "noGrades": bool(S.graded(ucon, student_id)) and not gpa.counted,
             # Tavan nereden geldi: 'yönetmelik' (GNO'dan otomatik) | 'ayar' | 'çağrı'.
             # Türetilmiş bir sayıyı beyan edilmiş gibi göstermemek için.
             "limitSource": limit_source,
@@ -3990,6 +4003,8 @@ function renderHeader(){
         `${DATA.lessonCount} açık şube`,
         DATA.load && DATA.load.noTranscript
           ? "dönem yükü sınırı: transkript girilince"
+          : DATA.load && DATA.load.noGrades
+          ? "dönem yükü sınırı: harf notları girilince"
           /* ★ Kaynağı da yaz (UX 27.08.2026): kullanıcı 30 ayarlayıp
              başlıkta 40 görünce "bozuk mu" diyor. Yönetmelik GNO'ya göre
              tavanı yükseltiyor (MADDE 17) ve bunu söylemeden göstermek,
@@ -5513,6 +5528,7 @@ function renderLoad(){
                ⚠️ Tavanı gizlemiyoruz — motor bir sayı kullanmak ZORUNDA.
                Söylediğimiz şey değişiyor: "hesaplandı" değil, "VARSAYILDI". */
             ? `transkript girilmedi; <b>en düşük band varsayıldı</b>:`
+            : L.noGrades ? `harf notu girilmedi; <b>en düşük band varsayıldı</b>:`
             : (({"yönetmelik": "kullanılan değer (GNO'dan hesaplandı)",
                  "ayar": "elle ayarlanmış değer (settings.toml)",
                  "çağrı": "bu çalıştırmaya özel değer"}[L.limitSource] || "ayarlı değer") + ":")}
@@ -5525,6 +5541,13 @@ function renderLoad(){
           girilmemiştir. Dersler girildiğinde kredi sınırı değişebilir.
           ${LIVE ? `<button class="ghost" data-setup="plan"
             style="margin-left:6px">Dersleri girin</button>` : ""}</div>` : ""}
+        ${L.noGrades ? `<div class="note" style="margin-bottom:8px">
+          <b>GNO bilinmemektedir.</b> Başarılan dersler girilmiş, ancak hiçbirinin
+          harf notu girilmemiştir; notu bilinmeyen ders ortalamaya katılmaz. Aşağıdaki
+          gerekçelerde yer alan “GNO 0.00” hesaplanmış bir değer <b>değildir</b>. Notlar
+          transkript yapıştırılarak girildiğinde kredi sınırı değişebilir.
+          ${LIVE || window.__ITUCAP_API__ ? `<button class="ghost" data-setup="dersler"
+            style="margin-left:6px">Transkript yapıştır</button>` : ""}</div>` : ""}
         ${L.reasons.map(r => `<div>· ${esc(r)}</div>`).join("")}
         ${L.source ? `<div style="color:var(--ink-3);margin-top:4px">${esc(L.source)}</div>` : ""}
       </div>
@@ -5603,7 +5626,9 @@ function renderGpa(){
       ${g.noCredit.length ? `Kredisi bilinmeyen <b>${g.noCredit.length}</b> ders
         ortalamaya katılmadı (<span class="mono">${g.noCredit.slice(0,5).map(esc).join(", ")}</span>). ` : ""}
       ${g.uncertain.length ? `Notu girilmemiş <b>${g.uncertain.length}</b> ders
-        <b>DD</b> olarak sayıldı; gerçek GNO daha yüksek olabilir. ` : ""}
+        ortalamaya katılmadı; GNO yalnızca notu bilinen derslerden hesaplanmıştır
+        (önşart denetiminde bu dersler en düşük geçer not olan <b>DD</b> ile
+        sayılır). ` : ""}
       ${(g.conditional || []).length ? condText(g) : ""}
       ${pending.length ? `<b>${pending.length}</b> eşik henüz hesaplanamamaktadır
         (—): ${pending.map(t => esc(t.why || t.label)).join(" ")} ` : ""}
@@ -6732,8 +6757,10 @@ function kayitKontrol(){
   const ekle = (ok, ad, not) => satirlar.push({ok, ad, not});
 
   // 1) Kredi tavanı
-  if(L.noTranscript)
-    ekle(null, "Kredi sınırı", "transkript girilmediğinden sınır bilinmemektedir");
+  if(L.noTranscript || L.noGrades)
+    ekle(null, "Kredi sınırı", L.noGrades
+      ? "harf notu girilmediğinden sınır bilinmemektedir"
+      : "transkript girilmediğinden sınır bilinmemektedir");
   else
     ekle(t.credits <= DATA.maxLoad + 1e-9, "Kredi sınırı",
          `${t.credits} / ${DATA.maxLoad} ${DATA.unitLabel}`);
