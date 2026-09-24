@@ -65,7 +65,15 @@ async function isaretli(res){
                                          headers: h});
 }
 
+/* ★ Devir teslim: yeni sürüm etkinleşince eski önbelleği SİLİYOR; ama eski
+   SW o an hâlâ bir sayfaya hizmet ediyorsa `caches.open(eskiAd)` onu YENİDEN
+   yaratıyordu (ölçüldü: güncellemeden sonra iki kabuk önbelleği). Önbelleği
+   `install` yaratıyor; yoksa bu SW'nin yerine yenisi geçmiş demektir — o zaman
+   yalnız ağa git, hiçbir şey saklama. */
+async function benimMi(ad){ return caches.has(ad); }
+
 async function agOnce(istek){
+  if(!(await benimMi(KABUK))) return fetch(istek);
   const depo = await caches.open(KABUK);
   const eski = await depo.match(istek, {ignoreSearch: true});
   /* ⚠️ `no-cache`: ağ denemesi tarayıcının HTTP önbelleğine düşmesin.
@@ -90,6 +98,7 @@ async function agOnce(istek){
 }
 
 async function onbellekOnce(istek){
+  if(!(await benimMi(PYODIDE))) return fetch(istek);
   const depo = await caches.open(PYODIDE);
   const eski = await depo.match(istek.url);
   if(eski){

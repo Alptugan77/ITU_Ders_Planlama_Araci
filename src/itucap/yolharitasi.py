@@ -71,6 +71,7 @@ class Birim:
     mevsim_kaynagi: str = ""       # 'plan' | 'lisans' | 'gecmis' | ''
     ek_mevsim_kaynagi: str = ""    # 'sube' (bu dönem şubesi) | 'gecmis'
     gecmis: dict | None = None     # `gecmis_mevsimleri` sonucu
+    dis_onsart: list[str] = field(default_factory=list)   # varsayılan dış önşartlar
     en_erken: int = 1              # en erken dönem indeksi (0 = bu dönem)
     yukseklik: int = 0             # arkasından gelen en uzun zincir
     yer: int | None = None         # yerleştirildiği dönem indeksi
@@ -300,6 +301,30 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     # ---------------------------------------------- 3. dönem dönem yerleştir
     gecilen = {c for c, g in grades.items() if R.passed(g)}
     varsayilan = set(gecilen) | alinan_kodlar
+    # ★★ DIŞ ÖNŞART (24.09.2026, gerçek katalogla ölçüldü). Önşartın istediği
+    # ders HİÇBİR planında yoksa (ING 201 dil dersi, MAT 210 ↔ yeni kodu gibi
+    # kod göçleri — fikirler §1.1) ders eskiden HİÇ yerleşmiyordu ve tek bir
+    # böyle ders bütün programın bitişini "hesaplanamadı" yapıyordu: BLG+EHB
+    # öğrencisinde iki programın ikisi de. Bu dersler öğrencide çoğunlukla
+    # geçilmiş, muaf ya da başka kodla alınmış. Okunamayan önşartla AYNI
+    # kural: yerleşiyor, hangi dış dersin VARSAYILDIĞI derste ve varsayım
+    # kutusunda yazıyor. Ancak dış ders varsayılınca da tutmuyorsa (planlı
+    # bir ders eksik) ders bekliyor.
+    dis = set()
+    for b in birimler:
+        a = agaclar.get(b.ders) if b.ders else None
+        if a is not None:
+            dis |= a.courses()
+    dis -= set(kod_birim) | varsayilan
+
+    def onsart_tamam(b: Birim, agac) -> bool:
+        if agac is None or agac.satisfied(R.prereq_view({c: GECER for c in varsayilan})):
+            b.dis_onsart = []
+            return True
+        if agac.satisfied(R.prereq_view({c: GECER for c in varsayilan | dis})):
+            b.dis_onsart = sorted(agac.courses() & dis)
+            return True
+        return False
     kazanilan = POL.earned_credits(con, grades) + sum(
         float(p.get("credits") or 0) for p in bu_donem)
     donemler = [{"code": term, "label": config.donem_adi(term) or term,
@@ -330,8 +355,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
                                     else "yazdan önceki dönemde zaten yerleşiyor")}
             return
         agac = agaclar.get(b.ders)
-        hazir = b.ders in okunamayan or agac is None or agac.satisfied(
-            R.prereq_view({c: GECER for c in varsayilan}))
+        hazir = b.ders in okunamayan or onsart_tamam(b, agac)
         if not hazir or not POL.check(b.ders, kazanilan, kurallar, names.get(b.ders, ""),
                                       siniflama.get(b.ders), katalog_kurali).ok:
             yaz_sonuc = {"course": b.ders, "placed": False,
@@ -362,9 +386,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             return True                      # havuz: hangi ders seçileceği bilinmiyor
         if b.ders in okunamayan:
             return True                      # önşart okunamadı — notla işaretleniyor
-        agac = agaclar.get(b.ders)
-        if agac is not None and not agac.satisfied(
-                R.prereq_view({c: GECER for c in varsayilan})):
+        if not onsart_tamam(b, agaclar.get(b.ders)):
             return False
         return POL.check(b.ders, kredi_var, kurallar, names.get(b.ders, ""),
                          siniflama.get(b.ders), katalog_kurali).ok
@@ -429,7 +451,8 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
                        "alsoSeason": b.ek_mevsim,
                        "alsoSeasonSource": b.ek_mevsim_kaynagi,
                        "chain": b.yukseklik,
-                       "unparsed": b.ders in okunamayan}
+                       "unparsed": b.ders in okunamayan,
+                       "externalPrereq": b.dis_onsart}
                       for b in secilen],
             # ÇAP tabanı tutmuyorsa SÖYLENİYOR (yeterli alınabilir ÇAP dersi yok).
             "floorGap": (round(taban.minimum - cap_kredi, 1)
@@ -491,6 +514,8 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             "finishSemester": (donem + son if donem and not kalmayan and son is not None
                                else None),
             "unplaced": len(kalmayan),
+            # Dış önşartı VARSAYILARAK yerleşen ders sayısı — bitiş buna bağlı.
+            "externalAssumed": sum(1 for b in onun if b.yer not in (None, 0) and b.dis_onsart),
             "chain": max((b.yukseklik for b in onun if b.yer != 0), default=0),
         })
 
@@ -521,6 +546,14 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
         "bilinebiliyor. Yaz okulu hesaba katılmadı.",
         "Seçmeli havuzda hangi dersi seçeceğin bilinmediği için havuzun önşartı yok sayıldı.",
     ]
+    dis_var = [b for b in birimler if b.yer not in (None, 0) and b.dis_onsart]
+    if dis_var:
+        ornek = sorted({k for b in dis_var for k in b.dis_onsart})[:4]
+        varsayimlar.append(
+            f"{len(dis_var)} dersin önşartı planlarında olmayan derslerden "
+            f"({', '.join(ornek)}{'…' if len({k for b in dis_var for k in b.dis_onsart}) > 4 else ''})"
+            " — bunları geçtiğin, muaf olduğun ya da başka kodla aldığın varsayıldı. "
+            "Değilse transkriptine ekle ya da danışmanına sor.")
     if bos:
         varsayimlar.append(
             f"{len(bos)} dönemi boş bıraktın (Erasmus/staj/izin): o dönemlerde İTÜ dersi "
