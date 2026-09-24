@@ -35,6 +35,7 @@ import anında dosya okumuyor.
 """
 from __future__ import annotations
 
+import re
 import sqlite3
 from dataclasses import dataclass, field
 from typing import Iterable, Mapping
@@ -180,6 +181,22 @@ def _birimler(con, planlar, grades, equivalences, names) -> list[Birim]:
             b._plan = plan                     # type: ignore[attr-defined]
             out[b.anahtar] = b
     return list(out.values())
+
+
+def ortak_program(con: sqlite3.Connection, program: str) -> str | None:
+    """Faz 63 — UOLP (uluslararası ortak lisans) programıysa ortak üniversite.
+
+    Gerçek katalogda 20 program böyle ("… UOLP (Saraybosna-IUS)"): planı
+    YALNIZ İTÜ'de alınan dersleri içeriyor (BES 3.–6., CES 5.–8. yarıyıl).
+    Ortak üniversitedeki dönemler veride yok; haritanın "son İTÜ dersi"
+    mezuniyet değil. Adı OBS'nin program listesinden — başka işaret yok.
+    """
+    row = con.execute("SELECT name FROM program WHERE code=?", (program or "",)).fetchone()
+    ad = (row[0] if row else "") or ""
+    if "UOLP" not in ad:
+        return None
+    m = re.search(r"UOLP\s*\(([^)]+)\)", ad)
+    return m.group(1).strip() if m else "ortak üniversite"
 
 
 def _sondaki_boslari_at(donemler: list[dict]) -> list[dict]:
@@ -492,7 +509,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
         return {"index": i, "code": kodlar_sirali[i],
                 "label": config.donem_adi(kodlar_sirali[i]) or kodlar_sirali[i]}
 
-    programlar = []
+    programlar, ortaklar = [], []
     for plan in planlar:
         rol = plan["role"]
         onun = [b for b in birimler if rol in b.roller]
@@ -504,15 +521,23 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
                                     (plan["planId"],)).fetchone()[0]
         nominal = (etiket(max(0, son_donem - donem))
                    if son_donem and 0 <= son_donem - donem <= ufuk else None)
+        # ★ Faz 63 — ortak programda bitiş, plandaki bitiş ve yarıyıl YOK:
+        # ortak üniversitedeki dönemler bilinmiyor; son İTÜ dersini mezuniyet
+        # gibi göstermek (ve azami süreye vurmak) uydurma olurdu.
+        ortak = ortak_program(con, plan.get("program", ""))
+        if ortak:
+            ortaklar.append(ortak)
         programlar.append({
-            "role": rol, "label": plan.get("label") or rol, "nominal": nominal,
+            "role": rol, "label": plan.get("label") or rol,
+            "nominal": None if ortak else nominal,
             "program": plan.get("program", ""),
             "remaining": len(onun), "remainingCredits": round(sum(b.kredi for b in onun), 1),
-            "finish": None if kalmayan or son is None else etiket(son),
+            "finish": None if ortak or kalmayan or son is None else etiket(son),
+            "jointDegree": ortak,
             # Faz 59 — bitişin öğrencinin kaçıncı yarıyılı olduğu (yaz sayılmıyor;
             # bu dönem = `donem`). Dönem bilinmiyorsa None — tahmin yok.
-            "finishSemester": (donem + son if donem and not kalmayan and son is not None
-                               else None),
+            "finishSemester": (donem + son if donem and not ortak and not kalmayan
+                               and son is not None else None),
             "unplaced": len(kalmayan),
             # Dış önşartı VARSAYILARAK yerleşen ders sayısı — bitiş buna bağlı.
             "externalAssumed": sum(1 for b in onun if b.yer not in (None, 0) and b.dis_onsart),
@@ -565,6 +590,12 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             f"yalnız gerçek bir sınıfın (en az {GECMIS_TABAN} öğrenci ve o yılın en "
             f"kalabalık yarıyılının %{GECMIS_ORAN * 100:.0f}'i) olduğu yarıyıl sayıldı — "
             "birkaç bütünlemeci sayılmadı. Geçen yıl açılması bu yıl açılacağı demek değil.")
+    if ortaklar:
+        varsayimlar.append(
+            f"⚠ Ortak program (UOLP · {', '.join(ortaklar)}): planda yalnız İTÜ'de alınan "
+            "dersler var; ortak üniversitedeki dönemler bu veride yok. Dersler art arda İTÜ "
+            "dönemlerine yerleştirildi ve bitiş TAHMİN EDİLMEDİ — hangi yarıyılın İTÜ'de "
+            "olduğunu danışmanına sor.")
     if bilinmeyen_mevsim:
         varsayimlar.append(f"⚠ {bilinmeyen_mevsim} dersin mevsimi hiçbir planda bulunamadı "
                            "(geçmiş not dağılımında da yok) — her dönem açılır sayıldı.")

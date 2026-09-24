@@ -466,6 +466,14 @@ her maddeden önce gelen tek iş.
 > hatası ✅
 > ➜ Ayrıntı: `docs/faz62-site-acilis.md`
 >
+> **Faz 63 (24.09.2026 — dürüst bitiş):** 127 programın hepsi gerçek
+> katalogla kuruldu. ★★ 2+. yarıyılda transkript girilmemişken harita planın
+> tamamını kalan sayıp "azami süreyi aşıyorsun" diyordu → tahmin yok,
+> "Dersleri gir" ✅ · ★★ 20 UOLP (ortak lisans) programında son İTÜ dersi
+> mezuniyet gibi yazılıyordu → "tahmin edilmedi", danışmana soru ✅
+> Geri alma deneyi: 6/6 kırmızı.
+> ➜ Ayrıntı: `docs/faz63-durust-bitis.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

@@ -1,5 +1,10 @@
 # Kalan eksikler ve geliştirilmesi gerekenler
 
+> **Faz 63 (24.09.2026):** transkriptsiz ve UOLP programlarında yol haritası
+> bitiş tahmin etmiyor ✅. Yeni açık kalem: UOLP'de hangi yarıyılın İTÜ'de
+> olduğu (veride yok; bulunursa ortak üniversite dönemleri "boş dönem" olur).
+> Ayrıntı: `docs/faz63-durust-bitis.md`.
+
 > **Faz 61'de eklenenler (24.09.2026):** yol haritası **senaryoları** — dönem
 > başına daha az kredi, boş dönem (Erasmus/staj) ✅ · **danışman özeti** —
 > tek sayfa, CRN'ler, kontroller, ölçülen sorunlardan çıkan sorular ✅.

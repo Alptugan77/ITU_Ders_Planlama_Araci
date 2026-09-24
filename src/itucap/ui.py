@@ -1341,6 +1341,15 @@ def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
                             "terms": a - b, "finish": p["finish"]})
         return out
 
+    # ★★ FAZ 63 — TRANSKRİPT YOKKEN HARİTA YOK (gerçek katalogda ölçüldü).
+    # 2+. yarıyılda olduğunu söyleyip geçtiğin dersleri girmediysen harita
+    # planın TAMAMINI kalan sayıyordu: "13. yarıyılda bitersin, azami süreyi
+    # aşıyorsun" — hakkında hiçbir şey bilmediğimiz kişiye yanlış ve korkutucu
+    # bir cevap. İlerleme panelleri bunu Faz 26'da düzeltmişti ("İlerleme
+    # bilinmiyor"); harita da aynı kuralı izliyor. 1. yarıyılda boş
+    # transkript doğru — harita kuruluyor.
+    if _transkript_eksik(donem, grades):
+        return {"noTranscript": True, "donem": donem}
     try:
         sonuc = kur(bu)
         # ★ "BU DÖNEM ŞUNU ALIRSAN" — haritanın asıl işe yarayan cevabı.
@@ -1425,6 +1434,14 @@ def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
         return {"error": f"{type(exc).__name__}: {exc}"}
 
 
+def _transkript_eksik(donem, grades) -> bool:
+    """Faz 63 — 2+. yarıyılda ama geçilmiş TEK ders yok: harita kurulmaz.
+
+    Sayfadaki harita ve istek üzerine kurulanlar (ÇAP seçenekleri,
+    senaryolar) AYNI kuralı buradan alıyor."""
+    return (donem or 0) >= 2 and not any(R.passed(g) for g in (grades or {}).values())
+
+
 def _harita_girdisi(con, ucon, student_id: int, settings, bu_donem, max_load) -> dict:
     """İstek üzerine kurulan haritaların (ÇAP seçenekleri, senaryolar) ORTAK
     girdisi ve doğrulaması — ikisi ayrışırsa aynı öğrenci için iki farklı
@@ -1440,9 +1457,12 @@ def _harita_girdisi(con, ucon, student_id: int, settings, bu_donem, max_load) ->
         raise ValueError("kredi sınırı geçersiz") from None
     if not 1 <= max_load <= 60:
         raise ValueError("kredi sınırı geçersiz")
+    grades = S.grades(ucon, student_id)
+    if _transkript_eksik(int(settings.donem or 0), grades):
+        raise ValueError("geçtiğin dersler girilmedi — bitiş tahmini yapılamıyor")
     return {
         "anadal_id": anadal_id, "term": term, "max_load": max_load,
-        "grades": S.grades(ucon, student_id),
+        "grades": grades,
         "equivalences": R.load_equivalences(con, ucon=ucon),
         "donem": int(settings.donem or 0),
         "bu": [{"course": str(x.get("course") or ""), "credits": float(x.get("credits") or 0),
@@ -6370,7 +6390,13 @@ function danismanSorulari(){
   picks().filter(p => !p.sec.meetings.length).forEach(p =>
     q.push(`<b class="mono">${esc(p.cand.course)}</b> dersinin saati ilan edilmemiş —
       çakışma olup olmadığını nereden öğrenebilirim?`));
-  if(R && !R.error){
+  if(R && R.noTranscript)
+    q.push(`Geçtiğim dersleri araca girmedim — mezuniyet planımı birlikte gözden
+      geçirebilir miyiz?`);
+  if(R && !R.error && !R.noTranscript){
+    (R.programs || []).filter(p => p.jointDegree && p.remaining).forEach(p =>
+      q.push(`Ortak programdayım (${esc(p.jointDegree)}) — kalan yarıyıllarımdan hangileri
+        İTÜ'de, hangileri ortak üniversitede? Mezuniyet dönemim ne olur?`));
     (R.programs || []).forEach(p => {
       if(p.finish && p.nominal && p.finish.index > p.nominal.index)
         q.push(`${esc(buyukBas(p.label))} tahmini bitişim <b>${esc(p.finish.label)}</b>, planımdakinden
@@ -6421,9 +6447,9 @@ function danismanOzeti(){
   }
   if(g && g.counted) kontrol.push(`GNO (tahmini) <b class="mono">${g.value.toFixed(2)}</b> ·
     <span class="mono">${g.credits}</span> kredi`);
-  const bitis = R && !R.error ? (R.programs || []).map(p => `<li><b>${esc(buyukBas(p.label))}</b>:
+  const bitis = R && !R.error && !R.noTranscript ? (R.programs || []).map(p => `<li><b>${esc(buyukBas(p.label))}</b>:
     ${p.finish ? `${esc(p.finish.label)}${p.finishSemester ? ` (${p.finishSemester}. yarıyıl)` : ""}`
-      : "hesaplanamadı"}${p.nominal && p.finish ? (p.finish.index > p.nominal.index
+      : p.jointDegree ? `tahmin edilmedi — ortak program (${esc(p.jointDegree)})` : "hesaplanamadı"}${p.nominal && p.finish ? (p.finish.index > p.nominal.index
       ? ` — planındakinden ${p.finish.index - p.nominal.index} dönem geç` : " — planındakiyle aynı") : ""}</li>`)
     .join("") : "";
   const sorular = danismanSorulari();
@@ -9369,6 +9395,16 @@ function renderRoadmap(){
   if(!sec) return;
   sec.hidden = !T;
   if(!T) return;
+  if(T.noTranscript){
+    $("#roadmapBody").innerHTML = `<div class="proj bilinmiyor"><b>Bitiş tahmini
+      yapılamıyor</b> — <b class="mono">${T.donem}.</b> yarıyılda olduğunu söyledin ama
+      geçtiğin dersleri girmedin; harita planın <b>tamamını</b> kalan sayardı ve
+      yanlış bir bitiş gösterirdi.${LIVE || window.__ITUCAP_API__ ? ` <button class="ghost"
+      data-setup="plan" style="margin-left:8px">Dersleri gir</button>` : ""}</div>`;
+    $("#roadmapBody").querySelectorAll("[data-setup]").forEach(b =>
+      b.addEventListener("click", () => checklistDialog()));
+    return;
+  }
   const R = (YH_SENARYO && !T.error) ? YH_SENARYO : T;
   const body = $("#roadmapBody");
   if(R.error){
@@ -9383,7 +9419,10 @@ function renderRoadmap(){
     return `<article class="yhprogram" data-role="${esc(p.role)}">
       <div class="eyebrow">${esc(p.label)}${p.program ? " · " + esc(p.program) : ""}</div>
       <div class="yhbitis">${p.remaining === 0 ? "tamamlanmış"
-        : (p.finish ? esc(p.finish.label) : "hesaplanamadı")}</div>
+        : (p.finish ? esc(p.finish.label) : p.jointDegree ? "tahmin edilmedi" : "hesaplanamadı")}</div>
+      ${p.jointDegree ? `<div class="yhalt"><span class="uyari">ortak program (UOLP ·
+        ${esc(p.jointDegree)})</span> — ortak üniversitedeki dönemler veride yok; sıralama
+        yalnız İTÜ dersleri için</div>` : ""}
       <div class="yhalt">${p.remaining ? `tahmini bitiş · ${p.remaining} ders,
         <span class="mono">${p.remainingCredits}</span> kredi kaldı` : "kalan ders yok"}${
         p.unplaced ? ` · <span class="uyari">${p.unplaced} ders yerleşmedi</span>` : ""}${
@@ -9706,7 +9745,8 @@ function renderBasvuruBody(){
 let CAP_BITIS = null, BASVURU_SIRA = "ders";
 function capBitisHesaplanabilir(){
   const R = DATA.roadmap;
-  return !!(R && !R.error && (R.terms || []).length && (LIVE || window.__ITUCAP_API__));
+  return !!(R && !R.error && !R.noTranscript && (R.terms || []).length
+            && (LIVE || window.__ITUCAP_API__));
 }
 function capBitisGirdi(){
   const R = DATA.roadmap;
