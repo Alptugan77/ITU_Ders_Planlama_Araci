@@ -540,6 +540,20 @@ her maddeden önce gelen tek iş.
 > etkisi önceden yazılıyor ✅ · danışman özetinde soru ✅
 > ➜ Ayrıntı: `docs/faz73-tekrar-dersleri.md`
 >
+> **Faz 74–77 (24.09.2026 — kayıt haftasının dört sorusu):** kullanıcı: *"eklenebilecek
+> çok işe yarar şeyleri düşün ve ekleyebileceklerini ekle"*. "Yalnızca programa
+> sığanlar" süzgeci ✅ · kalma riski — hangi dersten kalınırsa mezuniyet kaç dönem
+> gecikir ✅ · seçmelilerde geçmiş not dağılımı ve sıralama (puana girmiyor) ✅ ·
+> alternatif programlar (Plan B, C…) ve kayıt gününde CRN'leri ✅
+> ➜ Ayrıntı: `docs/faz74-77-kayit-haftasi.md`
+>
+> **Faz 78–79 (24.09.2026):** karşılaştırma öneriler + ızgara + kaydedilen +
+> alternatifleri aynı ölçüyle yan yana koyuyor ✅ · gerçek sitede ÇAP'sız 7.
+> yarıyıl öğrencisi: "Türk"ün T'si not sanılıp ders başarısız sayılıyordu ✅ ·
+> ikinci programı olmayana ÇAP devam/mezuniyet eşikleri ✅ · istek üzerine
+> kurulan haritalar havuz yuvasını bilmiyordu (iki farklı bitiş) ✅
+> ➜ Ayrıntı: `docs/faz78-79-karsilastirma-ve-son-sinif.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

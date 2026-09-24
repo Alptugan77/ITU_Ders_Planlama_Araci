@@ -20,9 +20,16 @@ from .prereq import GRADE_POINTS, PASSING_MIN
 # 'MAT 103E AA' | 'MAT103E,AA' | 'MAT 103E' | 'MAT 103E  BA+  2024-2025 Güz'
 # ★ Not deseni ARTI notları da almalı (BA+, CC+ …) ve tek harfli
 #   işaretleri de (M, T, E) — yönetmelik MADDE 20.
+# ★★ Faz 79 — not parçası bir AYRAÇLA bitmeli (`_NOT_SONU`). Eskiden
+# "TUR 121 Türk Dili I 0 2 BL" satırında "Türk"ün "T"si (ü ASCII değil) not
+# sanılıyordu: T = dersten çekilme → ders BAŞARISIZ kaydediliyor ve yeniden
+# öneriliyordu (gerçek sitede, 7. yarıyıl öğrencisi). "Mühendislik" → "M"
+# (muaf) aynı tuzak. Not ancak ardından boşluk, satır sonu ya da , ; |
+# geliyorsa not.
+_NOT_SONU = r"(?=$|[\s,;|])"
 _LINE_RE = re.compile(
     r"^\s*(?P<code>[A-ZÇĞİÖŞÜ]{2,4}\s*\d{3,4}[A-Za-z]{0,2})"
-    r"(?:\s*[,;|\t ]\s*(?P<grade>[A-Za-z]{1,2}\+?|--|\?)?)?"
+    r"(?:\s*[,;|\t ]\s*(?P<grade>(?:[A-Za-z]{1,2}\+?|--|\?)" + _NOT_SONU + r")?)?"
     r"(?P<rest>.*)$",
     re.IGNORECASE,      # elle girişte küçük harf normal: 'mat 103e cc'
 )
@@ -30,7 +37,7 @@ _LINE_RE = re.compile(
 # kullanıcı yazımlarında kodu metnin içinden yakalamak için.
 _LINE_SEARCH_RE = re.compile(
     r"\b(?P<code>[A-ZÇĞİÖŞÜ]{2,4}\s*\d{3,4}[A-Za-z]{0,2})"
-    r"(?:\s*[,;|\t ]\s*(?P<grade>[A-Za-z]{1,2}\+?|--|\?)?)?"
+    r"(?:\s*[,;|\t ]\s*(?P<grade>(?:[A-Za-z]{1,2}\+?|--|\?)" + _NOT_SONU + r")?)?"
     r"(?P<rest>.*)$",
     re.IGNORECASE,
 )
@@ -468,6 +475,62 @@ def load_picks(ucon: sqlite3.Connection, student_id: int, term: str) -> dict:
         (student_id, term)).fetchall()
     return {"savedAt": rows[0][2] if rows else "",
             "picks": [{"course": r[0], "crn": r[1]} for r in rows]}
+
+
+ALT_MAX = 5          # Faz 77 — dönem başına en çok alternatif program
+ALT_AD_UZUNLUK = 40
+
+
+def save_alt(ucon: sqlite3.Connection, student_id: int, term: str, name: str,
+             picks: list[tuple[str, str]]) -> str:
+    """Faz 77 — adıyla bir ALTERNATİF program saklar (aynı ad varsa üzerine).
+
+    Ana program (`save_picks`) ayrı ve dokunulmuyor. Boş ad, boş program ve
+    sınırın üstündeki yeni alternatif `ValueError` — sessizce kırpmak ya da
+    en eskisini silmek kullanıcının verisini habersiz değiştirirdi.
+    """
+    ad = " ".join(str(name or "").split())[:ALT_AD_UZUNLUK]
+    if not ad:
+        raise ValueError("alternatif programın adı boş olamaz")
+    ciftler = [(normalize_course_code(c), str(crn or "").strip()) for c, crn in picks]
+    ciftler = [(c, crn) for c, crn in ciftler if c and crn]
+    if not ciftler:
+        raise ValueError("programda ders bulunmadığından alternatif kaydedilemez")
+    adlar = {r[0] for r in ucon.execute(
+        "SELECT DISTINCT name FROM saved_alt WHERE student_id=? AND term=?",
+        (student_id, term))}
+    if ad not in adlar and len(adlar) >= ALT_MAX:
+        raise ValueError(f"en çok {ALT_MAX} alternatif program kaydedilebilir; "
+                         "önce birini siliniz")
+    ucon.execute("DELETE FROM saved_alt WHERE student_id=? AND term=? AND name=?",
+                 (student_id, term, ad))
+    now = __import__("datetime").datetime.now().isoformat(timespec="seconds")
+    for i, (course, crn) in enumerate(ciftler):
+        ucon.execute(
+            """INSERT OR REPLACE INTO saved_alt
+               (student_id, term, name, course_code, crn, position, saved_at)
+               VALUES (?,?,?,?,?,?,?)""", (student_id, term, ad, course, crn, i, now))
+    ucon.commit()
+    return ad
+
+
+def load_alts(ucon: sqlite3.Connection, student_id: int, term: str) -> list[dict]:
+    """Faz 77 — alternatif programlar, kaydedildikleri sırayla."""
+    out: dict[str, dict] = {}
+    for ad, course, crn, when in ucon.execute(
+            """SELECT name, course_code, crn, saved_at FROM saved_alt
+               WHERE student_id=? AND term=? ORDER BY saved_at, name, position""",
+            (student_id, term)):
+        a = out.setdefault(ad, {"name": ad, "savedAt": when, "picks": []})
+        a["picks"].append({"course": course, "crn": crn})
+    return list(out.values())
+
+
+def delete_alt(ucon: sqlite3.Connection, student_id: int, term: str, name: str) -> int:
+    cur = ucon.execute("DELETE FROM saved_alt WHERE student_id=? AND term=? AND name=?",
+                       (student_id, term, str(name or "")))
+    ucon.commit()
+    return cur.rowcount
 
 
 def clear_picks(ucon: sqlite3.Connection, student_id: int, term: str) -> int:

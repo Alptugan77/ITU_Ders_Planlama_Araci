@@ -352,7 +352,10 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
                      float(p.get("credits") or 0) for p in bu_donem), 1),
                  "items": [{"course": p["course"], "name": names.get(p["course"], ""),
                             "credits": p.get("credits") or 0,
-                            "roles": [p.get("role") or ""], "pool": ""}
+                            "roles": [p.get("role") or ""], "pool": "",
+                            # Faz 79 — havuz yuvası; istek üzerine kurulan
+                            # haritalar (senaryo, ÇAP seçenekleri) geri gönderiyor.
+                            "slotId": p.get("slotId") or 0}
                            for p in sorted(bu_donem, key=lambda x: x["course"])],
                  "floorGap": None}]
 

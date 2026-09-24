@@ -83,7 +83,8 @@ def can_refresh() -> bool:
 # ekranda göremediği bir hata üretir — sessiz ve bulması zor.
 READ_ONLY_PATHS = frozenset({"/api/katalog", "/api/ders", "/api/crn",
                              "/api/transcript/preview", "/api/capbitis",
-                             "/api/tercih/onizle", "/api/yolharitasi"})
+                             "/api/tercih/onizle", "/api/yolharitasi",
+                             "/api/kalmariski"})
 
 
 class State:
@@ -160,6 +161,9 @@ class State:
         # buna bakarak gizliyor.
         data["canRefresh"] = can_refresh()
         data["savedPicks"] = self.saved()   # ★ "saved" DEĞİL: uç
+        data["alternatives"] = S.load_alts(self.ucon, self.student_id,
+                                           self.settings().term)   # Faz 77
+        data["alternativesMax"] = S.ALT_MAX
         # cevaplarındaki kayıt sayacıyla çakışıyordu (test yakaladı).
         return data
 
@@ -201,6 +205,17 @@ class State:
         if path == "/api/picks/clear":
             self.clear_picks()
             return {}
+        if path == "/api/alternatif":
+            # Faz 77 — adlı alternatif program (Plan B…). Ana program değişmez.
+            pairs = [(str(p.get("course", "")), str(p.get("crn", "")))
+                     for p in (b.get("picks") or [])]
+            return {"alternatifAdi": S.save_alt(self.ucon, self.student_id,
+                                                self.settings().term,
+                                                str(b.get("name") or ""), pairs)}
+        if path == "/api/alternatif/sil":
+            S.delete_alt(self.ucon, self.student_id, self.settings().term,
+                         str(b.get("name") or ""))
+            return {}
         if path == "/api/maxload":
             self.save_max_load(b.get("maxLoad") or 0)
             return {}
@@ -228,6 +243,11 @@ class State:
             return {"senaryo": UI.yol_senaryosu(
                 self.con, self.ucon, self.student_id, self.settings(),
                 b.get("bu") or [], b.get("maxLoad") or 0, b.get("bos") or [])}
+        if path == "/api/kalmariski":
+            # Faz 75 — "bu dersten kalırsam mezuniyetim ne kadar gecikir".
+            return {"kalmaRiski": UI.kalma_riski(
+                self.con, self.ucon, self.student_id, self.settings(),
+                b.get("bu") or [], b.get("maxLoad") or 0)}
         if path == "/api/katalog":
             return {"katalog": self.search_catalog(str(b.get("q") or ""))}
         if path == "/api/ders":
