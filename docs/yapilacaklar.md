@@ -514,6 +514,12 @@ her maddeden önce gelen tek iş.
 > Geri alma deneyi: 6/6 kırmızı.
 > ➜ Ayrıntı: `docs/faz69-kalan-ortalama.md`
 >
+> **Faz 70 (24.09.2026 — gece teması):** kullanıcı: *"dark theme is less
+> readable"*. Gece paleti loş koyuya çekildi: zemin L 0.19→0.24, kart ayrımı,
+> çizgi 1.26→1.46, açıklama 6.95→9.03, meta 5.23→6.91 ✅ · ulaşılamayan eşik
+> danışman özetinde soruluyor ✅
+> ➜ Ayrıntı: `docs/faz70-koyu-tema.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

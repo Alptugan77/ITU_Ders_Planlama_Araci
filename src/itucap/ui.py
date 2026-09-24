@@ -2018,7 +2018,7 @@ __FONTLAR__
      * ızgarada dönüşümlü çizgi ağırlığı: saat başları kalın, yarımlar ince
 
    GECE'den gelen (zemin ve sıcaklık):
-     * koyu ama yumuşak zemin (#10141B) — saf siyah değil, mavi eğilimli
+     * koyu ama yumuşak zemin (#1A1F29, Faz 70'te açıldı) — saf siyah değil, mavi eğilimli
      * düşük kontrast gövde metni; kayıt haftasında saatlerce bakılıyor
      * tek aksan: periwinkle (--seal). Şematik'in çığlık kırmızısı yerine
        yalnız MEVZUAT çakışmasında kullanılan yumuşatılmış bir kırmızı.
@@ -5747,16 +5747,23 @@ function gnoTabani(C0, P0, secili){
    Taban sunucudan (`gpa.remaining`, yol haritasıyla aynı kalan dersler):
    T = kalan kredi; C, P = bugünkü ortalamanın kredisi/puanı, kalan
    derslerden daha önce notu olup geçilmemişlerin (tekrar) payı düşülmüş. */
-function kalanSatiri(h, g, ik){
+/* Hesabın kendisi — satır (kalanSatiri) ve danışman sorusu AYNI sayıyı
+   kullanıyor (Faz 70). null: taban yok ya da hedef yalnız bu döneme bağlı. */
+function kalanGereken(h, g, ik){
   const R = (g.remaining || {})[h.taban];
-  if(!R || h.donemlik) return "";
+  if(!R || h.donemlik) return null;
   const C0 = h.taban === "ikinci" ? (ik ? ik.credits : 0) : g.credits;
   const P0 = h.taban === "ikinci" ? (ik ? ik.points : 0) : g.points;
   const T = R.credits, C = C0 - R.retakeCredits, P = P0 - R.retakePoints;
+  if(!T) return {T};
+  return {T, x: (h.min * (C + T) - P) / T, enIyi: (P + 4 * T) / (C + T)};
+}
+function kalanSatiri(h, g, ik){
+  const k = kalanGereken(h, g, ik);
+  if(!k) return "";
+  const {T, x, enIyi} = k;
   const bas = `Mezuniyete kadar kalan tüm derslerde (<b class="mono">${T}</b> kredi):`;
   if(!T) return `<span class="gnokalan">${bas.replace(":", "")} — kalan ders bulunmamaktadır.</span>`;
-  const x = (h.min * (C + T) - P) / T;
-  const enIyi = (P + 4 * T) / (C + T);
   let metin;
   if(x <= 1e-9)
     metin = `<span class="gnook">her durumda ✓</span> — kalan derslerin tümünden FF alınsa
@@ -6622,6 +6629,15 @@ function danismanSorulari(){
         && !(x.kind === "basvuru" && icinde.has(x.scope)))
       .forEach(x => q.push(`${esc(x.label)} için GNO ≥ ${x.min.toFixed(2)} gerekmektedir;
         tahmini GNO'm ${g.value.toFixed(2)}. Bu eşiğe nasıl ulaşabilirim?`));
+    /* ★ Faz 70 — kalan bütün derslerde AA bile yetmiyorsa (Faz 69 hesabı). */
+    const ik = (g.secondGpa || [])[0];
+    gnoHedefleri().forEach(h => {
+      const k = kalanGereken(h, g, ik);
+      if(k && k.T && k.x > 4 + 1e-9)
+        q.push(`${esc(h.adlar.join(" · "))} için ${h.taban === "ikinci" ? "ÇAP ortalamasının" : "GNO'nun"}
+          ${h.min.toFixed(2)} olması gerekmektedir; kalan tüm derslerim (${k.T} kredi) AA olsa
+          bile ortalamam en fazla ${k.enIyi.toFixed(2)} olur. Seçeneklerim nelerdir?`);
+    });
     if((g.conditional || []).length && g.conditionalRule && g.conditionalRule.ok === false)
       q.push(`Şartlı geçtiğim ${g.conditional.length} ders bulunmaktadır ve GNO'm 2.00'ın
         altındadır. Hangi dersleri tekrar almalıyım?`);

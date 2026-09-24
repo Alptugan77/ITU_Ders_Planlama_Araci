@@ -45,58 +45,68 @@ from __future__ import annotations
 # dışa aktarımına da giriyor; yazı jetonlarında HANGİ zeminde okunduğu
 # yazılı ve o çiftler `tools/kontrast_olcumu.py`de ölçülüyor.
 # ---------------------------------------------------------------------------
+# ★★ Faz 70 — GECE PALETİ YENİDEN (kullanıcı 24.09.2026: "dark theme is
+# less readable than light theme"). Kontrast oranları iki temada yakındı
+# (gövde 14:1, açıklama 7:1) ama gece OKUNMUYORDU: zemin neredeyse siyah
+# (OKLab L 0.19), kart zemini sayfadan ayrılmıyor (ΔE 0.031), ince çizgi
+# 1.26:1 — kartların kenarı kayboluyordu; küçük boy ikincil yazı (ink-2/3)
+# koyu zeminde gündüzdekinden soluk algılanıyor. Yeni gece "loş" bir koyu:
+# zemin L 0.24; kart ayrımı ΔE 0.038; çizgi 1.46:1; ink-2 6.95→9.03,
+# ink-3 5.23→6.91 (kart üstünde). Veri renkleri aynı aileden, açık zemine
+# göre bir basamak açıldı. Ölçüm: tools/kontrast_olcumu.py (hepsi taban
+# üstü), tools/ton_merdiveni.py (yazı ≥4.60, zemin ΔE ≥0.043).
 RENKLER: list[tuple[str, str, str, str]] = [
     # --- zemin ve yüzey
-    ("ground", "#10141B", "#FFFFFF",
+    ("ground", "#1A1F29", "#FFFFFF",
      "Sayfa zemini. Seçili sekmede ve birincil düğmede yazı rengi (on-seal)."),
-    ("surface", "#161B24", "#FFFFFF", "Kart, pencere, form alanı zemini."),
-    ("surface-2", "#1E242F", "#F0F2F6",
+    ("surface", "#222835", "#FFFFFF", "Kart, pencere, form alanı zemini."),
+    ("surface-2", "#2B3240", "#F0F2F6",
      "İkincil yüzey: not kutusu, satır üzerine gelme, kademe kutusu."),
     # --- çizgi
-    ("border", "#262E3A", "#D4D9E2",
+    ("border", "#3A4252", "#D4D9E2",
      "İnce hat: kart kenarı, tablo satır çizgisi, yarım saat çizgisi. "
      "Anlam TAŞIMAZ — yalnız ayırır."),
-    ("border-strong", "#647085", "#141821",
+    ("border-strong", "#7D899E", "#141821",
      "Cetvel: tablo başlığı altı, ızgarada saat başı, bölüm cetveli. "
      "Gündüzde Şematik'in sert siyah cetveli."),
-    ("border-control", "#647085", "#6B7384",
+    ("border-control", "#7D899E", "#6B7384",
      "★ v2. Düğme ve alan kenarı. v1'de cetvelle aynıydı; gündüzde her "
      "düğme siyah çerçeveli çıkıyordu ve beş düğmelik sütunda birincil "
      "eylem kalabalıkta kayboluyordu. Denetim kenarı tabanı 3:1 (ölçülü)."),
     # --- mürekkep
-    ("ink", "#E4E9F2", "#0D1017", "Gövde yazısı; ground, surface, surface-2 üstünde."),
-    ("ink-2", "#9AA5B8", "#4B5462",
+    ("ink", "#EEF2F8", "#0D1017", "Gövde yazısı; ground, surface, surface-2 üstünde."),
+    ("ink-2", "#C3CBD8", "#4B5462",
      "Açıklama ve uzun ikincil metin; ground, surface, surface-2 üstünde."),
-    ("ink-3", "#848EA1", "#5F6878",
+    ("ink-3", "#A9B2C2", "#5F6878",
      "Meta, ipucu, CRN, saat sütunu — en fazla fs-md boyunda; ground, "
      "surface, surface-2 üstünde."),
     # --- yapı (tek aksan)
-    ("seal", "#8FA3E8", "#3B4E9E",
+    ("seal", "#A3B5F2", "#3B4E9E",
      "YAPI: cetvel, eyebrow, bağlantı, seçili sekme zemini, odak halkası, "
      "önşart bağı. Veri taşımaz."),
-    ("seal-soft", "#1A2036", "#E7EAF7",
+    ("seal-soft", "#2A3352", "#E7EAF7",
      "Seçili kip/seçim zemini, üzerine gelme zemini; üstünde yazı seal."),
-    ("seal-hover", "#9EB3F9", "#2F3F8E",
+    ("seal-hover", "#B8C7FB", "#2F3F8E",
      "Birincil düğmenin üzerine gelme rengi (opaklık değil — zemini de soldururdu)."),
     # --- veri: program rolü
-    ("anadal", "#5FC0A6", "#0A6B58", "VERİ: anadal dersi — şerit, panel üst çizgisi, ölçek."),
-    ("anadal-soft", "#123029", "#D6EBE5", "Anadal blok/rozet zemini."),
-    ("anadal-ink", "#8FD8C3", "#074A3D", "anadal-soft üstünde yazı."),
-    ("cap", "#D9A05B", "#8A5210", "VERİ: ÇAP dersi."),
-    ("cap-soft", "#2E2415", "#F6E7D2", "ÇAP blok/rozet zemini."),
-    ("cap-ink", "#EFC48E", "#633B08", "cap-soft üstünde yazı."),
-    ("yandal", "#7FB2C9", "#1F5C77",
+    ("anadal", "#6FCDB3", "#0A6B58", "VERİ: anadal dersi — şerit, panel üst çizgisi, ölçek."),
+    ("anadal-soft", "#19382F", "#D6EBE5", "Anadal blok/rozet zemini."),
+    ("anadal-ink", "#A3E3D0", "#074A3D", "anadal-soft üstünde yazı."),
+    ("cap", "#E3AE6C", "#8A5210", "VERİ: ÇAP dersi."),
+    ("cap-soft", "#3A2E1A", "#F6E7D2", "ÇAP blok/rozet zemini."),
+    ("cap-ink", "#F4D2A4", "#633B08", "cap-soft üstünde yazı."),
+    ("yandal", "#8EC1D8", "#1F5C77",
      "VERİ: yandal dersi. ÇAP ile aynı anda olabildiği için ayrı renk."),
-    ("yandal-soft", "#16252C", "#DCECF4", "Yandal blok/rozet zemini."),
-    ("yandal-ink", "#A9D2E4", "#154457", "yandal-soft üstünde yazı."),
+    ("yandal-soft", "#1C323C", "#DCECF4", "Yandal blok/rozet zemini."),
+    ("yandal-ink", "#BCDDEC", "#154457", "yandal-soft üstünde yazı."),
     # --- durum
-    ("danger", "#E0836F", "#C02D18",
+    ("danger", "#F0957F", "#C02D18",
      "DURUM: kaybedilen/çelişen şey — dolu kontenjan, çakışma, kredi aşımı, "
      "kaldır. Her zaman bir sözcük ya da işaretle birlikte."),
-    ("warn", "#D9B061", "#7A5709",
+    ("warn", "#E3BD6E", "#7A5709",
      "DURUM: eksik arz, belirsizlik, bayat veri, az yer kaldı."),
-    ("warn-soft", "#2B2415", "#FCF1DB", "Uyarı kutusu zemini."),
-    ("warn-ink", "#E8C88A", "#6B4A05", "warn-soft üstünde yazı."),
+    ("warn-soft", "#3A321E", "#FCF1DB", "Uyarı kutusu zemini."),
+    ("warn-ink", "#F0D6A2", "#6B4A05", "warn-soft üstünde yazı."),
 ]
 
 # Anlamsal takma adlar: DEĞER değil ANLAM. Tema bloklarına girmiyorlar —
