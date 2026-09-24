@@ -456,6 +456,16 @@ her maddeden önce gelen tek iş.
 > Geri alma deneyi: 8/8 kırmızı.
 > ➜ Ayrıntı: `docs/faz61-senaryo-ve-danisman.md`
 >
+> **Faz 62 (24.09.2026 — site yarı boş açılıyordu):** ★★ Faz 61'in bir CSS
+> yorumundaki "<body>" metni yükleyiciyi ve app.js'i <style>'ın içine
+> soktu; site hiç başlamadı. Kabuk artık gerçek sınırı hedefliyor, bulamazsa
+> kurulum duruyor; ayrıştırıcıyla test ediliyor ✅ · sitede yol haritası
+> hiç görünmüyordu (dönem ayarı yok) → katalogun dönemi ✅ · gerçek katalogda
+> dış önşart bitişi engelliyordu → varsayılıp yazılıyor ✅ · Faz 60 testinin
+> kararsızlığının kök sebebi (Last-Modified saniye çözünürlüğü) ve bir sw.js
+> hatası ✅
+> ➜ Ayrıntı: `docs/faz62-site-acilis.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

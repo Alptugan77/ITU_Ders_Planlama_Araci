@@ -144,10 +144,33 @@ with sync_playwright() as p:
     ctx.set_offline(False); KAPALI[0] = False
     # Katalog değişti → yeni sürüm → eski kopya silinmeli.
     (kok / "katalog.sqlite3.gz").write_text("YENI")
-    site_kur.cevrimdisi_katman(kok)
+    # ⚠️ KÖK SEBEP (24.09.2026, ~%50 kırmızı): HTTP `Last-Modified` saniye
+    # çözünürlüklü. Test 1,4 sn sürüyor; ESKI ile YENI aynı saniyede yazılınca
+    # yeniden doğrulama 304 alıyor ve tarayıcı ESKI gövdeyi kullanıyordu.
+    # Yayında olmaz (GitHub Pages ETag kullanıyor, dağıtımlar saniyelerce ayrı);
+    # düzenekte dosya zamanı ileri alınıyor.
+    # sw.js İÇİN DE: aynı saniyede yeniden yazılınca tarayıcının güncelleme
+    # denetimi 304 alıp "değişmedi" diyordu — yeni sürüm hiç kurulmuyordu.
+    import os, re, time
+    ileri = time.time() + 10
+    os.utime(kok / "katalog.sqlite3.gz", (ileri, ileri))
+    yeni_sw = site_kur.cevrimdisi_katman(kok)
+    os.utime(yeni_sw, (ileri, ileri))
+    yeni_ad = "itucap-kabuk-" + re.search(r'const SURUM = "(\w+)";', yeni_sw.read_text()).group(1)
+    # Gerçek akış: güncellenmiş siteye ÇEVRİMİÇİ yeni bir ziyaret. Eski sekme
+    # kapanıyor (devir teslimde eski SW'nin hizmet ettiği sayfa kalmasın).
+    # ⚠️ Sabit bekleme DEĞİL: sürüm değişiminin süresi değişken — 1,5 sn'lik
+    # uyku zaman zaman yetmiyordu (24.09.2026, 4 koşuda 2 kırmızı).
+    pg.close()
+    pg = ctx.new_page(); pg.goto(adres)
     pg.evaluate("() => navigator.serviceWorker.getRegistration().then(r => r.update())")
-    pg.wait_for_timeout(1500)
-    pg.reload(); pg.wait_for_timeout(500)
+    # Beklenen önbellek ADI yeni sw.js'ten — koşul boşuna sağlanamasın.
+    pg.wait_for_function("""(ad) => caches.keys().then(k => {
+        const kab = k.filter(a => a.startsWith('itucap-kabuk-'));
+        return kab.length === 1 && kab[0] === ad; })""", arg=yeni_ad, timeout=20000)
+    pg.close()
+    pg = ctx.new_page(); pg.goto(adres)
+    pg.wait_for_function("() => !!navigator.serviceWorker.controller")
     print("ONBELLEK:" + json.dumps(pg.evaluate("() => caches.keys()")))
     ctx.set_offline(True); KAPALI[0] = True
     pg.reload()

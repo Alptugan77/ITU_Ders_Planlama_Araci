@@ -363,10 +363,17 @@ def kabuk(UI) -> str:
     Ayrı bir işlev, çünkü test bu sırayı `build()` çalıştırmadan doğruluyor.
     """
     shell = UI.render({}, deferred=True, fontlar_sonda=True)
-    shell = shell.replace("</head>", f'{_LOADER_CSS}</head>', 1)
-    return shell.replace(
-        "<body>", f'<body>{_loader_html(UI)}'
-                  f'<script src="./app.js" async></script>', 1)
+    # ★★ 24.09.2026 — SİTE YARI BOŞ AÇILDI. Eskiden `str.replace("<body>", …, 1)`
+    # İLK "<body>" METNİNE yazıyordu; Faz 61'de bir CSS yorumu "<body>'ye"
+    # diyordu ve yükleyici + app.js <style>'ın İÇİNE girdi — tarayıcı onları
+    # metin saydı, app.js hiç istenmedi, veri hiç gelmedi. Artık GERÇEK etiket
+    # hedefleniyor: `</head>` ile `<body>` yan yana, ve tam bir kez bulunmalı.
+    bag = "</head>\n<body>"
+    if shell.count(bag) != 1:
+        raise SystemExit(f"❌ şablonda '</head><body>' sınırı tek değil ({shell.count(bag)}) "
+                         "— yükleyici yanlış yere girerdi.")
+    return shell.replace(bag, f'{_LOADER_CSS}</head>\n<body>{_loader_html(UI)}'
+                              f'<script src="./app.js" async></script>', 1)
 
 
 # Pyodide'ın açılışta çektiği dosyalar (314.0.5 için ölçüldü, 21.09.2026):

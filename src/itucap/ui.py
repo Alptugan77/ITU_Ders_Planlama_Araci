@@ -1263,6 +1263,26 @@ def _onboarding(con, ucon, student_id, settings, anadal_id, seconds) -> dict | N
     }
 
 
+def _aktif_donem(con: sqlite3.Connection, settings) -> str:
+    """Yol haritasının "bu dönem"i: ayardaki dönem, yoksa KATALOĞUN dönemi.
+
+    ★ 24.09.2026 — statik sitede kimse `term` ayarı girmiyor; harita (ve ÇAP
+    seçeneklerinin bitişi, senaryolar) bu yüzden sitede HİÇ görünmüyordu,
+    yalnız yerel uygulamada. Şubelerin hepsi tek bir döneme aitse o dönem
+    "bu dönem"dir — tahmin değil, katalogun kendisi. Birden çok dönem varsa
+    ya da hiç yoksa boş: uydurmuyoruz.
+    """
+    term = str(settings.term or "")
+    if len(term) == 6:
+        return term
+    try:
+        donemler = [str(r[0]) for r in con.execute(
+            "SELECT DISTINCT term FROM lesson WHERE term IS NOT NULL AND term != ''")]
+    except sqlite3.Error:
+        return ""
+    return donemler[0] if len(donemler) == 1 and len(donemler[0]) == 6 else ""
+
+
 def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
                   equivalences, donem, limit_credits, load_rule, taban, havuz,
                   acilis_programlari) -> dict | None:
@@ -1276,7 +1296,8 @@ def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
     tavanına (MADDE 17) bakılıyor, o da yoksa harita KURULMUYOR — AKTS'yi
     krediye çevirmek uydurma olurdu.
     """
-    if not anadal_id or not settings.term or len(str(settings.term)) != 6:
+    term = _aktif_donem(con, settings)
+    if not anadal_id or not term:
         return None
     sinir = limit_credits or (load_rule.maximum if load_rule else 0)
     if not sinir:
@@ -1304,7 +1325,7 @@ def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
     planlar += [{"planId": s["planId"], "role": s["role"], "label": s["label"],
                  "program": s["program"]} for s in seconds if s.get("planId")]
     def kur(bu_donem, yaz=None):
-        return YH.kur(con, grades, planlar, term=str(settings.term), donem=donem or 0,
+        return YH.kur(con, grades, planlar, term=term, donem=donem or 0,
                       max_load=float(sinir), bu_donem=bu_donem, bu_donem_kaynagi=kaynak,
                       equivalences=equivalences, taban=taban, yaz=yaz)
 
@@ -1410,7 +1431,7 @@ def _harita_girdisi(con, ucon, student_id: int, settings, bu_donem, max_load) ->
     harita çıkardı."""
     from .plans import anadal_plan
     anadal_id = anadal_plan(con, settings)
-    term = str(settings.term or "")
+    term = _aktif_donem(con, settings)
     if not anadal_id or len(term) != 6:
         raise ValueError("anadal planı ya da dönem bilinmiyor")
     try:
@@ -3414,7 +3435,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
      Ekranda pencerede duruyor; yazdırırken pencere açık olmayabilir. */
   #printCrn{display:block !important}
   a[href]::after{content:""}          /* URL'leri metne eklemesin */
-  /* Faz 61 — danışman özeti: yalnız özet basılıyor (kap <body>'ye taşınıyor). */
+  /* Faz 61 — danışman özeti: yalnız özet basılıyor (kap body'ye taşınıyor). */
   body.ozetbaski>*:not(#ozetBaski){display:none !important}
   body.ozetbaski #ozetBaski{display:block !important}
 }
@@ -6432,7 +6453,7 @@ function danismanDialog(){
   openDialog(html + `<div style="margin-top:12px">
     <button class="ghost primary" id="ozetYazdir">Yazdır</button></div>`);
   $("#ozetYazdir").addEventListener("click", () => {
-    /* Baskı kuralı <body>'nin DOĞRUDAN çocuklarını gizliyor; kap bir
+    /* Baskı kuralı body'nin DOĞRUDAN çocuklarını gizliyor; kap bir
        sarmalayıcının içinde kalırsa sayfa BOŞ basılıyordu (ölçüldü). */
     const kab = $("#ozetBaski");
     if(kab.parentElement !== document.body) document.body.appendChild(kab);
@@ -9365,7 +9386,9 @@ function renderRoadmap(){
         : (p.finish ? esc(p.finish.label) : "hesaplanamadı")}</div>
       <div class="yhalt">${p.remaining ? `tahmini bitiş · ${p.remaining} ders,
         <span class="mono">${p.remainingCredits}</span> kredi kaldı` : "kalan ders yok"}${
-        p.unplaced ? ` · <span class="uyari">${p.unplaced} ders yerleşmedi</span>` : ""}</div>
+        p.unplaced ? ` · <span class="uyari">${p.unplaced} ders yerleşmedi</span>` : ""}${
+        p.externalAssumed ? ` · <span class="uyari">${p.externalAssumed} dersin dış önşartı
+          varsayıldı</span>` : ""}</div>
       ${gec === null ? "" : (gec > 0
         ? `<div class="yhgec">planındaki bitişten ${gec} dönem geç
              (${esc(p.nominal.label)})</div>`
@@ -9435,6 +9458,9 @@ function renderRoadmap(){
             title="Plan başka mevsim diyor; geçmişte bu mevsimde de gerçek bir sınıf vardı"
             >geçmişte ${i.alsoSeason === "10" ? "Güz'de" : "Bahar'da"} da verildi</span>` : ""}
           ${i.unparsed ? `<span class="yhad uyari">önşartı okunamadı — danışmanına sor</span>` : ""}
+          ${(i.externalPrereq || []).length ? `<span class="yhad uyari"
+            title="Bu ders planlarında olmayan bir önşart istiyor; geçtiğin ya da muaf olduğun varsayıldı"
+            >önşart varsayıldı: ${i.externalPrereq.slice(0, 2).map(esc).join(", ")}</span>` : ""}
         </li>`).join("")}</ul>`
         : t.skipped ? `<div class="empty">Boş bıraktın — Erasmus, staj ya da izin;
             bu dönem İTÜ dersi yok.</div>`

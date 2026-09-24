@@ -202,14 +202,29 @@ def test_CAP_TABANI_anadalin_kritik_yoluna_RAGMEN_doluyor(tmp_path):
     assert cap >= 6 and birinci["floorGap"] is None, birinci
 
 
-def test_YERLESMEYEN_ders_SEBEBIYLE(tmp_path):
-    # QQQ'nun önşartı hiçbir planda yok → hiç yerleşemez; bitiş hesaplanmaz.
+def test_DIS_ONSART_varsayiliyor_ve_YAZIYOR(tmp_path):
+    # ★ 24.09.2026 (gerçek katalog): önşartı hiçbir planda olmayan ders eskiden
+    # hiç yerleşmiyordu ve tek bir tanesi programın bitişini "hesaplanamadı"
+    # yapıyordu (BLG+EHB'de iki programın ikisi de). Artık yerleşiyor ve
+    # hangi dış dersin varsayıldığı derste, kartta ve varsayımda yazıyor.
     con = _katalog(tmp_path, [("QQQ 131", 3, "DIS 100 MIN DD"), ("DIS 100", 3, None)],
                    [("QQQ 131", 6)])
     h = _kur(con)
-    assert h["programs"][0]["finish"] is None
-    assert h["programs"][0]["unplaced"] == 1
-    assert "DIS 100" in h["unplaced"][0]["reason"]
+    p = h["programs"][0]
+    assert p["finish"] is not None and p["unplaced"] == 0 and p["externalAssumed"] == 1
+    madde = next(i for t in h["terms"] for i in t["items"] if i["course"] == "QQQ 131")
+    assert madde["externalPrereq"] == ["DIS 100"]
+    assert any("DIS 100" in a and "varsayıldı" in a for a in h["assumptions"])
+
+
+def test_PLANLI_onsart_eksikse_BEKLIYOR_ve_ufukta_YERLESMEYEN(tmp_path):
+    # Dış ders varsayılması PLANLI önşartı atlatmıyor: YYY, XXX'i bekler.
+    # Ufuk bir dönemse XXX (Güz) hiç yerleşmez, YYY de — sebebiyle.
+    con = _katalog(tmp_path, [("XXX 101", 3, None), ("YYY 102", 3, "XXX 101 MIN DD")],
+                   [("XXX 101", 5), ("YYY 102", 6)])
+    h = _kur(con, ufuk=1)
+    assert h["programs"][0]["finish"] is None and h["programs"][0]["unplaced"] == 2
+    assert all("yerleşmedi" in u["reason"] or "önşart" in u["reason"] for u in h["unplaced"])
 
 
 def test_OKUNAMAYAN_ONSART_engellemiyor_ama_ISARETLENIYOR(tmp_path):
