@@ -64,7 +64,7 @@ kullanıcının paletiyle değiştirtiyor. Ölçüm:
   düştü → çubuk görünmez oldu (kayıt gününde bakılan tek sayı bu),
 * seçili sekme, seçili kip ve açık bölüm **"seçili" görünmüyordu**.
 
-Düzeltme, deponun kendi kuralıyla: *bilgi sessizce kaybolmaz.* Renk
+Düzeltme, reponun kendi kuralıyla: *bilgi sessizce kaybolmaz.* Renk
 gidiyorsa **yazı gelir** — blokların sonuna `· anadal` / `· ÇAP` /
 `· yandal` / `· plan dışı` ekleniyor; çubuklar sistem renkleriyle
 (`Highlight` dolu, `CanvasText` kenar) yeniden çiziliyor.

@@ -17,7 +17,7 @@ Sebep tek kelime: pencere dersi `CAND` (AKTİF KİPİN havuzu) üzerinden
 çözüyordu; ızgara ise `candOf` ile çiziliyor — o, kipte yoksa tam havuza
 düşüyor. Ekranda çizilen ama açılamayan ders çıkıyordu.
 
-⚠️ Kip politikası bu depoda 27.08.2026'da zaten yazılmıştı (boş saat
+⚠️ Kip politikası bu repoda 27.08.2026'da zaten yazılmıştı (boş saat
 penceresi): *"kip yalnız ÖNERİYİ daraltıyor, elle ekleme hakkını değil."*
 Pencere o politikadan habersizdi.
 

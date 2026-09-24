@@ -31,7 +31,7 @@ jobs:
         run: python -m pytest -q
 
   gizlilik:
-    # ★ Ayrı iş: bu araç öğrenci notları tutuyor. Depoya bir transkript ya da
+    # ★ Ayrı iş: bu araç öğrenci notları tutuyor. Repoya bir transkript ya da
     # veritabanı sızarsa geri almak zor (geçmişten temizlemek gerekir), o
     # yüzden her itmede ve her PR'da denetleniyor.
     runs-on: ubuntu-latest

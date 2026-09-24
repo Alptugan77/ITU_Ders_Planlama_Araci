@@ -77,7 +77,7 @@ def test_takas_secenekleri_GIZLENMIYOR():
 
 
 def test_ILK_TESHIS_geri_alindi():
-    """⚠️ Ölçmeden yazdığım `eklenebilirGizli` kodu depoda kalmamalı."""
+    """⚠️ Ölçmeden yazdığım `eklenebilirGizli` kodu repoda kalmamalı."""
     assert "eklenebilirGizli" not in KAYNAK
     assert "kacik" not in KAYNAK
 

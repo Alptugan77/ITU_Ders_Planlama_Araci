@@ -109,7 +109,7 @@ tabanın üstünde).
 ### B5. Metin katlandı — gizlenmedi
 
 Arz uyarısı 115px ve 47 kelimeydi. Artık tek satır: **"▸ 11 ders bu dönem
-alınamıyor"**. ⚠️ Bu depoda "genel uyarı" yasak — katlanmış hâlde bile
+alınamıyor"**. ⚠️ Bu repoda "genel uyarı" yasak — katlanmış hâlde bile
 **sayı** yazıyor, ayrıntı tek tıkla aynı yerde. Kullanım ipuçları (59
 kelime) da katlandı; Faz 40'ın dersi gereği silinmedi.
 

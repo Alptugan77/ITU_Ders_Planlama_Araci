@@ -7,7 +7,7 @@ planlama aracı. Kendi bilgisayarında çalışır, verin senin makinenden çık
 
 > Python paketi ve import yolu `itucap` olarak kalıyor — `pip install -e .`,
 > `python -m itucap.pipeline` gibi her şey aynı. Değişen aracın **görünen
-> adı**; depo adı ve site adresi de aynı.
+> adı**; repo adı ve site adresi de aynı.
 
 > ⚠️ Bu araç **bilgilendirme amaçlıdır**. Ders kayıt kararların için
 > danışmanına ve OBS'ye danış. Araç senin adına **kayıt yapmaz**, OBS
@@ -145,8 +145,8 @@ siteyle birlikte yayınlanan katalogu kullanıyor.
 
 Site: <https://alptugan77.github.io/ITU_Ders_Secim_Araci/>
 
-⚠️ **Depo herkese açık olmalı.** GitHub Pages ücretsiz planda yalnız public
-depolarda çalışıyor (private için GitHub Pro / Team gerekiyor).
+⚠️ **Repo herkese açık olmalı.** GitHub Pages ücretsiz planda yalnız public
+repolarda çalışıyor (private için GitHub Pro / Team gerekiyor).
 
 ```bash
 make refresh                     # OBS'den taze katalog
@@ -157,7 +157,7 @@ make refresh                     # OBS'den taze katalog
 # Sonra: GitHub -> Actions -> "pages" -> Run workflow
 ```
 
-Katalog depoya girmiyor (türetilmiş veri, 15 MB); yayın akışı onu sürüm
+Katalog repoya girmiyor (türetilmiş veri, 15 MB); yayın akışı onu sürüm
 varlığından indirip siteyi kuruyor ve **yayından önce gizlilik denetimi
 çalıştırıyor** — kirliyse yayın durur. Yerelde denemek için: `make site`.
 
@@ -206,7 +206,7 @@ derslerini dönem dönem listeliyor, tik atıp not seçiyorsun.
 
 `config/` altındaki dosyalar elle düzenlenebilir ve **yorumları korunur**:
 
-| Dosya | Ne | Depoda mı |
+| Dosya | Ne | Repoda mı |
 |---|---|---|
 | `settings.toml` | hangi program, hangi dönem, kredi tavanı | ❌ kişisel (`.example` var) |
 | `denklikler.toml` | senin denklik ve muafiyet beyanların | ❌ kişisel (`.example` var) |

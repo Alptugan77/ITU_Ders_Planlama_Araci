@@ -14,7 +14,7 @@ cuma öğleden sonrası stajda. Katalog İTÜ'nün gerçek ders KODLARINI taşı
 (ekran tanıdık görünsün diye) ama şubeler, hocalar, kontenjanlar ve
 notlar UYDURMA — hiçbir kişiye ya da gerçek döneme ait değil.
 
-⚠️ Veri geçici bir klasörde kuruluyor; depodaki `data/` ve `config/`e
+⚠️ Veri geçici bir klasörde kuruluyor; repodaki `data/` ve `config/`e
 DOKUNULMUYOR. Gizlilik denetimi transkript SATIRI arıyor (`KOD  NOT`);
 burada notlar Python demetinde, o biçimde değil.
 

@@ -2,14 +2,14 @@ name: pages
 
 # Statik siteyi kurup GitHub Pages'e yayınlar.
 #
-# ⚠️ Katalog (data/reference.sqlite3) depoda YOK — 15 MB'lık türetilmiş veri
+# ⚠️ Katalog (data/reference.sqlite3) repoda YOK — 15 MB'lık türetilmiş veri
 # ve `.gitignore`da. O yüzden bu akış onu bir **sürüm varlığından (release
 # asset)** indiriyor. Katalogu güncellemek için kendi makinende:
 #
 #     make refresh                       # OBS'den taze veri
 #     gh release create katalog-$(date +%Y%m%d) data/reference.sqlite3
 #
-# Böylece kişisel veri barındıran hiçbir dosya depoya girmiyor ama site
+# Böylece kişisel veri barındıran hiçbir dosya repoya girmiyor ama site
 # güncel katalogla kurulabiliyor.
 
 on:
@@ -20,7 +20,7 @@ on:
   # değil, tetikleyicinin insanın zihnindeki modele uymamasıydı.
   #
   # ⚠️ Bu güvenli: akış katalogu HER ZAMAN en son `katalog-*` sürümünden
-  # indiriyor, depodan değil. Yani push yalnız KODU tazeliyor; veri
+  # indiriyor, repodan değil. Yani push yalnız KODU tazeliyor; veri
   # nereden geliyorsa oradan gelmeye devam ediyor.
   push:
     branches: [main]

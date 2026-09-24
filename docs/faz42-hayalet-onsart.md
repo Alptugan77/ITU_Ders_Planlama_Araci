@@ -2,7 +2,7 @@
 
 *16.09.2026 · kullanıcı: "bir sonraki faza geç"*
 
-Sıradaki faz deponun kendi açık listesinden seçildi. `fikirler.md`'de aynı
+Sıradaki faz reponun kendi açık listesinden seçildi. `fikirler.md`'de aynı
 kökten iki kalem duruyordu — §1.1 *"`BLG 4901` / `BLG 492` — aynı ders, iki
 kod"* ve F.4 *"kod göçü tablosu hâlâ yok"*. İkisi de **kod göçü**ne bakıyor;
 ölçünce asıl zararın plan slotlarında değil **önşart grafiğinde** olduğu
@@ -113,7 +113,7 @@ teste bağlandı:
 2. `ui.py` `LABELS` — etiket **ve** gruplama sırası,
 3. `quality.py` — `prereq_cozulemez` bulgusu.
 
-⚠️ Deponun zaten bir `prereq_orphan_target` kontrolü vardı ve "275 önşart
+⚠️ Reponun zaten bir `prereq_orphan_target` kontrolü vardı ve "275 önşart
 dersi course tablosunda yok" diyordu. O sayı **sebebi** ölçüyor ve çoğu
 zararsız (219'unun dil eşi var). Yeni kontrol **sonucu** ölçüyor: kaç ders
 gerçekten açılamıyor. İkisi birlikte duruyor.

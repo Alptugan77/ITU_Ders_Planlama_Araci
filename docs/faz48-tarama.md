@@ -37,7 +37,7 @@ düğmesi 22px, katlanan başlıkların altısı 19–21px çıktı.
 `.rm` ya da yeni bir `<details>` eklendiğinde aynı hata tekrar etmesin diye.
 
 > ⚠️⚠️ `summary` tabanı **esnek kutu yapılmadı** ve bu bilerek: (a) esnek
-> kutu iki metin düğümü arasındaki boşluğu yutuyor — bu depoda ölçülmüş bir
+> kutu iki metin düğümü arasındaki boşluğu yutuyor — bu repoda ölçülmüş bir
 > hata ("11 dersbu dönem"), ve pencere başlıkları `Puan <b>132.5</b> —
 > neden?` gibi karışık içerikli; (b) `list-item` kutusu kalkınca **yerleşik
 > açılma üçgeni siliniyor** ve o başlıkların tek açılma işareti o. Dikey
@@ -107,7 +107,7 @@ Bunlar da tarandı; kayıt için:
 
 ## Muhafız denemesi iki zayıf muhafız buldu
 
-Bu depoda kural: **düzeltmeyi geri koy, testin kırmızıya döndüğünü gör.**
+Bu repoda kural: **düzeltmeyi geri koy, testin kırmızıya döndüğünü gör.**
 Yedi düzeltme geri konuldu; ilk turda ikisi **yeşil kaldı**:
 
 1. İki muhafız `@media print` bloğunda **yorumlarıyla birlikte** arama

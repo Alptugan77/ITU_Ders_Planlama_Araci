@@ -69,7 +69,7 @@ Yalnız haftalık programın **üstünde** 8 blokta **313 kelime** var
 (kip seçici + notu 48, arz uyarısı 47, araç çubuğu 59, ızgara üstü
 ipuçları…). Sayfanın tamamı 1826 kelime.
 
-Bu metinlerin her biri tek tek doğru ve ölçümle yazılmış (bu depo öyle
+Bu metinlerin her biri tek tek doğru ve ölçümle yazılmış (bu repo öyle
 çalışıyor). Sorun tek tek doğru olmamaları değil, **hepsinin aynı anda
 açık olması**: hiçbiri ikincilmiş gibi görünmüyor.
 
@@ -158,11 +158,11 @@ ayrı bir tuvalde, görsellerle: *"İTÜ DEPAR — yeni görünüş önerisi"*
    tıklayınca sayfa kaymıyor, sağ panel değişiyor. Sayfa **1 ekran**.
 3. **Uyarı gizlenmiyor, katlanıyor.** 47 kelimelik arz kutusu, sayısını
    taşıyan bir düğmeye iniyor: *"⚠ 11 ders bu dönem yok"*. Gizlemek bu
-   depoda yasak; katlamak değil.
+   repoda yasak; katlamak değil.
 4. **Izgara satırı 19px → 28px** (telefonda 44px), boş hücrede görünür
    bir `+`. 24px altı hedef 83 → 28 (hedef).
 5. **Yazma ucu yalnız etkin kipi kuruyor** — öbür kip istenince.
 
-⚠️ Önerinin sağ sütunu (**hedef**) ölçülmedi. Bu depoda kural önce ölç
+⚠️ Önerinin sağ sütunu (**hedef**) ölçülmedi. Bu repoda kural önce ölç
 sonra değiştir; düzen değişikliği de uygulandıktan sonra aynı betikle
 yeniden ölçülmeli. Ölçülmemiş bir "iyileştirme" iyileştirme değildir.

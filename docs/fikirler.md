@@ -81,8 +81,8 @@ Bunlar tek satır iş ama araç bunlar olmadan başkasına ulaşmıyor.
 
 | Ne | Neden |
 |---|---|
-| ★★ `git remote add origin …` + `git push -u origin main` (**27 commit**) | **Depoda uzak sunucu TANIMLI DEĞİL.** Yayındaki site Faz 23'ten kalma; Faz 24–26'nın hiçbiri orada yok |
-| Depoyu herkese açık yap · Pages kaynağını GitHub Actions'a al | Site yayına ancak böyle çıkıyor |
+| ★★ `git remote add origin …` + `git push -u origin main` (**27 commit**) | **Repoda uzak sunucu TANIMLI DEĞİL.** Yayındaki site Faz 23'ten kalma; Faz 24–26'nın hiçbiri orada yok |
+| Repoyu herkese açık yap · Pages kaynağını GitHub Actions'a al | Site yayına ancak böyle çıkıyor |
 | `make all-plans` yeniden | `credits_min/max` ve `pool_status` alanları eski taramada boş |
 | `katalog-YYYYMMDD` release yükle | Statik site veriyi buradan çekiyor |
 
@@ -345,11 +345,11 @@ katalogda karşılığı olmayan bir derse bakıyor (`ELH 212`, `BLG 211`, `ELE
 
 ### F.5 ★★ Yayın hattı çalıştırılmalı — düzeltmeler kullanıcıya ulaşmıyor · **S**
 27.08.2026'da kullanıcı yayınlanan siteden *"ikinci program türü geçersiz"*
-ekran görüntüsü gönderdi. O hatanın düzeltmesi **depoda duruyor**; site Faz
+ekran görüntüsü gönderdi. O hatanın düzeltmesi **repoda duruyor**; site Faz
 24'ten beri yayınlanmadı. Bu, listedeki en pahalı kalem: yapılan işin hiçbiri
 kullanıcıya ulaşmıyor.
 
-~~⚠️ Yayından önce `make all-plans` gerekiyor — depodaki katalogda hiçbir
+~~⚠️ Yayından önce `make all-plans` gerekiyor — repodaki katalogda hiçbir
 yandal programı yok (76 `_YD` kodunun `program` satırı eksik).~~
 ✅ **Geçersiz (17.09.2026'da ölçüldü).** Katalogdaki 71 `_YD` kodunun
 **71'inin de** `program` satırı var — eksik **0**. Bu uyarı yapılmış bir

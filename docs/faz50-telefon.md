@@ -68,7 +68,7 @@ Microprocessor Systems — 13 dersin önşartı; ÇAP…
 3 kredi                        ▓▓▓░ 180 boş 2 şube
 ```
 
-> ⚠️ **Tek DOM.** İkinci bir çizim yazsaydık ikisi ayrışırdı — bu depoda
+> ⚠️ **Tek DOM.** İkinci bir çizim yazsaydık ikisi ayrışırdı — bu repoda
 > ölçülmüş bir hata sınıfı. Masaüstünde hâlâ tablo (satır 69–70px,
 > değişmedi), telefonda kart.
 > ⚠️ Kartta sütun başlığı olmuyor; `kredi` etiketi `data-e` ile hücrenin
@@ -115,7 +115,7 @@ Ayrıca onay kutusu 18px'ti → 22px, satırı 44px.
 
 | ne | ölçüm | neden dokunulmadı |
 |---|---|---|
-| başlık bloğu | 213px | İçindekilerin hepsi taşıyıcı: hangi programlar, hangi dönem, **verinin yaşı**, tazele. Piksel için bilgi katlamak bu deponun kuralına aykırı. |
+| başlık bloğu | 213px | İçindekilerin hepsi taşıyıcı: hangi programlar, hangi dönem, **verinin yaşı**, tazele. Piksel için bilgi katlamak bu reponun kuralına aykırı. |
 | `.rm` / `.watchmini` 34px | 44'ün altında | Faz 39'un ölçülmüş kararı: yoğun liste satırlarını şişirmemek. WCAG 2.2 AA tabanı (24) fazlasıyla sağlanıyor. |
 | satır içi bağlantı (34px) | 44'ün altında | WCAG'ın "Inline" muafiyeti. |
 | gün listesi satırı | 76px | Okunuyor, kesilmiyor, çakışma işaretli. |

@@ -59,7 +59,7 @@ Programın üstünde artık şu duruyor:
 > Alabileceklerinin tamamı bu — **bu dönem almanı önerdiğim liste değil**.
 > [Dönemi seç] *5 saniye — sonra "N. dönem + alttan" kipi açılıyor.*
 
-Sayı dökülüyor, çünkü bu depoda tekrarlayan ders: "bazı dersler farklı
+Sayı dökülüyor, çünkü bu repoda tekrarlayan ders: "bazı dersler farklı
 dönemden" diye yazılan uyarı genel bir uyarı sanılıp geçiliyor (bkz. Faz 18,
 `_term_note`).
 

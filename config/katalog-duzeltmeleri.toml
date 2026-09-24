@@ -2,10 +2,10 @@
 #
 # OBS'nin ders kataloğunda bazı alanlar yanlış doldurulmuş. Bu dosya o
 # hataların düzeltmesini beyan eder. Kimin transkriptiyle ilgisi yoktur, o
-# yüzden depoda durur ve herkes yararlanır.
+# yüzden repoda durur ve herkes yararlanır.
 #
 # ⚠️ Kişisel beyanların (senin denkliklerin, muafiyetlerin) yeri burası DEĞİL:
-#    onlar `config/denklikler.toml` dosyasında ve depoya girmez.
+#    onlar `config/denklikler.toml` dosyasında ve repoya girmez.
 
 # ============================================================================
 # ÖNŞART METNİ BEYANI

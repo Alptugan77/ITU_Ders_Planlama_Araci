@@ -3,7 +3,7 @@
 > Kullanıcı, 24.08.2026: *"bu ders seçim aracına ilk kez kullanan bir öğrenci
 > gözüyle bak ve eklenmesini veya değiştirilmesini istediğin şeyleri listele"*
 
-**Nasıl baktım.** Depoyu sıfırdan kurdum: `make setup`'ın yaptığı gibi
+**Nasıl baktım.** Repoyu sıfırdan kurdum: `make setup`'ın yaptığı gibi
 `settings.example.toml` → `settings.toml`, `denklikler.example.toml` →
 `denklikler.toml`, `user.sqlite3` **yok**. Katalog gerçek (`reference.sqlite3`,
 3417 açık şube, 10792 ders). Sonra sayfayı bir tarayıcıda (Chromium) açıp
@@ -361,6 +361,6 @@ Dürüst olmak gerekirse ilk kullanıcı için çok iyi olan üç şey de var:
 | 9 | B5 denklik beyanlarını `user.sqlite3`'e taşı | README'nin iddiasıyla veri yerini uyumlu kıl | M |
 | 10 | C5 sekme adları · C4 öneri etiketleri · D2/D3 | Cila | S |
 
-⚠️ Bunların hiçbiri yayındaki siteye ulaşmıyor: `fikirler.md` §0'a göre depoda
+⚠️ Bunların hiçbiri yayındaki siteye ulaşmıyor: `fikirler.md` §0'a göre repoda
 `git remote` hâlâ tanımlı değil ve site Faz 23'ten kalma. Yani A1–A5
 kapansa bile öğrenci hâlâ eski sürümü görecek.

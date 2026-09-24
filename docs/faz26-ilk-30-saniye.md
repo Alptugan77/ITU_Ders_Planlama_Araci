@@ -4,7 +4,7 @@
 > ilk girdiğimde hâlâ nasıl yapacağımı anlayamayabilirim. sen de siteye
 > girip bi bak."*
 
-Siteye girdim. **Yayındaki sürüm Faz 23'ten kalma** — depoda `git remote`
+Siteye girdim. **Yayındaki sürüm Faz 23'ten kalma** — repoda `git remote`
 yok, 26 commit yalnız yerelde duruyor, dolayısıyla Faz 24–25'in hiçbiri
 sitede değil. Yayındaki sayfada karşılama kartı, katalog araması, geri al,
 verinin yaşı — hiçbiri yok; boş bir haftalık ızgara ve "aday ders yok"
@@ -111,7 +111,7 @@ Testler **782 → 802**.
 
 ## ⚠️ Sitede hâlâ eskisi duruyor
 
-Bu depoda `git remote` **tanımlı değil**. 26 commit yalnız yerelde:
+Bu repoda `git remote` **tanımlı değil**. 26 commit yalnız yerelde:
 
 ```bash
 git remote add origin https://github.com/Alptugan77/ITU_Ders_Secim_Araci.git

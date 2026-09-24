@@ -45,14 +45,14 @@ başlık `BLG212 - BLG212E` yazıyor. Yani dağılım bir ders **çiftine** ait.
 Kanonik anahtar **kaynağın kendi başlığından** alınıyor, iki kod da takma ad
 olarak saklanıyor, arayüz `BLG 212 + BLG 212E birlikte` diye yazıyor.
 
-⚠️ "Sondaki E'yi at" sezgisi bu depoda başka yerlerde kullanılıyor; burada
+⚠️ "Sondaki E'yi at" sezgisi bu repoda başka yerlerde kullanılıyor; burada
 kullanılmadı çünkü **kaynak çiftin ikisini de yazıyor**. Sezgi yerine kaynağı
 okumak `BLG 4901E` gibi kodlarda da doğru kalıyor.
 
 ### B2. ★ "Bulunamadı" da HTTP 200
 
 Olmayan ders `<h4>… could not be found.</h4>` ile **200** dönüyor. Durum
-koduna bakan bir tarayıcı bunu "boş dağılım" diye kaydederdi — bu depoda
+koduna bakan bir tarayıcı bunu "boş dağılım" diye kaydederdi — bu repoda
 tekrar tekrar canımızı yakan **sessiz sıfır** (bkz. `birimId` hatası,
 Faz 28). `parse` üç durumu ayırıyor:
 
@@ -155,7 +155,7 @@ sebeple var ("tarama bağımlılığı YOK — web için şart"). Ben bu sınır
 görmeden `ui.py`ye `sources/` altından import ekledim.
 
 **Neden 1011 test yakalamadı.** Hepsi yerelde koşuyor; orada `sources/`
-elbette var. Depoda bu sınıfı koruyan bir test **vardı** —
+elbette var. Repoda bu sınıfı koruyan bir test **vardı** —
 `test_engine_list_covers_what_server_needs` — ama yalnız **`server.py`**ye
 bakıyordu. Benim hatam `ui.py`deydi ve tam o boşluktan geçti.
 
@@ -179,7 +179,7 @@ bakıyordu. Benim hatam `ui.py`deydi ve tam o boşluktan geçti.
 aldığı `ModuleNotFoundError`'ın aynısıyla. Bir koruma, koruduğu hatayla
 denenmeden yazılmış sayılmaz.
 
-⚠️ Kalan sınır: bu depoda **Pyodide'i gerçekten çalıştıran** bir test yok
+⚠️ Kalan sınır: bu repoda **Pyodide'i gerçekten çalıştıran** bir test yok
 (bu ortamda CDN'e erişim de yok). İzole import testi hatanın sınıfını
 kapatıyor ama tarayıcı çalıştırması hâlâ elle yapılıyor.
 
@@ -273,7 +273,7 @@ seçenek olarak duruyor.
 
 * **Tanımsız CSS jetonu.** `--warn-bg` / `--warn-ink` diye var olmayan
   jetonları yedekli (`var(--warn-bg,#fdf3e3)`) kullanmıştım — gece
-  şemasında da **açık zemin** çıkıyordu. Depodaki
+  şemasında da **açık zemin** çıkıyordu. Repodaki
   `test_kullanilan_her_css_jetonu_TANIMLI` yakaladı. Palete
   `--warn-soft`/`--warn-ink` eklendi (üç blokta da).
 * **Açık şema `[data-theme="light"]`de `--yandal*` YOKTU** (medya sorgulu

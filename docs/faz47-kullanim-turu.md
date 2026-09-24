@@ -103,7 +103,7 @@ işaretledi, 356 onay kutusu arasından.
 
 ### ⚠️⚠️ Öneri, iddia değil
 
-Bu depoda kural: *bilinmeyen, bilinen gibi gösterilmez.* **"5. dönemdesin"
+Bu repoda kural: *bilinmeyen, bilinen gibi gösterilmez.* **"5. dönemdesin"
 demek "1–4. dönemin hepsini geçtin" demek değildir** — ders bırakmış,
 kalmış, yatay geçmiş olabilir. O yüzden öneri dört şeyle çevrildi:
 
@@ -115,7 +115,7 @@ kalmış, yatay geçmiş olabilir. O yüzden öneri dört şeyle çevrildi:
 
 1. dönemdekine hiçbir şey işaretlenmiyor ve bu **söyleniyor**: *"1.
 dönemdesin — geçmiş dönemin yok, bu liste boş başlıyor."* Açıklamasız boş
-liste, bu depoda hata sayılıyor.
+liste, bu repoda hata sayılıyor.
 
 ---
 

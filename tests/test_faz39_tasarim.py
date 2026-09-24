@@ -132,7 +132,7 @@ def test_bolum_cubugu_DOKUNMA_HEDEFI_yeterli():
 def _mobil_css():
     """Bütün `max-width:700px` bloklarını süslü parantez sayarak toplar.
 
-    ⚠️ Eskiden `(.*?)\\n\\}` ile İLK bloğun bir kısmını alıyordu: depoda üç
+    ⚠️ Eskiden `(.*?)\\n\\}` ile İLK bloğun bir kısmını alıyordu: repoda üç
     ayrı 700px bloğu var ve aranan kural hangisine yazıldıysa test onu
     göremiyordu (Faz 50'de oldu).
     """

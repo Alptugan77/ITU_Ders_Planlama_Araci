@@ -1,6 +1,6 @@
 # Faz 11 — MADDE 17, BL/BZ, plandan tikleme, kontenjan nöbeti
 
-> ⚠️ Bu belgedeki bütün sayılar **örnektir**. Depoda kimsenin gerçek notu
+> ⚠️ Bu belgedeki bütün sayılar **örnektir**. Repoda kimsenin gerçek notu
 > ya da ortalaması yer almaz — kişisel veri `data/` altında kalır ve
 > `.gitignore` ile dışarıda tutulur.
 
