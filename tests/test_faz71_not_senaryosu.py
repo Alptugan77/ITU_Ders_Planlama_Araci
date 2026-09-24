@@ -56,7 +56,7 @@ def test_KREDI_SINIRI_ayni_kuraldan():
 
 def test_ESIKLER_kayitli_programin_basvurusunu_gostermiyor():
     r = _js("renderNotSenaryo")
-    assert '.filter(t => t.min > 0 && !(t.kind === "basvuru" && icinde.has(t.scope)))' in r
+    assert ".filter(t => t.min > 0 && !kayitliBasvuru(t))" in r     # Faz 72: tek kural
     assert 't.basis === "ikinci anadal" ? r.ikinci : r.gno' in r
     # Eşik, transkriptin yuvarladığı gibi iki basamakta karşılaştırılıyor.
     assert "const ok = (v, min) => yuvarla2(v) + 1e-9 >= min;" in r
@@ -110,7 +110,7 @@ with sync_playwright() as p:
         pg.select_option("select[data-ns='BLG 223E']", "AA"); pg.wait_for_timeout(200)
         print(f"ODAK2{W}:" + str(pg.evaluate("() => document.activeElement.dataset.ns")))
         print(f"IYI{W}:" + pg.evaluate(sonuc))
-        print(f"CIP{W}:" + json.dumps(pg.evaluate("() => [...document.querySelectorAll('.nsesik .chip')].map(e => e.innerText)"), ensure_ascii=False))
+        print(f"CIP{W}:" + json.dumps(pg.evaluate("() => [...document.querySelectorAll('.nsesik .cat')].map(e => e.innerText)"), ensure_ascii=False))
         print(f"TASMA{W}:" + str(pg.evaluate("() => document.documentElement.scrollWidth > innerWidth + 1")))
         # Yeniden yüklemede seçimler duruyor (yalnız bu tarayıcıda).
         pg.reload(wait_until="networkidle"); pg.wait_for_timeout(1000)
@@ -118,7 +118,7 @@ with sync_playwright() as p:
         print(f"KALICI{W}:" + pg.evaluate(sonuc))
         pg.select_option("#nsHepsi", "FF"); pg.wait_for_timeout(200)
         print(f"KOTU{W}:" + pg.evaluate(sonuc))
-        print(f"CIPK{W}:" + json.dumps(pg.evaluate("() => [...document.querySelectorAll('.nsesik .chip')].map(e => e.innerText)"), ensure_ascii=False))
+        print(f"CIPK{W}:" + json.dumps(pg.evaluate("() => [...document.querySelectorAll('.nsesik .cat')].map(e => e.innerText)"), ensure_ascii=False))
         pg.select_option("select[data-ns='BLG 223E']", ""); pg.wait_for_timeout(200)
         print(f"EKSIK{W}:" + pg.evaluate(sonuc))
         pg.select_option("#nsHepsi", "temizle"); pg.wait_for_timeout(200)
@@ -177,7 +177,8 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
             assert parca in kotu, (parca, kotu)
         cipk = json.loads(c[f"CIPK{W}"])
         assert [x[-1] for x in cipk] == ["✗", "✗", "✗", "✓"], cipk
-        assert cipk[-1].startswith("MEZUNİYET"), cipk
+        # Faz 72: GNO panelindeki gibi küçük harf (.chip BÜYÜK harf yazıyordu).
+        assert cipk[-1].startswith("Mezuniyet ≥ 2.00"), cipk
         assert "1 ders için not seçilmediğinden hesaba katılmamıştır" in c[f"EKSIK{W}"]
         assert "7 ders, " in c[f"EKSIK{W}"]
         assert "en az bir ders için beklenen notu seçiniz" in c[f"TEMIZ{W}"]

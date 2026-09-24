@@ -3155,6 +3155,10 @@ table.cmp .meta.arti{color:var(--ok)}
 .nstablo select,.notsenaryo .nsust select{min-height:32px}
 .nssonuc{margin-top:10px;display:grid;gap:4px;font-size:var(--fs-md)}
 .nsesik{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+/* Faz 72 — GNO panelindeki eşik hapları ile AYNI görünüm (küçük harf; .chip
+   BÜYÜK harf yazıyordu ve aynı eşik iki ayrı kılıkta görünüyordu). */
+.nsesik .cat.ok{background:var(--ok-soft);color:var(--ok)}
+.nsesik .cat.no{background:transparent;color:var(--danger);border-color:currentColor}
 .gnobaslik{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin-bottom:6px}
 .gnosatir{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;
   padding:8px 0;border-top:1px solid var(--border);font-size:var(--fs-md)}
@@ -4016,6 +4020,12 @@ const SECONDS = () => DATA.seconds || [];
    "kaydım gitmiş" sanılmasına yol açıyordu (yandal kodu bozulunca tam da
    bu oldu). Planı yok diye SEÇİM yok sayılmıyor. */
 const SECONDS_YOK = () => DATA.secondsMissing || [];
+/* ★ Zaten girilmiş programın BAŞVURU eşiği hiçbir yerde ölçüt değil: yandal
+   öğrencisine "Yandal başvurusu ≥ 2.50 ✗" demek yanlış bir kaygı üretir.
+   Faz 57–71'de dört yerde ayrı ayrı yazılmıştı ve GNO paneli atlanmıştı
+   (Faz 72, gerçek sitede yandal öğrencisiyle görüldü); artık tek kural. */
+const kayitliBasvuru = (t) => t.kind === "basvuru"
+  && SECONDS().some(x => x.kind === t.scope);
 const ikinciYazi = () =>
   [...SECONDS().map(x => ` · <b>${esc(x.program)}</b> ${esc(x.label)}`),
    ...SECONDS_YOK().map(x => ` · <b>${esc(x.program)}</b> ${esc(x.label)}` +
@@ -4568,8 +4578,10 @@ async function save(fn, secenek = {varsayilanKip: true}){
     applyState(await fn(), secenek);
     say("kaydedildi ✓");
     setTimeout(() => $("#setup").close(), 550);
+    return true;
   }catch(err){
     say(err.message, true);
+    return false;
   }finally{
     clearInterval(sayac);
     geri();
@@ -5274,6 +5286,25 @@ function courseDialogSetup(){
   // sayfada tutulan çalışma kopyası; 'Kaydet'e kadar sunucuya gitmiyor
   let rows = SETUP.transcript.map(t => ({...t}));
   const grades = SETUP.grades;
+  /* ★★ FAZ 72 — yapıştırma çalışma kopyasını ESKİ bırakıyordu. "Bu 21 dersi
+     ekle" sunucuya yazıyor, pencere 550 ms sonra kapanıyordu; o arada liste
+     hâlâ "Girilmiş dersler (0)" gösteriyor ve "Kaydet" yeniden açılıyordu.
+     Kaydet'e basılırsa ESKİ liste replace:true ile gidip yapıştırılan
+     transkripti siliyordu (gerçek sitede ölçüldü: 20 ders → GNO bilinmiyor).
+     Tek tek eklenip kaydedilmemiş dersler de pencereyle birlikte
+     kayboluyordu. Artık: bekleyen düzenleme yapıştırmadan ÖNCE kaydediliyor,
+     başarıdan sonra liste sunucudaki transkriptle yenileniyor. */
+  const govde = () => ({
+    items: rows.map(r => ({course: r.course, grade: r.grade,
+                           inProgress: r.status === "IN_PROGRESS"})),
+    replace: true,
+  });
+  const ozet = () => JSON.stringify(govde().items);
+  let kayitli = ozet();
+  const calisma = {
+    bekleyen: () => ozet() !== kayitli ? govde() : null,
+    yenile: () => { rows = SETUP.transcript.map(t => ({...t})); kayitli = ozet(); draw(); },
+  };
 
   const gradeSelect = (r, i) => {
     const value = r.status === "IN_PROGRESS" ? "--" : (r.grade || "");
@@ -5415,7 +5446,7 @@ function courseDialogSetup(){
       kutu.innerHTML = `<div class="empty">okunuyor…</div>`;
       try{
         const r = await api("/api/transcript/preview", {text: metin});
-        trOnizlemeCiz(r.preview || {});
+        trOnizlemeCiz(r.preview || {}, calisma);
       }catch(err){
         kutu.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
       }
@@ -5423,18 +5454,14 @@ function courseDialogSetup(){
 
     // ★ replace:true — ekrandaki liste TAM liste. 'çıkar' düğmesinin
     //   çalışması için gerekli; yoksa silinen ders DB'de kalırdı.
-    $("#setupSave").addEventListener("click", () => save(() => api("/api/transcript", {
-      items: rows.map(r => ({course: r.course, grade: r.grade,
-                             inProgress: r.status === "IN_PROGRESS"})),
-      replace: true,
-    })));
+    $("#setupSave").addEventListener("click", () => save(() => api("/api/transcript", govde())));
   });
 }
 
 /* ---------- yapıştırma önizlemesi (ilk kullanıcı incelemesi A1) ----------
    ⚠️ Üç sayı AYRI: bulundu · atlandı · notu okunamadı. Tek bir "10 ders
    eklendi" satırı, atlanan 8 satırı ve okunamayan 2 notu gizliyordu. */
-function trOnizlemeCiz(p){
+function trOnizlemeCiz(p, calisma = null){
   const kutu = $("#trOnizleme");
   if(!p.count && !(p.bad || []).length){
     kutu.innerHTML = `<div class="empty">bu metinde ders satırı bulunamadı</div>`;
@@ -5469,11 +5496,15 @@ function trOnizlemeCiz(p){
     <button class="ghost primary" id="trUygula" style="margin-top:10px"
       ${p.count ? "" : "disabled"}>Bu ${p.count} dersi ekle</button>`;
   const btn = $("#trUygula");
-  if(btn) btn.addEventListener("click", () => save(async () => {
-    const body = await api("/api/transcript/paste",
-      {text: $("#trPaste").value, replace: false});
-    return body;
-  }));
+  if(btn) btn.addEventListener("click", async () => {
+    const tamam = await save(async () => {
+      const bekleyen = calisma && calisma.bekleyen();     // Faz 72
+      if(bekleyen) await api("/api/transcript", bekleyen);
+      return api("/api/transcript/paste", {text: $("#trPaste").value, replace: false});
+    });
+    // Aynı görevde (tıklama araya giremeden): liste artık kaydedilen transkript.
+    if(tamam && calisma) calisma.yenile();
+  });
 }
 
 /* ---------- dönem kredi yükü (yönetmelik) ---------- */
@@ -5648,8 +5679,9 @@ function renderGpa(){
     : t.ok ? "background:var(--ok-soft);color:var(--ok)"
            : "background:transparent;color:var(--danger);border-color:currentColor";
   const mark = t => t.ok === null ? "—" : (t.ok ? "✓" : "✗");
-  const groups = Object.keys(STAGE).filter(k => g.thresholds.some(t => t.kind === k));
-  const loose = g.thresholds.filter(t => !groups.includes(t.kind));
+  const esikler = g.thresholds.filter(t => !kayitliBasvuru(t));
+  const groups = Object.keys(STAGE).filter(k => esikler.some(t => t.kind === k));
+  const loose = esikler.filter(t => !groups.includes(t.kind));
   /* ★ Hangi PROGRAMIN kuralı olduğu yazıyor. ÇAP ve yandal aynı anda
      alınabiliyor ve eşikleri farklı maddelerden geliyor; etiketsiz
      gösterirsek biri öbürünün kuralı sanılır. 'genel' olanda etiket yok —
@@ -5664,12 +5696,12 @@ function renderGpa(){
   const chips = groups.map(k => `
     <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px">
       <span class="eyebrow" style="min-width:74px">${STAGE[k]}</span>
-      ${g.thresholds.filter(t => t.kind === k).map(chipOf).join("")}
+      ${esikler.filter(t => t.kind === k).map(chipOf).join("")}
     </div>`).join("") + (loose.length ? `
     <div class="cats" style="margin-top:8px">${loose.map(chipOf).join("")}</div>` : "");
-  const unverified = g.thresholds.filter(t => !t.verified).length;
-  const tolerated = g.thresholds.filter(t => t.tolerance);
-  const pending = g.thresholds.filter(t => t.ok === null);
+  const unverified = esikler.filter(t => !t.verified).length;
+  const tolerated = esikler.filter(t => t.tolerance);
+  const pending = esikler.filter(t => t.ok === null);
   $("#gpaBody").innerHTML = `
     <div class="gauge" style="margin-bottom:14px;padding-bottom:14px;
          border-bottom:1px solid var(--border)">
@@ -5734,9 +5766,7 @@ function gnoHedefleri(){
   };
   /* Zaten girilmiş programın BAŞVURU eşiği hedef değil: ÇAP öğrencisine
      "ÇAP başvurusu için 3.71 gerekir" demek yanlış bir kaygı üretirdi. */
-  const icinde = new Set(SECONDS().map(x => x.kind));
-  (g.thresholds || []).filter(t => t.basis === "genel" && t.min > 0
-      && !(t.kind === "basvuru" && icinde.has(t.scope)))
+  (g.thresholds || []).filter(t => t.basis === "genel" && t.min > 0 && !kayitliBasvuru(t))
     .forEach(t => ekle(t.min, t.label, "genel"));
   const L = DATA.load;
   if(L && L.next && L.next.minGpa) ekle(L.next.minGpa,
@@ -5933,12 +5963,11 @@ function renderNotSenaryo(odak){
       <td class="mono sayi">${p.cand.credits}</td><td>${secim(p.cand.course)}</td></tr>`;
   }).join("");
   const ok = (v, min) => yuvarla2(v) + 1e-9 >= min;
-  const icinde = new Set(SECONDS().map(x => x.kind));
   const esikler = !r.T ? [] : (g.thresholds || [])
-    .filter(t => t.min > 0 && !(t.kind === "basvuru" && icinde.has(t.scope)))
+    .filter(t => t.min > 0 && !kayitliBasvuru(t))
     .map(t => {
       const v = t.basis === "ikinci anadal" ? r.ikinci : r.gno;
-      return v === null ? "" : `<span class="chip ${ok(v, t.min) ? "credit" : "supply"}">${
+      return v === null ? "" : `<span class="cat ${ok(v, t.min) ? "ok" : "no"}">${
         esc(t.label)} ≥ ${t.min.toFixed(2)} ${ok(v, t.min) ? "✓" : "✗"}</span>`;
     }).join("");
   const L = DATA.load || {};
@@ -6774,9 +6803,7 @@ function danismanSorulari(){
       ÇAP yarıyıl tabanı sağlanamamaktadır (yeterli ÇAP dersi açılmamaktadır). Nasıl planlama yapmalıyım?`);
   }
   if(g && g.counted){
-    const icinde = new Set(SECONDS().map(x => x.kind));
-    (g.thresholds || []).filter(x => x.ok === false
-        && !(x.kind === "basvuru" && icinde.has(x.scope)))
+    (g.thresholds || []).filter(x => x.ok === false && !kayitliBasvuru(x))
       .forEach(x => q.push(`${esc(x.label)} için GNO ≥ ${x.min.toFixed(2)} gerekmektedir;
         tahmini GNO'm ${g.value.toFixed(2)}. Bu eşiğe nasıl ulaşabilirim?`));
     /* ★ Faz 70 — kalan bütün derslerde AA bile yetmiyorsa (Faz 69 hesabı). */

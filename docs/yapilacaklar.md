@@ -527,6 +527,13 @@ her maddeden önce gelen tek iş.
 > dersin eski notu düşülüyor, not seçilmeyen ders hesaba girmiyor ✅
 > ➜ Ayrıntı: `docs/faz71-not-senaryosu.md`
 >
+> **Faz 72 (24.09.2026 — yandal öğrencisiyle gerçek site):** yapıştırmadan
+> hemen sonra Kaydet ESKİ listeyle transkripti siliyordu; kaydedilmemiş
+> düzenlemeler yapıştırmada kayboluyordu ✅ · kayıtlı olunan programın başvuru
+> eşiği GNO panelinde ✗ gösteriliyordu — kural tek yerde (`kayitliBasvuru`) ✅ ·
+> not senaryosu eşik hapları GNO paneliyle aynı ✅
+> ➜ Ayrıntı: `docs/faz72-yandal-gezintisi.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

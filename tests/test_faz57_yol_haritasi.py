@@ -278,7 +278,9 @@ def test_GNO_HEDEFI_canli_ve_tahmin_DEGIL():
     assert "const x = (h.min * (C + T) - P) / T;" in f
     assert "Bu değerler gereken notun hesabıdır" in f
     # Zaten girilmiş programın başvuru eşiği hedef sayılmıyor.
-    assert '!(t.kind === "basvuru" && icinde.has(t.scope))' in KAYNAK
+    # (Faz 72: kural tek yerde — `kayitliBasvuru`.)
+    h = KAYNAK[KAYNAK.index("function gnoHedefleri("):]
+    assert "!kayitliBasvuru(t)" in h[:h.index("\n}\n")]
 
 
 # ------------------------------------------------------------------ arayüz (statik)
