@@ -498,6 +498,20 @@ def second_programs(settings: config.Settings, cap_id: int | None,
     return out
 
 
+
+def _sube_onbellekli(f):
+    """★★ Faz 91 — isteğin tamamı boyunca önbellek (bkz. `istek`): bir istekte
+    aynı şubeler, ders adları ve önşart ağaçları bir kez okunur."""
+    import functools
+    from . import istek as IST
+
+    @functools.wraps(f)
+    def sar(*a, **k):
+        with IST.istek():
+            return f(*a, **k)
+    return sar
+
+@_sube_onbellekli
 def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             settings: config.Settings, anadal_id: int | None, cap_id: int | None,
             max_load: float | None = None, n_schedules: int = 3,
@@ -1616,6 +1630,7 @@ def _senaryo_planlari(con, settings, g: dict) -> tuple[list[dict], object]:
     return planlar, taban
 
 
+@_sube_onbellekli
 def kalma_riski(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                 settings, bu_donem: list[dict], max_load) -> dict:
     """★★ Faz 75 — "Bu dersten kalırsam mezuniyetim ne kadar gecikir?"
@@ -1663,6 +1678,7 @@ def kalma_riski(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: i
             "courses": dersler, "maxLoad": g["max_load"]}
 
 
+@_sube_onbellekli
 def yol_senaryosu(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                   settings, bu_donem: list[dict], max_load, bos, zor=None) -> dict:
     """Faz 61 — yol haritası SENARYOSU: daha hafif dönem yükü ve boş dönemler.
@@ -1701,6 +1717,7 @@ def yol_senaryosu(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id:
     return h
 
 
+@_sube_onbellekli
 def cap_bitisleri(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                   settings, plan_ids: list, bu_donem: list[dict],
                   max_load: float) -> dict:

@@ -601,6 +601,12 @@ her maddeden önce gelen tek iş.
 > sorusu ✅
 > ➜ Ayrıntı: `docs/faz90-kontenjan.md`
 >
+> **Faz 91 (25.09.2026):** hız — artımlı havuz eşleştirmesi, dakika
+> maskesiyle çakışma, istek boyunca önbellek (şubeler, ders adları, önşart
+> ağaçları), kural dosyası önbelleği. Sonuçlar birebir aynı (9 profil); statik
+> sitede program değişikliği 7,7 → ~1,9 sn, dönem 6,6 → ~1,3 sn ✅
+> ➜ Ayrıntı: `docs/faz91-hiz.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

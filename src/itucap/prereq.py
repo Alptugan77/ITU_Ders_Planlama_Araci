@@ -448,7 +448,15 @@ def parse_all(con: sqlite3.Connection) -> dict:
 
 
 def parsed_trees(con: sqlite3.Connection) -> dict[str, Node]:
-    """Tüm ağaçları bellekte toplar (öneri motoru için hızlı erişim)."""
+    """Tüm ağaçları bellekte toplar (öneri motoru için hızlı erişim).
+
+    ★ Faz 91 — istek boyunca bir kez (bkz. `istek`): bir anlık görüntüde 16
+    kez çağrılıyordu. Ağaçlar hiçbir yerde değiştirilmiyor (ölçüldü)."""
+    from . import istek as IST
+    return IST.bellek(("agaclar", id(con)), lambda: _parsed_trees(con))
+
+
+def _parsed_trees(con: sqlite3.Connection) -> dict[str, Node]:
     out: dict[str, Node] = {}
     for code, raw in con.execute(
         "SELECT code, prereq_raw FROM course WHERE prereq_raw IS NOT NULL"

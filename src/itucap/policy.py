@@ -29,6 +29,27 @@ from .rules import passed
 
 DEFAULT_PATH = config.ROOT / "config" / "kurallar.toml"
 
+
+# ★★ Faz 91 — kural dosyaları bir anlık görüntüde 50 kez AYRIŞTIRILIYORDU
+# (yol haritası istek başına 12 kez kuruluyor ve her kurulum kuralları
+# baştan okuyor). Metin her seferinde okunuyor (ucuz), ayrıştırma sonucu
+# METNE göre saklanıyor: dosya değişince anahtar da değişir — zaman
+# damgasına güvenilmiyor (Linux'ta kaba; testler dosyayı hızla yeniden
+# yazıyor). Çağırana DERİN KOPYA veriliyor, saklanan değer değişmesin.
+_TOML_ONBELLEK: dict = {}
+
+
+def _toml_oku(path) -> dict:
+    import copy
+    metin = path.read_text(encoding="utf-8")
+    anahtar = (str(path), metin)
+    if anahtar not in _TOML_ONBELLEK:
+        if len(_TOML_ONBELLEK) > 64:
+            _TOML_ONBELLEK.clear()
+        _TOML_ONBELLEK[anahtar] = tomllib.loads(metin)
+    return copy.deepcopy(_TOML_ONBELLEK[anahtar])
+
+
 # Beyan yoksa uygulanan varsayılan. İTÜ lisans yönetmeliği: bitirme çalışmasına
 # başlayabilmek için asgari kredi şartı vardır. Kullanıcı teyidi (21.08.2026):
 # **95 kredi**. Kod kalıbı 4901/4902 İTÜ'de bitirme çalışması I/II demektir.
@@ -102,7 +123,7 @@ def load_rules(path: Path | None = None) -> list[CreditRule]:
     path = DEFAULT_PATH if path is None else path
     blocks = DEFAULT_RULES
     if path.exists():
-        raw = tomllib.loads(path.read_text(encoding="utf-8"))
+        raw = _toml_oku(path)
         declared = raw.get("kredi_esigi") or []
         if declared:
             blocks = declared
@@ -191,7 +212,7 @@ def load_catalog_rule(path: Path | None = None) -> CatalogRule:
     path = DEFAULT_PATH if path is None else path
     if not path.exists():
         return DEFAULT_CATALOG_RULE
-    raw = tomllib.loads(path.read_text(encoding="utf-8"))
+    raw = _toml_oku(path)
     block = raw.get("katalog_kredi_kosulu")
     if block is None:
         return DEFAULT_CATALOG_RULE
@@ -379,7 +400,7 @@ def load_thresholds(path: Path | None = None,
     path = DEFAULT_PATH if path is None else path
     blocks = []
     if path.exists():
-        blocks = tomllib.loads(path.read_text(encoding="utf-8")).get("gno_esigi") or []
+        blocks = _toml_oku(path).get("gno_esigi") or []
     out = []
     for b in blocks:
         try:
@@ -433,7 +454,7 @@ def load_conditional(path: Path | None = None) -> ConditionalRule:
     path = DEFAULT_PATH if path is None else path
     block: Mapping = {}
     if path.exists():
-        block = tomllib.loads(path.read_text(encoding="utf-8")).get("sartli_basari") or {}
+        block = _toml_oku(path).get("sartli_basari") or {}
     grades = tuple(str(g).upper() for g in (block.get("notlar") or CONDITIONAL_PASS))
     try:
         min_gpa = float(block["mezuniyet_min_gno"])
@@ -466,7 +487,7 @@ def load_max_duration(path: Path | None = None) -> MaxDuration | None:
     path = DEFAULT_PATH if path is None else path
     if not path.exists():
         return None
-    block = tomllib.loads(path.read_text(encoding="utf-8")).get("azami_sure") or {}
+    block = _toml_oku(path).get("azami_sure") or {}
     try:
         n = int(block["yariyil"])
     except (KeyError, TypeError, ValueError):
@@ -517,7 +538,7 @@ def load_bands(path: Path | None = None) -> tuple[list[LoadBand], dict]:
     path = DEFAULT_PATH if path is None else path
     raw = {}
     if path.exists():
-        raw = tomllib.loads(path.read_text(encoding="utf-8"))
+        raw = _toml_oku(path)
     bands = []
     for b in raw.get("kredi_yuku") or []:
         try:
@@ -684,7 +705,7 @@ def load_relief(path: Path | None = None) -> FloorRelief | None:
     path = DEFAULT_PATH if path is None else path
     if not path.exists():
         return None
-    block = tomllib.loads(path.read_text(encoding="utf-8")).get(
+    block = _toml_oku(path).get(
         "ikinci_anadal_taban_indirim") or {}
     try:
         ratio = float(block["oran"])
@@ -719,7 +740,7 @@ def second_floor(start_term: int, path: Path | None = None) -> SecondFloor | Non
     path = DEFAULT_PATH if path is None else path
     if not path.exists() or not start_term:
         return None
-    blocks = tomllib.loads(path.read_text(encoding="utf-8")).get(
+    blocks = _toml_oku(path).get(
         "ikinci_anadal_taban") or []
     tiers: list[tuple[int, float, bool, str]] = []
     for b in blocks:
