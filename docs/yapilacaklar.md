@@ -660,6 +660,12 @@ her maddeden önce gelen tek iş.
 > ortalaması ikinci sayı olarak kaldı ✅
 > ➜ Ayrıntı: `docs/faz100-donem-zorlugu.md`
 >
+> **Faz 101 (25.09.2026):** kaydedilen program ızgaradayken şeritte "Öneri 1"
+> seçili görünüyordu. Artık "Kaydedilen · 21 kredi · 1 çevrimiçi" sekmesi
+> seçili (alternatif için adı), "değiştirildi" yalnız gerçekten
+> düzenlenince; özet çevrimiçi ders sayısını yazıyor ✅
+> ➜ Ayrıntı: `docs/faz101-izgara-kaynagi.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

@@ -3737,6 +3737,7 @@ body.kurulum .govde{grid-template-columns:minmax(0,1fr)}
 .basvuruitem button{flex:0 0 auto;white-space:nowrap}
 @media (max-width:560px){
   .yardimisaret{grid-template-columns:1fr}.yardimisaret dd{margin-bottom:8px}   /* Faz 96 */
+  button.kders{min-height:36px;padding:6px 10px}   /* Faz 99 — dokunma hedefi */
   .basvuruitem{flex-wrap:wrap}
   .basvuruitem button{width:100%}
   /* ★ Karşılama adımları telefonda: düğme ve süre metnin YANINDA değil,
@@ -8801,6 +8802,34 @@ function edited(){
   const base = key((sc ? sc.picks : []).map(p => p.course + "@" + p.section.crn));
   return now !== base;
 }
+/* ★★ Faz 101 — IZGARA HANGİ PROGRAMI GÖSTERİYOR (kullanıcı 25.09.2026:
+   "kaydedilen program gözüktüğünde üstte önerilen program seçilmiş
+   gözüktüğü için karıştırılabilir; programın kredisi ve kaç çevrimiçi ders
+   olduğu"). Açılışta kaydedilen program yükleniyordu ama sekme şeridinde
+   "Öneri 1 · 24 kredi" seçili duruyor, yanında "değiştirildi" yazıyordu:
+   ızgaradaki 21 kredilik program Öneri 1'in düzenlenmişi gibi okunuyordu.
+   Kaynak İÇERİKTEN çıkarılıyor — kaydedilen, alternatif, CRN'den yükleme,
+   geri alma hangi yoldan gelinirse gelinsin doğru kalsın diye:
+     · bir öneriyle aynıysa o öneri (sekmesi seçili),
+     · kaydedilen programla aynıysa "Kaydedilen",
+     · bir alternatifle aynıysa onun adı,
+     · hiçbiri değilse null (düzenlenmiş). `SON_KAYNAK` en son tanınan
+       öneri-dışı kaynağı tutuyor: kaydedilen program düzenlenince şerit
+       "Kaydedilen · değiştirildi" diyor, Öneri 1 demiyor. */
+let SON_KAYNAK = null;
+function izgaraKaynagi(){
+  if(!sel.length) return {tur: "bos"};
+  const k = currentKey();
+  const anahtar = (liste) => liste.map(p => p.course + "@" + p.crn).sort().join("|");
+  const i = M().schedules.findIndex(sc =>
+    anahtar(sc.picks.map(p => ({course: p.course, crn: p.section.crn}))) === k);
+  if(i >= 0) return {tur: "oneri", i};
+  const kay = (DATA.savedPicks && DATA.savedPicks.picks) || [];
+  if(kay.length && anahtar(kay) === k) return {tur: "kayitli", ad: "Kaydedilen"};
+  const a = (DATA.alternatives || []).find(x => anahtar(x.picks || []) === k);
+  if(a) return {tur: "alt", ad: a.name};
+  return null;
+}
 
 /* ---------- sekmeler + ızgara ---------- */
 function renderTabs(){
@@ -8809,7 +8838,19 @@ function renderTabs(){
      taban indirilebilir ve o dönem açılan ders yetmiyor olabilir. Ama
      hangisinin eksik olduğu yazmadan sunmak, kabul edilemez bir programı
      "en iyi" diye göstermek olurdu. */
-  $("#tabs").innerHTML = M().schedules.map((s,i) => {
+  const kaynak = izgaraKaynagi();
+  if(kaynak && kaynak.tur === "oneri"){ active = kaynak.i; SON_KAYNAK = null; }
+  else if(kaynak && kaynak.ad) SON_KAYNAK = kaynak;
+  else if(kaynak && kaynak.tur === "bos") SON_KAYNAK = null;
+  /* Öneri sekmesi yalnız ızgara O öneriyse ya da ondan düzenlendiyse seçili. */
+  const disKaynak = kaynak && kaynak.ad ? kaynak : (!kaynak && SON_KAYNAK) || null;
+  /* Kaydedilen program varsa sekmesi HEP duruyor (tıklayınca yüklenir):
+     "Öneriye dön"den sonra kaydedilene geri dönmenin yolu şeritte kalıyor. */
+  const kayitliVar = ((DATA.savedPicks && DATA.savedPicks.picks) || [])
+    .some(p => sectionOf(p.course, p.crn));
+  $("#tabs").innerHTML = (disKaynak ? kaynakSekmesi(disKaynak, !kaynak)
+      : kayitliVar ? kaynakSekmesi({tur: "kayitli", ad: "Kaydedilen"}, false, false) : "")
+    + M().schedules.map((s,i) => {
     const eksik = (s.floorGaps || []);
     /* ⚠️ `title` HER sekmede tam metni taşıyor: telefonda ayırt edici
        kısım seçili olmayan sekmede gizleniyor (Faz 46) ve bilgi yalnız
@@ -8827,7 +8868,7 @@ function renderTabs(){
        ⚠️ KREDİ SAYISI da `.tabfark` içinde: telefonda seçili olmayan sekme
        yalnız "Öneri 2" yazıyor ve üç sekme + Karşılaştır TEK SATIRA sığıyor
        (ölçüldü: 3 satır → 1). Tam metin her sekmenin `title`ında. */
-    return `<button class="tab" role="tab" aria-selected="${i===active}" data-i="${i}"
+    return `<button class="tab" role="tab" aria-selected="${!disKaynak && i===active}" data-i="${i}"
        title="${esc(tam)}"><span class="tabmetin"
        >Öneri ${i+1}<span class="tabfark"> · ${s.credits} kredi${
          oneriFarki(s, i)}</span>${eksik.length
@@ -8839,8 +8880,26 @@ function renderTabs(){
     $("#tabs").innerHTML += `<button class="tab" id="karsilastir">Karşılaştır</button>`;
   $("#tabs").querySelectorAll(".tab[data-i]").forEach(b =>
     b.addEventListener("click", () => { active = +b.dataset.i; resetTo(active); }));
+  $("#tabs").querySelectorAll(".tab[data-kayitli]").forEach(b =>       // Faz 101
+    b.addEventListener("click", () => { geriKaydet("kaydedilen program yüklendi"); startFromSaved(); }));
   const k = $("#karsilastir");
   if(k) k.addEventListener("click", karsilastirDialog);
+}
+
+/* Faz 101 — ızgaradaki öneri-dışı programın sekmesi: KENDİ kredisi ve
+   çevrimiçi ders sayısı (öneri sekmesinin sayıları o öneriye ait). */
+function kaynakSekmesi(k, degisti, secili = true){
+  /* Seçili değilse (ızgarada öneri var) sayılar KAYDEDİLEN programınki. */
+  const ps = secili ? picks() : (DATA.savedPicks.picks || [])
+    .map(p => ({cand: candOf(p.course), sec: sectionOf(p.course, p.crn)})).filter(p => p.cand && p.sec);
+  const kredi = +ps.reduce((a, p) => a + (p.cand.credits || 0), 0).toFixed(1);
+  const cev = ps.filter(p => p.sec.online).length;
+  const fark = ` · ${kredi} kredi${cev ? ` · ${cev} çevrimiçi` : ""}`;
+  const tam = `${k.ad} program${fark}${degisti ? " · değiştirildi" : ""}`
+    + (secili ? " — ızgarada gösterilen program" : " — ızgaraya yüklemek için tıklayınız");
+  return `<button type="button" class="tab kaynaktab" role="tab" aria-selected="${secili}"
+    ${secili ? "" : `data-kayitli="1"`} title="${esc(tam)}"
+    ><span class="tabmetin">${esc(k.ad)}<span class="tabfark">${esc(fark)}</span></span></button>`;
 }
 
 /* ★★ FAZ 45 — "öneri üretilemedi" TEK BAŞINA YALAN SAYILIR bir cümle.
@@ -9281,6 +9340,7 @@ function render(){
          görüyordu, blokları ise mavi.
        · "puan" ne olduğunu söylüyor (dokununca açıklama — Faz 51). */
   const oran = DATA.maxLoad ? Math.min(1, t.load / DATA.maxLoad) : 0;
+  const cevrimici = picks().filter(p => p.sec.online).length;      // Faz 101
   const ikincil = DATA.unitLabel === "kredi"
     ? `${t.ects} AKTS` : `${t.credits} kredi`;
   const doluSube = picks().filter(p => p.sec.capacity &&
@@ -9293,7 +9353,8 @@ function render(){
     ${DATA.maxLoad ? `<div class="yuk${over ? " asti" : ""}" role="img"
       aria-label="dönem yükü ${t.load} / ${DATA.maxLoad} ${esc(DATA.unitLabel)}${
         over ? " — sınır aşıldı" : ""}"><i style="width:${(oran * 100).toFixed(0)}%"></i></div>` : ""}
-    <div class="ozetsatir">${t.n} ders · <span class="mono">${ikincil}</span></div>
+    <div class="ozetsatir">${t.n} ders · <span class="mono">${ikincil}</span>${
+      cevrimici ? ` · <span class="mono">${cevrimici}</span> çevrimiçi` : ""}</div>
     ${haftaSekli()}
     ${zorlukOzeti()}
     ${disKredi ? `<div class="planout">bunun <b class="mono">${disKredi}</b>
@@ -9323,8 +9384,12 @@ function render(){
     b.addEventListener("click", () => choose(b.dataset.bosa, b.dataset.crn)));
   $("#schedSummary").querySelectorAll("[data-tekrar]").forEach(b =>   // Faz 73
     b.addEventListener("click", () => choose(b.dataset.tekrar, b.dataset.crn)));
-  $("#editState").hidden = !edited();
+  /* Faz 101 — "değiştirildi" yalnız ızgara TANINAN hiçbir programa (öneri,
+     kaydedilen, alternatif) eşit değilse; "Öneriye dön" seçili öneriden
+     farklıysa (kaydedilen programdan öneriye geçmenin yolu). */
+  $("#editState").hidden = !!izgaraKaynagi();
   $("#reset").hidden = !edited();
+  $("#reset").title = `Öneri ${active + 1} ızgaraya yüklenir (geri alınabilir)`;
   renderSaveState();
   renderFloor();
   renderGnoHedef();          // Faz 57 — seçim değişince gereken ortalama da
