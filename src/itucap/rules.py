@@ -17,6 +17,7 @@ from enum import Enum
 from typing import Iterable, Mapping
 
 from .prereq import GRADE_POINTS, PASSING_MIN, Node, parse
+from . import istek as IST
 
 
 class Status(str, Enum):
@@ -199,12 +200,82 @@ def can_take_tree(tree: Node | None, grades: Mapping[str, str]) -> Verdict:
 
 
 # ------------------------------------------------------------ slot karşılanma
-def slot_codes(row) -> list[str]:
+def dil_esi(con: sqlite3.Connection | None, code: str | None) -> str | None:
+    """Dersin öbür dildeki kodu ('EHB 222' ↔ 'EHB 222E') — yalnız katalogda
+    GERÇEKTEN varsa ve kredisi aynıysa.
+
+    ★★ Faz 92. `alt_course_codes` eşi yalnız İKİ KOD AYNI PLANDA yazılıysa
+    taşıyor. OBS'nin ÇAP planları çoğunlukla Türkçe kod yazıyor ("BLG_EHB":
+    EHB 222); BLGE öğrencisi aynı dersi anadalında İngilizce almış (EHB 222E).
+    Ders geçilmişti ama ÇAP paneli 0/16 diyor, "EHB 222 — bu dönem şube
+    açılmamıştır" diye engel gösteriyor, ÇAP ortalamasına almıyordu. BLG
+    öğrencisinin geçtiği EHB 222 ise iki planı da dolduruyordu — aynı ders,
+    dile göre farklı sonuç.
+    ⚠️ Eş körlemesine türetilmiyor: katalogda olmalı; iki kredi de biliniyor
+    ve farklıysa aynı ders olduğundan emin değiliz (obs_plan'daki kuralla
+    aynı; ölçüm: 2809 çiftin 2807'sinde kredi ve AKTS birebir aynı).
+    ⚠️ Yalnız ÇAP/yandal planlarında kullanılıyor (bkz. `dil_serbest`).
+    """
+    code = (code or "").strip()
+    if con is None or not code:
+        return None
+    # Bir istekte aynı kod defalarca soruluyor (her slot denetimi) — istek
+    # önbelleği (Faz 91).
+    return IST.bellek(("dil_esi", id(con), code), lambda: _dil_esi(con, code))
+
+
+def ingilizce_esi(con: sqlite3.Connection | None, code: str | None) -> str | None:
+    """Türkçe kodun İngilizce eşi ('EHB 222' → 'EHB 222E'); İngilizce kodda None.
+
+    ★ YÖN ÖNEMLİ. İngilizce şubede alınan ders Türkçe kodlu slotu doldurur —
+    araç bunu zaten kabul ediyordu (bkz. obs_plan'ın TR/E birleştirmesi,
+    öneri motorunun "iki dilin şubesi" notu). TERSİ belirsiz: Türkçe ders
+    İngilizce dersin yerine geçmeyebilir (Faz 10, HTA/HTAE ilkesi) — orada
+    `discover` "dil eki farklı" diye DÜŞÜK güvenli öneri yapıyor, karar
+    kullanıcının. Slot eşleştirmesi bu yüzden yalnız bu yönü kullanıyor.
+    """
+    code = (code or "").strip()
+    if not code or code.endswith("E"):
+        return None
+    return dil_esi(con, code)
+
+
+def _dil_esi(con: sqlite3.Connection, code: str) -> str | None:
+    es = code[:-1] if code.endswith("E") else code + "E"
+    kredi = dict(con.execute("SELECT code, credits FROM course WHERE code IN (?, ?)",
+                             (code, es)).fetchall())
+    if es not in kredi:
+        return None
+    a, b = kredi.get(code), kredi[es]
+    if a is not None and b is not None and abs(float(a) - float(b)) > 0.01:
+        return None
+    return es
+
+
+def dil_serbest(plan_type: str | None) -> bool:
+    """Bu plan türünde dersin öbür dildeki kodu da sayılır mı?
+
+    ★ ÇAP/yandal planı BÖLÜME tanımlı, dile değil (bkz.
+    normalize.base_program_code): OBS aynı "BLG_EHB" planını BLG'ye de BLGE'ye
+    de veriyor. Anadal (lisans) planında ise dil programın kendi kuralı —
+    İngilizce programın zorunlu dersini Türkçe şubenin karşılayıp
+    karşılamadığını araç bilemez. Bilmediğini "tamamlandı" diye göstermek,
+    öğrenciye saymayan bir dersi atlatmak olurdu; orada yalnız planın kendi
+    yazdığı eşler (`alt_course_codes`) sayılıyor.
+    """
+    return (plan_type or "") in ("cap", "yandal")
+
+
+def slot_codes(row, con: sqlite3.Connection | None = None) -> list[str]:
     """Bir REQUIRED slotu dolduran BÜTÜN kodlar: ana kod + öbür dildeki karşılığı.
 
     `row` içinde `course_code` ve `alt_course_codes` bulunmalı. Eski taramalarda
     `alt_course_codes` yok/NULL — o zaman tek elemanlı liste döner, davranış
     değişmez.
+
+    `con` verilirse Türkçe kodun katalogdaki İngilizce eşi de eklenir (bkz.
+    `ingilizce_esi` — yalnız bu yön). Çağıran yalnız ÇAP/yandal slotu için
+    veriyor (bkz. `dil_serbest`).
     """
     try:
         main = row["course_code"]
@@ -215,16 +286,27 @@ def slot_codes(row) -> list[str]:
     for code in filter(None, (alt or "").split(",")):
         if code not in out:
             out.append(code)
+    if con is not None:
+        for code in list(out):
+            es = ingilizce_esi(con, code)
+            if es and es not in out:
+                out.append(es)
     return out
 
 
 def plan_codes(con: sqlite3.Connection, *plan_ids: int | None,
-               pools: bool = False) -> set[str]:
+               pools: bool = False, esler: bool = False) -> set[str]:
     """Planlardaki bütün ders kodları — ÖBÜR DİLİN kodu dahil.
 
     Tek yerde topladık çünkü aynı sorgu üç yerde ayrı ayrı yazılıydı ve
     `alt_course_codes` eklenince üçünü birden düzeltmek gerekti. Biri unutulsaydı
     (ör. ÇAP ortalaması) İngilizce şubede alınan ders sessizce hesap dışı kalırdı.
+
+    `esler=True`: Türkçe kodların KATALOGDAKİ İngilizce eşi de (bkz.
+    `ingilizce_esi`) —
+    "bu ders bu planda sayılır mı" soranlar için (ÇAP ortalaması, başvuru
+    taraması). Varsayılan kapalı: "planındaki dersler" listesini gezip her
+    birine ayrı uyarı yazan yerler (katalog tabanı) eşi ikinci bir ders sanır.
     """
     ids = [p for p in plan_ids if p]
     if not ids:
@@ -236,6 +318,8 @@ def plan_codes(con: sqlite3.Connection, *plan_ids: int | None,
                 WHERE plan_id IN ({marks}) AND course_code IS NOT NULL""", ids):
         out.add(row[0])
         out |= {c for c in (row[1] or "").split(",") if c}
+    if esler:
+        out |= {es for es in (ingilizce_esi(con, c) for c in list(out)) if es}
     if pools:
         out |= {r[0] for r in con.execute(
             f"""SELECT po.course_code FROM pool_option po JOIN plan_slot ps
@@ -255,7 +339,8 @@ def slot_satisfied(con: sqlite3.Connection, slot_id: int, grades: Mapping[str, s
                    equivalences: Iterable[Equivalence] | None = None) -> Fulfilment:
     """Bir plan slotu geçilen derslerle karşılanıyor mu?"""
     slot = con.execute(
-        "SELECT slot_kind, course_code, alt_course_codes FROM plan_slot WHERE id=?",
+        """SELECT s.slot_kind, s.course_code, s.alt_course_codes, p.plan_type
+           FROM plan_slot s LEFT JOIN plan p ON p.id = s.plan_id WHERE s.id=?""",
         (slot_id,)).fetchone()
     if slot is None:
         return Fulfilment(False)
@@ -268,7 +353,8 @@ def slot_satisfied(con: sqlite3.Connection, slot_id: int, grades: Mapping[str, s
         # ★ Aynı dersin Türkçe/İngilizce kodu (EEF 110 / EEF 110E): plan ikisini
         # birden yazıyor, öğrenci BİRİNİ alıyor. Yalnız ilkine bakmak, İngilizce
         # şubeyi almış öğrenciye dersi hiç almamış muamelesi yapardı.
-        for code in slot_codes(slot):
+        # ★ Faz 92: ÇAP/yandal slotunda katalogdaki dil eşi de (bkz. dil_esi).
+        for code in slot_codes(slot, con if dil_serbest(slot[3]) else None):
             if passed(expanded.get(code)):
                 return Fulfilment(True, code, via.get(code))
         return Fulfilment(False)

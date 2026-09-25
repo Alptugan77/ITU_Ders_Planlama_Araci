@@ -186,7 +186,11 @@ def _birimler(con, planlar, grades, equivalences, names) -> list[Birim]:
                 continue
             kredi = float(row["kredi"] or 0)
             if row["slot_kind"] == "REQUIRED" and row["course_code"]:
-                kodlar = set(R.slot_codes(row))
+                # ★ Faz 92: ÇAP/yandal slotunda dil eşi de — anadalın
+                # EHB 222E'si ile ÇAP'ın EHB 222'si AYNI ders, iki ayrı dönemde
+                # iki kez planlanmamalı. (Anadal slotuna eklenmiyor: bkz.
+                # rules.dil_serbest; birleşme ÇAP tarafındaki eşle oluyor.)
+                kodlar = set(R.slot_codes(row, con if plan["role"] != "ANADAL" else None))
                 eski = next((kod_to_anahtar[k] for k in kodlar if k in kod_to_anahtar), None)
                 if eski:                       # aynı ders başka planda da var
                     out[eski].roller.add(plan["role"])

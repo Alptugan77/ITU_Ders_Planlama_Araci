@@ -324,8 +324,9 @@ def _threshold_info(con: sqlite3.Connection, ucon: sqlite3.Connection,
         # İkinci anadalın KENDİ ortalaması — yalnız O PLANIN dersleri.
         second_gpa = None
         if plan_id:
+            # ★ Faz 92: dil eşi de — slotu dolduran ders ortalamaya da girer.
             subset = {c: g for c, g in graded.items()
-                      if c in R.plan_codes(con, plan_id)}
+                      if c in R.plan_codes(con, plan_id, esler=True)}
             if subset:
                 g2 = POL.gpa(con, subset, uncertain)
                 if g2.counted:
@@ -418,7 +419,7 @@ def _ikinci_gno_tabani(con: sqlite3.Connection, ucon: sqlite3.Connection,
     for s2 in seconds:
         if s2.get("kind") != "cap" or not s2.get("planId"):
             continue
-        kodlar = R.plan_codes(con, s2["planId"])
+        kodlar = R.plan_codes(con, s2["planId"], esler=True)
         g2 = POL.gpa(con, {c: g for c, g in graded.items() if c in kodlar}, uncertain)
         out.append({"label": s2["label"], "program": s2["program"],
                     "points": g2.points, "credits": g2.credits,
@@ -891,7 +892,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                       "program": s["program"]}
                      for b in REC.cap_blockers(con, ucon, student_id, s["planId"],
                                                s["program"],
-                                               settings.allowed_programs)]
+                                               settings.allowed_programs,
+                                               dil_esi=True)]
 
     # ★ Kredi eşiği (bitirme çalışması) — kaç kredin var, eşik ne, NEYİ tutuyor.
     # Son madde önemli: kural sessizce eleseydi kullanıcı 'GEO 4901E neden
@@ -11183,7 +11185,7 @@ function renderBasvuruBody(){
   }
   const rows = sirali.map(o => `
     <tr><td class="mono"><b>${esc(o.code)}</b></td>
-      <td>${esc(o.name)}<div class="why">${esc(o.iteration || o.planTitle)}</div></td>
+      <td>${o.name ? esc(o.name) : `<span style="color:var(--ink-3)">(adı katalogda yok)</span>`}<div class="why">${esc(o.iteration || o.planTitle)}</div></td>
       <td class="mono">${o.slotsTotal}</td>
       <td class="mono">${o.alreadyCount
         ? `<b style="color:var(--ok)">${o.alreadyCount}</b>` : "0"}

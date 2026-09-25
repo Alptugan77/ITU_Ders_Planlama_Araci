@@ -194,7 +194,7 @@ def _checks(kind: str, gpa_value: float, credits: float,
     return out
 
 
-def best_plan(rows) -> object | None:
+def best_plan(rows, anadal: str = "") -> object | None:
     """Aynı programın birden çok iterasyonundan GEÇERLİ olanı seç.
 
     OBS aynı ÇAP çifti için yıl aralığı başına ayrı plan tutuyor:
@@ -204,17 +204,15 @@ def best_plan(rows) -> object | None:
         TUMMUH_BLG … 2018-2019 / Güz Dönemi Sonrası      ← yürürlükte olan
 
     `id` sırasına güvenmek yanlıştı: id'ler OBS'nin iç sayacı, kronolojik
-    değil. "Sonrası" ile biten iterasyon açık uçlu olandır; yoksa en büyük
-    başlangıç yılı alınır.
+    değil.
+
+    ★ Faz 92: seçim `plans.en_guncel_satir` ile YAPILIYOR — program
+    seçildiğinde kullanılan planı seçen işlevle aynı. Burada ayrı bir
+    sıralama vardı ve bazı çiftlerde başka iterasyonu seçiyordu; pencere bir
+    planın derslerini sayıp seçimde başkasını kullanıyordu.
     """
-    def rank(row):
-        it = (row["iteration"] or "") if hasattr(row, "keys") else ""
-        year = 0
-        m = re.search(r"(\d{4})\s*-\s*\d{4}", it)
-        if m:
-            year = int(m.group(1))
-        return (1 if "Sonras" in it else 0, year, row["id"] > 0, row["id"])
-    return max(rows, key=rank) if rows else None
+    from . import plans as P
+    return P.en_guncel_satir(rows, anadal)
 
 
 def host_matches(host: str | None, anadal: str, anadal_name: str = "") -> bool:
@@ -231,7 +229,10 @@ def host_matches(host: str | None, anadal: str, anadal_name: str = "") -> bool:
     host = (host or "").upper()
     if not host:
         return False                      # host bilinmiyorsa iddia etmiyoruz
-    if host == (anadal or "").upper():
+    anadal = (anadal or "").upper()
+    # ★ Faz 92: ÇAP planları dil eşinin TABAN koduyla tanımlı ("BLG_EHB");
+    # BLGE öğrencisi için de geçerli (OBS listesi ikisini birlikte yazıyor).
+    if host in (anadal, base_program_code(anadal)):
         return True
     if host in UMBRELLA:
         return UMBRELLA[host](anadal_name or "")
@@ -283,6 +284,11 @@ def survey(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     gpa = POL.gpa(con, graded, uncertain)
     have_credits = POL.earned_credits(con, graded)
     passed_codes = {c for c, g in graded.items() if R.passed(g)}
+    # ★ Faz 92: İngilizce şubede geçilen ders Türkçe kodlu slotu da doldurur
+    # (yalnız bu yön — bkz. rules.ingilizce_esi). Eş, planın ~1000 kodu için
+    # değil, geçilmiş ~25 ders için bir kez soruluyor.
+    esi_gecilen = {es: c for c in passed_codes
+                   if c.endswith("E") and (es := R.dil_esi(con, c))}
 
     checks = _checks(kind, gpa.value, have_credits, rules_path,
                      has_data=bool(graded), gpa_known=bool(gpa.counted))
@@ -304,27 +310,82 @@ def survey(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     anadal = (anadal or "").upper()
     anadal_name = names.get(anadal, "")
 
+    # ★★ Faz 92 — KENDİ BÖLÜMÜNÜN ÖBÜR DİLDEKİ PROGRAMI SEÇENEK DEĞİL.
+    # Gerçek katalogda BLGE öğrencisine "BLG" ÇAP seçeneği çıkıyordu
+    # ("TUMMUH_BLG" planının ev sahibi "Tüm Mühendislik" — BLGE dahil her
+    # mühendislik anadalıyla eşleşiyor) ve "22 slottan 5'i sayılıyor" diye
+    # cazip görünüyordu. Kendi bölümünde çift anadal yapılmaz. `exclude`
+    # yalnız birebir kodu eliyordu; dil eşi (BLG/BLGE) geçiyordu.
+    # ⚠️ Eş, son harften TAHMİN edilmiyor: iki kod da katalogda lisans
+    # programı olmalı ve adları "(İngilizce)" dışında AYNI olmalı (ölçüldü:
+    # katalogdaki 37 X/XE çiftinin 37'si aynı bölüm).
+    ls_ad = {r[0]: r[1] for r in con.execute(
+        "SELECT code, name FROM program WHERE level='LS'")}
+
+    def _dilsiz(ad: str) -> str:
+        return " ".join(re.sub(r"\((İngilizce|English)\)", " ", ad or "").split()).lower()
+
+    def _dil_esi(a: str, b: str) -> bool:
+        if not a or not b or a == b:
+            return False
+        if base_program_code(a) != base_program_code(b):
+            return False
+        na, nb = ls_ad.get(a), ls_ad.get(b)
+        return bool(na and nb) and _dilsiz(na) == _dilsiz(nb)
+
+    kendi = {k for k in (anadal, *exclude) if k}
+
     # Katalogda bu tipten hiç plan var mı? (host süzmesinden ÖNCE bakılıyor:
     # "sana açık plan yok" ile "bu tipte hiç plan yok" ayrı sorular.)
     plan_type_available = bool(con.execute(
         "SELECT 1 FROM plan WHERE plan_type=? LIMIT 1", (kind,)).fetchone())
 
+    # ★★ Faz 92 — "SANA AÇIK Mİ" SORUSUNUN CEVABI OBS'DE YAZILI.
+    # Tarama bunu plan KODUNDAN (`host_program_code`) tahmin ediyordu; program
+    # seçilince kullanılan plan ise (`plans.ikinci_plan`) OBS'nin "İlişkili
+    # Programlar" listesine bakıyordu. İkisi gerçek katalogda 1073 (anadal,
+    # hedef) çiftinde ayrışıyordu. Örnek: BLG öğrencisine EHB için
+    # "TUMMUH_EHB" gösteriliyordu — OBS o planın listesinde BLG'yi yazmıyor;
+    # BLG'ninki "BLG_EHB". Pencere bir planın derslerini sayıyor, seçilince
+    # başka bir plan kullanılıyordu. BLGE öğrencisi ise "BLG" ev sahipli 27
+    # planın hiçbirini görmüyordu (kod BLGE ≠ BLG).
+    # Artık: listesi olan planda liste KESİN; listesi çekilmemiş planda (eski
+    # veri) koddan tahmin sürüyor.
+    acik_planlar: set[int] = set()
+    listeli: set[int] = set()
+    if kind == "cap" and anadal:
+        from . import plans as P
+        acik_planlar, listeli = P.ev_sahibi_suzgeci(con, "cap", anadal)
+
     by_program: dict[str, list] = {}
     other_host = 0
     for row in con.execute(
-            """SELECT id, program_code, title, iteration, host_program_code
+            """SELECT id, program_code, title, iteration, host_program_code, source
                FROM plan WHERE plan_type=? AND program_code IS NOT NULL""",
             (kind,)):
         # ★ Host süzmesi yalnız ÇAP'ta anlamlı: ÇAP planı (anadal, hedef)
         # çiftine bağlı. Yandal programı herkese açık, bir çifte bağlı değil —
         # süzseydik hepsi elenirdi.
-        if kind == "cap" and anadal and not host_matches(
-                row["host_program_code"], anadal, anadal_name):
-            other_host += 1
-            continue
+        if kind == "cap" and anadal:
+            if row["id"] in listeli:
+                uygun = row["id"] in acik_planlar
+            else:
+                uygun = host_matches(row["host_program_code"], anadal, anadal_name)
+            if not uygun:
+                other_host += 1
+                continue
         by_program.setdefault(row["program_code"], []).append(row)
 
-    plans = {code: best_plan(rows) for code, rows in by_program.items()}
+    plans = {code: best_plan(rows, anadal) for code, rows in by_program.items()}
+
+    # ★ Faz 92 — PLANI OLAN AMA ADI KATALOGDA OLMAYAN PROGRAM DÜŞMÜYOR.
+    # Liste `program` tablosundaki adlardan kuruluyordu; ECN, SEC, VBA ve
+    # YZV'nin ÇAP planı var ama o tabloda satırı yok (bkz. server C3 notu).
+    # Tarama bu yüzden örneğin BLG öğrencisine YZV'yi HİÇ göstermiyordu —
+    # ayarlardaki ÇAP listesi ise gösteriyordu. Ad uydurulmuyor: boş kalıyor,
+    # arayüz "adı katalogda yok" yazıyor.
+    for code in plans:
+        names.setdefault(code, "")
 
     # ★ Dil varyantı tekleştirme (kullanıcı isteği 23.08.2026): ÇAP/yandal
     # seçiminde BLG ile BLGE ayrımı YOK — plan bölüme tanımlı, dile değil.
@@ -338,7 +399,7 @@ def survey(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     options: list[Option] = []
     missing: list[Option] = []
     for code, name in sorted(names.items()):
-        if code in exclude or code not in goster:
+        if code in exclude or code not in goster or any(_dil_esi(code, k) for k in kendi):
             continue
         row = plans.get(code)
         if row is None:
@@ -356,7 +417,8 @@ def survey(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             plan_iteration=row["iteration"] or "",
             host=row["host_program_code"] or "",
             slots_total=total,
-            already=sorted({c for c in slot_codes if c in passed_codes}),
+            already=sorted({c for c in slot_codes if c in passed_codes}
+                           | {esi_gecilen[c] for c in slot_codes if c in esi_gecilen}),
         ))
 
     # Zaten en çok dersi sayılan program önce — kalan işin tek sağlam ölçüsü.
