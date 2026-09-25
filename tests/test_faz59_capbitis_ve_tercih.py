@@ -153,7 +153,10 @@ with sync_playwright() as p:
     print("CAPKART:" + pg.evaluate("() => document.querySelector('.yhprogram[data-role=CAP]').innerText.replace(/\\s+/g,' ')"))
     # §3.6 — tercihi kaydetmeden dene.
     pg.evaluate("() => tercihDialog()"); pg.wait_for_timeout(400)
-    pg.click('#fErken button[data-v="630"]'); pg.click('#fGun button[data-v="1"]')
+    # (Faz 90: eski durum "10:30'dan önce yok + Pzt boş" BLG 223E'yi DOLU 22302
+    # şubesine taşıyordu; motor artık tercih uğruna dolu şubeye geçmiyor.
+    # "Perşembe boş": GEO 321E açık 13640'tan açık 13602'ye.)
+    pg.click('#fGun button[data-v="4"]')
     pg.click("#fOnizle"); pg.wait_for_timeout(1500)
     print("ONIZLE:" + pg.evaluate("() => document.querySelector('#fOnizleSonuc').innerText.replace(/\\s+/g,' ')"))
     print("DUGME:" + pg.evaluate("() => document.querySelector('#fOnizle').textContent.trim()"))
@@ -197,7 +200,7 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     assert ". yarıyıl" in c["CAPKART"] and "azami" not in c["CAPKART"], c["CAPKART"]
 
     # §3.6 — önizleme: değişen şube, şekil, tercih puanı; AYAR DOSYASI AYNI.
-    assert "BLG 223E şubesi 22301 → 22302" in c["ONIZLE"], c["ONIZLE"]
-    assert "Tercih puanı -44" in c["ONIZLE"] and "Değişiklikler kaydedilmedi" in c["ONIZLE"]
+    assert "GEO 321E şubesi 13640 → 13602" in c["ONIZLE"], c["ONIZLE"]
+    assert "Tercih puanı -10" in c["ONIZLE"] and "Değişiklikler kaydedilmedi" in c["ONIZLE"]
     assert c["DUGME"] == "Kaydetmeden dene", "düğme meşgul hâlinde kaldı"
     assert c["AYAR"] == "True", "önizleme ayar dosyasını değiştirdi"

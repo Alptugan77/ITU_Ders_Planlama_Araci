@@ -61,6 +61,12 @@ with sync_playwright() as p:
         {credits: 1, grades: {difficulty: {level: 1, score: 1.0}}},
         {credits: 3, grades: null}])""")))
     print("OZET:" + T("#schedSummary .ozetzorluk"))
+    # (Faz 90: öneriler değişti; farkı yaratan ders artık elle seçiliyor.)
+    # Yalnız 2. sütunda olan bir derse yüksek zorluk ver: sütunlar ayrışır ama
+    # derslerin yarısından azı bilindiği için "en hafif" yazılmamalı.
+    print("FARK:" + pg.evaluate("""() => { const s = karsilastirmaSutunlari();
+        const k = s[1].olcu.courses.find(x => !s[0].olcu.courses.includes(x));
+        candOf(k).grades = {difficulty: {level: 5, score: 9.0, passRate: 60, mean: 1.5}}; return k; }"""))
     pg.evaluate("() => karsilastirDialog()"); pg.wait_for_timeout(200)
     sat = "() => [...document.querySelectorAll('#detail table.cmp tr')].filter(t => /Tahmini zorluk/.test(t.textContent)).map(t => [...t.querySelectorAll('td')].map(d => d.textContent.replace(/\\s+/g,' ').trim()))[0]"
     print("CMP1:" + json.dumps(pg.evaluate(sat), ensure_ascii=False))
@@ -121,12 +127,13 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     assert c["OZET"].startswith("tahmini zorluk 3.8/10: 1 orta · 2 kolay · 5 ders için veri yok"), c["OZET"]
     # 3. Karşılaştırma: sayı var; derslerin yarısından azı biliniyorken "en hafif" YOK.
     cmp1 = json.loads(c["CMP1"])
-    assert cmp1[0].startswith("3.8 / 10") and cmp1[1].startswith("5.0 / 10 1 zor ders"), cmp1
+    assert cmp1[0].startswith("3.8 / 10") and " / 10 1 zor ders" in cmp1[1], (c["FARK"], cmp1)
+    assert float(cmp1[1].split(" / ")[0]) >= 3.8 + 0.5, cmp1        # fark eşiği aşılıyor
     assert not any("en hafif" in x for x in cmp1), cmp1
     cmp2 = json.loads(c["CMP2"])
     hafif = [x for x in cmp2 if "en hafif" in x]
     assert hafif and all("zor ders yok" in x for x in hafif), cmp2
-    assert "en hafif" not in cmp2[1], cmp2                    # MAT 210E'li öneri
+    assert "en hafif" not in cmp2[1], cmp2                    # zor dersli sütun
     # 4. Kalma riski: aynı gecikmede kalma oranı yüksek önce; bilinmeyen sonda.
     k = c["KALMA"]
     assert k.index("MAT 210E —") < k.index("BLG 223E —") < k.index("GEO 331E —"), k

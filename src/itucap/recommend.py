@@ -28,6 +28,7 @@ from itertools import islice
 from dataclasses import dataclass, field
 from typing import Iterable, Mapping
 
+from . import istek as IST
 from . import policy as POL
 from . import prereq as P
 from . import rules as R
@@ -64,6 +65,22 @@ class Section:
     # "Virtual (Online)". Çevrimiçi şube KAMPÜS DEĞİŞTİRMİYOR — `campuses()`
     # bunu bilmeden kampüs değişimi sayıyordu.
     method: str | None = None
+
+    @property
+    def maske(self) -> int:
+        """★★ Faz 91 — haftanın DAKİKA bit maskesi: gün başına 2048 bitlik blok,
+        buluşma [başlangıç, bitiş) aralığındaki her dakika bir bit. İki şube
+        ancak maskeleri ortak bit taşıyorsa çakışır — `overlaps` ile BİREBİR
+        aynı koşul (aynı gün ve a.start < b.end and b.start < a.end), ama tek
+        bir AND. Bir kez hesaplanıp saklanıyor (şube nesneleri değişmiyor)."""
+        m = self.__dict__.get("_maske")
+        if m is None:
+            m = 0
+            for t in self.meetings:
+                if t.end > t.start:
+                    m |= ((1 << (t.end - t.start)) - 1) << (t.day * 2048 + t.start)
+            self.__dict__["_maske"] = m
+        return m
 
     @property
     def online(self) -> bool:
@@ -162,18 +179,54 @@ def yuva_ata(adaylar) -> dict | None:
     return {i: s for s, i in sahip.items()}
 
 
+def yuva_ekle(eslesme: dict, aday) -> dict | None:
+    """★★ Faz 91 — `eslesme` (slot → aday) seçilenlerin HEPSİNİ eşliyorsa,
+    `aday`ı tek bir artırma yoluyla ekler; yeni eşleştirmeyi döndürür (girdi
+    değişmez) ya da olmuyorsa `None`. Berge: cevap `yuva_ata(seçilenler +
+    [aday]) is not None` ile AYNI, ama baştan eşleştirme yerine tek DFS."""
+    yeni = dict(eslesme)
+
+    def dene(c, gorulen: set) -> bool:
+        for y in c.yuvalar:
+            if y in gorulen:
+                continue
+            gorulen.add(y)
+            sahip = yeni.get(y)
+            if sahip is None or dene(sahip, gorulen):
+                yeni[y] = c
+                return True
+        return False
+
+    return yeni if dene(aday, set()) else None
+
+
 # ------------------------------------------------------------------ yardımcı
 def overlaps(a: Meeting, b: Meeting) -> bool:
     return a.day == b.day and a.start < b.end and b.start < a.end
 
 
 def section_conflict(x: Section, y: Section) -> bool:
-    return any(overlaps(m, n) for m in x.meetings for n in y.meetings)
+    # ★★ Faz 91 — dakika maskesiyle (bkz. Section.maske); eşdeğeri:
+    # any(overlaps(m, n) for m in x.meetings for n in y.meetings)
+    return bool(x.maske & y.maske)
+
+
+# ★★ FAZ 91 — ŞUBELER İSTEK BOYUNCA BİR KEZ OKUNUR (bkz. `istek`).
+# Bir sayfa durumunda `load_sections` 1031 kez çağrılıyordu ama yalnız 191
+# FARKLI (ders, izinli programlar) için — anlık görüntünün %34'ü. Çağırana
+# her seferinde listenin KOPYASI veriliyor (şube nesneleri değiştirilmiyor).
+sube_onbellegi = IST.istek
 
 
 def load_sections(con: sqlite3.Connection, course: str,
                   allowed_programs: set[str]) -> list[Section]:
     """Dersin, öğrencinin PROGRAM KODUYLA alabileceği şubeleri."""
+    return list(IST.bellek(("sube", id(con), course, frozenset(allowed_programs)),
+                           lambda: _load_sections(con, course, allowed_programs)))
+
+
+def _load_sections(con: sqlite3.Connection, course: str,
+                   allowed_programs: set[str]) -> list[Section]:
     out: list[Section] = []
     for row in con.execute(
         """SELECT crn, instructor, capacity, enrolled, teaching_method
@@ -363,6 +416,7 @@ WEIGHTS = {
     "early_tier": 25,
     "scarcity": 15,
     "deferrable": -20,   # ★ her dönem açılan ders ertelenebilir
+    "full": -5,          # ★★ Faz 90 — bütün şubeleri dolu (aşağıya bak)
 }
 # ★ Ağırlık gerekçeleri (ölçüme dayalı, 20.08.2026):
 #
@@ -375,6 +429,42 @@ WEIGHTS = {
 #     fiilen her dönem açılıyor; bu dönem alınmazsa bir şey kaybedilmiyor. Bu,
 #     "tek şube / kontenjan kritik" bonusunun aynadaki karşılığı.
 DEFERRABLE_SECTIONS = 10
+
+# ★★ FAZ 90 — KONTENJAN, GERÇEK HALİYLE (ölçüm 25.09.2026, gerçek katalog).
+#
+# "Kontenjan kritik" bonusu ilk sürümden beri dersin EN DOLU şubesine
+# bakıyordu (`max(fill_ratio)`). İki sonucu vardı:
+#   * 70 boş yeri olan BLG 351E "kritik" sayılıyordu (şubelerinden biri
+#     doluydu). Yedi profilde adayların %70–100'ü bonusu alıyordu — bonus
+#     artık hiçbir şeyi ayırt etmiyordu.
+#   * Bütün şubeleri DOLU ders de bonus alıyordu; kapanmış bir ders "hemen
+#     al" diye öne çıkıyordu. BLGE 5. yarıyılda "TM Elective I" havuzunda
+#     dolu BLG 345E ile 4 boş yerli BLG 368E aynı puanı alıyor, eşitliği
+#     ALFABE bozuyordu → öneri 1 dolu seçmeli içeriyordu.
+# Şimdi:
+#   * "kritik" = bütün şubelerin kontenjanı BİLİNİYOR ve açık şubelerin EN
+#     BOŞU bile %85'ten dolu (gerçekten "yer kalmıyor").
+#   * "dolu"   = bütün şubelerin kontenjanı biliniyor ve hiçbirinde yer yok →
+#     küçük bir ceza (-5): aynı havuzdaki açık ders öne geçer; alternatif
+#     yoksa ders yine önerilir ve arayüz "kontenjan izlenmeli" der.
+#   * Kontenjanı ilan edilmemiş şube varsa "bilinmiyor": ne bonus ne ceza —
+#     bilinmeyen, bilinen gibi gösterilmez.
+KRITIK_DOLULUK = 0.85
+# Şube seçiminde dolu şubenin maliyeti (puan cinsinden, `blocking_cost` ile
+# aynı ölçek): boş şube, dolu şubeden en fazla bu kadar daha çok değer
+# yakıyorsa boş şube seçilir. Ölçüm: 14 profil×kipin 11'inde önerinin bir
+# dersi, aynı dersin AÇIK şubesi varken dolu şubeye yerleştiriliyordu.
+DOLU_SUBE_MALIYETI = 15.0
+
+
+def kontenjan_durumu(sections) -> str:
+    """'dolu' | 'kritik' | 'acik' | 'bilinmiyor' (Faz 90)."""
+    if not sections or any(not s.capacity for s in sections):
+        return "bilinmiyor"
+    acik = [s for s in sections if s.free > 0]
+    if not acik:
+        return "dolu"
+    return "kritik" if min(s.fill_ratio for s in acik) > KRITIK_DOLULUK else "acik"
 
 
 # ---------------------------------------------------------------- tercihler
@@ -567,10 +657,13 @@ def score_all(cands: list[Candidate]) -> list[Candidate]:
         if max_tier:
             kat("early_tier", WEIGHTS["early_tier"] * (max_tier - c.tier) / max_tier,
                 "zincirin başında")
-        best = max((s.fill_ratio for s in c.sections), default=1.0)
-        if best > 0.85:
+        durum = kontenjan_durumu(c.sections)          # ★★ Faz 90
+        if durum == "kritik":
             kat("scarcity", WEIGHTS["scarcity"], "kontenjan kritik",
                 "kontenjan kritik")
+        elif durum == "dolu":
+            kat("full", WEIGHTS["full"], "bütün şubeler dolu",
+                "bütün şubeler dolu — kontenjan izlenmeli")
         if len(c.sections) == 1:
             kat("single", WEIGHTS["scarcity"] / 2, "tek şube", "tek şube")
         elif len(c.sections) > DEFERRABLE_SECTIONS:
@@ -871,11 +964,15 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
     results: list[Schedule] = []
     seen: set[tuple[str, ...]] = set()
 
-    # Sabit dersler (ör. anadalda zaten kayıtlı olduğun şubeler) çakışma tabanı
+    # Sabit dersler (ör. anadalda zaten kayıtlı olduğun şubeler) çakışma tabanı.
+    # ★★ Faz 91 — seçilenlerin ve sabitlerin dakika maskeleri YIĞINDA birikiyor:
+    # "bu şube sığar mı" tek AND (eskiden her seçilen şubeyle ayrı ayrı).
+    dolu_maske = [0]
+    for f in fixed:
+        dolu_maske[0] |= f.maske
+
     def fits(section: Section, chosen: list[Pick]) -> bool:
-        if any(section_conflict(section, f) for f in fixed):
-            return False
-        return not any(section_conflict(section, p.section) for p in chosen)
+        return not (section.maske & dolu_maske[-1])
 
     budget = [SEARCH_BUDGET]
     pool_size = max(limit, limit * POOL_FACTOR)
@@ -906,6 +1003,19 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
                 cost += other.score
         return cost
 
+    # ★★ FAZ 91 — ARTIMLI YUVA EŞLEŞTİRMESİ (ölçüm 25.09.2026, gerçek katalog).
+    #
+    # Faz 81'in "havuz dolu mu" sorusu her arama düğümünde `yuva_ata`yı
+    # SIFIRDAN koşuyordu: seçilenlerin hepsi + aday için baştan Kuhn. INSE 1.
+    # yarıyılda 282.000 çağrı, profilde 12 sn'nin 7,2 sn'si. Oysa aramanın
+    # değişmezi var: `chosen` HER ZAMAN tamamen eşleşmiş (her seçim bu
+    # denetimden geçerek eklendi). Berge teoremi: seçilenlerin hepsini
+    # eşleyen bir eşleştirmeye yeni aday ancak ONDAN başlayan bir artırma yolu
+    # varsa eklenebilir — tek bir DFS yeter, cevap `yuva_ata(chosen + [aday])
+    # is not None` ile AYNI. Eşleştirme yığında tutuluyor (geri izlemede
+    # önceki hâline dönülüyor). Kopya küçük: bir dönemde ~10 ders.
+    yuva_yigin: list[dict] = [{}]
+
     def search(index: int, chosen: list[Pick], load: float) -> None:
         if len(results) >= ust[-1] or budget[0] <= taban[-1]:
             return
@@ -924,9 +1034,12 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
         # ★★ Faz 81 — "dolu" artık EŞLEŞTİRME: seçilenlerin her biri ayrı bir
         # slota yerleşebiliyorsa aday da girer (ENDE'de dört Functional-MT
         # yuvası boşken yalnız birinci yuvaya bakılıyordu).
-        pool_taken = bool(cand.yuvalar) and yuva_ata(
-            [p.candidate for p in chosen] + [cand]) is None
-        if not pool_taken and load + cand.load <= max_load:
+        # ★★ Faz 91 — önce ucuz yük denetimi; eşleştirme yalnız yük sığıyorsa
+        # (ikisi VE ile bağlı, sonuç aynı). Eşleştirme artımlı (bkz. yuva_ekle).
+        sigar = load + cand.load <= max_load
+        yeni_yuva = yuva_ekle(yuva_yigin[-1], cand) if sigar and cand.yuvalar else None
+        pool_taken = bool(cand.yuvalar) and yeni_yuva is None
+        if not pool_taken and sigar:
             # Önce en az değer yakan şube; eşitlikte en boş olan (kontenjan riski).
             # Saati ilan edilmemiş şube hiçbir şeyle çakışmadığı için ileriye
             # bakış maliyeti 0 çıkıyor ve metriği kandırıyor. Belirsizlik avantaj
@@ -955,7 +1068,9 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
             ordered = _sira.get(index)
             if ordered is None:
                 def _sube_maliyeti(s: Section) -> float:
-                    return blocking_cost(s, index) - sube_tercih_puani(s, prefs)
+                    # ★★ Faz 90 — dolu şubenin maliyeti (bkz. DOLU_SUBE_MALIYETI).
+                    dolu = DOLU_SUBE_MALIYETI if s.capacity and s.free == 0 else 0.0
+                    return blocking_cost(s, index) - sube_tercih_puani(s, prefs) + dolu
 
                 ordered = sorted(cand.sections,
                                  key=lambda s: (not s.meetings, _sube_maliyeti(s),
@@ -992,7 +1107,13 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
                                    + max(1, (ust[-1] - len(results)) // kalan)))
                     taban.append(budget[0] - max(1, (budget[0] - taban[-1]) // kalan))
                 chosen.append(Pick(cand, section))
+                dolu_maske.append(dolu_maske[-1] | section.maske)
+                if yeni_yuva is not None:
+                    yuva_yigin.append(yeni_yuva)
                 search(index + 1, chosen, load + cand.load)
+                if yeni_yuva is not None:
+                    yuva_yigin.pop()
+                dolu_maske.pop()
                 chosen.pop()
                 if paylas:
                     ust.pop(); taban.pop()

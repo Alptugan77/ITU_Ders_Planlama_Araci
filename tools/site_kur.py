@@ -71,7 +71,7 @@ PYODIDE_VERSION = "314.0.5"
 # masaüstüne özgü olanlar (`watch` — macOS bildirimi) DIŞARIDA: hem gereksiz
 # hem bağımlılık taşıyorlar.
 ENGINE = ["__init__", "basvuru", "changes", "config", "db", "declared",
-          "discover", "normalize", "notlar", "plans", "policy", "prereq",
+          "discover", "istek", "normalize", "notlar", "plans", "policy", "prereq",
           "progress", "recommend", "rules", "sequence", "server",
           "student", "tasarim", "ui", "yolharitasi"]
 SCHEMA = ["schema.sql", "schema_user.sql"]

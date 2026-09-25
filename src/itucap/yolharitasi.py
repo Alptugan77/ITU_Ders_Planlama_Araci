@@ -269,7 +269,10 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
          mesgul=(), zor_siniri=None,
          equivalences, taban, ufuk, yaz=None, bos=frozenset()) -> dict:
     equivalences = list(equivalences or [])
-    names = {r[0]: r[1] for r in con.execute("SELECT code, name FROM course")}
+    from . import istek as IST
+    # ★ Faz 91 — istek boyunca bir kez (harita bir istekte 12 kez kuruluyor).
+    names = IST.bellek(("ders_adlari", id(con)), lambda: {
+        r[0]: r[1] for r in con.execute("SELECT code, name FROM course")})
     siniflama = {r[0]: r[1] for r in con.execute(
         "SELECT code, class_restriction FROM course WHERE class_restriction IS NOT NULL")}
     kurallar, katalog_kurali = POL.load_rules(), POL.load_catalog_rule()

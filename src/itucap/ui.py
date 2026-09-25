@@ -498,6 +498,20 @@ def second_programs(settings: config.Settings, cap_id: int | None,
     return out
 
 
+
+def _sube_onbellekli(f):
+    """★★ Faz 91 — isteğin tamamı boyunca önbellek (bkz. `istek`): bir istekte
+    aynı şubeler, ders adları ve önşart ağaçları bir kez okunur."""
+    import functools
+    from . import istek as IST
+
+    @functools.wraps(f)
+    def sar(*a, **k):
+        with IST.istek():
+            return f(*a, **k)
+    return sar
+
+@_sube_onbellekli
 def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             settings: config.Settings, anadal_id: int | None, cap_id: int | None,
             max_load: float | None = None, n_schedules: int = 3,
@@ -1616,6 +1630,7 @@ def _senaryo_planlari(con, settings, g: dict) -> tuple[list[dict], object]:
     return planlar, taban
 
 
+@_sube_onbellekli
 def kalma_riski(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                 settings, bu_donem: list[dict], max_load) -> dict:
     """★★ Faz 75 — "Bu dersten kalırsam mezuniyetim ne kadar gecikir?"
@@ -1663,6 +1678,7 @@ def kalma_riski(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: i
             "courses": dersler, "maxLoad": g["max_load"]}
 
 
+@_sube_onbellekli
 def yol_senaryosu(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                   settings, bu_donem: list[dict], max_load, bos, zor=None) -> dict:
     """Faz 61 — yol haritası SENARYOSU: daha hafif dönem yükü ve boş dönemler.
@@ -1701,6 +1717,7 @@ def yol_senaryosu(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id:
     return h
 
 
+@_sube_onbellekli
 def cap_bitisleri(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                   settings, plan_ids: list, bu_donem: list[dict],
                   max_load: float) -> dict:
@@ -7295,9 +7312,15 @@ function danismanSorulari(){
       tabanı ${F.min} kredidir (<b>${d.eksik}</b> kredi eksik).${F.relief ? ` Tabanın ${F.relief.min}
       krediye indirilmesi için başvuru yapabilir miyim?` : ""}`);
   }
-  picks().filter(p => p.sec.capacity && yerSayisi(p.sec) === 0).forEach(p =>
-    q.push(`<b class="mono">${esc(p.cand.course)}</b> şubemin (CRN ${esc(p.sec.crn)}) kontenjanı
-      doludur. Kontenjan açılması mümkün müdür, yoksa başka bir şubeye mi geçmeliyim?`));
+  /* ★★ Faz 90 — dolu şubeler TEK soruda. Gerçek sitede (BLGE, 5. yarıyıl)
+     aynı cümle dört kez yazılıyordu ve biri, programla çakışmayan BOŞ şubesi
+     olan dersti — o soru değil, tek dokunuşla çözülüyor (Faz 57 "boş şubeye
+     geç"); sayfada ayrıca söyleniyor (danismanOzeti → dolu şube satırı). */
+  const doluSube = picks().filter(p => p.sec.capacity && yerSayisi(p.sec) === 0 && !bosSube(p.cand.course));
+  if(doluSube.length) q.push(`${doluSube.map(p => `<b class="mono">${esc(p.cand.course)}</b>
+      (CRN ${esc(p.sec.crn)})`).join(", ")} ${doluSube.length > 1 ? "şubelerimin" : "şubemin"}
+    kontenjanı doludur ve programımla çakışmayan boş şube bulunmamaktadır. Kontenjan
+    açılması mümkün müdür, yoksa başka bir ders mi almalıyım?`);
   picks().filter(p => !p.sec.meetings.length).forEach(p =>
     q.push(`<b class="mono">${esc(p.cand.course)}</b> dersinin saati ilan edilmemiştir.
       Çakışma olup olmadığını nasıl öğrenebilirim?`));
@@ -7328,8 +7351,14 @@ function danismanSorulari(){
       ÇAP yarıyıl tabanı sağlanamamaktadır (yeterli ÇAP dersi açılmamaktadır). Nasıl planlama yapmalıyım?`);
   }
   if(g && g.counted){
+    /* ★★ Faz 90 — BAŞVURU eşiği bir SEÇENEK, sorun değil: ikinci programı
+       olmayan öğrenciye "ÇAP başvurusu ≥ 3.00 — nasıl ulaşırım?" diye
+       sormak, istemediği bir hedefi dayatıyordu (gerçek sitede, BLGE). */
     (g.thresholds || []).filter(x => x.ok === false && !kayitliBasvuru(x))
-      .forEach(x => q.push(`${esc(x.label)} için GNO ≥ ${x.min.toFixed(2)} gerekmektedir;
+      .forEach(x => q.push(x.kind === "basvuru"
+        ? `${esc(x.label.replace(/\s*başvurusu$/, ""))} başvurusunu düşünürsem GNO ≥ ${x.min.toFixed(2)}
+           gerekmektedir; tahmini GNO'm ${g.value.toFixed(2)}. Bu hedef benim için gerçekçi midir?`
+        : `${esc(x.label)} için GNO ≥ ${x.min.toFixed(2)} gerekmektedir;
         tahmini GNO'm ${g.value.toFixed(2)}. Bu eşiğe nasıl ulaşabilirim?`));
     /* ★ Faz 70 — kalan bütün derslerde AA bile yetmiyorsa (Faz 69 hesabı). */
     const ik = (g.secondGpa || [])[0];
@@ -7378,7 +7407,9 @@ function danismanOzeti(){
     `${DAYS[m.day - 1]} ${hhmm(m.start)}–${hhmm(m.end)}`).join(", ") : "saat yok";
   const satirlar = picks().map(p => `<tr><td class="mono"><b>${esc(p.cand.course)}</b></td>
     <td>${esc(p.cand.name)}</td><td>${esc(p.cand.role === "PLAN_DISI" ? "plan dışı" : p.cand.role)}</td>
-    <td class="mono">${p.cand.credits}</td><td class="mono">${esc(p.sec.crn)}</td>
+    <td class="mono">${p.cand.credits}</td><td class="mono">${esc(p.sec.crn)}${
+      p.sec.capacity && yerSayisi(p.sec) === 0 ? ` <span class="uyari">dolu</span>${
+        (b => b ? `<div class="meta">boş şube: ${esc(b.crn)}</div>` : "")(bosSube(p.cand.course))}` : ""}</td>
     <td>${saat(p)}</td><td>${(z => z ? `${esc(z.label)} <span class="mono">${zp(z.score)}</span>`
       : "—")(zorlukOf(p.cand))}</td></tr>`).join("");
   const kontrol = [];
