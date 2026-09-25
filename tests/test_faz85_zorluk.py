@@ -166,7 +166,7 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     assert sira[:5] == ["GEO 321E", "GEO 341E", "GEO 315E", "BLG 223E", "MAT 210E"], sira
     assert json.loads(c["ESIT"]) == ["B", "C", "A", "D"]
     # (Faz 88: özet kredi ağırlıklı ortalamayı da yazıyor.)
-    assert c["OZET"].startswith("tahmini dönem zorluğu 5.7/10 (orta) · 8 ders, 24 kredi · "
+    assert c["OZET"].startswith("tahmini dönem zorluğu 6.4/10 (zor) · 8 ders, 40 AKTS · "
                                 "ders ortalaması 3.8/10: 1 orta · 2 kolay · 5 ders için veri yok"), c["OZET"]  # Faz 100
     k = c["KUTU"]
     assert "Tahmini zorluk" in k and "çok zor 8.5 / 10" in k, k
@@ -175,6 +175,7 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     assert "Olağan dönemler: 2025-26 Güz; 115 öğrenci." in k and "dahil edilmez" in k
     yh = json.loads(c["YH"])
     bahar = [x for x in yh if x[0] == "2026-2027 Bahar"][0]
-    assert bahar[1] == "tahmini zorluk: 1 zor ders" and "MAT 210E" in bahar[2], bahar
+    # Faz 102: kartta dönem zorluğu (8 ders × 5 AKTS, biri çok zor) + zor ders sayısı.
+    assert bahar[1] == "tahmini dönem zorluğu 7.0/10 (zor) · 1 zor ders" and "MAT 210E" in bahar[2], bahar
     simdi = yh[0]
     assert "BLG 223E" in simdi[2], simdi          # bu dönemin kartında da

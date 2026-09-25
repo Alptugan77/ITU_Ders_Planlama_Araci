@@ -468,6 +468,23 @@ GECME_CAPA = (100.0, 85.0)            # geçme oranı %
 NOT_CAPA = (4.0, 2.5)                 # harf notu ortalaması
 # Kademe sınırları (genel puan, 10 üzerinden).
 ZORLUK_BANTLARI = (2.0, 4.0, 6.0, 8.5)
+# ★★ Faz 102 — AKTS (iş yükü) düzeltmesi (kullanıcı 25.09.2026: "dönem ve
+# ders zorluğunu hesaplarken aktsyi de hesaba kat, akts ne kadar emek
+# gerektirdiğinin de bir göstergesi"). AKTS tanımı gereği öğrencinin toplam
+# emeği (1 AKTS ≈ 25–30 saat). Not tabanlı genel puana EKLENİYOR:
+#     düzeltme = 0.1 × (AKTS − 5), en çok ±1
+# 5 = gerçek katalogda derecelenen 1274 dersin AKTS medyanı (ölçüldü). 8 AKTS'lik
+# ders +0.3, 2 AKTS'lik laboratuvar −0.3, 12 AKTS'lik bitirme +0.7.
+# ⚠️ Neden ağırlıklı ortalama DEĞİL: %20 ağırlıkla karıştırmak uçtaki dersi
+# ortaya çekiyordu — FIZ 102E (4.5 AKTS) 9.2 → 8.2, "çok zor"dan "zor"a
+# düşüyordu; kullanıcının Faz 87 yargısı "FIZ 102 çok zor".
+# ⚠️ Neden 0.1: MAT 103E (6 AKTS, not puanı 8.3) kullanıcının yargısıyla
+# "zor, çok zor değil". AKTS başına 0.17 ve üstü onu 8.5 eşiğine itiyor.
+# Emeğin asıl etkisi DÖNEM zorluğunda (arayüz, `programZorlugu`): orada
+# dersin AKTS'si doğrudan yük olarak toplanıyor.
+AKTS_TIPIK = 5.0
+AKTS_ETKI = 0.1
+AKTS_ETKI_SINIRI = 1.0
 _HARFLER = tuple(g for g in GRADES if g not in ABSENT_GRADES)       # AA … FF
 
 
@@ -487,6 +504,31 @@ def not_zorlugu(ortalama: float) -> float:
 
 def genel_zorluk(gecme: float, yuksek_not: float) -> float:
     return round(ZORLUK_AGIRLIK_GECME * gecme + ZORLUK_AGIRLIK_NOT * yuksek_not, 1)
+
+
+def akts_etkisi(akts: float | None) -> float | None:
+    """Faz 102 — AKTS'nin genel puana eklediği; AKTS bilinmiyorsa `None`."""
+    if not akts or akts <= 0:
+        return None
+    d = AKTS_ETKI * (float(akts) - AKTS_TIPIK)
+    return round(max(-AKTS_ETKI_SINIRI, min(AKTS_ETKI_SINIRI, d)), 2)
+
+
+def akts_ile(genel: float, etki: float | None) -> float:
+    """Not tabanlı genel puan + AKTS düzeltmesi, 0–10 arasında."""
+    if etki is None:
+        return genel
+    return round(max(0.0, min(10.0, genel + etki)), 1)
+
+
+def ders_aktsi(con: sqlite3.Connection, code: str) -> float | None:
+    """Dersin AKTS'si: katalog, yoksa planlardaki slot AKTS'si (en büyüğü).
+    Katalogdaki derslerin ~%20'sinde AKTS boş (ölçüldü: 2173 / 10792)."""
+    r = con.execute("SELECT ects FROM course WHERE code=?", (code,)).fetchone()
+    if r and r[0]:
+        return float(r[0])
+    r = con.execute("SELECT MAX(ects) FROM plan_slot WHERE course_code=?", (code,)).fetchone()
+    return float(r[0]) if r and r[0] else None
 
 
 def zorluk_kademesi(genel: float) -> int:
@@ -585,8 +627,15 @@ def _zorluk(con: sqlite3.Connection, code: str) -> dict | None:
                 "reason": f"Olağan dönemlerde yalnızca {z['n']} öğrenci vardır; "
                           f"derecelendirme için en az {ZORLUK_MIN_N} gerekir."}
     gecme, yuksek = gecme_zorlugu(z["passRate"]), not_zorlugu(z["mean"])
-    genel = genel_zorluk(gecme, yuksek)
+    not_genel = genel_zorluk(gecme, yuksek)
+    # Faz 102 — AKTS düzeltmesi. `gradeOverall` not tabanlı puan: dönem
+    # zorluğu AKTS'yi ZATEN miktar olarak topluyor, ağırlığı bununla veriyor
+    # (AKTS iki kez sayılmasın).
+    akts = ders_aktsi(con, code)
+    etki = akts_etkisi(akts)
+    genel = akts_ile(not_genel, etki)
     kademe = zorluk_kademesi(genel)
     return {**temel, "level": kademe, "label": ZORLUK_ETIKET[kademe],
             "score": genel, "passScore": gecme, "gradeScore": yuksek,
+            "gradeOverall": not_genel, "ects": akts, "ectsEffect": etki,
             "lowData": z["n"] < ZORLUK_AZ_VERI}

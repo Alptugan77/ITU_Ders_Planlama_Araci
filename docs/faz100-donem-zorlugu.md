@@ -1,5 +1,8 @@
 # Faz 100 — Dönem zorluğu ders sayısı ve krediyle artıyor
 
+> **Güncelleme (Faz 102):** yük artık kredi değil **AKTS** (60 ağırlıklı
+> AKTS = 10); bkz. `faz102-akts-zorluk.md`. Aşağıdaki sayılar Faz 100'ündür.
+
 Kullanıcı 25.09.2026: *"ders programında tahmini zorluk kısmında alınan ders
 sayısı artıkça zorluk artmalı 1 ders alındığında o ders çok zor olsa bile
 kolay geçer ama 15 tane orta ders alınırsa dönem zor geçer"*.

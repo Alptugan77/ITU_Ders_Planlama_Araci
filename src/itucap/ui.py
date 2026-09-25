@@ -2775,6 +2775,7 @@ td .zorluk,.yhdonem li>.zorluk{margin-left:6px}
 .zorlukkutu .zgenel b{font-size:var(--fs-md);color:var(--ink)}
 .zorluk .zskor{font-weight:600}
 .zaltlar{display:grid;gap:8px;margin-top:10px}
+.zakts{margin-top:8px;font-size:var(--fs-sm);color:var(--ink-2)}   /* Faz 102 */
 .zalt{display:grid;grid-template-columns:minmax(0,190px) minmax(0,1fr) auto;
   align-items:center;gap:4px 10px;font-size:var(--fs-sm);color:var(--ink-2)}
 .zalt .zagirlik{color:var(--ink-3);font-size:var(--fs-xs)}
@@ -7720,7 +7721,7 @@ function danismanOzeti(){
   const pz = programZorlugu(picks().map(p => p.cand));                // Faz 89
   /* Faz 100 — dönem zorluğu ders sayısı ve krediyle artıyor. */
   if(pz.ort !== null) kontrol.push(`Tahmini dönem zorluğu <b class="mono">${zp(pz.donem)}</b> / 10
-    (${ZORLUK_AD[pz.donemKademe]}; ${pz.ders} ders, ${pz.kredi} kredi; geçmiş not dağılımından) ·
+    (${ZORLUK_AD[pz.donemKademe]}; ${pz.ders} ders, ${pz.akts} AKTS; geçmiş not dağılımından) ·
     ders ortalaması <span class="mono">${zp(pz.ort)}</span> · ${pz.zor ? `<b>${pz.zor}</b> zor ders` : "zor ders yok"}${
     pz.yok ? ` · ${pz.yok} ders için veri yok` : ""}`);
   const bitis = R && !R.error && !R.noTranscript ? (R.programs || []).map(p => `<li><b>${esc(buyukBas(p.label))}</b>:
@@ -9046,35 +9047,51 @@ function programOlcu(liste){
    ders sayısı arttıkça zorluk artmalı; 1 ders alındığında o ders çok zor
    olsa bile kolay geçer ama 15 tane orta ders alınırsa dönem zor geçer").
    Ortalama (`ort`) bunu göremiyordu: tek bir çok zor ders 9/10, on beş orta
-   ders 5/10 çıkıyordu. `donem` artık derslerin kredilerini TOPLUYOR, her
-   krediyi dersin zorluğuyla ağırlıklandırarak:
-       ağırlık = 0.5 + puan / 10   (çok kolay 0.5 … orta 1.0 … çok zor 1.5)
-       dönem   = 10 × Σ(ağırlık × kredi) / 40, en çok 10
-   Kolay ders de emek istiyor (ağırlık 0'a inmiyor). Ölçek: 21 kredilik orta
-   yük ≈ 5 (orta); tek çok zor 3 kredilik ders ≈ 1 (çok kolay); on beş orta
-   ders (45 kredi) → 10. Verisi olmayan ders ORTA sayılıyor (yükten
-   düşürmek dönemi olduğundan hafif gösterirdi) ve sayısı yazılıyor.
-   Hiçbir dersin verisi yoksa `donem` null: yalnız krediden zorluk iddia
-   etmiyoruz. */
-const DONEM_ZORLUK_TAVAN = 40;
+   ders 5/10 çıkıyordu. `donem` derslerin YÜKÜNÜ topluyor, her birimi dersin
+   zorluğuyla ağırlıklandırarak (kolay ders de emek istiyor, 0'a inmiyor).
+
+   ★★ Faz 102 — YÜK = AKTS (kullanıcı 25.09.2026: "akts ne kadar emek
+   gerektirdiğinin de bir göstergesi"). Faz 100'de yük krediydi; kredi ders
+   saatini, AKTS toplam emeği ölçüyor (1 AKTS ≈ 25–30 saat):
+       ağırlık = 0.5 + not tabanlı puan / 10   (çok kolay 0.5 … orta 1.0 … çok zor 1.5)
+       dönem   = 10 × Σ(ağırlık × AKTS) / 60, en çok 10
+   Ölçek: normal dönem 30 AKTS; orta zorlukta ≈ 5 (orta). Tek çok zor ders
+   (4.5 AKTS) ≈ 1.1; on beş orta ders (75 AKTS) → 10.
+   ⚠️ Ağırlık NOT TABANLI puandan (`gradeOverall`): ders puanındaki AKTS
+   düzeltmesini (Faz 102, `notlar.akts_etkisi`) burada kullanmak AKTS'yi iki
+   kez saymak olurdu — miktar olarak zaten toplanıyor.
+   ⚠️ AKTS'si bilinmeyen ders (katalogda ~%20): kredisinin 1.75 katı
+   (katalogdaki AKTS/kredi oranı, ölçüldü) ve sayısı yazılıyor. Zorluk verisi
+   olmayan ders ORTA sayılıyor (yükten düşürmek dönemi hafif gösterirdi).
+   Hiçbir dersin zorluk verisi yoksa `donem` null: yalnız yükten zorluk
+   iddia etmiyoruz. */
+const DONEM_ZORLUK_TAVAN = 60;
+const AKTS_KREDI_ORANI = 1.75;
 const zorlukKademesi = s => s < 2 ? 1 : s < 4 ? 2 : s < 6 ? 3 : s < 8.5 ? 4 : 5;
-function programZorlugu(adaylar){
-  let top = 0, agirlik = 0, zor = 0, yok = 0, yuk = 0, kredi = 0;
-  adaylar.forEach(c => {
-    const z = zorlukOf(c);
-    const w = c.credits > 0 ? c.credits : 1;
-    kredi += c.credits > 0 ? c.credits : 0;
-    yuk += (z ? 0.5 + z.score / 10 : 1.0) * w;
+/** Çekirdek: kalemler = [{akts, kredi, z}] (z: zorluk nesnesi ya da null). */
+function donemZorlugu(kalemler){
+  let top = 0, agirlik = 0, zor = 0, yok = 0, yuk = 0, akts = 0, aktsTahmin = 0;
+  kalemler.forEach(k => {
+    const z = k.z && k.z.level ? k.z : null;
+    let a = k.akts > 0 ? +k.akts : 0;
+    if(!a){ a = (k.kredi > 0 ? k.kredi : 3) * AKTS_KREDI_ORANI; aktsTahmin++; }
+    akts += a;
+    const notPuani = z ? (typeof z.gradeOverall === "number" ? z.gradeOverall : z.score) : null;
+    yuk += (z ? 0.5 + notPuani / 10 : 1.0) * a;
     if(!z){ yok++; return; }
-    top += z.score * w; agirlik += w;
+    top += z.score * a; agirlik += a;          // ortalama da AKTS ağırlıklı (Faz 102)
     if(z.level >= 4) zor++;
   });
-  const bilinen = adaylar.length - yok;
+  const bilinen = kalemler.length - yok;
   const donem = bilinen
     ? Math.round(Math.min(10, 10 * yuk / DONEM_ZORLUK_TAVAN) * 10) / 10 : null;
   return {ort: agirlik ? Math.round(top / agirlik * 10) / 10 : null, zor, yok, bilinen,
           donem, donemKademe: donem === null ? null : zorlukKademesi(donem),
-          ders: adaylar.length, kredi: +kredi.toFixed(1)};
+          ders: kalemler.length, akts: Math.round(akts * 10) / 10, aktsTahmin};
+}
+function programZorlugu(adaylar){
+  return donemZorlugu(adaylar.map(c => ({akts: c.ects, kredi: c.credits,
+                                         z: zorlukOf(c)})));
 }
 function karsilastirmaSutunlari(){
   const sutun = [];
@@ -9133,7 +9150,8 @@ function karsilastirDialog(){
           const enHafif = Math.min(...list.map(s => s.olcu.zorluk.donem ?? Infinity));
           /* Faz 100: eşik 0.3 — dönem ölçeğinde 1 puan 4 ağırlıklı kredi; 3 kredilik
              bir dersin ortadan çok zora çıkması dönemi ≈0.4 değiştiriyor. */
-          const fark = list.some(s => (s.olcu.zorluk.donem ?? -Infinity) >= enHafif + 0.3);
+          /* ⚠️ Onda birlik adımlarla karşılaştır: 6.4 + 0.3 kayan noktada 6.7'den büyük. */
+          const fark = list.some(s => Math.round(((s.olcu.zorluk.donem ?? -Infinity) - enHafif) * 10) >= 3);
           /* "En hafif" yalnız her sütunda derslerin EN AZ YARISI biliniyorsa:
              8 dersin 3'ünden çıkan ortalamayla sıralamak, bilinmeyeni bilinen
              gibi göstermek olurdu. */
@@ -10006,8 +10024,18 @@ function zorlukIpucu(z){
   return `Tahmini zorluk: 10 üzerinden ${zp(z.score)} (${z.label}). `
     + `Geçme zorluğu ${zp(z.passScore)}/10 (geçme oranı %${z.passRate}, VF dahil); `
     + `yüksek not alma zorluğu ${zp(z.gradeScore)}/10 (ortalama ${z.mean.toFixed(2)}). `
+    + aktsCumlesi(z)
     + `Olağan dönemler${d ? `: ${d}` : ""}; ${z.n} öğrenci.`
     + (z.lowData ? " Az veriye dayanmaktadır." : "");
+}
+/* ★ Faz 102 — AKTS (iş yükü) düzeltmesi: 0.1 × (AKTS − 5), en çok ±1
+   (hesap sunucuda, `notlar.akts_etkisi`). */
+const isaretli = x => (x > 0 ? "+" : x < 0 ? "−" : "±") + Math.abs(x).toFixed(1);
+function aktsCumlesi(z){
+  return typeof z.ectsEffect === "number"
+    ? `İş yükü ${z.ects} AKTS (tipik ders 5): ${z.ectsEffect
+        ? isaretli(z.ectsEffect) : "genel puanı değiştirmez"}. `
+    : z.gradeOverall !== undefined ? "AKTS bilinmediğinden iş yükü hesaba katılmadı. " : "";
 }
 function zorlukRozet(z, puansiz){
   if(!z || !z.level) return "";
@@ -10045,10 +10073,17 @@ function zorlukKutusu(cand){
       ${zorlukAlt("Yüksek not alma zorluğu", z.gradeScore, "%30",
          `harf notu ortalaması <b class="mono">${z.mean.toFixed(2)}</b>`)}
     </div>
+    <div class="zakts">${typeof z.ectsEffect === "number"
+      ? `İş yükü: <b class="mono">${z.ects}</b> AKTS (tipik ders 5) → ${z.ectsEffect
+         ? `genel puana <b class="mono">${isaretli(z.ectsEffect)}</b> (not tabanlı puan
+            <span class="mono">${zp(z.gradeOverall)}</span>)`
+         : "genel puanı değiştirmez"}`
+      : `İş yükü: AKTS bilinmediğinden hesaba katılmadı.`}</div>
     <div class="why">Olağan dönemler${d ? `: ${esc(d)}` : ""}; <span class="mono">${z.n}</span> öğrenci.${
       z.lowData ? " <b>Az veriye dayanmaktadır.</b>" : ""}</div>
-    <div class="zorluknot">Genel puan = geçme zorluğu × 0.7 + yüksek not alma zorluğu × 0.3.
-      Ölçek: geçme oranı %100 → 0, %85 → 5, %70 ve altı → 10; ortalama 4.00 → 0,
+    <div class="zorluknot">Genel puan = geçme zorluğu × 0.7 + yüksek not alma zorluğu × 0.3,
+      artı iş yükü düzeltmesi 0.1 × (AKTS − 5), en çok ±1: AKTS dersin gerektirdiği
+      emeğin ölçüsüdür. Ölçek: geçme oranı %100 → 0, %85 → 5, %70 ve altı → 10; ortalama 4.00 → 0,
       2.50 → 5, 1.00 ve altı → 10. <b>VF geçemeyenlere sayılır</b> (vizeden kalan
       öğrenci finale giremediği için VF görünür). Kademe: 0–2 çok kolay · 2–4 kolay ·
       4–6 orta · 6–8.5 zor · 8.5–10 çok zor.
@@ -10076,17 +10111,20 @@ function zorlukOzeti(){
   /* Faz 100 — önce DÖNEM zorluğu (yükle artan), sonra derslerin ortalaması. */
   return `<div class="ozetzorluk aciklamali" title="${esc(DONEM_ZORLUK_IPUCU)}">tahmini dönem zorluğu <b class="mono">${
     zp(pz.donem)}</b>/10 (${ZORLUK_AD[pz.donemKademe]}) · <span class="mono">${pz.ders}</span> ders,
-    <span class="mono">${pz.kredi}</span> kredi · ders ortalaması <b class="mono">${
+    <span class="mono">${pz.akts}</span> AKTS${pz.aktsTahmin
+      ? ` (${pz.aktsTahmin} dersin AKTS'si kredisinden tahmin edildi)` : ""} · ders ortalaması <b class="mono">${
     zp(pz.ort)}</b>/10: ${parca.join(" · ")}${k.yok ? ` · ${k.yok} ders için veri yok (orta sayıldı)` : ""}${
     pz.donem >= 8.5
       ? ` — <span class="yogun">dönem yükü çok ağır; ders sayısının azaltılması değerlendirilebilir</span>`
       : k.zor >= 3
       ? ` — <span class="yogun">zor ders sayısı yüksek; yükün dengelenmesi değerlendirilebilir</span>` : ""}</div>`;
 }
-const DONEM_ZORLUK_IPUCU = "Dönem zorluğu ders sayısı ve krediyle artar: her dersin kredisi zorluğuna "
-  + "göre ağırlıklandırılıp toplanır (çok kolay 0.5 … orta 1.0 … çok zor 1.5); 40 ağırlıklı "
-  + "kredi 10/10 sayılır. 21 kredilik orta yük yaklaşık 5/10'dur. Verisi olmayan ders orta "
-  + "sayılır. Geçmiş not dağılımından tahmindir; öneri puanına dahil değildir.";
+const DONEM_ZORLUK_IPUCU = "Dönem zorluğu ders sayısı ve AKTS ile artar: AKTS dersin gerektirdiği "
+  + "emeğin ölçüsüdür. Her dersin AKTS'si not dağılımından gelen zorluğuna göre ağırlıklandırılıp "
+  + "toplanır (çok kolay 0.5 … orta 1.0 … çok zor 1.5); 60 ağırlıklı AKTS 10/10 sayılır, 30 "
+  + "AKTS'lik orta yük yaklaşık 5/10'dur. AKTS'si bilinmeyen dersin AKTS'si kredisinin 1.75 katı, "
+  + "zorluk verisi olmayan ders orta sayılır. Ders ortalaması AKTS ağırlıklıdır. Geçmiş not "
+  + "dağılımından tahmindir; öneri puanına dahil değildir.";
 const ZORLUK_AD = {1: "çok kolay", 2: "kolay", 3: "orta", 4: "zor", 5: "çok zor"};
 
 /* ---------- geçmiş dönem not dağılımı (Faz 38) ----------
@@ -11417,14 +11455,18 @@ const yhZorVar = (T) => (T.terms || []).some(t => !t.current
   && (t.items || []).some(i => i.difficulty && i.difficulty.level >= 4));
 
 /* ★★ Faz 85 — dönem kartında "kaç zor ders". Yerleşimi değiştirmiyor; zor
-   dersleri aynı döneme yığan bir planı öğrenci kendisi görebilsin diye. */
+   dersleri aynı döneme yığan bir planı öğrenci kendisi görebilsin diye.
+   ★ Faz 102 — kartta da DÖNEM zorluğu: haftalık programın özetiyle aynı
+   hesap (`donemZorlugu`: AKTS × not tabanlı ağırlık). Hiçbir dersin zorluk
+   verisi yoksa satır çıkmıyor. */
 function yhZorluk(t){
-  const z = (t.items || []).map(i => i.difficulty).filter(Boolean);
-  const zor = z.filter(d => d.level >= 4).length;
-  if(!zor) return "";
-  return `<div class="yhzorluk aciklamali" title="Geçmiş not ortalamasından tahmin; yerleşimi etkilemez"
-    >tahmini zorluk: <b class="mono">${zor}</b> zor ders${zor >= 3
-      ? " — yük yoğun olabilir" : ""}</div>`;
+  const items = t.items || [];
+  if(!items.some(i => i.difficulty && i.difficulty.level)) return "";
+  const d = donemZorlugu(items.map(i => ({akts: i.ects, kredi: i.credits, z: i.difficulty})));
+  return `<div class="yhzorluk aciklamali" title="${esc(DONEM_ZORLUK_IPUCU)} Yerleşimi etkilemez."
+    >tahmini dönem zorluğu <b class="mono">${zp(d.donem)}</b>/10 (${ZORLUK_AD[d.donemKademe]})${
+      d.zor ? ` · <b class="mono">${d.zor}</b> zor ders` : ""}${
+      d.donem >= 8.5 || d.zor >= 3 ? " — yük yoğun olabilir" : ""}</div>`;
 }
 
 function renderRoadmap(){

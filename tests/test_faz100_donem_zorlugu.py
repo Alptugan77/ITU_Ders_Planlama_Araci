@@ -7,6 +7,8 @@ kolay geçer ama 15 tane orta ders alınırsa dönem zor geçer"*.
 Eskiden programın zorluğu derslerin kredi ağırlıklı ORTALAMASIYDI: tek çok
 zor ders 9.5/10, on beş orta ders 5/10 çıkıyordu. Artık her dersin kredisi
 zorluğuyla ağırlıklandırılıp TOPLANIYOR (0.5 … 1.5), 40 ağırlıklı kredi 10.
+
+★ Faz 102: yük artık AKTS (60 ağırlıklı AKTS = 10); sayılar ona göre.
 """
 import json
 import subprocess
@@ -31,13 +33,14 @@ with sync_playwright() as p:
     pg.on("pageerror", lambda e: hatalar.append(str(e)))
     pg.goto(adres, wait_until="networkidle", timeout=30000); pg.wait_for_timeout(800)
     print("PZ:" + json.dumps(pg.evaluate("""() => {
-      const d = (s, k = 3) => ({credits: k, grades: {difficulty: {level: 3, score: s}}});
-      const yok = (k = 3) => ({credits: k, grades: null});
+      const d = (s, e = 5) => ({credits: 3, ects: e, grades: {difficulty: {level: 3, score: s}}});
+      const yok = (e = 5) => ({credits: 3, ects: e, grades: null});
       const f = (l) => { const z = programZorlugu(l); return [z.donem, z.donemKademe, z.ort]; };
       return {
         tekCokZor: f([d(9.5)]),
         onbesOrta: f(Array(15).fill(d(5))),
         yediOrta: f(Array(7).fill(d(5))),
+        altiOrta: f(Array(6).fill(d(5))),
         yediKolay: f(Array(7).fill(d(1))),
         sekizOrta: f(Array(8).fill(d(5))),
         verisizOrta: f([d(5), yok(), yok()]),
@@ -75,10 +78,11 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     assert c["HATA"].startswith("0"), c["HATA"]
     z = json.loads(c["PZ"])
     # Kullanıcının iki örneği: tek çok zor ders kolay, on beş orta ders çok zor.
-    assert z["tekCokZor"] == [1.1, 1, 9.5]
+    assert z["tekCokZor"] == [1.2, 1, 9.5]
     assert z["onbesOrta"] == [10, 5, 5]
-    # Ölçek: 21 kredilik orta yük "orta"; aynı kredide kolay dersler daha hafif.
-    assert z["yediOrta"] == [5.3, 3, 5]
+    # Ölçek: 30 AKTS'lik orta yük 5 (orta); aynı AKTS'de kolay dersler daha hafif.
+    assert z["altiOrta"] == [5.0, 3, 5]
+    assert z["yediOrta"] == [5.8, 3, 5]
     assert z["yediKolay"][0] < z["yediOrta"][0] and z["yediKolay"][1] == 2
     # Ders eklendikçe artıyor (ortalama değişmediği halde).
     assert z["ucOrta"][0] < z["yediOrta"][0] < z["sekizOrta"][0] < z["onbesOrta"][0]
