@@ -2762,6 +2762,10 @@ td .zorluk,.yhdonem li>.zorluk{margin-left:6px}
 .daylist .row.clash{border-left-color:var(--danger);
   box-shadow:inset 0 0 0 1px var(--danger)}
 .daylist .none{color:var(--ink-3);font-size:var(--fs-md);padding:6px 0}
+/* Faz 95 — sıradaki ders ve bugünün etiketi. */
+.daylist .siradaki{border:1px solid var(--border-strong);border-radius:var(--r);
+  padding:8px 12px;font-size:var(--fs-md);background:var(--surface-2)}
+.daylist .bugun{color:var(--ink-2);text-transform:none;font-weight:600}
 .daylist .warn{color:var(--danger);font-weight:600;font-size:var(--fs-xs);
   letter-spacing:var(--ls-caps);text-transform:uppercase;
   font-family:var(--font-display)}
@@ -8781,6 +8785,52 @@ function karsilastirDialog(){
    ★ Listenin ızgaraya göre zayıf yanı çakışmayı göstermemesi. Onu kabul edip
    geçmek yerine burada çakışma AÇIKÇA hesaplanıyor: aynı gün içinde saatleri
    kesişen iki ders kırmızıyla ve "ÇAKIŞIYOR" etiketiyle işaretleniyor. */
+/* ★★ Faz 95 — SIRADAKİ DERS. Telefonda gün listesi Pazartesi'den başlıyordu;
+   okulda sorulan soru "şimdi ne var, sıradaki ders nerede". Listenin başında
+   bir satır: şu an süren ders ya da bugünün sıradaki dersi, yoksa bir
+   sonraki ders günü — saat, bina ve derslikle.
+   ⚠️ Araçta akademik takvim YOK (bkz. takvim dosyası notu): tatilde de
+   "şimdi" diyebilirdi. Bu yüzden söz "programınıza göre"; bir dersin
+   gerçekten yapıldığını iddia etmiyor. Meşgul saatler ders değil, sayılmıyor. */
+const GUN_TAM = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
+const SIMDI = () => { const t = new Date();
+  return {gun: ((t.getDay() + 6) % 7) + 1, dk: t.getHours() * 60 + t.getMinutes()}; };
+function siradaki(an){
+  const hepsi = picks().flatMap(p => p.sec.meetings.map(m => ({p, m})));
+  if(!hepsi.length) return null;
+  const bugun = hepsi.filter(x => x.m.day === an.gun).sort((a, b) => a.m.start - b.m.start);
+  const suren = bugun.find(x => x.m.start <= an.dk && an.dk < x.m.end);
+  if(suren) return {tur: "simdi", ...suren};
+  const sonra = bugun.find(x => x.m.start > an.dk);
+  if(sonra) return {tur: "sonra", ...sonra, fark: sonra.m.start - an.dk};
+  for(let i = 1; i <= 7; i++){
+    const g = ((an.gun - 1 + i) % 7) + 1;
+    const o = hepsi.filter(x => x.m.day === g).sort((a, b) => a.m.start - b.m.start)[0];
+    if(o) return {tur: "ileri", ...o, gun: g};
+  }
+  return null;
+}
+function siradakiHTML(an){
+  const s = siradaki(an);
+  if(!s) return "";
+  const yer = s.p.sec.online ? "çevrimiçi" : yerYazi(s.m);
+  const ders = `<b class="mono">${esc(s.p.cand.course)}</b> · <span class="yer">${esc(yer)}</span>`;
+  const sure = (dk) => dk < 60 ? `${dk} dk` : `${Math.floor(dk / 60)} sa ${dk % 60 ? (dk % 60) + " dk" : ""}`.trim();
+  const metin = s.tur === "simdi"
+      ? `Şimdi: ${ders} · bitiş ${hhmm(s.m.end)}`
+      : s.tur === "sonra"
+      ? `Sıradaki: ${hhmm(s.m.start)} ${ders} (${sure(s.fark)} sonra)`
+      : `Bugün başka ders yok. ${GUN_TAM[s.gun - 1] || ""} ilk ders: ${hhmm(s.m.start)} ${ders}`;
+  return `<div class="siradaki" title="Programınıza göre; akademik takvim bu araçta bulunmadığından tatil ve sınav haftaları bilinmiyor">${metin}</div>`;
+}
+
+/* Sayfa açık kaldıkça yalnız bu satır tazeleniyor (dakikada bir); liste
+   baştan çizilmiyor — dokunuş ve odak bozulmasın. */
+setInterval(() => {
+  const el = document.querySelector("#daylist .siradaki");
+  if(el) el.outerHTML = siradakiHTML(SIMDI());
+}, 60000);
+
 function renderDayList(){
   const box = $("#daylist");
   if(!box) return;
@@ -8809,7 +8859,7 @@ function renderDayList(){
         clash.add(i); clash.add(j);
       }
     }
-    out += `<section><h3>${DAYS[d-1]}</h3>`;
+    out += `<section><h3>${DAYS[d-1]}${d === SIMDI().gun ? ` <span class="bugun">bugün</span>` : ""}</h3>`;
     out += items.length ? items.map((it,i) => it.busy
       ? `<button class="row mesgul${clash.has(i) ? " clash" : ""}"
            data-busy="${esc(it.busy.raw)}" title="Kaldırmak için dokununuz">
@@ -8840,7 +8890,7 @@ function renderDayList(){
       : `<div class="none">boş</div>`;
     out += `</section>`;
   }
-  box.innerHTML = out;
+  box.innerHTML = siradakiHTML(SIMDI()) + out;
   box.querySelectorAll(".row[data-course]").forEach(el =>
     bind(el, () => courseDialog(el.dataset.course)));
   box.querySelectorAll(".row[data-busy]").forEach(el =>
