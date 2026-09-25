@@ -619,6 +619,11 @@ her maddeden önce gelen tek iş.
 > kez planlamıyor. Tersi yön ve anadal değişmedi ✅
 > ➜ Ayrıntı: `docs/faz92-cap-ogrencisi.md`
 >
+> **Faz 93 (25.09.2026):** programda derslik. Izgara, gün listesi, şube
+> penceresi, PNG, basılı liste ve takvim dosyası artık "INB D01" yazıyor;
+> derslik ilan edilmemişse bunu söylüyor ✅
+> ➜ Ayrıntı: `docs/faz93-derslik.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

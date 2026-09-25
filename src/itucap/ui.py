@@ -674,8 +674,13 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             # şubenin hepsinde dolu, 139'u "Virtual (Online)" — arayüze hiç
             # çıkmıyordu. Kampüse gitmeyen ders, seçimi doğrudan etkiliyor.
             "online": sec.online,
+            # ★ Faz 93 — DERSLİK. Veride vardı (`lesson_meeting.room`, gerçek
+            # katalogda 3900 buluşmanın 1725'i) ama arayüze hiç çıkmıyordu:
+            # öğrenci programa bakıp "MED" görüyor, hangi sınıfa gideceğini
+            # OBS'de ayrıca arıyordu. İlan edilmemiş derslik ("--") BOŞ döner.
             "meetings": [{"day": m.day, "start": m.start, "end": m.end,
-                          "building": _building(m.building), "campus": m.campus}
+                          "building": _building(m.building), "room": _derslik(m.room),
+                          "campus": m.campus}
                          for m in sec.meetings],
         }
 
@@ -1935,6 +1940,13 @@ def _building(code: str | None) -> str:
     return "" if temiz.lower() in _BINA_YOK else temiz
 
 
+def _derslik(room: str | None) -> str:
+    """Faz 93 — derslik; ilan edilmemişse ("--") BOŞ. `_building` ile aynı
+    ilke: "--" bir sınıf adı değil, boş gelen yeri arayüz söylüyor."""
+    temiz = (room or "").strip()
+    return "" if temiz.lower() in _BINA_YOK else temiz
+
+
 def _bina_adlari(con: sqlite3.Connection) -> dict:
     """`{'TMB': 'Temel Bilimler Binası', …}` — kod tek başına bir yer değil."""
     try:
@@ -2991,6 +3003,10 @@ table.grid td.busycell{background:repeating-linear-gradient(135deg,
   var(--surface-2) 0 5px,transparent 5px 10px)}
 .blk b{display:block;font-weight:600}
 .blk small{color:inherit;font-size:var(--fs-xs)}
+/* Faz 93 — bina + derslik tek parça kalıyor ("INB D01" ikiye bölünmesin)
+   ve göz onu ilk arıyor: ders saatine giderken bakılan şey bu. */
+.yer{white-space:nowrap}
+.blk .yer,.daylist .row .yer{font-weight:600}
 .empty{color:var(--ink-3);font-size:var(--fs-sm);padding:24px 0;text-align:center}
 
 table.list{width:100%;border-collapse:collapse;font-size:var(--fs-lg)}
@@ -4233,11 +4249,30 @@ const donemYazi = () => DATA.termLabel || DATA.term || "";
    KONTENJAN DOLU diye okunuyordu (ızgarada "15:30–18:29 yer yok · 22305").
    Kontenjanın dili "dolu / N boş"; derslik ilan edilmediyse bu yazıyor.
    Terminal (`recommend._building_label`) aynı sözü kullanıyor. */
-const yerYazi = (kod) => kod ? kod : "yer bildirilmedi";
-const yerBaslik = (kod) => {
-  if(!kod) return "OBS'de yer bildirilmemiş";
-  const ad = (DATA.buildings || {})[kod];
-  return ad ? `${kod} — ${ad}` : kod;
+/* ★★ Faz 93 — DERSLİK (kullanıcı isteği 25.09.2026: "sadece programa bakarak
+   derslere gidilebilecek şekilde sınıfları gösterir misin"). Izgarada yalnız
+   bina kodu ("MED") duruyordu; derslik veride vardı ama hiç gösterilmiyordu.
+   Artık "MED D102". Derslik ilan edilmemişse yalnız bina yazılıyor ve ipucu
+   bunu SÖYLÜYOR — uydurulmuyor. Yardımcılar buluşmanın kendisini alıyor
+   (eski çağrılar için bina kodu da kabul). */
+const _yerBina = (m) => typeof m === "string" ? m : ((m && m.building) || "");
+const _yerSinif = (m) => (m && typeof m === "object" && m.room) || "";
+const yerYazi = (m) => {
+  const b = _yerBina(m), r = _yerSinif(m);
+  return b ? (r ? `${b} ${r}` : b) : "yer bildirilmedi";
+};
+const yerBaslik = (m) => {
+  const b = _yerBina(m), r = _yerSinif(m);
+  if(!b) return "OBS'de yer bildirilmemiş";
+  const ad = (DATA.buildings || {})[b];
+  return `${ad ? `${b} — ${ad}` : b} · ${r ? `derslik ${r}` : "derslik OBS'de bildirilmemiş"}`;
+};
+/* Takvim dosyası için: "MED D102 — Maden Fakültesi". */
+const yerTakvim = (m) => {
+  const b = _yerBina(m), r = _yerSinif(m);
+  if(!b) return "";
+  const ad = (DATA.buildings || {})[b];
+  return `${r ? `${b} ${r}` : b}${ad ? ` — ${ad}` : ""}`;
 };
 
 let LBL = DATA.secondLabel || "ÇAP";
@@ -7061,7 +7096,7 @@ function injectSections(bulunan){
                  instructor: x.instructor || "", online: !!x.online,
                  meetings: (x.meetings || []).map(m => ({
                    day: m.day, start: m.start, end: m.end,
-                   building: m.building, campus: m.campus}))};
+                   building: m.building, room: m.room || "", campus: m.campus}))};
     let cand = CAND[x.course];
     if(cand){
       if(!cand.sections.some(s => s.crn === x.crn)) cand.sections.push(sec);
@@ -7260,7 +7295,7 @@ function icsMetni(){
         `DTEND:${icsTarih(m.day, m.end, 0)}`,
         `RRULE:FREQ=WEEKLY;COUNT=${ICS_HAFTA};BYDAY=${ICS_GUN[m.day-1] || "MO"}`,
         `SUMMARY:${icsKacis(ad)}`,
-        `LOCATION:${icsKacis(m.building || "")}`,
+        `LOCATION:${icsKacis(yerTakvim(m))}`,
         /* ⚠️ Satır sonu BURADA gerçek satır sonu; `\n` kaçışını `icsKacis`
            yapıyor. Elle kaçırırsak ters bölü ikinci kez kaçırılıyor ve
            takvim uygulamasında "\\n" diye görünüyor (ölçüldü). */
@@ -7565,7 +7600,7 @@ async function resimIndir(){
       c.save(); c.beginPath(); c.rect(x, y, w, h); c.clip();
       yaz(p.cand.course, x + 9, y + 16, `700 12px ${MONO}`, yazi, w - 14);
       if(h > 34) yaz(p.cand.name || "", x + 9, y + 31, `400 11px ${SANS}`, yazi, w - 14);
-      if(h > 50) yaz(`CRN ${p.sec.crn} · ${p.sec.online ? "çevrimiçi" : yerYazi(m.building)}`,
+      if(h > 50) yaz(`CRN ${p.sec.crn} · ${p.sec.online ? "çevrimiçi" : yerYazi(m)}`,
                      x + 9, y + 46, `400 10px ${MONO}`, yazi, w - 14);
       c.restore();
     });
@@ -8171,14 +8206,15 @@ function renderPrintCrn(){
     <h3 style="margin:8mm 0 3mm;font-size:12pt">Kayıt listesi — ${
       ps.length} ders · ${totals().credits} kredi</h3>
     <table><thead><tr><th>CRN</th><th>Ders</th><th>Ad</th>
-      <th>Gün / saat</th><th>Kredi</th></tr></thead>
+      <th>Gün / saat · yer</th><th>Kredi</th></tr></thead>
       <tbody>${ps.map(p => `<tr>
         <td class="mono">${esc(p.sec.crn)}</td>
         <td class="mono">${esc(p.cand.course)}</td>
         <td>${esc((p.cand.name || "").slice(0, 40))}</td>
         <td>${p.sec.meetings.length
           ? p.sec.meetings.map(m =>
-              `${DAYS[m.day-1]} ${hhmm(m.start)}–${hhmm(m.end)}`).join("<br>")
+              `${DAYS[m.day-1]} ${hhmm(m.start)}–${hhmm(m.end)} · ${
+                p.sec.online ? "çevrimiçi" : esc(yerYazi(m))}`).join("<br>")
           : "saati ilan edilmemiş"}</td>
         <td class="mono">${p.cand.credits}</td>
       </tr>`).join("")}</tbody></table>
@@ -8793,8 +8829,8 @@ function renderDayList(){
            ${it.p.cand.name ? `<span class="blkad">${esc(it.p.cand.name)}</span>` : ""}
            <small class="mono">${hhmm(it.m.start)}–${hhmm(it.m.end)}
              ${it.p.sec.online ? "çevrimiçi ⌂"
-               : `<span title="${esc(yerBaslik(it.m.building))}">${
-                    esc(yerYazi(it.m.building))}</span>`}
+               : `<span class="yer" title="${esc(yerBaslik(it.m))}">${
+                    esc(yerYazi(it.m))}</span>`}
              · ${esc(it.p.sec.crn)}${yerDurumu(it.p.sec)}</small></span>
          ${clash.has(i) ? '<span class="warn">çakışıyor</span>' : ""}
        </button>`).join("")
@@ -8984,14 +9020,14 @@ function render(){
           style="${tonStil(c.p.cand.course, c.p.cand.role)}"
           title="${esc([c.p.cand.course, c.p.cand.name, c.p.sec.instructor,
                         "CRN " + c.p.sec.crn,
-                        c.p.sec.online ? "çevrimiçi" : yerBaslik(c.m.building),
+                        c.p.sec.online ? "çevrimiçi" : yerBaslik(c.m),
                         kld ? kilitBaslik(c.p.cand.course) : ""]
                        .filter(Boolean).join(" · "))}">
           ${kld ? `<span class="kilitim">${KILIT_SVG}</span>` : ""}
           <b class="mono">${esc(c.p.cand.course)}</b>
           ${c.p.cand.name ? `<span class="blkad">${esc(c.p.cand.name)}</span>` : ""}
           <small class="mono">${hhmm(c.m.start)}–${hhmm(c.m.end)}
-            ${c.p.sec.online ? "çevrimiçi" : esc(yerYazi(c.m.building))}
+            ${c.p.sec.online ? "çevrimiçi" : `<span class="yer">${esc(yerYazi(c.m))}</span>`}
             · ${esc(c.p.sec.crn)}${yerDurumu(c.p.sec)}</small></div></td>`;
     }
     html += `</tr>`;
@@ -9435,8 +9471,8 @@ function openDialog(html){
 function optionRow(cand, section, note){
   const times = section.meetings.length
     ? section.meetings.map(m =>
-        `${DAYS[m.day-1]} ${hhmm(m.start)}–${hhmm(m.end)} <span title="${
-           esc(yerBaslik(m.building))}">${esc(yerYazi(m.building))}</span>`).join("<br>")
+        `${DAYS[m.day-1]} ${hhmm(m.start)}–${hhmm(m.end)} <span class="yer" title="${
+           esc(yerBaslik(m))}">${esc(yerYazi(m))}</span>`).join("<br>")
     : "saat ilan edilmemiş";
   return `<button class="opt" data-course="${esc(cand.course)}" data-crn="${esc(section.crn)}">
       <span><b class="mono">${esc(cand.course)}</b>

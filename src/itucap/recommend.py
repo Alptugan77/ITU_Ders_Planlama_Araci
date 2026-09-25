@@ -1214,7 +1214,11 @@ def format_schedule(schedule: Schedule, cands: list[Candidate], index: int = 1) 
            "=" * 72]
     for pick in sorted(schedule.picks, key=lambda p: -p.candidate.score):
         times = " | ".join(m.label() for m in pick.section.meetings) or "saat bilgisi yok"
-        rooms = {_building_label(m.building) for m in pick.section.meetings if m.building}
+        # ★ Faz 93: derslik de ("MED D102"); ilan edilmemişse yalnız bina.
+        rooms = {_building_label(m.building) + (
+                     f" {m.room.strip()}" if (m.room or "").strip().lower() not in _YER_YOK
+                     and (m.building or "").strip().lower() not in _YER_YOK else "")
+                 for m in pick.section.meetings if m.building}
         out.append(
             f"  {pick.candidate.course:<11} {pick.candidate.role:<7} "
             f"{pick.candidate.credits:>4g} kr  CRN {pick.section.crn} "

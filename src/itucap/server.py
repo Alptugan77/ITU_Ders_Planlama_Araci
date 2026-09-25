@@ -913,9 +913,14 @@ class State:
                 # Gizleseydik kullanıcı gerçek programını göremezdi; serbest
                 # seçmeli ya da başka bir ders de kayıtta olabiliyor.
                 "role": rol_of.get(row["course_code"], "PLAN_DISI"),
-                "meetings": [dict(m) for m in self.con.execute(
+                # ★ Faz 93: derslik de; bina/derslik öneri motoruyla AYNI
+                # temizlikten geçiyor (eskiden ham "undeclared" bina adı
+                # diye gidiyordu).
+                "meetings": [{**dict(m), "building": UI._building(m["building"]),
+                              "room": UI._derslik(m["room"])}
+                             for m in self.con.execute(
                     """SELECT lm.day_of_week AS day, lm.start_min AS start,
-                              lm.end_min AS end, lm.building, b.campus
+                              lm.end_min AS end, lm.building, lm.room, b.campus
                        FROM lesson_meeting lm
                        LEFT JOIN building b ON b.code = lm.building
                        WHERE lm.crn=? ORDER BY lm.day_of_week, lm.start_min""",
