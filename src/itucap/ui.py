@@ -3912,10 +3912,14 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
   <ol class="yardimadim">
     <li><b>Bölümünüzü ve yarıyılınızı seçiniz.</b> Varsa ÇAP ya da yandal
       programınızı da ekleyiniz. <button type="button" class="ghost mini" data-git="setupbar">Ayarlara git</button></li>
-    <li><b>Transkriptinizi yapıştırınız.</b> OBS'deki not dökümünü kopyalayıp
-      "Transkript yapıştır" alanına bırakmanız yeterlidir. Geçtiğiniz dersler,
-      GNO'nuz ve kredi yükü sınırınız buradan hesaplanır. Transkript olmadan da
-      çalışır, ancak öneriler daha kaba olur.</li>
+    <li><b>Aldığınız dersleri plandan işaretleyiniz.</b> "Plandan işaretle"
+      penceresi bölümünüzün ders planını yarıyıl yarıyıl listeler; geçtiğiniz
+      dersleri işaretlemeniz yeterlidir. Yarıyılınızı seçtiyseniz önceki
+      yarıyılların zorunlu dersleri işaretli gelir — bu bir öneridir, lütfen
+      kontrol ediniz. Notunu seçmediğiniz ders DD sayılır; GNO ve kredi yükü
+      sınırı gerçek notlardan hesaplanacaksa aynı pencereden
+      "Transkript yapıştır" ile notlarınızı da girebilirsiniz.
+      <button type="button" class="ghost mini" data-ac="plan">Plandan işaretle</button></li>
     <li><b>Önerilen programı inceleyiniz.</b> Araç açılışta size uyan birkaç
       haftalık program önerir. <button type="button" class="ghost mini" data-git="schedSection">Haftalık programa git</button></li>
   </ol>
@@ -10935,6 +10939,12 @@ document.addEventListener("click", ev => {
 });
 document.addEventListener("click", ev => {
   if(ev.target.closest && ev.target.closest("#kilavuzBtn")) gorunumAc("yardimSection", true);
+});
+/* Kılavuzdaki eylem düğmeleri (ör. "Plandan işaretle") kurulumdaki pencereyi
+   AYNI işlevle açıyor — ikinci bir yol yazılmıyor. */
+document.addEventListener("click", ev => {
+  const b = ev.target.closest && ev.target.closest("#yardimSection [data-ac]");
+  if(b && b.dataset.ac === "plan") checklistDialog();
 });
 
 /* Görünümü olan bölümler: DOM'da var ve veri yokluğundan gizli DEĞİL.
