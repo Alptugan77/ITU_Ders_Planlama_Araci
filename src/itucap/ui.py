@@ -2764,6 +2764,9 @@ td .zorluk,.yhdonem li>.zorluk{margin-left:6px}
 .daylist .none{color:var(--ink-3);font-size:var(--fs-md);padding:6px 0}
 /* Faz 96 — kullanım kılavuzu. */
 .basdugme{display:flex;gap:8px;align-items:flex-start}
+/* Faz 97 — eşiyle karşılanmış plan dersi (Plandan işaretle). */
+.ckviayazi{color:var(--ok);font-size:var(--fs-sm)}
+.ckrow.ckvia{color:var(--ink-2)}
 .yardimnot{display:block;margin-top:4px;color:var(--ink-2);font-size:var(--fs-sm)}
 .yardim h3{margin:24px 0 8px;font-size:var(--fs-lg)}
 .yardim h4{margin:0 0 8px;font-size:var(--fs-md)}
@@ -5553,7 +5556,8 @@ function checklistDialog(){
   plans.forEach(p => p.terms.forEach(t => t.slots.forEach(sl =>
     sl.options.forEach(o => {
       state[o.course] = {taken: o.taken, grade: o.grade || "",
-                         ip: o.status === "IN_PROGRESS", credits: o.credits};
+                         ip: o.status === "IN_PROGRESS", credits: o.credits,
+                         via: o.via || ""};
     }))));
 
   /* ★★ FAZ 47 — DÖNEMDEN ÖNERİLEN TİKLER (kullanıcı 18.09.2026:
@@ -5575,7 +5579,7 @@ function checklistDialog(){
     plans.forEach(p => p.terms.forEach(t => {
       if(!t.term || t.term >= donem) return;
       t.slots.forEach(sl => { if(sl.required) sl.options.forEach(o => {
-        if(state[o.course] && !state[o.course].taken){
+        if(state[o.course] && !state[o.course].taken && !state[o.course].via){
           state[o.course].taken = true;
           onerilen.push(o.course);
         }
@@ -5602,7 +5606,17 @@ function checklistDialog(){
     const head = many
       ? `<div class="eyebrow" style="margin:10px 0 4px">${esc(sl.pool || sl.category
           || "seçmeli havuz")} · ${sl.options.length} seçenek</div>` : "";
-    return head + sl.options.map(o => `
+    /* ★ Faz 97 — İngilizce eşiyle karşılanmış ÇAP/yandal dersi: tik KİLİTLİ,
+       not seçimi yok. Tiklenebilseydi transkripte notsuz ikinci bir ders
+       eklenirdi (bkz. server.plan_checklist). */
+    return head + sl.options.map(o => o.via ? `
+      <label class="ckrow ckvia" title="${esc(`${o.via} (${o.viaGrade || ""}) bu dersin İngilizce karşılığıdır; ÇAP/yandal gereksinimini karşılar. Ayrıca işaretlemeniz gerekmez.`)}">
+        <input type="checkbox" checked disabled data-via="${esc(o.course)}">
+        <span class="mono ckcode">${esc(o.course)}</span>
+        <span class="ckname">${o.name ? esc(o.name.slice(0, 40)) : ""}</span>
+        <span class="mono ckcr">${o.credits ?? "–"}</span>
+        <span class="ckviayazi">✓ ${esc(o.via)} ile karşılandı</span>
+      </label>` : `
       <label class="ckrow">
         <input type="checkbox" data-course="${esc(o.course)}"${
           state[o.course].taken ? " checked" : ""}>
@@ -5697,7 +5711,7 @@ function checklistDialog(){
       plans.forEach(p => p.terms.forEach(t => {
         if(!t.term || t.term >= upto) return;
         t.slots.forEach(sl => { if(sl.required) sl.options.forEach(o => {
-          state[o.course].taken = true; }); });
+          if(!state[o.course].via) state[o.course].taken = true; }); });
       }));
       box.querySelectorAll('input[type=checkbox][data-course]').forEach(cb => {
         cb.checked = state[cb.dataset.course].taken;
@@ -5718,7 +5732,7 @@ function checklistDialog(){
     $("#setupSave").addEventListener("click", () => save(() => api("/api/transcript", {
       items: Object.entries(state).filter(([, v]) => v.taken)
         .map(([course, v]) => ({course, grade: v.grade, inProgress: v.ip})),
-      remove: Object.entries(state).filter(([, v]) => !v.taken)
+      remove: Object.entries(state).filter(([, v]) => !v.taken && !v.via)
         .map(([course]) => course),
       replace: false,        // ★ EKLER: plan DIŞI dersler korunur
     })));

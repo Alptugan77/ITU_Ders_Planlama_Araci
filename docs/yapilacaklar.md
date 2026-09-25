@@ -638,6 +638,12 @@ her maddeden önce gelen tek iş.
 > madde ilgili görünüme götürüyor. Başlıkta "Kılavuz" düğmesi ✅
 > ➜ Ayrıntı: `docs/faz96-kilavuz.md`
 >
+> **Faz 97 (25.09.2026):** kılavuzda 2. adım "Plandan işaretle". O
+> pencere artık İngilizce eşiyle karşılanmış ÇAP dersini "✓ EHB 222E ile
+> karşılandı" diye kilitli gösteriyor (eskiden boştu; tiklenirse notsuz ikinci
+> ders ekleniyordu) ✅
+> ➜ Ayrıntı: `docs/faz97-isaretle-esi.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
