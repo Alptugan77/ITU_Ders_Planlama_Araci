@@ -247,7 +247,9 @@ def test_YER_YOK_kalkti_TEK_soz():
     from itucap import recommend as REC
     assert '"yer yok"' not in _kod(KAYNAK), "kodda eski söz duruyor"
     assert REC._building_label("undeclared") == "yer bildirilmedi"
-    assert 'yerYazi = (kod) => kod ? kod : "yer bildirilmedi"' in KAYNAK
+    # Faz 93: yardımcı artık buluşmanın kendisini alıyor (bina + derslik);
+    # yeri olmayanın sözü aynı kaldı.
+    assert 'return b ? (r ? `${b} ${r}` : b) : "yer bildirilmedi";' in KAYNAK
 
 
 def test_YER_DURUMU_esigi_doluluk_ile_AYNI():

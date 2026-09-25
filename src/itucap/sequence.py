@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Mapping
 
 from . import prereq as P
-from .rules import Status, can_take_tree, passed, prereq_view
+from .rules import Status, can_take_tree, dil_serbest, passed, prereq_view, slot_codes
 
 
 @dataclass
@@ -52,6 +52,8 @@ def plan_sequence(con: sqlite3.Connection, plan_id: int,
     # ★ Önşart metinleri dersin ÖBÜR dilindeki kodunu yazabiliyor
     # ("EEF 211E önşarttır"). Kademelendirme yalnız ana koda baksaydı o bağ
     # görünmez olur, ders yanlışlıkla 'kademe 0' sayılırdı.
+    tip = con.execute("SELECT plan_type FROM plan WHERE id=?", (plan_id,)).fetchone()
+    esli = con if dil_serbest(tip[0] if tip else None) else None
     in_plan = {r["course_code"] for r in rows}
     alias: dict[str, str] = {}
     for r in rows:
@@ -89,8 +91,9 @@ def plan_sequence(con: sqlite3.Connection, plan_id: int,
         deps = sorted(deps_of(course))
         outside = sorted((tree.courses() - in_plan) if tree else set())
 
-        if any(passed(grades.get(c)) for c in
-               [course, *(row["alt_course_codes"] or "").split(",")]):
+        # ★ Faz 92: katalogdaki dil eşi de (EHB 222 slotu, EHB 222E geçilmiş) —
+        # ilerleme paneliyle (`rules.slot_satisfied`) aynı hüküm.
+        if any(passed(grades.get(c)) for c in slot_codes(row, esli)):
             status = "DONE"
         elif course in unparsed:
             status = "UNKNOWN"

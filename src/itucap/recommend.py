@@ -345,7 +345,17 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
             # dersin iki dili). İkisinin de şubesi önerilebilmeli; yalnız ilkini
             # denemek, o dönem sadece İngilizce şube açıldıysa dersi hiç
             # göstermezdi.
-            codes = (R.slot_codes(slot) if slot["slot_kind"] == "REQUIRED"
+            # ★★ Faz 92 — ÇAP/yandal slotunda Türkçe kodun katalogdaki
+            # İNGİLİZCE EŞİ de (tersi değil; bkz. rules.ingilizce_esi). OBS'nin
+            # ÇAP planları çoğunlukla Türkçe kod yazıyor ("BLG_EHB": EEF 262)
+            # ama o dönem yalnız İngilizce şube (EEF 262E, EHB_LS'ye açık)
+            # açılmış olabiliyor. ÇAP planı bölüme tanımlı, dile değil (bkz.
+            # normalize.base_program_code); eşi göstermemek, ÇAP öğrencisine
+            # alabileceği dersi "açılmamış" diye saklamaktı. Anadal slotuna
+            # DOKUNULMUYOR: İngilizce programdaki öğrenciye Türkçe şube
+            # önermek ayrı bir karar (dil şartı).
+            codes = (R.slot_codes(slot, con if role != "ANADAL" else None)
+                     if slot["slot_kind"] == "REQUIRED"
                      else [r[0] for r in con.execute(
                          "SELECT course_code FROM pool_option WHERE slot_id=?", (slot["id"],))])
             pool_label = "" if slot["slot_kind"] == "REQUIRED" else (slot["pool_label_raw"] or "")
@@ -976,6 +986,16 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
 
     budget = [SEARCH_BUDGET]
     pool_size = max(limit, limit * POOL_FACTOR)
+    # ★★ Faz 92 — AYNI DERSİN İKİ DİLİ AYNI PROGRAMA GİRMEZ. ÇAP slotu dil
+    # eşini de aday yapınca (EHB 222 Türkçe, ÇAP) ile anadalın EHB 222E'si
+    # ayrı slotlara eşleşip birlikte seçilebilirdi — aynı dersi iki kez almak.
+    # (Anadal X, ÇAP XE yazdığında bu eskiden de mümkündü.) İkisi de aday
+    # listesindeyse ikizdirler: katalog çiftlerinin 2809'undan 2807'si aynı
+    # kredi/AKTS'li aynı ders (bkz. rules.dil_esi).
+    _kodlar = {c.course for c in cands}
+    ikiz = {c.course: e for c in cands
+            for e in [c.course[:-1] if c.course.endswith("E") else c.course + "E"]
+            if e in _kodlar}
     # Aday indeksi → denenecek şubeler, sıralı. Bkz. `search` içindeki not.
     _sira: dict[int, list[Section]] = {}
     # Aralık kilitli derslerin indeksleri: orada aralığa uyan BÜTÜN şubeler
@@ -1037,6 +1057,9 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
         # ★★ Faz 91 — önce ucuz yük denetimi; eşleştirme yalnız yük sığıyorsa
         # (ikisi VE ile bağlı, sonuç aynı). Eşleştirme artımlı (bkz. yuva_ekle).
         sigar = load + cand.load <= max_load
+        if sigar and ikiz and cand.course in ikiz:
+            es = ikiz[cand.course]
+            sigar = not any(p.candidate.course == es for p in chosen)
         yeni_yuva = yuva_ekle(yuva_yigin[-1], cand) if sigar and cand.yuvalar else None
         pool_taken = bool(cand.yuvalar) and yeni_yuva is None
         if not pool_taken and sigar:
@@ -1191,7 +1214,11 @@ def format_schedule(schedule: Schedule, cands: list[Candidate], index: int = 1) 
            "=" * 72]
     for pick in sorted(schedule.picks, key=lambda p: -p.candidate.score):
         times = " | ".join(m.label() for m in pick.section.meetings) or "saat bilgisi yok"
-        rooms = {_building_label(m.building) for m in pick.section.meetings if m.building}
+        # ★ Faz 93: derslik de ("MED D102"); ilan edilmemişse yalnız bina.
+        rooms = {_building_label(m.building) + (
+                     f" {m.room.strip()}" if (m.room or "").strip().lower() not in _YER_YOK
+                     and (m.building or "").strip().lower() not in _YER_YOK else "")
+                 for m in pick.section.meetings if m.building}
         out.append(
             f"  {pick.candidate.course:<11} {pick.candidate.role:<7} "
             f"{pick.candidate.credits:>4g} kr  CRN {pick.section.crn} "
@@ -1280,7 +1307,8 @@ def _onsart_ayikla(eksik: set[str], katalog: set[str],
 def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                  cap_plan_id: int, cap_program: str,
                  allowed_programs: Iterable[str] = (),
-                 max_term: int | None = None) -> list[Blocker]:
+                 max_term: int | None = None,
+                 dil_esi: bool = False) -> list[Blocker]:
     """Kalan her ders için 'neden bu dönem alamıyorum' cevabı.
 
     Ölçüm (18.08.2026): engelin çoğu önşart DEĞİL, **arz**. ÇAP dersleri ya bu
@@ -1321,26 +1349,33 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
             continue
         if R.slot_satisfied(con, row["id"], grades, equivalences).satisfied:
             continue
-        if code in taking:
+        # ★ Faz 92: ÇAP/yandal slotunda dil eşinin şubesi de sayılır (bkz.
+        # `candidates`). Engel satırı planın yazdığı kodla kalıyor.
+        kodlar = ([code, *(k for k in R.slot_codes({"course_code": code,
+                                                   "alt_course_codes": None}, con)
+                           if k != code)] if dil_esi else [code])
+        if any(k in taking for k in kodlar):
             # Engel değil, DURUM: bu dönem alıyorsun. Ayırt etmezsek 'neden
             # önerilmedi' sorusuna yanlış cevap verirdik.
             out.append(Blocker(code, "ALIYORSUN", "bu dönem programında"))
             continue
-        crns = [r[0] for r in con.execute(
-            "SELECT crn FROM lesson WHERE course_code=?", (code,))]
+        crns = [r[0] for k in kodlar for r in con.execute(
+            "SELECT crn FROM lesson WHERE course_code=?", (k,))]
         if not crns:
             out.append(Blocker(code, "ACILMAMIS", "bu dönem şube açılmamıştır"))
             continue
         allowed = {c.upper() for c in allowed_programs} or {cap_program}
-        if not load_sections(con, code, allowed):
+        acik_kod = next((k for k in kodlar if load_sections(con, k, allowed)), None)
+        if acik_kod is None:
             progs = sorted({r[0] for r in con.execute(
                 "SELECT DISTINCT program_code FROM lesson_allowed_program WHERE crn IN (%s)"
                 % ",".join("?" * len(crns)), crns)})
             out.append(Blocker(code, "PROGRAMA_KAPALI",
                                f"{len(crns)} şube bulunmaktadır; yalnızca {', '.join(progs)} alabilir"))
             continue
+        code = acik_kod                    # önşart/kredi: açık olan kodla
         if code in unparsed:
-            out.append(Blocker(code, "BILINMIYOR", "önşart verisi okunamadı"))
+            out.append(Blocker(row["course_code"], "BILINMIYOR", "önşart verisi okunamadı"))
             continue
         verdict = R.can_take_tree(trees.get(code), prereq_grades)
         if verdict.status is R.Status.BLOCKED:
@@ -1350,10 +1385,10 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
                 # ⚠️ Bu ders katalogdaki HİÇBİR dersle açılamıyor. "eksik:
                 # ELH 332" demek, öğrenciyi var olmayan bir dersi aramaya
                 # göndermek olurdu.
-                out.append(Blocker(code, "ONSART_KATALOGDA_YOK",
+                out.append(Blocker(row["course_code"], "ONSART_KATALOGDA_YOK",
                                    f"önşartı katalogda bulunmamaktadır: {metin}"))
             else:
-                out.append(Blocker(code, "ONSART", f"eksik: {metin}"))
+                out.append(Blocker(row["course_code"], "ONSART", f"eksik: {metin}"))
             continue
         # ★ Önşartı sağlansa bile mevzuat engelleyebilir (bitirme kredi eşiği).
         _ad = con.execute("SELECT name, class_restriction FROM course WHERE code=?",
@@ -1361,7 +1396,7 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
         cv = POL.check(code, credits_have, rules, (_ad[0] if _ad else "") or "",
                        (_ad[1] if _ad else None), catalog_rule)
         if not cv:
-            out.append(Blocker(code, "KREDI_ESIGI",
+            out.append(Blocker(row["course_code"], "KREDI_ESIGI",
                                f"{cv.rule.name}: {credits_have:g}/{cv.rule.min_credits:g} kredi"
                                f" — {cv.missing:g} kredi eksik"))
     return out

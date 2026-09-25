@@ -711,7 +711,7 @@ def cmd_recommend(args) -> int:
     if cap_id:
         blockers = REC.cap_blockers(
             con, ucon, student_id, cap_id, settings.second_program,
-            settings.allowed_programs)
+            settings.allowed_programs, dil_esi=True)
         n_lessons = con.execute("SELECT COUNT(*) FROM lesson").fetchone()[0]
         text = REC.format_blockers(blockers, n_lessons)
         if text:

@@ -607,6 +607,23 @@ her maddeden önce gelen tek iş.
 > sitede program değişikliği 7,7 → ~1,9 sn, dönem 6,6 → ~1,3 sn ✅
 > ➜ Ayrıntı: `docs/faz91-hiz.md`
 >
+> **Faz 92 (25.09.2026):** gerçek katalogda transkriptli ÇAP öğrencisi
+> yürüyüşü. Başvuru penceresi artık program seçilince kullanılacak planı
+> gösteriyor: OBS'nin ilişkili programlar listesi ve aynı iterasyon seçicisi;
+> önce 1906 çiftin 539'u ayrışıyordu (üstüne 534 açık olmayan plan
+> gösteriliyordu), şimdi yalnız bilerek elenen 1. Kendi bölümünün dil eşi ÇAP
+> seçeneği değil. Adı katalogda olmayan YZV/ECN/SEC/VBA listede. "Öncesi"
+> iterasyonu artık eski sayılıyor. İngilizce şubede alınan ders (EHB 222E)
+> Türkçe kodlu ÇAP slotunu (EHB 222) dolduruyor ve ÇAP ortalamasına giriyor.
+> ÇAP için bu dönem açık İngilizce şubesi öneriliyor. Yol haritası dersi iki
+> kez planlamıyor. Tersi yön ve anadal değişmedi ✅
+> ➜ Ayrıntı: `docs/faz92-cap-ogrencisi.md`
+>
+> **Faz 93 (25.09.2026):** programda derslik. Izgara, gün listesi, şube
+> penceresi, PNG, basılı liste ve takvim dosyası artık "INB D01" yazıyor;
+> derslik ilan edilmemişse bunu söylüyor ✅
+> ➜ Ayrıntı: `docs/faz93-derslik.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
