@@ -2762,6 +2762,20 @@ td .zorluk,.yhdonem li>.zorluk{margin-left:6px}
 .daylist .row.clash{border-left-color:var(--danger);
   box-shadow:inset 0 0 0 1px var(--danger)}
 .daylist .none{color:var(--ink-3);font-size:var(--fs-md);padding:6px 0}
+/* Faz 96 — kullanım kılavuzu. */
+.basdugme{display:flex;gap:8px;align-items:flex-start}
+.yardimnot{display:block;margin-top:4px;color:var(--ink-2);font-size:var(--fs-sm)}
+.yardim h3{margin:24px 0 8px;font-size:var(--fs-lg)}
+.yardim h4{margin:0 0 8px;font-size:var(--fs-md)}
+.yardim ul,.yardim ol{margin:0 0 12px;padding-left:20px;line-height:var(--lh-normal)}
+.yardim li{margin-bottom:4px}
+.yardimliste{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.yardimkart{border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;
+  background:var(--surface)}
+.yardimkart .ghost.mini,.yardimadim .ghost.mini{margin:4px 4px 0 0}
+.yardimisaret{display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;margin:0 0 12px}
+.yardimisaret dt{font-family:var(--font-mono);font-size:var(--fs-sm)}
+.yardimisaret dd{margin:0;color:var(--ink-2)}
 /* Faz 95 — sıradaki ders ve bugünün etiketi. */
 .daylist .siradaki{border:1px solid var(--border-strong);border-radius:var(--r);
   padding:8px 12px;font-size:var(--fs-md);background:var(--surface-2)}
@@ -3647,6 +3661,7 @@ body.kurulum .govde{grid-template-columns:minmax(0,1fr)}
 .basvuruitem .why{font-size:var(--fs-sm);color:var(--ink-3)}
 .basvuruitem button{flex:0 0 auto;white-space:nowrap}
 @media (max-width:560px){
+  .yardimisaret{grid-template-columns:1fr}.yardimisaret dd{margin-bottom:8px}   /* Faz 96 */
   .basvuruitem{flex-wrap:wrap}
   .basvuruitem button{width:100%}
   /* ★ Karşılama adımları telefonda: düğme ve süre metnin YANINDA değil,
@@ -3832,7 +3847,12 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
       <h1 id="doctitle"><span class="kurum">__AD_KURUM__</span> __AD_KISA__</h1>
       <div class="acilim">__AD_ACILIM__</div>
     </div>
-    <button class="ghost" id="theme">Tema</button>
+    <div class="basdugme">
+      <!-- Faz 96: kılavuz ilk gelen öğrencinin ilk sorusu; rayda en altta
+           (telefonda "Daha" içinde) kaybolmasın. -->
+      <button class="ghost" id="kilavuzBtn" type="button">Kılavuz</button>
+      <button class="ghost" id="theme">Tema</button>
+    </div>
   </div>
   <div class="sub" id="subtitle"></div>
   <!-- D3: verinin yaşı. Kontenjan sayıları buna ait, sayfanın üretildiği
@@ -3873,6 +3893,148 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 <main class="icerik" id="icerik">
 
 <section class="setupbar" id="setupbar"></section>
+
+<!-- ★★ Faz 96 — KULLANIM KILAVUZU (kullanıcı isteği 25.09.2026: "aracın
+     kullanım alanlarını, yapabildiklerini ve nasıl kullanılacağını anlatan bir
+     yardım bölümü"). Özellikler 95 fazda eklendi ve çoğu bir düğmenin ya da
+     bir görünümün içinde; yeni gelen öğrenci neyin var olduğunu bilmiyordu.
+     Her madde ilgili görünüme GÖTÜREN bir düğme taşıyor — anlatmak yetmiyor,
+     yeri göstermek gerekiyor. Sınırlar da burada: "bilinmeyen, bilinen gibi
+     gösterilmez" ilkesi kullanıcıya da söylenmeli. -->
+<section class="card pad yardim" id="yardimSection">
+  <div class="sechead"><div class="eyebrow">Yardım</div><div class="rule"></div></div>
+  <h2>Kullanım kılavuzu</h2>
+  <p class="aciklama">__AD_KISA__, __AD_KURUM__ öğrencileri için bir ders programı ve mezuniyet
+    planlama aracıdır. Anadal, çift anadal (ÇAP) ve yandal programlarını birlikte
+    ele alır. Kayıt yapmaz; ders kaydı Kepler'de sizin tarafınızdan yapılır.</p>
+
+  <h3>Başlarken</h3>
+  <ol class="yardimadim">
+    <li><b>Bölümünüzü ve yarıyılınızı seçiniz.</b> Varsa ÇAP ya da yandal
+      programınızı da ekleyiniz. <button type="button" class="ghost mini" data-git="setupbar">Ayarlara git</button></li>
+    <li><b>Transkriptinizi yapıştırınız.</b> OBS'deki not dökümünü kopyalayıp
+      "Transkript yapıştır" alanına bırakmanız yeterlidir. Geçtiğiniz dersler,
+      GNO'nuz ve kredi yükü sınırınız buradan hesaplanır. Transkript olmadan da
+      çalışır, ancak öneriler daha kaba olur.</li>
+    <li><b>Önerilen programı inceleyiniz.</b> Araç açılışta size uyan birkaç
+      haftalık program önerir. <button type="button" class="ghost mini" data-git="schedSection">Haftalık programa git</button></li>
+  </ol>
+
+  <h3>Neler yapabilirsiniz</h3>
+  <div class="yardimliste">
+    <div class="yardimkart">
+      <h4>Kayıt haftası</h4>
+      <ul>
+        <li>Önkoşulları, kredi yükü sınırını ve kontenjanı gözeten, çakışmasız
+          program önerileri; farklı seçenekleri yan yana <b>karşılaştırma</b>.</li>
+        <li>Bir dersi ya da şubesini <b>kilitleme</b> ve <b>meşgul saat</b>
+          (iş, staj) ekleme. <b>Program tercihleri</b> ile boş gün, sabah dersi,
+          kampüs değişimi ve öğretim üyesi tercihlerinizi belirtebilirsiniz.</li>
+        <li>Dolu şube yerine tek dokunuşla boş şubeye geçiş; kontenjanı dolan
+          ders için yedek CRN'ler.</li>
+        <li><b>Kayıt günü listesi</b>: Kepler'e girilecek CRN'ler, çevrimdışı da
+          açılır. <b>Takvime aktar</b>, <b>Resim (PNG)</b>, <b>Yazdır</b>.</li>
+        <li><b>Programı kaydet</b> ve <b>Alternatif olarak kaydet</b> ile
+          Plan A / B / C saklama; Kepler'de yaptığınız kaydı <b>CRN'den program
+          yükle</b> ile geri getirme.</li>
+      </ul>
+      <button type="button" class="ghost mini" data-git="schedSection">Haftalık program</button>
+      <button type="button" class="ghost mini" data-git="savedSection">Kaydedilen program</button>
+    </div>
+    <div class="yardimkart">
+      <h4>Ders seçimi</h4>
+      <ul>
+        <li><b>Alınabilecek dersler</b>: şubeleri, saatleri, derslikleri ve
+          doluluğuyla. Planınızın dışındaki bir dersi de <b>Ders ekle</b> ile
+          programa koyabilirsiniz.</li>
+        <li>Geçmiş dönemlerin not dağılımından <b>tahmini zorluk</b> (geçme ve
+          yüksek not alma zorluğu, 10 üzerinden) ve bir dersin hangi dersleri
+          açtığı.</li>
+        <li><b>Alınamayan dersler</b>: neden alınamadığı (önşart, bu dönem
+          açılmamış, şubeler başka programlara ayrılmış, kredi eşiği).</li>
+      </ul>
+      <button type="button" class="ghost mini" data-git="candSection">Alınabilecek dersler</button>
+      <button type="button" class="ghost mini" data-git="blockSection">Alınamayan dersler</button>
+    </div>
+    <div class="yardimkart">
+      <h4>İlerleme ve mezuniyet</h4>
+      <ul>
+        <li><b>İlerleme durumu</b>: anadal ve ikinci programda tamamlanan ve
+          kalan dersler, ayrı ayrı.</li>
+        <li><b>Yol haritası</b>: kalan derslerin dönemlere dağıtılmış hâli ve
+          tahmini mezuniyet dönemi. Daha hafif yük, boş dönem (staj, Erasmus),
+          yaz okulu ve dönem başına zor ders sınırı ile denenebilir.</li>
+        <li><b>Kalma riski</b>: bir dersten kalınırsa mezuniyetin kaç dönem
+          gecikeceği.</li>
+      </ul>
+      <button type="button" class="ghost mini" data-git="panels">İlerleme durumu</button>
+      <button type="button" class="ghost mini" data-git="roadmapSection">Yol haritası</button>
+    </div>
+    <div class="yardimkart">
+      <h4>Not ortalaması ve eşikler</h4>
+      <ul>
+        <li>Tahmini GNO, ÇAP'ın kendi ortalaması ve yönetmelikteki eşiklere
+          (kredi yükü, ÇAP'a devam, mezuniyet) göre durumunuz.</li>
+        <li><b>GNO hedefi</b>: bir eşiğe ulaşmak için bu dönem gereken ortalama.</li>
+        <li><b>Not senaryosu</b>: bu dönemin derslerine not yazıp dönem sonu
+          GNO'nuzu görme.</li>
+      </ul>
+      <button type="button" class="ghost mini" data-git="creditSection">Kredi ve not eşikleri</button>
+    </div>
+    <div class="yardimkart">
+      <h4>ÇAP ve yandal</h4>
+      <ul>
+        <li><b>Başvuru</b>: yönergedeki şartların sizin durumunuzla
+          karşılaştırması; her programda şimdiden sayılan dersleriniz ve
+          tahmini bitiş dönemi.</li>
+        <li><b>Denk dersler</b> ve <b>sayılabilecek dersler</b>: resmî
+          denklikler ile aldığınız bir dersin başka bir gereksinimi karşılayıp
+          karşılamadığı.</li>
+      </ul>
+      <button type="button" class="ghost mini" data-git="basvuruSection">Başvuru</button>
+    </div>
+    <div class="yardimkart">
+      <h4>Danışman görüşmesi ve günlük kullanım</h4>
+      <ul>
+        <li><b>Danışman özeti</b>: programınız, ilerlemeniz ve danışmana
+          sorulacaklar tek sayfada, yazdırılabilir.</li>
+        <li>Telefonda gün listesi: her dersin saati, binası ve dersliği;
+          listenin başında <b>sıradaki ders</b>.</li>
+        <li><b>Son değişiklikler</b>: son veri tazelemesinden bu yana açılan,
+          kapanan ya da dolan şubeler.</li>
+      </ul>
+      <button type="button" class="ghost mini" data-git="changeSection">Son değişiklikler</button>
+    </div>
+  </div>
+
+  <h3>İşaretler</h3>
+  <dl class="yardimisaret">
+    <dt><span class="yerdurum dolu">dolu</span> <span class="yerdurum az">son 2</span></dt>
+    <dd>Şubenin kontenjanı dolu ya da azalmış (veri tarihine göre; güncel
+      doluluk OBS'dedir).</dd>
+    <dt><span class="yerdurum az">⚠ Maçka → Ayazağa · 1 dk</span></dt>
+    <dd>Arka arkaya iki ders farklı yerleşkede; arada az zaman var.</dd>
+    <dt>INB D01</dt>
+    <dd>Bina ve derslik. "yer bildirilmedi" ise OBS yer ilan etmemiştir.</dd>
+    <dt>çevrimiçi ⌂</dt>
+    <dd>Uzaktan yürütülen şube; kampüse gitmeyi gerektirmez.</dd>
+    <dt>kolay · orta · zor</dt>
+    <dd>Geçmiş not dağılımından tahmini zorluk; kişisel bir tahmin değildir.</dd>
+  </dl>
+
+  <h3>Bilmeniz gerekenler</h3>
+  <ul class="yardimsinir">
+    <li><b>Hesaplar tahmindir; esas olan OBS, Kepler ve yönetmeliktir.</b> Kayıt ve
+      başvuru kararlarınızı danışmanınızla birlikte veriniz.</li>
+    <li>Kontenjan ve şube bilgisi son tazeleme tarihindedir (sayfanın üstünde
+      yazar); kayıt anında değişmiş olabilir.</li>
+    <li>Araçta akademik takvim yoktur: tatil ve sınav haftalarını bilmez.</li>
+    <li>Bir bilgi veride yoksa araç onu tahmin etmez, "bildirilmemiş" ya da
+      "bilinmiyor" yazar.</li>
+    <li>Notlarınız ve ayarlarınız yalnızca kendi bilgisayarınızda ya da
+      tarayıcınızda saklanır; başka bir yere gönderilmez.</li>
+  </ul>
+</section>
 
 <!-- ★ KAYDEDİLEN PROGRAM en üstte (kullanıcı isteği 23.08.2026).
      Kayıt haftasında araca dönmenin sebebi bu: "ben ne kaydetmiştim".
@@ -10750,7 +10912,30 @@ const SECTIONS = [
   /* ★ Kurulum çubuğu da bir görünüm (Faz 46): her ziyarette bakılan bir
      şey değil, ama kaybolmamalı — bölüm/dönem/not düzeltmenin tek yeri. */
   ["setupbar", "Bölüm, yarıyıl, notlar", "AYAR", "Ayar", true],
+  /* Faz 96 — kullanım kılavuzu; her zaman açık, telefonda "Daha" altında. */
+  ["yardimSection", "Kullanım kılavuzu", "YARDIM", "Kılavuz", true],
 ];
+
+/* Kılavuzdaki "git" düğmeleri ilgili görünümü açıyor. ⚠️ Görünüm o an
+   kapalıysa (ör. henüz kaydedilmiş program yok) `gorunumAc` sessizce ilk
+   görünüme düşerdi — "Kaydedilen program"a basan haftalık programa
+   gidiyordu. Onun yerine kılavuzda kalıp nedenini söylüyoruz. */
+document.addEventListener("click", ev => {
+  const b = ev.target.closest && ev.target.closest("#yardimSection [data-git]");
+  if(!b) return;
+  const eski = b.nextElementSibling;
+  if(eski && eski.classList.contains("yardimnot")) eski.remove();
+  if(acikGorunumler().some(([x]) => x === b.dataset.git)){
+    gorunumAc(b.dataset.git, true);
+    return;
+  }
+  b.insertAdjacentHTML("afterend", `<span class="yardimnot" role="status">Bu bölüm şu an
+    gösterilecek veri olmadığı için kapalı (ör. henüz kaydedilmiş program ya da
+    değişiklik yok).</span>`);
+});
+document.addEventListener("click", ev => {
+  if(ev.target.closest && ev.target.closest("#kilavuzBtn")) gorunumAc("yardimSection", true);
+});
 
 /* Görünümü olan bölümler: DOM'da var ve veri yokluğundan gizli DEĞİL.
    ⚠️ `offsetParent` KULLANILMIYOR: artık etkin olmayan görünüm de
