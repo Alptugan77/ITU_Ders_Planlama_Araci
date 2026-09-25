@@ -896,6 +896,8 @@ class State:
                 for kod in self._plan_codes(plan_id):
                     rol_of.setdefault(kod, rol)
 
+        from . import declared as DEC
+        kampus = DEC.load_campus_overrides()
         found = []
         for crn in temiz:
             row = satirlar.get(crn)
@@ -917,7 +919,8 @@ class State:
                 # temizlikten geçiyor (eskiden ham "undeclared" bina adı
                 # diye gidiyordu).
                 "meetings": [{**dict(m), "building": UI._building(m["building"]),
-                              "room": UI._derslik(m["room"])}
+                              "room": UI._derslik(m["room"]),
+                              "campus": m["campus"] or kampus.get(m["building"] or "")}
                              for m in self.con.execute(
                     """SELECT lm.day_of_week AS day, lm.start_min AS start,
                               lm.end_min AS end, lm.building, lm.room, b.campus

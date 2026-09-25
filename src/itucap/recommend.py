@@ -228,6 +228,9 @@ def load_sections(con: sqlite3.Connection, course: str,
 def _load_sections(con: sqlite3.Connection, course: str,
                    allowed_programs: set[str]) -> list[Section]:
     out: list[Section] = []
+    # ★ Faz 94: katalogda yerleşkesi boş binanın beyanı (katalog değeri önce).
+    from . import declared as DEC
+    kampus = DEC.load_campus_overrides()
     for row in con.execute(
         """SELECT crn, instructor, capacity, enrolled, teaching_method
            FROM lesson WHERE course_code=?""",
@@ -238,7 +241,7 @@ def _load_sections(con: sqlite3.Connection, course: str,
         if progs and not (progs & allowed_programs):
             continue                       # bu şube senin programına kapalı
         meetings = tuple(
-            Meeting(m[0], m[1], m[2], m[3], m[4], m[5])
+            Meeting(m[0], m[1], m[2], m[3], m[4], m[5] or kampus.get(m[4] or ""))
             for m in con.execute(
                 """SELECT lm.day_of_week, lm.start_min, lm.end_min, lm.room,
                           lm.building, b.campus
@@ -439,6 +442,13 @@ WEIGHTS = {
 #     fiilen her dönem açılıyor; bu dönem alınmazsa bir şey kaybedilmiyor. Bu,
 #     "tek şube / kontenjan kritik" bonusunun aynadaki karşılığı.
 DEFERRABLE_SECTIONS = 10
+
+# ★★ Faz 94 — sıkışık yerleşke geçişi (bkz. `Schedule.sikisik_gecisler`).
+# Ceza ders puanlarıyla (40–100) aynı ölçekte: aynı dersleri geçişsiz veren
+# program öne geçer, ama değerli bir ders bunun için programdan düşmez.
+# Sert kısıt DEĞİL — başka yol yoksa program yine önerilir, arayüz uyarır.
+YERLESKE_ESIK_DK = 60
+SIKISIK_GECIS_CEZASI = 30.0
 
 # ★★ FAZ 90 — KONTENJAN, GERÇEK HALİYLE (ölçüm 25.09.2026, gerçek katalog).
 #
@@ -734,7 +744,34 @@ class Schedule:
 
     @property
     def score(self) -> float:
-        return round(self.base_score + self.pref_delta, 1)
+        return round(self.base_score + self.pref_delta
+                     - SIKISIK_GECIS_CEZASI * self.sikisik_gecisler(), 1)
+
+    def sikisik_gecisler(self) -> int:
+        """★★ Faz 94 — arka arkaya, FARKLI yerleşkede ve arada < 60 dk olan
+        ders çifti sayısı.
+
+        Ölçüm (25.09.2026, gerçek katalog, 11 profil): önerilerdeki 17
+        yerleşke değişiminin 10'unda arada 1 DAKİKA vardı (ör. ISL 224E Maçka
+        11:29'da biter, BLG 351E Ayazağa 11:30'da başlar). `campus_changes`
+        üç saatlik arayı da bir dakikalık arayı da aynı sayıyordu ve yalnız
+        tercih açıksa sıralamaya giriyordu.
+        ⚠️ Katalogda yol süresi yok; eşik bir kabul. Yerleşkesi bilinmeyen
+        buluşma (çevrimiçi, bina ilan edilmemiş) sayılmıyor.
+        """
+        by_day: dict[int, list[tuple[int, int, str | None]]] = {}
+        for pick in self.picks:
+            if pick.section.online:
+                continue
+            for m in pick.section.meetings:
+                by_day.setdefault(m.day, []).append((m.start, m.end, m.campus))
+        n = 0
+        for slots in by_day.values():
+            slots.sort()
+            for a, b in zip(slots, slots[1:]):
+                if a[2] and b[2] and a[2] != b[2] and b[0] - a[1] < YERLESKE_ESIK_DK:
+                    n += 1
+        return n
 
     @property
     def pref_delta(self) -> float:
@@ -972,7 +1009,8 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
         cands = sorted(cands, key=lambda c: c.course not in pinned)   # kararlı
     fixed = list(fixed)
     results: list[Schedule] = []
-    seen: set[tuple[str, ...]] = set()
+    # ders kümesi → [results indeksi, sıkışık geçiş sayısı]
+    seen: dict[tuple[str, ...], list] = {}
 
     # Sabit dersler (ör. anadalda zaten kayıtlı olduğun şubeler) çakışma tabanı.
     # ★★ Faz 91 — seçilenlerin ve sabitlerin dakika maskeleri YIĞINDA birikiyor:
@@ -1044,8 +1082,21 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
             if chosen:
                 key = tuple(sorted(p.candidate.course for p in chosen))
                 if key not in seen:
-                    seen.add(key)
-                    results.append(Schedule(list(chosen), prefs))
+                    yeni = Schedule(list(chosen), prefs)
+                    seen[key] = [len(results), yeni.sikisik_gecisler()]
+                    results.append(yeni)
+                elif seen[key][1]:
+                    # ★★ Faz 94: aynı ders kümesinin ŞUBE varyantı yalnız
+                    # sıkışık yerleşke geçişi daha AZSA eskisinin yerine geçer.
+                    # Eskiden ilk bulunan kalıyordu; 11:30 Ayazağa şubesi 14:30
+                    # şubesinden önce denenince 1 dakikalık geçiş kalıcıydı.
+                    # Geçiş yoksa hiçbir şey değişmiyor (ilk bulunan kalıyor).
+                    # Sayı kayıtta: geçişi olmayan kümede (çoğu) hiç hesap yok.
+                    yeni = Schedule(list(chosen), prefs)
+                    n = yeni.sikisik_gecisler()
+                    if n < seen[key][1]:
+                        results[seen[key][0]] = yeni
+                        seen[key][1] = n
             return
         cand = cands[index]
         must = cand.course in pinned

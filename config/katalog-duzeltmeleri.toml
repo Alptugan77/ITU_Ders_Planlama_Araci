@@ -34,3 +34,33 @@ not_   = "Katalogda önşart alanında ders adı var ('Deniz Kazalarıve Emniyet
 ders   = "ROS 201"
 onsart = ""
 not_   = "Katalogda önşart alanında 'Türkçe' yazıyor; dil bilgisi, önşart değil. Doğrulandı 22.08.2026."
+
+# ============================================================================
+# YERLEŞKE BEYANI (Faz 94)
+#
+# Katalogun bina tablosunda bazı binaların yerleşkesi BOŞ. Yerleşke
+# bilinmeyince "arka arkaya iki ders farklı yerleşkede" uyarısı ve kampüs
+# değişimi tercihi o dersleri göremiyor. Beyan yalnız katalog boşken
+# kullanılır; katalogdaki değeri ezmez.
+#
+#   [[kampus_beyani]]
+#   bina   = "MEDC"
+#   kampus = "Ayazağa Yerleşkesi"     # katalogdaki yazımla AYNI olmalı
+#   not_   = "gerekçe"
+#
+# ⚠️ Emin olunmayan bina beyan EDİLMEZ (ör. YDY): bilinmeyen, bilinmeyen kalır.
+
+[[kampus_beyani]]
+bina   = "MEDC"
+kampus = "Ayazağa Yerleşkesi"
+not_   = "Katalog adı 'Merkezi Derslik C Binası'; A (MED) ve B (MEDB) binaları katalogda Ayazağa'da. 25.09.2026."
+
+[[kampus_beyani]]
+bina   = "BBB"
+kampus = "Ayazağa Yerleşkesi"
+not_   = "Katalog adı 'Bilgisayar ve Bilişim Binası'; Bilgisayar ve Bilişim Fakültesi Ayazağa'da. 25.09.2026."
+
+[[kampus_beyani]]
+bina   = "MSB"
+kampus = "Maçka Yerleşkesi"
+not_   = "Katalog adı 'Maçka Silahhane Binası'; yerleşke adı binanın adında. 25.09.2026."

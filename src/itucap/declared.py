@@ -108,6 +108,28 @@ def load_prereq_overrides(path: Path | None = None) -> dict[str, dict]:
     return out
 
 
+def load_campus_overrides(path: Path | None = None) -> dict[str, str]:
+    """Faz 94 — katalogda yerleşkesi BOŞ olan binaların beyanı: {bina: yerleşke}.
+
+    Katalogdaki 67 binanın 32'sinin yerleşkesi yok; MEDC, BBB ve MSB bu
+    dönemin 457 ders saatini taşıyor. Yerleşke bilinmeyince "arka arkaya iki
+    ders farklı yerleşkede" uyarısı da, kampüs değişimi tercihi de o dersleri
+    göremiyor. Beyan YALNIZ katalog boşken kullanılıyor — katalogdaki değeri
+    ezmiyor — ve her beyanın `not_` gerekçesi var.
+    """
+    from . import istek as IST
+    path = path or CATALOG_PATH
+
+    def oku() -> dict[str, str]:
+        if not path.exists():
+            return {}
+        raw = tomllib.loads(path.read_text(encoding="utf-8"))
+        return {str(i.get("bina") or "").strip(): str(i.get("kampus") or "").strip()
+                for i in raw.get("kampus_beyani", [])
+                if str(i.get("bina") or "").strip() and str(i.get("kampus") or "").strip()}
+    return dict(IST.bellek(("kampus_beyani", str(path)), oku))
+
+
 def apply(con: sqlite3.Connection, path: Path | None = None) -> int:
     """Beyan edilen denklikleri KULLANICI veritabanına yazar. Idempotent.
 
