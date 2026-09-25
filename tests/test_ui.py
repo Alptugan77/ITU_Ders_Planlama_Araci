@@ -307,7 +307,15 @@ def test_choosing_from_slot_dialog_changes_the_grid(page):
     after = p.locator("#grid .blk").all_inner_texts()
     assert any(added in t for t in after)
     assert after != before
-    assert p.locator("#reset:visible").count() == 1         # 'öneriye dön' belirir
+    # Faz 101: değişiklik ızgarayı BAŞKA bir öneriyle birebir aynı yaptıysa o
+    # önerinin sekmesi seçili olur ("öneriye dön" gereksiz); değilse düğme belirir.
+    kaynak = p.evaluate("() => izgaraKaynagi()")
+    if kaynak and kaynak.get("tur") == "oneri":
+        secili = p.locator('#tabs .tab[aria-selected="true"]').all_inner_texts()
+        assert len(secili) == 1 and secili[0].upper().startswith(f"ÖNERİ {kaynak['i'] + 1}"), secili
+        assert p.locator("#reset:visible").count() == 0
+    else:
+        assert p.locator("#reset:visible").count() == 1     # 'öneriye dön' belirir
     assert errors == []
 
 

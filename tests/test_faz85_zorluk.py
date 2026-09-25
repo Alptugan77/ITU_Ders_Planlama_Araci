@@ -166,7 +166,8 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     assert sira[:5] == ["GEO 321E", "GEO 341E", "GEO 315E", "BLG 223E", "MAT 210E"], sira
     assert json.loads(c["ESIT"]) == ["B", "C", "A", "D"]
     # (Faz 88: özet kredi ağırlıklı ortalamayı da yazıyor.)
-    assert c["OZET"].startswith("tahmini zorluk 3.8/10: 1 orta · 2 kolay · 5 ders için veri yok"), c["OZET"]
+    assert c["OZET"].startswith("tahmini dönem zorluğu 5.7/10 (orta) · 8 ders, 24 kredi · "
+                                "ders ortalaması 3.8/10: 1 orta · 2 kolay · 5 ders için veri yok"), c["OZET"]  # Faz 100
     k = c["KUTU"]
     assert "Tahmini zorluk" in k and "çok zor 8.5 / 10" in k, k
     assert "Geçme zorluğu ağırlık %70 9.0 / 10 geçme oranı %73 (VF dahil)" in k, k

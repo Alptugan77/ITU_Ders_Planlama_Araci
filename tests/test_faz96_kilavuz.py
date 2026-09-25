@@ -43,12 +43,22 @@ def test_GIT_dugmeleri_var_olan_gorunume():
 
 
 @pytest.mark.parametrize("ad", [
-    "Transkript yapıştır", "Program tercihleri", "Kayıt günü listesi", "Takvime aktar",
+    "Plandan işaretle", "Transkript yapıştır", "Program tercihleri", "Kayıt günü listesi", "Takvime aktar",
     "Resim (PNG)", "Yazdır", "CRN'den program yükle", "Ders ekle", "Danışman özeti",
     "Programı kaydet", "Alternatif olarak kaydet", "Kalma riski", "GNO hedefi"])
 def test_KILAVUZUN_andigi_dugme_sayfada_var(ad):
     assert ad in DUZ.replace("<b>", "").replace("</b>", ""), ad
     assert ad in GERISI, f"kılavuz '{ad}' diyor ama sayfada öyle bir şey kalmamış"
+
+
+def test_BASLARKEN_plandan_isaretle():
+    """Kullanıcı 25.09.2026: kılavuzda "transkripten gir" yerine "dersleri
+    plandan işaretle" adımı. Transkript notlar için seçenek olarak kalıyor."""
+    adim = DUZ.split("<h3>Başlarken</h3>")[1].split("</ol>")[0]
+    ikinci = adim.split("<li>")[2]
+    assert ikinci.startswith("<b>Aldığınız dersleri plandan işaretleyiniz.</b>"), ikinci[:80]
+    assert 'data-ac="plan">Plandan işaretle</button>' in ikinci
+    assert "Transkriptinizi yapıştırınız" not in DUZ
 
 
 def test_SINIRLAR_soyleniyor():
@@ -81,6 +91,9 @@ with sync_playwright() as p:
                       pg.evaluate("() => acikGorunumler().some(([x]) => x === arguments[0])".replace("arguments[0]", json.dumps(hedef))),
                       pg.evaluate("() => (document.querySelector('#yardimSection .yardimnot')||{textContent:''}).textContent.replace(/\\s+/g,' ')")])
     print("GIT:" + json.dumps(sonuc))
+    pg.evaluate("() => gorunumAc('yardimSection')")
+    pg.click("#yardimSection [data-ac=plan]"); pg.wait_for_timeout(300)
+    print("ISARET:" + pg.evaluate("() => [...document.querySelectorAll('dialog[open] h2')].map(h => h.textContent).join('|')"))
     m = b.new_page(viewport={"width": 390, "height": 900})
     m.goto(adres, wait_until="networkidle"); m.wait_for_timeout(800)
     m.click("#kilavuzBtn"); m.wait_for_timeout(200)
@@ -124,6 +137,7 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
             assert gidilen == "yardimSection" and "veri olmadığı için kapalı" in notu, git
     assert any(not a for _, _, a, _ in git), "vitrinde kapalı görünüm kalmamış; durum sınanmadı"
     assert c["MOBIL"] == "['yardimSection', False]", c["MOBIL"]
+    assert "Plandan işaretle" in c["ISARET"], c["ISARET"]      # aynı kurulum penceresi
 
 
 def test_AD_tek_kaynaktan():

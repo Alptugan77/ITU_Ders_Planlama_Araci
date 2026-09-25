@@ -60,3 +60,17 @@ anılmamıştı.
   cümleleri ve vitrinde uçtan uca (başlık düğmesi, her "git" düğmesi,
   kapalı görünüm notu, telefon genişliğinde taşma yok).
 * 8 geri alma deneyinin 8'i kırmızı.
+
+## Güncelleme (25.09.2026): "Plandan işaretle" adımı
+
+Kullanıcı: *"kılavuzda transkripten gir kısmı yerine dersleri plandan
+işaretle kısmını ekler misin"*.
+
+* Başlarken'in 2. adımı artık "Aldığınız dersleri plandan işaretleyiniz".
+  Yarıyıl seçildiyse önceki yarıyılların zorunlu dersleri öneri olarak
+  işaretli gelir (Faz 47); notu seçilmeyen ders DD sayılır. Notlar için
+  "Transkript yapıştır" aynı pencerede seçenek olarak anılıyor.
+* Adımdaki "Plandan işaretle" düğmesi kurulumdaki pencereyi aynı işlevle
+  (`checklistDialog`) açıyor; ikinci bir yol yazılmadı.
+* Test: adımın metni, düğme adının sayfada bulunması ve düğmenin gerçekten
+  "Plandan işaretle" penceresini açması.

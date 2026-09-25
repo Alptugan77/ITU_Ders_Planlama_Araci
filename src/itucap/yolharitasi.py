@@ -372,12 +372,36 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
         if a is not None:
             dis |= a.courses()
     dis -= set(kod_birim) | varsayilan
+    # ★★ Faz 98 — PLANDAKİ DERSİN DİL EŞİ "DIŞ" DEĞİL (kullanıcı 25.09.2026:
+    # "BLG 4902E'nin önşartı BLG 4901E ama sistem BLG 4901'i aldım sayıyor ve
+    # ikisini aynı döneme öneriyor"). Önşart "BLG 4901 MIN BB veya BLG 4901E
+    # MIN BB"; BLGE planında yalnız BLG 4901E var, Türkçe "BLG 4901" hiçbir
+    # planda yok → dış sayılıp GEÇİLMİŞ varsayılıyordu ve "veya" hep
+    # sağlanıyordu: BLG 4902E, BLG 4901E'den ÖNCEKİ döneme bile yerleşiyordu.
+    # Dış kuralı "hiçbir planda olmayan ders" (ING 201, kod göçü) içindi;
+    # katalogda eşi planda olan kod aynı dersin öbür dili — plandan alınacak.
+    # ⚠️ Yalnız YERLEŞECEK birimlere bakmak yetmiyor: BLG 4901E işaretlenip
+    # (geçilmiş) birim olmaktan çıkınca "BLG 4901" yine dış sayılıyordu. Bütün
+    # plan kodlarına bakılıyor.
+    plan_kodlari = R.plan_codes(con, *(p["planId"] for p in planlar), pools=True)
+    dis = {c for c in dis if R.dil_esi(con, c) not in plan_kodlari}
+    # ★★ Faz 98 — GEÇİLMİŞ DERSİN GERÇEK NOTU. Görünüm her geçilen derse "AA"
+    # veriyordu; DD ile geçilmiş (ya da notsuz işaretlenip DD sayılan)
+    # BLG 4901E, "MIN BB" isteyen BLG 4902E'yi açıyordu. Bu dönemin önerileri
+    # gerçek notla bakıp dersi engelliyordu — iki ekran çelişiyordu. Yalnız
+    # yerleştirilen (gelecekte alınacak) dersler "AA" varsayılıyor.
+    gercek_not = {c: str(g).upper() for c, g in grades.items() if R.passed(g)}
+
+    def gorunum(kodlar):
+        v = {c: GECER for c in kodlar}
+        v.update({c: g for c, g in gercek_not.items() if c in v})
+        return R.prereq_view(v)
 
     def onsart_tamam(b: Birim, agac) -> bool:
-        if agac is None or agac.satisfied(R.prereq_view({c: GECER for c in varsayilan})):
+        if agac is None or agac.satisfied(gorunum(varsayilan)):
             b.dis_onsart = []
             return True
-        if agac.satisfied(R.prereq_view({c: GECER for c in varsayilan | dis})):
+        if agac.satisfied(gorunum(varsayilan | dis)):
             b.dis_onsart = sorted(agac.courses() & dis)
             return True
         return False
@@ -680,8 +704,18 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
         sebep = f"{ufuk} dönem içinde yerleştirilemedi"
         agac = agaclar.get(b.ders) if b.ders else None
         if agac is not None:
-            eksik = sorted({n.course for n in agac.missing(
-                R.prereq_view({c: GECER for c in varsayilan}))})
+            eksik = sorted({n.course for n in agac.missing(gorunum(varsayilan))})
+            # Faz 98: eksik ders GEÇİLMİŞ ama notu yetmiyorsa bunu söyle —
+            # "planlarda bulunmayan" demek yanlış olurdu.
+            notu_yetmeyen = sorted(c for c in eksik if c in gercek_not)
+            if notu_yetmeyen:
+                need = {n.course: n.min_grade for n in agac.missing(gorunum(varsayilan))}
+                sebep = ("önşartın istediği not sağlanmamaktadır: " + ", ".join(
+                    f"{c} (en az {need.get(c) or 'DD'}, kayıtlı not {gercek_not[c]})"
+                    for c in notu_yetmeyen[:3])
+                    + ". Notu girilmemiş ders DD sayılır; notunuzu girerseniz "
+                      "harita yeniden hesaplanır")
+                eksik = []
             if eksik:
                 # Faz 82 — önşart PLANDA ama kendisi yerleştirilemediyse bu
                 # "planlarda bulunmayan" değil (meşgul saatlerle görülen hata).

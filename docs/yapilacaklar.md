@@ -638,6 +638,34 @@ her maddeden önce gelen tek iş.
 > madde ilgili görünüme götürüyor. Başlıkta "Kılavuz" düğmesi ✅
 > ➜ Ayrıntı: `docs/faz96-kilavuz.md`
 >
+> **Faz 97 (25.09.2026):** kılavuzda 2. adım "Plandan işaretle". O
+> pencere artık İngilizce eşiyle karşılanmış ÇAP dersini "✓ EHB 222E ile
+> karşılandı" diye kilitli gösteriyor (eskiden boştu; tiklenirse notsuz ikinci
+> ders ekleniyordu) ✅
+> ➜ Ayrıntı: `docs/faz97-isaretle-esi.md`
+>
+> **Faz 98 (25.09.2026):** yol haritası BLG 4902E'yi BLG 4901E ile aynı
+> (hatta önceki) döneme koyuyordu: Türkçe eş "BLG 4901" dış önşart sayılıp
+> geçilmiş varsayılıyordu, geçilen dersler de AA sayılıyordu. Artık eşi
+> planda olan kod dış değil ve gerçek not kullanılıyor ✅
+> ➜ Ayrıntı: `docs/faz98-bitirme-onsart.md`
+>
+> **Faz 99 (25.09.2026):** ilerleme kartında dönem şeridi (geride kalan
+> dönem uyarı renginde), önceki dönemlerden kalan ve bulunulan dönemin
+> yuvaları; çipe tıklayınca ders penceresi ✅
+> ➜ Ayrıntı: `docs/faz99-ilerleme-donemleri.md`
+>
+> **Faz 100 (25.09.2026):** programın tahmini zorluğu artık ders sayısı ve
+> krediyle artıyor (tek çok zor ders 1.1, on beş orta ders 10); derslerin
+> ortalaması ikinci sayı olarak kaldı ✅
+> ➜ Ayrıntı: `docs/faz100-donem-zorlugu.md`
+>
+> **Faz 101 (25.09.2026):** kaydedilen program ızgaradayken şeritte "Öneri 1"
+> seçili görünüyordu. Artık "Kaydedilen · 21 kredi · 1 çevrimiçi" sekmesi
+> seçili (alternatif için adı), "değiştirildi" yalnız gerçekten
+> düzenlenince; özet çevrimiçi ders sayısını yazıyor ✅
+> ➜ Ayrıntı: `docs/faz101-izgara-kaynagi.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

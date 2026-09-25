@@ -512,6 +512,50 @@ def _sube_onbellekli(f):
             return f(*a, **k)
     return sar
 
+
+def _panel_donemleri(con: sqlite3.Connection, plan_id: int, open_slots) -> dict:
+    """İlerleme kartı için planın DÖNEM DÖNEM durumu ve açık yuvaları.
+
+    ★★ Faz 99 (kullanıcı 25.09.2026: "ilerleme durumu kısmı biraz boş
+    kaldı"). Kart yüzde ve sayı veriyordu ama HANGİ derslerin kaldığını ve
+    planın neresinde olunduğunu söylemiyordu: "%62 · kalan zorunlu 14"
+    okunup geçiliyordu. Bu veri planda zaten var (`term_no`).
+
+    `terms` yalnız her yuvanın dönemi belliyse dolu: ÇAP/yandal planlarında
+    `term_no` NULL (şema notu) — dönem uydurmuyoruz, o kartta yalnız açık
+    yuva listesi çıkıyor.
+    """
+    acik = set(open_slots)
+    rows = con.execute(
+        """SELECT ps.id, ps.term_no, ps.slot_kind, ps.course_code,
+                  ps.pool_label_raw, ps.pool_category, c.name
+             FROM plan_slot ps LEFT JOIN course c ON c.code = ps.course_code
+            WHERE ps.plan_id=? ORDER BY ps.term_no IS NULL, ps.term_no, ps.position""",
+        (plan_id,)).fetchall()
+    donemli = bool(rows) and all(r["term_no"] is not None for r in rows)
+    terms: dict[int, list[int]] = {}
+    acik_liste = []
+    for r in rows:
+        if donemli:
+            t = terms.setdefault(int(r["term_no"]), [0, 0])
+            t[1] += 1
+            if r["id"] not in acik:
+                t[0] += 1
+        if r["id"] in acik:
+            zorunlu = r["slot_kind"] == "REQUIRED"
+            acik_liste.append({
+                "code": r["course_code"] if zorunlu else None,
+                "label": (r["course_code"] if zorunlu
+                          else (r["pool_label_raw"] or r["pool_category"] or "Seçmeli")),
+                "name": r["name"] or "",
+                "term": r["term_no"],
+                "required": zorunlu,
+            })
+    return {"terms": [{"term": k, "done": v[0], "total": v[1]}
+                      for k, v in sorted(terms.items())],
+            "open": acik_liste}
+
+
 @_sube_onbellekli
 def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             settings: config.Settings, anadal_id: int | None, cap_id: int | None,
@@ -591,6 +635,7 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             "byCategory": [{"key": k, "done": v[0], "total": v[1]}
                            for k, v in stats["by_category"].items()],
             "remaining": open_codes,
+            **_panel_donemleri(con, plan_id, stats["open_slots"]),
         })
 
     # ★ Bulunduğun dönem: açık beyan > settings > tahmin. Hangisi olduğu
@@ -2435,6 +2480,33 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .cat{font-size:var(--fs-xs);padding:4px 8px;border:1px solid var(--border);border-radius:var(--r);
   background:var(--soft);color:var(--accent);font-weight:600;letter-spacing:var(--ls-wide)}
 .cat.zero{background:transparent;color:var(--ink-3)}
+/* ★ Faz 99 — planın dönem dönem durumu. Her dönem bir sütun: dolu kısım
+   tamamlanan yuva oranı. Bulunulan dönem çerçeveli; ÖNCEKİ dönemlerde açık
+   yuva kalmışsa uyarı rengi (geride kalan ders). */
+.dnmbas{margin-top:14px;padding-top:12px;border-top:1px solid var(--border);
+  font-size:var(--fs-xs);color:var(--ink-3)}
+.dnmler{display:grid;grid-template-columns:repeat(auto-fit,minmax(30px,1fr));gap:4px;margin-top:6px}
+.dnm{display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px 0;
+  border:1px solid transparent;border-radius:var(--r);font-size:var(--fs-xs);color:var(--ink-3)}
+.dnm .dbar{width:10px;height:34px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
+.dnm .dbar i{display:block;width:100%;background:var(--accent)}
+.dnm .dno{font-weight:700;color:var(--ink-2)}
+.dnm.tamam .dbar i{background:var(--ok)}
+.dnm.geride .dbar{border-color:var(--warn)}
+.dnm.geride .dno{color:var(--warn-ink)}
+.dnm.simdi{border-color:var(--accent);background:var(--soft)}
+.kalan{margin-top:12px;font-size:var(--fs-sm);color:var(--ink-2)}
+.kalan + .kalan{margin-top:8px}
+.kalan .kbas{font-weight:600;margin-bottom:6px}
+.kalan .kbas.geride{color:var(--warn-ink)}
+.kalan .kliste{display:flex;flex-wrap:wrap;gap:4px}
+.kders{font-family:var(--font-mono);font-size:var(--fs-xs);padding:2px 6px;
+  border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--ink-2)}
+button.kders{cursor:pointer}
+button.kders:hover{border-color:var(--accent);color:var(--accent)}
+.kders.havuz{font-family:inherit;border-style:dashed}
+.kders.secili{border-color:var(--accent);background:var(--soft);color:var(--accent)}
 
 .tabs{display:flex;gap:0;flex-wrap:wrap;border:1px solid var(--border);
   border-radius:var(--r);overflow:hidden;background:var(--surface)}
@@ -2764,6 +2836,9 @@ td .zorluk,.yhdonem li>.zorluk{margin-left:6px}
 .daylist .none{color:var(--ink-3);font-size:var(--fs-md);padding:6px 0}
 /* Faz 96 — kullanım kılavuzu. */
 .basdugme{display:flex;gap:8px;align-items:flex-start}
+/* Faz 97 — eşiyle karşılanmış plan dersi (Plandan işaretle). */
+.ckviayazi{color:var(--ok);font-size:var(--fs-sm)}
+.ckrow.ckvia{color:var(--ink-2)}
 .yardimnot{display:block;margin-top:4px;color:var(--ink-2);font-size:var(--fs-sm)}
 .yardim h3{margin:24px 0 8px;font-size:var(--fs-lg)}
 .yardim h4{margin:0 0 8px;font-size:var(--fs-md)}
@@ -3662,6 +3737,7 @@ body.kurulum .govde{grid-template-columns:minmax(0,1fr)}
 .basvuruitem button{flex:0 0 auto;white-space:nowrap}
 @media (max-width:560px){
   .yardimisaret{grid-template-columns:1fr}.yardimisaret dd{margin-bottom:8px}   /* Faz 96 */
+  button.kders{min-height:36px;padding:6px 10px}   /* Faz 99 — dokunma hedefi */
   .basvuruitem{flex-wrap:wrap}
   .basvuruitem button{width:100%}
   /* ★ Karşılama adımları telefonda: düğme ve süre metnin YANINDA değil,
@@ -3912,10 +3988,14 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
   <ol class="yardimadim">
     <li><b>Bölümünüzü ve yarıyılınızı seçiniz.</b> Varsa ÇAP ya da yandal
       programınızı da ekleyiniz. <button type="button" class="ghost mini" data-git="setupbar">Ayarlara git</button></li>
-    <li><b>Transkriptinizi yapıştırınız.</b> OBS'deki not dökümünü kopyalayıp
-      "Transkript yapıştır" alanına bırakmanız yeterlidir. Geçtiğiniz dersler,
-      GNO'nuz ve kredi yükü sınırınız buradan hesaplanır. Transkript olmadan da
-      çalışır, ancak öneriler daha kaba olur.</li>
+    <li><b>Aldığınız dersleri plandan işaretleyiniz.</b> "Plandan işaretle"
+      penceresi bölümünüzün ders planını yarıyıl yarıyıl listeler; geçtiğiniz
+      dersleri işaretlemeniz yeterlidir. Yarıyılınızı seçtiyseniz önceki
+      yarıyılların zorunlu dersleri işaretli gelir — bu bir öneridir, lütfen
+      kontrol ediniz. Notunu seçmediğiniz ders DD sayılır; GNO ve kredi yükü
+      sınırı gerçek notlardan hesaplanacaksa aynı pencereden
+      "Transkript yapıştır" ile notlarınızı da girebilirsiniz.
+      <button type="button" class="ghost mini" data-ac="plan">Plandan işaretle</button></li>
     <li><b>Önerilen programı inceleyiniz.</b> Araç açılışta size uyan birkaç
       haftalık program önerir. <button type="button" class="ghost mini" data-git="schedSection">Haftalık programa git</button></li>
   </ol>
@@ -5549,7 +5629,8 @@ function checklistDialog(){
   plans.forEach(p => p.terms.forEach(t => t.slots.forEach(sl =>
     sl.options.forEach(o => {
       state[o.course] = {taken: o.taken, grade: o.grade || "",
-                         ip: o.status === "IN_PROGRESS", credits: o.credits};
+                         ip: o.status === "IN_PROGRESS", credits: o.credits,
+                         via: o.via || ""};
     }))));
 
   /* ★★ FAZ 47 — DÖNEMDEN ÖNERİLEN TİKLER (kullanıcı 18.09.2026:
@@ -5571,7 +5652,7 @@ function checklistDialog(){
     plans.forEach(p => p.terms.forEach(t => {
       if(!t.term || t.term >= donem) return;
       t.slots.forEach(sl => { if(sl.required) sl.options.forEach(o => {
-        if(state[o.course] && !state[o.course].taken){
+        if(state[o.course] && !state[o.course].taken && !state[o.course].via){
           state[o.course].taken = true;
           onerilen.push(o.course);
         }
@@ -5598,7 +5679,17 @@ function checklistDialog(){
     const head = many
       ? `<div class="eyebrow" style="margin:10px 0 4px">${esc(sl.pool || sl.category
           || "seçmeli havuz")} · ${sl.options.length} seçenek</div>` : "";
-    return head + sl.options.map(o => `
+    /* ★ Faz 97 — İngilizce eşiyle karşılanmış ÇAP/yandal dersi: tik KİLİTLİ,
+       not seçimi yok. Tiklenebilseydi transkripte notsuz ikinci bir ders
+       eklenirdi (bkz. server.plan_checklist). */
+    return head + sl.options.map(o => o.via ? `
+      <label class="ckrow ckvia" title="${esc(`${o.via} (${o.viaGrade || ""}) bu dersin İngilizce karşılığıdır; ÇAP/yandal gereksinimini karşılar. Ayrıca işaretlemeniz gerekmez.`)}">
+        <input type="checkbox" checked disabled data-via="${esc(o.course)}">
+        <span class="mono ckcode">${esc(o.course)}</span>
+        <span class="ckname">${o.name ? esc(o.name.slice(0, 40)) : ""}</span>
+        <span class="mono ckcr">${o.credits ?? "–"}</span>
+        <span class="ckviayazi">✓ ${esc(o.via)} ile karşılandı</span>
+      </label>` : `
       <label class="ckrow">
         <input type="checkbox" data-course="${esc(o.course)}"${
           state[o.course].taken ? " checked" : ""}>
@@ -5693,7 +5784,7 @@ function checklistDialog(){
       plans.forEach(p => p.terms.forEach(t => {
         if(!t.term || t.term >= upto) return;
         t.slots.forEach(sl => { if(sl.required) sl.options.forEach(o => {
-          state[o.course].taken = true; }); });
+          if(!state[o.course].via) state[o.course].taken = true; }); });
       }));
       box.querySelectorAll('input[type=checkbox][data-course]').forEach(cb => {
         cb.checked = state[cb.dataset.course].taken;
@@ -5714,7 +5805,7 @@ function checklistDialog(){
     $("#setupSave").addEventListener("click", () => save(() => api("/api/transcript", {
       items: Object.entries(state).filter(([, v]) => v.taken)
         .map(([course, v]) => ({course, grade: v.grade, inProgress: v.ip})),
-      remove: Object.entries(state).filter(([, v]) => !v.taken)
+      remove: Object.entries(state).filter(([, v]) => !v.taken && !v.via)
         .map(([course]) => course),
       replace: false,        // ★ EKLER: plan DIŞI dersler korunur
     })));
@@ -7627,8 +7718,10 @@ function danismanOzeti(){
   if(g && g.counted) kontrol.push(`GNO (tahmini) <b class="mono">${g.value.toFixed(2)}</b> ·
     <span class="mono">${g.credits}</span> kredi`);
   const pz = programZorlugu(picks().map(p => p.cand));                // Faz 89
-  if(pz.ort !== null) kontrol.push(`Tahmini zorluk <b class="mono">${zp(pz.ort)}</b> / 10
-    (kredi ağırlıklı; geçmiş not dağılımından) · ${pz.zor ? `<b>${pz.zor}</b> zor ders` : "zor ders yok"}${
+  /* Faz 100 — dönem zorluğu ders sayısı ve krediyle artıyor. */
+  if(pz.ort !== null) kontrol.push(`Tahmini dönem zorluğu <b class="mono">${zp(pz.donem)}</b> / 10
+    (${ZORLUK_AD[pz.donemKademe]}; ${pz.ders} ders, ${pz.kredi} kredi; geçmiş not dağılımından) ·
+    ders ortalaması <span class="mono">${zp(pz.ort)}</span> · ${pz.zor ? `<b>${pz.zor}</b> zor ders` : "zor ders yok"}${
     pz.yok ? ` · ${pz.yok} ders için veri yok` : ""}`);
   const bitis = R && !R.error && !R.noTranscript ? (R.programs || []).map(p => `<li><b>${esc(buyukBas(p.label))}</b>:
     ${p.finish ? `${esc(p.finish.label)}${p.finishSemester ? ` (${p.finishSemester}. yarıyıl)` : ""}`
@@ -8165,7 +8258,75 @@ function panelHTML(p, plan){
         esc(c.key === "OTHER" ? "KATEGORİSİZ" : c.key)} ${
         bilinmiyor ? c.total : c.done + "/" + c.total}</span>`
     ).join("")}</div>
+    ${bilinmiyor ? "" : donemHTML(p)}
   </article>`;
+}
+
+/* ★★ Faz 99 — "İLERLEME DURUMU BİRAZ BOŞ KALDI" (kullanıcı 25.09.2026).
+   Kart yüzde ve sayı veriyordu; HANGİ derslerin kaldığını, planın neresinde
+   olunduğunu söylemiyordu. Şimdi: dönem şeridi (yalnız dönemleri belli
+   planlarda — ÇAP/yandal planında `term_no` yok, uydurmuyoruz) ve kalan
+   yuvaların listesi. Ders adına tıklanınca ders penceresi açılıyor; bu
+   dönem seçili olan ders işaretli (seçim değişince kart yeniden çiziliyor).
+
+   ⚠️ "Geride kalan" yalnız ANADAL kartında ve dönem biliniyorsa: `DATA.donem`
+   anadal dönemi, ÇAP planının dönemleriyle karşılaştırılamaz. */
+function donemHTML(p){
+  const acik = p.open || [];
+  const terms = p.terms || [];
+  const donem = p.role === "ANADAL" ? (+DATA.donem || 0) : 0;
+  const secili = new Set(picks().map(x => x.cand.course));
+  const cip = (o) => {
+    const ad = o.name ? `${o.label} — ${o.name}` : o.label;
+    if(!o.required)
+      return `<span class="kders havuz" title="Seçmeli yuva${o.term ? ` · ${o.term}. dönem` : ""}">${esc(o.label)}</span>`;
+    const s = secili.has(o.code);
+    const ic = `${s ? "✓ " : ""}${esc(o.label)}`;
+    const baslik = esc(ad) + (o.term ? ` · ${o.term}. dönem` : "")
+      + (s ? " · bu dönemki programda seçili" : "");
+    return candOf(o.code)
+      ? `<button type="button" class="kders${s ? " secili" : ""}" data-ders="${esc(o.code)}"
+           title="${baslik}">${ic}</button>`
+      : `<span class="kders" title="${baslik} · bu dönem açılmamış ya da alınamıyor">${ic}</span>`;
+  };
+  const GOSTER = 10;
+  const grup = (baslik, liste, sinif) => liste.length ? `<div class="kalan">
+      <div class="kbas${sinif ? " " + sinif : ""}">${baslik}</div>
+      <div class="kliste">${liste.slice(0, GOSTER).map(cip).join("")}${
+        liste.length > GOSTER ? `<span class="kders havuz">+${liste.length - GOSTER}</span>` : ""}</div>
+    </div>` : "";
+  const serit = terms.length ? `<div class="dnmbas">Plan dönemleri · çubuk, dönemdeki
+      yuvaların tamamlanan kısmını gösterir</div>
+    <div class="dnmler" aria-label="Plan dönemleri">${terms.map(t => {
+      const pct = t.total ? Math.round(100 * t.done / t.total) : 0;
+      const tamam = t.done === t.total;
+      const geride = donem && t.term < donem && !tamam;
+      const sinif = [tamam ? "tamam" : "", geride ? "geride" : "",
+                     t.term === donem ? "simdi" : ""].filter(Boolean).join(" ");
+      return `<div class="dnm${sinif ? " " + sinif : ""}" data-term="${t.term}"
+        title="${t.term}. dönem · ${t.done}/${t.total} yuva tamamlandı${
+          geride ? " · geride kalan yuva var" : ""}${t.term === donem ? " · bulunduğunuz dönem" : ""}">
+        <span class="dbar"><i style="height:${pct}%"></i></span>
+        <span class="dno">${t.term}</span>
+      </div>`;
+    }).join("")}</div>` : "";
+  if(!acik.length)
+    return serit + `<div class="kalan"><div class="kbas">Plandaki bütün yuvalar tamamlanmıştır.</div></div>`;
+  if(donem && terms.length){
+    const geride = acik.filter(o => o.term < donem);
+    const simdi = acik.filter(o => o.term === donem);
+    const sonra = acik.filter(o => o.term > donem);
+    return serit
+      + grup(`Önceki dönemlerden kalan <b class="mono">${geride.length}</b> yuva`, geride, "geride")
+      + grup(`${donem}. dönemin (bulunduğunuz dönem) yuvaları`, simdi)
+      + (geride.length || simdi.length ? ""
+         : grup(`Sıradaki yuvalar`, sonra.filter(o => o.term === sonra[0].term)));
+  }
+  const zorunlu = acik.filter(o => o.required);
+  const havuz = acik.length - zorunlu.length;
+  return serit + grup(`Kalan zorunlu dersler (<b class="mono">${zorunlu.length}</b>)${
+      havuz ? ` · ayrıca <b class="mono">${havuz}</b> seçmeli yuva` : ""}`,
+    zorunlu.length ? zorunlu : acik);
 }
 
 /** Bu dönemki seçimin bir plana katkısı. Slot bazlı sayıyoruz: aynı havuza
@@ -8195,6 +8356,8 @@ function renderPanels(){
     b.addEventListener("click", () => ({program: programDialog, donem: termDialog,
                                         plan: checklistDialog,
                                         dersler: courseDialogSetup})[b.dataset.setup]()));
+  $("#panels").querySelectorAll("[data-ders]").forEach(b =>
+    b.addEventListener("click", () => addDialog(b.dataset.ders)));   /* seçiliyse şube, değilse ekleme */
 }
 
 /* ================= DÜZENLENEBİLİR PROGRAM =================
@@ -8639,6 +8802,34 @@ function edited(){
   const base = key((sc ? sc.picks : []).map(p => p.course + "@" + p.section.crn));
   return now !== base;
 }
+/* ★★ Faz 101 — IZGARA HANGİ PROGRAMI GÖSTERİYOR (kullanıcı 25.09.2026:
+   "kaydedilen program gözüktüğünde üstte önerilen program seçilmiş
+   gözüktüğü için karıştırılabilir; programın kredisi ve kaç çevrimiçi ders
+   olduğu"). Açılışta kaydedilen program yükleniyordu ama sekme şeridinde
+   "Öneri 1 · 24 kredi" seçili duruyor, yanında "değiştirildi" yazıyordu:
+   ızgaradaki 21 kredilik program Öneri 1'in düzenlenmişi gibi okunuyordu.
+   Kaynak İÇERİKTEN çıkarılıyor — kaydedilen, alternatif, CRN'den yükleme,
+   geri alma hangi yoldan gelinirse gelinsin doğru kalsın diye:
+     · bir öneriyle aynıysa o öneri (sekmesi seçili),
+     · kaydedilen programla aynıysa "Kaydedilen",
+     · bir alternatifle aynıysa onun adı,
+     · hiçbiri değilse null (düzenlenmiş). `SON_KAYNAK` en son tanınan
+       öneri-dışı kaynağı tutuyor: kaydedilen program düzenlenince şerit
+       "Kaydedilen · değiştirildi" diyor, Öneri 1 demiyor. */
+let SON_KAYNAK = null;
+function izgaraKaynagi(){
+  if(!sel.length) return {tur: "bos"};
+  const k = currentKey();
+  const anahtar = (liste) => liste.map(p => p.course + "@" + p.crn).sort().join("|");
+  const i = M().schedules.findIndex(sc =>
+    anahtar(sc.picks.map(p => ({course: p.course, crn: p.section.crn}))) === k);
+  if(i >= 0) return {tur: "oneri", i};
+  const kay = (DATA.savedPicks && DATA.savedPicks.picks) || [];
+  if(kay.length && anahtar(kay) === k) return {tur: "kayitli", ad: "Kaydedilen"};
+  const a = (DATA.alternatives || []).find(x => anahtar(x.picks || []) === k);
+  if(a) return {tur: "alt", ad: a.name};
+  return null;
+}
 
 /* ---------- sekmeler + ızgara ---------- */
 function renderTabs(){
@@ -8647,7 +8838,19 @@ function renderTabs(){
      taban indirilebilir ve o dönem açılan ders yetmiyor olabilir. Ama
      hangisinin eksik olduğu yazmadan sunmak, kabul edilemez bir programı
      "en iyi" diye göstermek olurdu. */
-  $("#tabs").innerHTML = M().schedules.map((s,i) => {
+  const kaynak = izgaraKaynagi();
+  if(kaynak && kaynak.tur === "oneri"){ active = kaynak.i; SON_KAYNAK = null; }
+  else if(kaynak && kaynak.ad) SON_KAYNAK = kaynak;
+  else if(kaynak && kaynak.tur === "bos") SON_KAYNAK = null;
+  /* Öneri sekmesi yalnız ızgara O öneriyse ya da ondan düzenlendiyse seçili. */
+  const disKaynak = kaynak && kaynak.ad ? kaynak : (!kaynak && SON_KAYNAK) || null;
+  /* Kaydedilen program varsa sekmesi HEP duruyor (tıklayınca yüklenir):
+     "Öneriye dön"den sonra kaydedilene geri dönmenin yolu şeritte kalıyor. */
+  const kayitliVar = ((DATA.savedPicks && DATA.savedPicks.picks) || [])
+    .some(p => sectionOf(p.course, p.crn));
+  $("#tabs").innerHTML = (disKaynak ? kaynakSekmesi(disKaynak, !kaynak)
+      : kayitliVar ? kaynakSekmesi({tur: "kayitli", ad: "Kaydedilen"}, false, false) : "")
+    + M().schedules.map((s,i) => {
     const eksik = (s.floorGaps || []);
     /* ⚠️ `title` HER sekmede tam metni taşıyor: telefonda ayırt edici
        kısım seçili olmayan sekmede gizleniyor (Faz 46) ve bilgi yalnız
@@ -8665,7 +8868,7 @@ function renderTabs(){
        ⚠️ KREDİ SAYISI da `.tabfark` içinde: telefonda seçili olmayan sekme
        yalnız "Öneri 2" yazıyor ve üç sekme + Karşılaştır TEK SATIRA sığıyor
        (ölçüldü: 3 satır → 1). Tam metin her sekmenin `title`ında. */
-    return `<button class="tab" role="tab" aria-selected="${i===active}" data-i="${i}"
+    return `<button class="tab" role="tab" aria-selected="${!disKaynak && i===active}" data-i="${i}"
        title="${esc(tam)}"><span class="tabmetin"
        >Öneri ${i+1}<span class="tabfark"> · ${s.credits} kredi${
          oneriFarki(s, i)}</span>${eksik.length
@@ -8677,8 +8880,26 @@ function renderTabs(){
     $("#tabs").innerHTML += `<button class="tab" id="karsilastir">Karşılaştır</button>`;
   $("#tabs").querySelectorAll(".tab[data-i]").forEach(b =>
     b.addEventListener("click", () => { active = +b.dataset.i; resetTo(active); }));
+  $("#tabs").querySelectorAll(".tab[data-kayitli]").forEach(b =>       // Faz 101
+    b.addEventListener("click", () => { geriKaydet("kaydedilen program yüklendi"); startFromSaved(); }));
   const k = $("#karsilastir");
   if(k) k.addEventListener("click", karsilastirDialog);
+}
+
+/* Faz 101 — ızgaradaki öneri-dışı programın sekmesi: KENDİ kredisi ve
+   çevrimiçi ders sayısı (öneri sekmesinin sayıları o öneriye ait). */
+function kaynakSekmesi(k, degisti, secili = true){
+  /* Seçili değilse (ızgarada öneri var) sayılar KAYDEDİLEN programınki. */
+  const ps = secili ? picks() : (DATA.savedPicks.picks || [])
+    .map(p => ({cand: candOf(p.course), sec: sectionOf(p.course, p.crn)})).filter(p => p.cand && p.sec);
+  const kredi = +ps.reduce((a, p) => a + (p.cand.credits || 0), 0).toFixed(1);
+  const cev = ps.filter(p => p.sec.online).length;
+  const fark = ` · ${kredi} kredi${cev ? ` · ${cev} çevrimiçi` : ""}`;
+  const tam = `${k.ad} program${fark}${degisti ? " · değiştirildi" : ""}`
+    + (secili ? " — ızgarada gösterilen program" : " — ızgaraya yüklemek için tıklayınız");
+  return `<button type="button" class="tab kaynaktab" role="tab" aria-selected="${secili}"
+    ${secili ? "" : `data-kayitli="1"`} title="${esc(tam)}"
+    ><span class="tabmetin">${esc(k.ad)}<span class="tabfark">${esc(fark)}</span></span></button>`;
 }
 
 /* ★★ FAZ 45 — "öneri üretilemedi" TEK BAŞINA YALAN SAYILIR bir cümle.
@@ -8821,17 +9042,39 @@ function programOlcu(liste){
    1 kredilik laboratuvardan fazla yük getirir. Verisi olmayan ders ortalamaya
    GİRMİYOR ve sayısı ayrıca yazılıyor — ortalamayı "bilinen derslerin"
    ortalaması olarak okumak gerekiyor. Hiçbir dersin verisi yoksa `ort` null. */
+/* ★★★ Faz 100 — DÖNEM ZORLUĞU YÜKLE ARTIYOR (kullanıcı 25.09.2026: "alınan
+   ders sayısı arttıkça zorluk artmalı; 1 ders alındığında o ders çok zor
+   olsa bile kolay geçer ama 15 tane orta ders alınırsa dönem zor geçer").
+   Ortalama (`ort`) bunu göremiyordu: tek bir çok zor ders 9/10, on beş orta
+   ders 5/10 çıkıyordu. `donem` artık derslerin kredilerini TOPLUYOR, her
+   krediyi dersin zorluğuyla ağırlıklandırarak:
+       ağırlık = 0.5 + puan / 10   (çok kolay 0.5 … orta 1.0 … çok zor 1.5)
+       dönem   = 10 × Σ(ağırlık × kredi) / 40, en çok 10
+   Kolay ders de emek istiyor (ağırlık 0'a inmiyor). Ölçek: 21 kredilik orta
+   yük ≈ 5 (orta); tek çok zor 3 kredilik ders ≈ 1 (çok kolay); on beş orta
+   ders (45 kredi) → 10. Verisi olmayan ders ORTA sayılıyor (yükten
+   düşürmek dönemi olduğundan hafif gösterirdi) ve sayısı yazılıyor.
+   Hiçbir dersin verisi yoksa `donem` null: yalnız krediden zorluk iddia
+   etmiyoruz. */
+const DONEM_ZORLUK_TAVAN = 40;
+const zorlukKademesi = s => s < 2 ? 1 : s < 4 ? 2 : s < 6 ? 3 : s < 8.5 ? 4 : 5;
 function programZorlugu(adaylar){
-  let top = 0, agirlik = 0, zor = 0, yok = 0;
+  let top = 0, agirlik = 0, zor = 0, yok = 0, yuk = 0, kredi = 0;
   adaylar.forEach(c => {
     const z = zorlukOf(c);
-    if(!z){ yok++; return; }
     const w = c.credits > 0 ? c.credits : 1;
+    kredi += c.credits > 0 ? c.credits : 0;
+    yuk += (z ? 0.5 + z.score / 10 : 1.0) * w;
+    if(!z){ yok++; return; }
     top += z.score * w; agirlik += w;
     if(z.level >= 4) zor++;
   });
-  return {ort: agirlik ? Math.round(top / agirlik * 10) / 10 : null, zor, yok,
-          bilinen: adaylar.length - yok};
+  const bilinen = adaylar.length - yok;
+  const donem = bilinen
+    ? Math.round(Math.min(10, 10 * yuk / DONEM_ZORLUK_TAVAN) * 10) / 10 : null;
+  return {ort: agirlik ? Math.round(top / agirlik * 10) / 10 : null, zor, yok, bilinen,
+          donem, donemKademe: donem === null ? null : zorlukKademesi(donem),
+          ders: adaylar.length, kredi: +kredi.toFixed(1)};
 }
 function karsilastirmaSutunlari(){
   const sutun = [];
@@ -8887,18 +9130,21 @@ function karsilastirDialog(){
         ${list.some(s => s.olcu.zorluk.ort !== null) ? satir("Tahmini zorluk", o => {
           const z = o.zorluk;
           if(z.ort === null) return `<span class="meta">veri yok</span>`;
-          const enHafif = Math.min(...list.map(s => s.olcu.zorluk.ort ?? Infinity));
-          const fark = list.some(s => (s.olcu.zorluk.ort ?? -Infinity) >= enHafif + 0.5);
+          const enHafif = Math.min(...list.map(s => s.olcu.zorluk.donem ?? Infinity));
+          /* Faz 100: eşik 0.3 — dönem ölçeğinde 1 puan 4 ağırlıklı kredi; 3 kredilik
+             bir dersin ortadan çok zora çıkması dönemi ≈0.4 değiştiriyor. */
+          const fark = list.some(s => (s.olcu.zorluk.donem ?? -Infinity) >= enHafif + 0.3);
           /* "En hafif" yalnız her sütunda derslerin EN AZ YARISI biliniyorsa:
              8 dersin 3'ünden çıkan ortalamayla sıralamak, bilinmeyeni bilinen
              gibi göstermek olurdu. */
           const yeterli = list.every(s => s.olcu.zorluk.bilinen >= s.olcu.zorluk.yok);
-          return `<b class="mono">${zp(z.ort)}</b> / 10${z.ort === enHafif && fark && yeterli
+          /* Faz 100 — dönem zorluğu (yükle artan) ana sayı; ortalama altta. */
+          return `<b class="mono">${zp(z.donem)}</b> / 10${z.donem === enHafif && fark && yeterli
               ? ` <span class="chip" style="color:var(--ok)">en hafif</span>` : ""}
-            <div class="meta">${z.zor ? `<b class="mono">${z.zor}</b> zor ders` : "zor ders yok"}${
+            <div class="meta">ders ortalaması <span class="mono">${zp(z.ort)}</span> ·
+              ${z.zor ? `<b class="mono">${z.zor}</b> zor ders` : "zor ders yok"}${
               z.yok ? ` · ${z.yok} ders için veri yok` : ""}</div>`;
-        }, "Derslerin genel zorluk puanlarının (10 üzerinden) kredi ağırlıklı ortalaması; "
-           + "geçmiş not dağılımından tahmin, öneri puanına dahil değildir") : ""}
+        }, DONEM_ZORLUK_IPUCU) : ""}
         ${satir("Dolu günler", o => (o.shape.days || []).map(d => GUNAD[d - 1]).join(" ") || "—")}
         ${satir("Boş gün", o => (o.shape.freeDays || []).map(d => `<b>${GUNAD[d - 1]}</b>`).join(" ") || "—")}
         ${satir("En erken", o => `<span class="mono">${dk(o.shape.earliest)}</span>`)}
@@ -9094,6 +9340,7 @@ function render(){
          görüyordu, blokları ise mavi.
        · "puan" ne olduğunu söylüyor (dokununca açıklama — Faz 51). */
   const oran = DATA.maxLoad ? Math.min(1, t.load / DATA.maxLoad) : 0;
+  const cevrimici = picks().filter(p => p.sec.online).length;      // Faz 101
   const ikincil = DATA.unitLabel === "kredi"
     ? `${t.ects} AKTS` : `${t.credits} kredi`;
   const doluSube = picks().filter(p => p.sec.capacity &&
@@ -9106,7 +9353,8 @@ function render(){
     ${DATA.maxLoad ? `<div class="yuk${over ? " asti" : ""}" role="img"
       aria-label="dönem yükü ${t.load} / ${DATA.maxLoad} ${esc(DATA.unitLabel)}${
         over ? " — sınır aşıldı" : ""}"><i style="width:${(oran * 100).toFixed(0)}%"></i></div>` : ""}
-    <div class="ozetsatir">${t.n} ders · <span class="mono">${ikincil}</span></div>
+    <div class="ozetsatir">${t.n} ders · <span class="mono">${ikincil}</span>${
+      cevrimici ? ` · <span class="mono">${cevrimici}</span> çevrimiçi` : ""}</div>
     ${haftaSekli()}
     ${zorlukOzeti()}
     ${disKredi ? `<div class="planout">bunun <b class="mono">${disKredi}</b>
@@ -9136,8 +9384,12 @@ function render(){
     b.addEventListener("click", () => choose(b.dataset.bosa, b.dataset.crn)));
   $("#schedSummary").querySelectorAll("[data-tekrar]").forEach(b =>   // Faz 73
     b.addEventListener("click", () => choose(b.dataset.tekrar, b.dataset.crn)));
-  $("#editState").hidden = !edited();
+  /* Faz 101 — "değiştirildi" yalnız ızgara TANINAN hiçbir programa (öneri,
+     kaydedilen, alternatif) eşit değilse; "Öneriye dön" seçili öneriden
+     farklıysa (kaydedilen programdan öneriye geçmenin yolu). */
+  $("#editState").hidden = !!izgaraKaynagi();
   $("#reset").hidden = !edited();
+  $("#reset").title = `Öneri ${active + 1} ızgaraya yüklenir (geri alınabilir)`;
   renderSaveState();
   renderFloor();
   renderGnoHedef();          // Faz 57 — seçim değişince gereken ortalama da
@@ -9819,12 +10071,22 @@ function zorlukOzeti(){
   const parca = [5, 4, 3, 2, 1].filter(l => k.say[l])
     .map(l => `<b class="mono">${k.say[l]}</b> ${ZORLUK_AD[l]}`);
   if(!parca.length) return "";
-  /* Faz 88 — karşılaştırmadaki sayıyla AYNI (kredi ağırlıklı ortalama). */
+  /* Faz 88/100 — karşılaştırmadaki sayılarla AYNI (dönem zorluğu + ortalama). */
   const pz = programZorlugu(ps.map(p => p.cand));
-  return `<div class="ozetzorluk aciklamali" title="Derslerin genel zorluk puanlarının kredi ağırlıklı ortalaması; geçmiş not dağılımından tahmin, öneri puanına dahil değildir">tahmini zorluk <b class="mono">${
-    zp(pz.ort)}</b>/10: ${parca.join(" · ")}${k.yok ? ` · ${k.yok} ders için veri yok` : ""}${k.zor >= 3
+  /* Faz 100 — önce DÖNEM zorluğu (yükle artan), sonra derslerin ortalaması. */
+  return `<div class="ozetzorluk aciklamali" title="${esc(DONEM_ZORLUK_IPUCU)}">tahmini dönem zorluğu <b class="mono">${
+    zp(pz.donem)}</b>/10 (${ZORLUK_AD[pz.donemKademe]}) · <span class="mono">${pz.ders}</span> ders,
+    <span class="mono">${pz.kredi}</span> kredi · ders ortalaması <b class="mono">${
+    zp(pz.ort)}</b>/10: ${parca.join(" · ")}${k.yok ? ` · ${k.yok} ders için veri yok (orta sayıldı)` : ""}${
+    pz.donem >= 8.5
+      ? ` — <span class="yogun">dönem yükü çok ağır; ders sayısının azaltılması değerlendirilebilir</span>`
+      : k.zor >= 3
       ? ` — <span class="yogun">zor ders sayısı yüksek; yükün dengelenmesi değerlendirilebilir</span>` : ""}</div>`;
 }
+const DONEM_ZORLUK_IPUCU = "Dönem zorluğu ders sayısı ve krediyle artar: her dersin kredisi zorluğuna "
+  + "göre ağırlıklandırılıp toplanır (çok kolay 0.5 … orta 1.0 … çok zor 1.5); 40 ağırlıklı "
+  + "kredi 10/10 sayılır. 21 kredilik orta yük yaklaşık 5/10'dur. Verisi olmayan ders orta "
+  + "sayılır. Geçmiş not dağılımından tahmindir; öneri puanına dahil değildir.";
 const ZORLUK_AD = {1: "çok kolay", 2: "kolay", 3: "orta", 4: "zor", 5: "çok zor"};
 
 /* ---------- geçmiş dönem not dağılımı (Faz 38) ----------
@@ -10935,6 +11197,12 @@ document.addEventListener("click", ev => {
 });
 document.addEventListener("click", ev => {
   if(ev.target.closest && ev.target.closest("#kilavuzBtn")) gorunumAc("yardimSection", true);
+});
+/* Kılavuzdaki eylem düğmeleri (ör. "Plandan işaretle") kurulumdaki pencereyi
+   AYNI işlevle açıyor — ikinci bir yol yazılmıyor. */
+document.addEventListener("click", ev => {
+  const b = ev.target.closest && ev.target.closest("#yardimSection [data-ac]");
+  if(b && b.dataset.ac === "plan") checklistDialog();
 });
 
 /* Görünümü olan bölümler: DOM'da var ve veri yokluğundan gizli DEĞİL.

@@ -46,6 +46,7 @@ from . import changes as CH
 from . import config, db, declared
 from . import policy as POL
 from . import recommend as REC
+from . import rules as R
 from . import student as S
 from . import ui as UI
 
@@ -413,6 +414,12 @@ class State:
             plan = self.con.execute("SELECT * FROM plan WHERE id=?",
                                     (plan_id,)).fetchone()
             groups: dict = {}
+            # ★ Faz 97: ÇAP/yandal slotunu İngilizce eşi dolduruyorsa (EHB 222
+            # slotu, EHB 222E geçilmiş — Faz 92) liste bunu SÖYLÜYOR. Eskiden
+            # ilerleme paneli "tamam" derken bu liste dersi boş gösteriyordu;
+            # öğrenci düzeltmek için tiklerse transkripte notsuz (DD) ikinci
+            # bir ders ekleniyor ve GNO bozuluyordu.
+            esli = R.dil_serbest(plan["plan_type"] if plan else None)
             for slot in self.con.execute(
                 """SELECT id, term_no, slot_kind, course_code, pool_label_raw,
                           pool_category, credits
@@ -428,13 +435,20 @@ class State:
                 for code in filter(None, codes):
                     name, credits = names.get(code, ("", slot["credits"]))
                     got = taken.get(code)
-                    items.append({
+                    item = {
                         "course": code, "name": name or "",
                         "credits": credits if credits is not None else slot["credits"],
                         "grade": (got["grade"] if got else None),
                         "status": (got["status"] if got else ""),
                         "taken": bool(got),
-                    })
+                    }
+                    if not got and esli and slot["slot_kind"] == "REQUIRED":
+                        es = R.ingilizce_esi(self.con, code)
+                        esr = taken.get(es) if es else None
+                        if esr and R.passed(esr["grade"]):
+                            item["via"] = es
+                            item["viaGrade"] = esr["grade"]
+                    items.append(item)
                 if not items:
                     continue
                 groups.setdefault(term, []).append({

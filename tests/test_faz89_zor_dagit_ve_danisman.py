@@ -186,7 +186,8 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     d0, d1, ilk = c["D0"], c["D1"], json.loads(c["ILK"])
     # Tabloda sütun; vitrinde BLG 223E orta 5.5, verisizde "—".
     assert "Tahmini zorluk" in d0 and "orta 5.5" in d0, d0
-    assert "Tahmini zorluk 3.8 / 10 (kredi ağırlıklı; geçmiş not dağılımından) · zor ders yok" in d0
+    assert ("Tahmini dönem zorluğu 5.7 / 10 (orta; 8 ders, 24 kredi; geçmiş not dağılımından) · "
+            "ders ortalaması 3.8 · zor ders yok") in d0          # Faz 100
     assert "zor ders bulunmaktadır" not in d0 and "hazırlanmam önerilir" not in d0
     assert f"geçmiş not dağılımına göre 3 zor ders bulunmaktadır ({', '.join(ilk)})" in d1, d1
     # Kalma sorusu: yalnız gecikme > 0 VE kalma oranı ≥ %20 olan ders (ilki: %30).

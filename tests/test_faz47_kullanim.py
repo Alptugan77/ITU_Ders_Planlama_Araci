@@ -130,7 +130,9 @@ def test_SILECEK_YOKSA_bosuna_yedek_alinmiyor(tmp_path, monkeypatch):
 
 def test_arayuz_TIKSIZLERI_gonderiyor():
     """★★ Sunucu tarafı doğru olsa da arayüz göndermezse hata sürer."""
-    assert "remove: Object.entries(state).filter(([, v]) => !v.taken)" in KAYNAK
+    # Faz 97: İngilizce eşiyle karşılanmış ÇAP satırı (kilitli, `via`) silme
+    # listesine girmiyor; tiksizlerin geri kalanı eskisi gibi gidiyor.
+    assert "remove: Object.entries(state).filter(([, v]) => !v.taken && !v.via)" in KAYNAK
     # ⚠️ `replace` hâlâ false: plan DIŞI dersler korunuyor.
     fn = KAYNAK[KAYNAK.index('api("/api/transcript", {'):][:520]
     assert "replace: false" in fn
