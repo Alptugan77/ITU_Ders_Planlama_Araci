@@ -363,6 +363,7 @@ WEIGHTS = {
     "early_tier": 25,
     "scarcity": 15,
     "deferrable": -20,   # ★ her dönem açılan ders ertelenebilir
+    "full": -5,          # ★★ Faz 90 — bütün şubeleri dolu (aşağıya bak)
 }
 # ★ Ağırlık gerekçeleri (ölçüme dayalı, 20.08.2026):
 #
@@ -375,6 +376,42 @@ WEIGHTS = {
 #     fiilen her dönem açılıyor; bu dönem alınmazsa bir şey kaybedilmiyor. Bu,
 #     "tek şube / kontenjan kritik" bonusunun aynadaki karşılığı.
 DEFERRABLE_SECTIONS = 10
+
+# ★★ FAZ 90 — KONTENJAN, GERÇEK HALİYLE (ölçüm 25.09.2026, gerçek katalog).
+#
+# "Kontenjan kritik" bonusu ilk sürümden beri dersin EN DOLU şubesine
+# bakıyordu (`max(fill_ratio)`). İki sonucu vardı:
+#   * 70 boş yeri olan BLG 351E "kritik" sayılıyordu (şubelerinden biri
+#     doluydu). Yedi profilde adayların %70–100'ü bonusu alıyordu — bonus
+#     artık hiçbir şeyi ayırt etmiyordu.
+#   * Bütün şubeleri DOLU ders de bonus alıyordu; kapanmış bir ders "hemen
+#     al" diye öne çıkıyordu. BLGE 5. yarıyılda "TM Elective I" havuzunda
+#     dolu BLG 345E ile 4 boş yerli BLG 368E aynı puanı alıyor, eşitliği
+#     ALFABE bozuyordu → öneri 1 dolu seçmeli içeriyordu.
+# Şimdi:
+#   * "kritik" = bütün şubelerin kontenjanı BİLİNİYOR ve açık şubelerin EN
+#     BOŞU bile %85'ten dolu (gerçekten "yer kalmıyor").
+#   * "dolu"   = bütün şubelerin kontenjanı biliniyor ve hiçbirinde yer yok →
+#     küçük bir ceza (-5): aynı havuzdaki açık ders öne geçer; alternatif
+#     yoksa ders yine önerilir ve arayüz "kontenjan izlenmeli" der.
+#   * Kontenjanı ilan edilmemiş şube varsa "bilinmiyor": ne bonus ne ceza —
+#     bilinmeyen, bilinen gibi gösterilmez.
+KRITIK_DOLULUK = 0.85
+# Şube seçiminde dolu şubenin maliyeti (puan cinsinden, `blocking_cost` ile
+# aynı ölçek): boş şube, dolu şubeden en fazla bu kadar daha çok değer
+# yakıyorsa boş şube seçilir. Ölçüm: 14 profil×kipin 11'inde önerinin bir
+# dersi, aynı dersin AÇIK şubesi varken dolu şubeye yerleştiriliyordu.
+DOLU_SUBE_MALIYETI = 15.0
+
+
+def kontenjan_durumu(sections) -> str:
+    """'dolu' | 'kritik' | 'acik' | 'bilinmiyor' (Faz 90)."""
+    if not sections or any(not s.capacity for s in sections):
+        return "bilinmiyor"
+    acik = [s for s in sections if s.free > 0]
+    if not acik:
+        return "dolu"
+    return "kritik" if min(s.fill_ratio for s in acik) > KRITIK_DOLULUK else "acik"
 
 
 # ---------------------------------------------------------------- tercihler
@@ -567,10 +604,13 @@ def score_all(cands: list[Candidate]) -> list[Candidate]:
         if max_tier:
             kat("early_tier", WEIGHTS["early_tier"] * (max_tier - c.tier) / max_tier,
                 "zincirin başında")
-        best = max((s.fill_ratio for s in c.sections), default=1.0)
-        if best > 0.85:
+        durum = kontenjan_durumu(c.sections)          # ★★ Faz 90
+        if durum == "kritik":
             kat("scarcity", WEIGHTS["scarcity"], "kontenjan kritik",
                 "kontenjan kritik")
+        elif durum == "dolu":
+            kat("full", WEIGHTS["full"], "bütün şubeler dolu",
+                "bütün şubeler dolu — kontenjan izlenmeli")
         if len(c.sections) == 1:
             kat("single", WEIGHTS["scarcity"] / 2, "tek şube", "tek şube")
         elif len(c.sections) > DEFERRABLE_SECTIONS:
@@ -955,7 +995,9 @@ def build_schedules(cands: list[Candidate], max_load: float = 35.0,
             ordered = _sira.get(index)
             if ordered is None:
                 def _sube_maliyeti(s: Section) -> float:
-                    return blocking_cost(s, index) - sube_tercih_puani(s, prefs)
+                    # ★★ Faz 90 — dolu şubenin maliyeti (bkz. DOLU_SUBE_MALIYETI).
+                    dolu = DOLU_SUBE_MALIYETI if s.capacity and s.free == 0 else 0.0
+                    return blocking_cost(s, index) - sube_tercih_puani(s, prefs) + dolu
 
                 ordered = sorted(cand.sections,
                                  key=lambda s: (not s.meetings, _sube_maliyeti(s),

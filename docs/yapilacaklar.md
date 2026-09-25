@@ -593,6 +593,14 @@ her maddeden önce gelen tek iş.
 > iki otomatik soru ✅
 > ➜ Ayrıntı: `docs/faz89-zor-dagit-ve-danisman.md`
 >
+> **Faz 90 (25.09.2026):** gerçek katalogda transkriptli 5. yarıyıl
+> öğrencisi: "kontenjan kritik" artık açık şubelerin EN BOŞUNA bakıyor
+> (eskiden en dolusuna); bütün şubeleri dolu derse küçük ceza; şube seçiminde
+> dolu şubenin maliyeti — 14 önerideki dolu şube 49 → 34, boş alternatifi
+> olan 3 → 0 ✅ · danışman özetinde tek dolu şube sorusu, koşullu başvuru
+> sorusu ✅
+> ➜ Ayrıntı: `docs/faz90-kontenjan.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

@@ -212,7 +212,10 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     # (2) GEO 341E çakışmasız eklenince 27/25 — yük sorusu.
     soru = json.loads(c["SORU"])
     assert any(s.startswith("Programım 27 kredi olup 25 sınırını") for s in soru), soru
-    assert any("GEO 331E şubemin (CRN 13603) kontenjanı doludur" in s for s in soru), soru
+    # (Faz 90: dolu şubeler TEK soruda; GEO 331E'nin boş şubesi GEO 385E ile
+    # çakıştığından soru olarak kalıyor.)
+    assert any(s.startswith("GEO 331E (CRN 13603) şubemin kontenjanı doludur ve programımla "
+                            "çakışmayan boş şube bulunmamaktadır") for s in soru), soru
     assert any(s.startswith("Anadal tahmini bitişim") for s in soru), soru
     satir, secim = c["TABLO"].split("|")
     assert satir == secim, "özetteki tablo programdaki derslerle aynı değil"
