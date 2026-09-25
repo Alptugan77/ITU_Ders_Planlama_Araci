@@ -29,11 +29,23 @@ def _sec(crn, day, start=510, end=630, course="X"):
                        meetings=(REC.Meeting(day, start, end, None, None, None),))
 
 
+# ★ Slot kimliği BELİRLEYİCİ. Eskiden `abs(hash(course)) % 10_000` idi:
+# Python dizgi hash'i her süreçte rastgele (PYTHONHASHSEED) ve binde bir
+# olasılıkla iki ders aynı slota düşüyordu; Faz 81'in slot eşleştirmesi o
+# zaman ikisini birlikte almıyor ve taban testi rastgele kırmızıya dönüyordu
+# (PYTHONHASHSEED=1702 ile yeniden üretildi).
+_SLOTLAR: dict[str, int] = {}
+
+
+def _slot_no(course: str) -> int:
+    return _SLOTLAR.setdefault(course, len(_SLOTLAR) + 1)
+
+
 def _cand(course, role, credits, day, score=10.0, slot=0):
     return REC.Candidate(course=course, name=course, role=role, ects=credits * 2,
                          credits=credits, unlocks=0, tier=0, critical=False,
                          required=True, sections=[_sec(course, day, course=course)],
-                         slot_id=slot or abs(hash(course)) % 10_000, score=score)
+                         slot_id=slot or _slot_no(course), score=score)
 
 
 # Anadal dersleri yüksek puanlı ve çakışmasız; ÇAP dersi düşük puanlı.

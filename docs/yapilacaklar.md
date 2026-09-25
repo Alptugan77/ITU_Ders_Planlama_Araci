@@ -629,6 +629,15 @@ her maddeden önce gelen tek iş.
 > 0); ızgara geçişi işaretliyor; MEDC/BBB/MSB yerleşkeleri beyan edildi ✅
 > ➜ Ayrıntı: `docs/faz94-yerleske-gecisi.md`
 >
+> **Faz 95 (25.09.2026):** telefonda sıradaki ders — gün listesinin başında
+> süren ya da sıradaki ders, saat ve derslikle; bugünün etiketi ✅
+> ➜ Ayrıntı: `docs/faz95-siradaki-ders.md`
+>
+> **Faz 96 (25.09.2026):** kullanım kılavuzu — DEPAR'ın ne yaptığı, nasıl
+> başlanacağı, altı kullanım alanı, ekrandaki işaretler ve sınırlar; her
+> madde ilgili görünüme götürüyor. Başlıkta "Kılavuz" düğmesi ✅
+> ➜ Ayrıntı: `docs/faz96-kilavuz.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
