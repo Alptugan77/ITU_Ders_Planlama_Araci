@@ -644,6 +644,17 @@ her maddeden önce gelen tek iş.
 > ders ekleniyordu) ✅
 > ➜ Ayrıntı: `docs/faz97-isaretle-esi.md`
 >
+> **Faz 98 (25.09.2026):** yol haritası BLG 4902E'yi BLG 4901E ile aynı
+> (hatta önceki) döneme koyuyordu: Türkçe eş "BLG 4901" dış önşart sayılıp
+> geçilmiş varsayılıyordu, geçilen dersler de AA sayılıyordu. Artık eşi
+> planda olan kod dış değil ve gerçek not kullanılıyor ✅
+> ➜ Ayrıntı: `docs/faz98-bitirme-onsart.md`
+>
+> **Faz 99 (25.09.2026):** ilerleme kartında dönem şeridi (geride kalan
+> dönem uyarı renginde), önceki dönemlerden kalan ve bulunulan dönemin
+> yuvaları; çipe tıklayınca ders penceresi ✅
+> ➜ Ayrıntı: `docs/faz99-ilerleme-donemleri.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

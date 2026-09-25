@@ -512,6 +512,50 @@ def _sube_onbellekli(f):
             return f(*a, **k)
     return sar
 
+
+def _panel_donemleri(con: sqlite3.Connection, plan_id: int, open_slots) -> dict:
+    """İlerleme kartı için planın DÖNEM DÖNEM durumu ve açık yuvaları.
+
+    ★★ Faz 99 (kullanıcı 25.09.2026: "ilerleme durumu kısmı biraz boş
+    kaldı"). Kart yüzde ve sayı veriyordu ama HANGİ derslerin kaldığını ve
+    planın neresinde olunduğunu söylemiyordu: "%62 · kalan zorunlu 14"
+    okunup geçiliyordu. Bu veri planda zaten var (`term_no`).
+
+    `terms` yalnız her yuvanın dönemi belliyse dolu: ÇAP/yandal planlarında
+    `term_no` NULL (şema notu) — dönem uydurmuyoruz, o kartta yalnız açık
+    yuva listesi çıkıyor.
+    """
+    acik = set(open_slots)
+    rows = con.execute(
+        """SELECT ps.id, ps.term_no, ps.slot_kind, ps.course_code,
+                  ps.pool_label_raw, ps.pool_category, c.name
+             FROM plan_slot ps LEFT JOIN course c ON c.code = ps.course_code
+            WHERE ps.plan_id=? ORDER BY ps.term_no IS NULL, ps.term_no, ps.position""",
+        (plan_id,)).fetchall()
+    donemli = bool(rows) and all(r["term_no"] is not None for r in rows)
+    terms: dict[int, list[int]] = {}
+    acik_liste = []
+    for r in rows:
+        if donemli:
+            t = terms.setdefault(int(r["term_no"]), [0, 0])
+            t[1] += 1
+            if r["id"] not in acik:
+                t[0] += 1
+        if r["id"] in acik:
+            zorunlu = r["slot_kind"] == "REQUIRED"
+            acik_liste.append({
+                "code": r["course_code"] if zorunlu else None,
+                "label": (r["course_code"] if zorunlu
+                          else (r["pool_label_raw"] or r["pool_category"] or "Seçmeli")),
+                "name": r["name"] or "",
+                "term": r["term_no"],
+                "required": zorunlu,
+            })
+    return {"terms": [{"term": k, "done": v[0], "total": v[1]}
+                      for k, v in sorted(terms.items())],
+            "open": acik_liste}
+
+
 @_sube_onbellekli
 def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             settings: config.Settings, anadal_id: int | None, cap_id: int | None,
@@ -591,6 +635,7 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             "byCategory": [{"key": k, "done": v[0], "total": v[1]}
                            for k, v in stats["by_category"].items()],
             "remaining": open_codes,
+            **_panel_donemleri(con, plan_id, stats["open_slots"]),
         })
 
     # ★ Bulunduğun dönem: açık beyan > settings > tahmin. Hangisi olduğu
@@ -2435,6 +2480,33 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .cat{font-size:var(--fs-xs);padding:4px 8px;border:1px solid var(--border);border-radius:var(--r);
   background:var(--soft);color:var(--accent);font-weight:600;letter-spacing:var(--ls-wide)}
 .cat.zero{background:transparent;color:var(--ink-3)}
+/* ★ Faz 99 — planın dönem dönem durumu. Her dönem bir sütun: dolu kısım
+   tamamlanan yuva oranı. Bulunulan dönem çerçeveli; ÖNCEKİ dönemlerde açık
+   yuva kalmışsa uyarı rengi (geride kalan ders). */
+.dnmbas{margin-top:14px;padding-top:12px;border-top:1px solid var(--border);
+  font-size:var(--fs-xs);color:var(--ink-3)}
+.dnmler{display:grid;grid-template-columns:repeat(auto-fit,minmax(30px,1fr));gap:4px;margin-top:6px}
+.dnm{display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px 0;
+  border:1px solid transparent;border-radius:var(--r);font-size:var(--fs-xs);color:var(--ink-3)}
+.dnm .dbar{width:10px;height:34px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
+.dnm .dbar i{display:block;width:100%;background:var(--accent)}
+.dnm .dno{font-weight:700;color:var(--ink-2)}
+.dnm.tamam .dbar i{background:var(--ok)}
+.dnm.geride .dbar{border-color:var(--warn)}
+.dnm.geride .dno{color:var(--warn-ink)}
+.dnm.simdi{border-color:var(--accent);background:var(--soft)}
+.kalan{margin-top:12px;font-size:var(--fs-sm);color:var(--ink-2)}
+.kalan + .kalan{margin-top:8px}
+.kalan .kbas{font-weight:600;margin-bottom:6px}
+.kalan .kbas.geride{color:var(--warn-ink)}
+.kalan .kliste{display:flex;flex-wrap:wrap;gap:4px}
+.kders{font-family:var(--font-mono);font-size:var(--fs-xs);padding:2px 6px;
+  border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--ink-2)}
+button.kders{cursor:pointer}
+button.kders:hover{border-color:var(--accent);color:var(--accent)}
+.kders.havuz{font-family:inherit;border-style:dashed}
+.kders.secili{border-color:var(--accent);background:var(--soft);color:var(--accent)}
 
 .tabs{display:flex;gap:0;flex-wrap:wrap;border:1px solid var(--border);
   border-radius:var(--r);overflow:hidden;background:var(--surface)}
@@ -8183,7 +8255,75 @@ function panelHTML(p, plan){
         esc(c.key === "OTHER" ? "KATEGORİSİZ" : c.key)} ${
         bilinmiyor ? c.total : c.done + "/" + c.total}</span>`
     ).join("")}</div>
+    ${bilinmiyor ? "" : donemHTML(p)}
   </article>`;
+}
+
+/* ★★ Faz 99 — "İLERLEME DURUMU BİRAZ BOŞ KALDI" (kullanıcı 25.09.2026).
+   Kart yüzde ve sayı veriyordu; HANGİ derslerin kaldığını, planın neresinde
+   olunduğunu söylemiyordu. Şimdi: dönem şeridi (yalnız dönemleri belli
+   planlarda — ÇAP/yandal planında `term_no` yok, uydurmuyoruz) ve kalan
+   yuvaların listesi. Ders adına tıklanınca ders penceresi açılıyor; bu
+   dönem seçili olan ders işaretli (seçim değişince kart yeniden çiziliyor).
+
+   ⚠️ "Geride kalan" yalnız ANADAL kartında ve dönem biliniyorsa: `DATA.donem`
+   anadal dönemi, ÇAP planının dönemleriyle karşılaştırılamaz. */
+function donemHTML(p){
+  const acik = p.open || [];
+  const terms = p.terms || [];
+  const donem = p.role === "ANADAL" ? (+DATA.donem || 0) : 0;
+  const secili = new Set(picks().map(x => x.cand.course));
+  const cip = (o) => {
+    const ad = o.name ? `${o.label} — ${o.name}` : o.label;
+    if(!o.required)
+      return `<span class="kders havuz" title="Seçmeli yuva${o.term ? ` · ${o.term}. dönem` : ""}">${esc(o.label)}</span>`;
+    const s = secili.has(o.code);
+    const ic = `${s ? "✓ " : ""}${esc(o.label)}`;
+    const baslik = esc(ad) + (o.term ? ` · ${o.term}. dönem` : "")
+      + (s ? " · bu dönemki programda seçili" : "");
+    return candOf(o.code)
+      ? `<button type="button" class="kders${s ? " secili" : ""}" data-ders="${esc(o.code)}"
+           title="${baslik}">${ic}</button>`
+      : `<span class="kders" title="${baslik} · bu dönem açılmamış ya da alınamıyor">${ic}</span>`;
+  };
+  const GOSTER = 10;
+  const grup = (baslik, liste, sinif) => liste.length ? `<div class="kalan">
+      <div class="kbas${sinif ? " " + sinif : ""}">${baslik}</div>
+      <div class="kliste">${liste.slice(0, GOSTER).map(cip).join("")}${
+        liste.length > GOSTER ? `<span class="kders havuz">+${liste.length - GOSTER}</span>` : ""}</div>
+    </div>` : "";
+  const serit = terms.length ? `<div class="dnmbas">Plan dönemleri · çubuk, dönemdeki
+      yuvaların tamamlanan kısmını gösterir</div>
+    <div class="dnmler" aria-label="Plan dönemleri">${terms.map(t => {
+      const pct = t.total ? Math.round(100 * t.done / t.total) : 0;
+      const tamam = t.done === t.total;
+      const geride = donem && t.term < donem && !tamam;
+      const sinif = [tamam ? "tamam" : "", geride ? "geride" : "",
+                     t.term === donem ? "simdi" : ""].filter(Boolean).join(" ");
+      return `<div class="dnm${sinif ? " " + sinif : ""}" data-term="${t.term}"
+        title="${t.term}. dönem · ${t.done}/${t.total} yuva tamamlandı${
+          geride ? " · geride kalan yuva var" : ""}${t.term === donem ? " · bulunduğunuz dönem" : ""}">
+        <span class="dbar"><i style="height:${pct}%"></i></span>
+        <span class="dno">${t.term}</span>
+      </div>`;
+    }).join("")}</div>` : "";
+  if(!acik.length)
+    return serit + `<div class="kalan"><div class="kbas">Plandaki bütün yuvalar tamamlanmıştır.</div></div>`;
+  if(donem && terms.length){
+    const geride = acik.filter(o => o.term < donem);
+    const simdi = acik.filter(o => o.term === donem);
+    const sonra = acik.filter(o => o.term > donem);
+    return serit
+      + grup(`Önceki dönemlerden kalan <b class="mono">${geride.length}</b> yuva`, geride, "geride")
+      + grup(`${donem}. dönemin (bulunduğunuz dönem) yuvaları`, simdi)
+      + (geride.length || simdi.length ? ""
+         : grup(`Sıradaki yuvalar`, sonra.filter(o => o.term === sonra[0].term)));
+  }
+  const zorunlu = acik.filter(o => o.required);
+  const havuz = acik.length - zorunlu.length;
+  return serit + grup(`Kalan zorunlu dersler (<b class="mono">${zorunlu.length}</b>)${
+      havuz ? ` · ayrıca <b class="mono">${havuz}</b> seçmeli yuva` : ""}`,
+    zorunlu.length ? zorunlu : acik);
 }
 
 /** Bu dönemki seçimin bir plana katkısı. Slot bazlı sayıyoruz: aynı havuza
@@ -8213,6 +8353,8 @@ function renderPanels(){
     b.addEventListener("click", () => ({program: programDialog, donem: termDialog,
                                         plan: checklistDialog,
                                         dersler: courseDialogSetup})[b.dataset.setup]()));
+  $("#panels").querySelectorAll("[data-ders]").forEach(b =>
+    b.addEventListener("click", () => addDialog(b.dataset.ders)));   /* seçiliyse şube, değilse ekleme */
 }
 
 /* ================= DÜZENLENEBİLİR PROGRAM =================
