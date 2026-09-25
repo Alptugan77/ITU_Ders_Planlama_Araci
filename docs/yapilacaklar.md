@@ -655,6 +655,11 @@ her maddeden önce gelen tek iş.
 > yuvaları; çipe tıklayınca ders penceresi ✅
 > ➜ Ayrıntı: `docs/faz99-ilerleme-donemleri.md`
 >
+> **Faz 100 (25.09.2026):** programın tahmini zorluğu artık ders sayısı ve
+> krediyle artıyor (tek çok zor ders 1.1, on beş orta ders 10); derslerin
+> ortalaması ikinci sayı olarak kaldı ✅
+> ➜ Ayrıntı: `docs/faz100-donem-zorlugu.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
