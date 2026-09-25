@@ -624,6 +624,11 @@ her maddeden önce gelen tek iş.
 > derslik ilan edilmemişse bunu söylüyor ✅
 > ➜ Ayrıntı: `docs/faz93-derslik.md`
 >
+> **Faz 94 (25.09.2026):** arka arkaya farklı yerleşkedeki dersler. Öneriler
+> 1 dakikalık Ayazağa ↔ Maçka geçişlerinden kaçınıyor (gerçek katalogda 10 →
+> 0); ızgara geçişi işaretliyor; MEDC/BBB/MSB yerleşkeleri beyan edildi ✅
+> ➜ Ayrıntı: `docs/faz94-yerleske-gecisi.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

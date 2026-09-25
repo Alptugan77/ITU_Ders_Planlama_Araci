@@ -723,6 +723,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                 # bırakınca karşılanacağını da söyle — tek adımlık öneri.
                 "prefRelief": sched.pref_relief(),
                 "campusChanges": sched.campus_changes(),
+                # Faz 94: arada < 60 dk olan yerleşke değişimi.
+                "tightTransfers": sched.sikisik_gecisler(),
                 # Yan yana karşılaştırma için (Faz 27): programın "şekli".
                 "shape": _program_sekli(sched),
                 # ★ Taban eksiği program BAŞINA raporlanıyor: motor tabanı
@@ -8738,7 +8740,8 @@ function karsilastirDialog(){
         ${satir("Ders arası bekleme", o => `<span class="mono">${
           Math.round((o.shape.gaps || 0) / 60 * 10) / 10} sa</span>`,
           "Aynı gün içindeki toplam boşluk")}
-        ${satir("Kampüs değişimi", o => `<span class="mono">${o.campusChanges}</span>`)}
+        ${satir("Kampüs değişimi", o => `<span class="mono">${o.campusChanges}</span>${
+          o.tightTransfers ? ` <span class="yerdurum az">${o.tightTransfers} sıkışık (arada &lt; 60 dk)</span>` : ""}`)}
         ${satir("Çevrimiçi", o => `<span class="mono">${o.shape.online || 0}</span>`)}
         ${list.some(s => s.olcu.shape.timeless)
           ? satir("Saati ilan edilmemiş", o => `<span class="mono">${o.shape.timeless || 0}</span>`,
@@ -8831,7 +8834,7 @@ function renderDayList(){
              ${it.p.sec.online ? "çevrimiçi ⌂"
                : `<span class="yer" title="${esc(yerBaslik(it.m))}">${
                     esc(yerYazi(it.m))}</span>`}
-             · ${esc(it.p.sec.crn)}${yerDurumu(it.p.sec)}</small></span>
+             · ${esc(it.p.sec.crn)}${yerDurumu(it.p.sec)}${gecisNotu(it.p, it.m)}</small></span>
          ${clash.has(i) ? '<span class="warn">çakışıyor</span>' : ""}
        </button>`).join("")
       : `<div class="none">boş</div>`;
@@ -9028,7 +9031,7 @@ function render(){
           ${c.p.cand.name ? `<span class="blkad">${esc(c.p.cand.name)}</span>` : ""}
           <small class="mono">${hhmm(c.m.start)}–${hhmm(c.m.end)}
             ${c.p.sec.online ? "çevrimiçi" : `<span class="yer">${esc(yerYazi(c.m))}</span>`}
-            · ${esc(c.p.sec.crn)}${yerDurumu(c.p.sec)}</small></div></td>`;
+            · ${esc(c.p.sec.crn)}${yerDurumu(c.p.sec)}${gecisNotu(c.p, c.m)}</small></div></td>`;
     }
     html += `</tr>`;
   }
@@ -10206,6 +10209,41 @@ function doluluk(sections){
    iki farklı durumda görünmesin. Boş olan şubede işaret YOK — ızgara
    gürültüsü ancak dikkat gerektiren şeyi söylemeli. İşaret yalnız renk
    değil: sözcük + çerçeve (zorlanmış renk kipinde de okunuyor). */
+/* ★★ Faz 94 — YERLEŞKE GEÇİŞİ. İTÜ'de ders :29'da bitiyor, sonraki :30'da
+   başlıyor. Arka arkaya iki ders farklı yerleşkedeyse (Ayazağa → Maçka)
+   araya bir dakika kalıyor ve öğrenci bunu programa bakarak göremiyordu —
+   "kampüs değişimi" sayısı üç saatlik arayı da bir dakikalık arayı da aynı
+   sayıyordu. Artık ikinci derste işaret var.
+   ⚠️ Katalogda yol süresi YOK; eşik (60 dk) bir kabul, bir ölçüm değil.
+   Bu yüzden söz "yetişemezsiniz" değil, "arada N dakika var". Yerleşkesi
+   bilinmeyen ders (çevrimiçi ya da bina ilan edilmemiş) uyarı üretmiyor. */
+const YERLESKE_ESIK_DK = 60;
+const kisaYerleske = (k) => (k || "").split(" ")[0];
+function yerleskeGecisi(p, m){
+  if(!p || p.sec.online || !m || !m.campus) return null;
+  let onceki = null;
+  picks().forEach(q => {
+    if(q.sec.online) return;
+    q.sec.meetings.forEach(n => {
+      if(n.day !== m.day || n.end > m.start) return;
+      if(!onceki || n.end > onceki.m.end) onceki = {p: q, m: n};
+    });
+  });
+  if(!onceki || !onceki.m.campus || onceki.m.campus === m.campus) return null;
+  const ara = m.start - onceki.m.end;
+  return ara < YERLESKE_ESIK_DK
+    ? {ders: onceki.p.cand.course, nereden: kisaYerleske(onceki.m.campus),
+       nereye: kisaYerleske(m.campus), ara} : null;
+}
+function gecisNotu(p, m){
+  const g = yerleskeGecisi(p, m);
+  if(!g) return "";
+  const t = `Önceki ders (${g.ders}) ${g.nereden} yerleşkesinde, bu ders ${g.nereye} ` +
+    `yerleşkesinde; arada ${g.ara} dakika var. Yerleşkeler arası yol bu sürede ` +
+    `yetişmeyebilir.`;
+  return ` <span class="yerdurum az gecis" title="${esc(t)}">⚠ ${esc(g.nereden)} → ${
+    esc(g.nereye)} · ${g.ara} dk</span>`;
+}
 function yerDurumu(sec){
   const cap = (sec && sec.capacity) || 0;
   if(!cap) return "";
