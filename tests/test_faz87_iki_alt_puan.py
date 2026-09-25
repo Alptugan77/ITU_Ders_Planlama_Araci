@@ -90,7 +90,8 @@ def test_UC_iki_alt_puani_tasiyor(tmp_path):
 def test_ARAYUZ():
     assert "Geçme zorluğu" in KAYNAK and "Yüksek not alma zorluğu" in KAYNAK
     assert "<b>VF geçemeyenlere sayılır</b>" in KAYNAK
-    assert "Genel puan = geçme zorluğu × 0.7 + yüksek not alma zorluğu × 0.3." in KAYNAK
+    assert "Genel puan = geçme zorluğu × 0.7 + yüksek not alma zorluğu × 0.3," in KAYNAK
+    assert "artı iş yükü düzeltmesi 0.1 × (AKTS − 5), en çok ±1" in KAYNAK      # Faz 102
     assert "(x ? x.score : 99) - (y ? y.score : 99)" in KAYNAK
     # Katalog yüzdeliği (Faz 86) kalktı.
     assert "passLowerShare" not in KAYNAK and not hasattr(ND, "zorluk_olcegi")

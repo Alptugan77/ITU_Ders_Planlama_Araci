@@ -418,11 +418,29 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
                 z = ND.zorluk(con, kod)
             except Exception:                                  # noqa: BLE001
                 z = None
-            _zk[kod] = ({k: z[k] for k in ("level", "label", "score", "passScore",
+            _zk[kod] = ({k: z.get(k) for k in ("level", "label", "score", "passScore",
                                              "gradeScore", "passRate", "mean", "n",
+                                             "gradeOverall", "ects", "ectsEffect",
                                              "termLabels", "lowData")}
                         if z and z.get("level") else None)
         return _zk[kod]
+
+    # ★ Faz 102 — kalemin AKTS'si: kartta dönem zorluğu AKTS'yi yük olarak
+    # topluyor. Havuz yuvasında slotun AKTS'si; bilinmiyorsa None (arayüz
+    # krediden tahmin ediyor ve bunu yazıyor).
+    _ak: dict = {}
+
+    def akts_of(kod, slot=None):
+        anahtar = kod or f"slot:{slot}"
+        if anahtar not in _ak:
+            if kod:
+                _ak[anahtar] = ND.ders_aktsi(con, kod)
+            elif slot:
+                r = con.execute("SELECT ects FROM plan_slot WHERE id=?", (slot,)).fetchone()
+                _ak[anahtar] = float(r[0]) if r and r[0] else None
+            else:
+                _ak[anahtar] = None
+        return _ak[anahtar]
 
     kazanilan = POL.earned_credits(con, grades) + sum(
         float(p.get("credits") or 0) for p in bu_donem)
@@ -435,6 +453,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
                             # Faz 79 — havuz yuvası; istek üzerine kurulan
                             # haritalar (senaryo, ÇAP seçenekleri) geri gönderiyor.
                             "slotId": p.get("slotId") or 0,
+                            "ects": akts_of(p["course"]),                 # Faz 102
                             "difficulty": zorluk_ozeti(p["course"])}     # Faz 85
                            for p in sorted(bu_donem, key=lambda x: x["course"])],
                  "floorGap": None}]
@@ -680,6 +699,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
                        "unparsed": b.ders in okunamayan,
                        "externalPrereq": b.dis_onsart,
                        "past": gecmis_donemleri(b.gecmis),                 # Faz 83
+                       "ects": akts_of(b.ders, getattr(b, "_slot", None)),  # Faz 102
                        "difficulty": zorluk_ozeti(b.ders)}                 # Faz 85
                       for b in secilen],
             # Faz 82 — saat denetimi: "var" (aynı mevsim, çakışmasız program

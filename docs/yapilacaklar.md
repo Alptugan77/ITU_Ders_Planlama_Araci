@@ -666,6 +666,12 @@ her maddeden önce gelen tek iş.
 > düzenlenince; özet çevrimiçi ders sayısını yazıyor ✅
 > ➜ Ayrıntı: `docs/faz101-izgara-kaynagi.md`
 >
+> **Faz 102 (25.09.2026):** zorlukta AKTS. Ders puanına 0.1 × (AKTS − 5)
+> (en çok ±1; kullanıcının MAT 103/FIZ 102 yargısı korunuyor); dönem
+> zorluğunda yük artık AKTS (60 ağırlıklı AKTS = 10). Yol haritası kartları da
+> dönem zorluğunu gösteriyor ✅
+> ➜ Ayrıntı: `docs/faz102-akts-zorluk.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

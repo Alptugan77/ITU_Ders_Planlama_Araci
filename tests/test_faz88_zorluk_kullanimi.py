@@ -125,14 +125,14 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     pz = json.loads(c["PZ"])
     assert {k: pz[k] for k in ("ort", "zor", "yok", "bilinen")} == {"ort": 7.4, "zor": 1, "yok": 1, "bilinen": 2}
     # 2. Özet aynı sayıyı yazıyor.
-    assert c["OZET"].startswith("tahmini dönem zorluğu 5.7/10 (orta) · 8 ders, 24 kredi · "
+    assert c["OZET"].startswith("tahmini dönem zorluğu 6.4/10 (zor) · 8 ders, 40 AKTS · "
                                 "ders ortalaması 3.8/10: 1 orta · 2 kolay · 5 ders için veri yok"), c["OZET"]  # Faz 100
     # 3. Karşılaştırma: sayı var; derslerin yarısından azı biliniyorken "en hafif" YOK.
     cmp1 = json.loads(c["CMP1"])
     # Faz 100: ana sayı dönem zorluğu, ortalama altta.
-    assert cmp1[0].startswith("5.7 / 10") and "ders ortalaması 3.8" in cmp1[0], cmp1
+    assert cmp1[0].startswith("6.4 / 10") and "ders ortalaması 3.8" in cmp1[0], cmp1   # Faz 102: AKTS
     assert "1 zor ders" in cmp1[1], (c["FARK"], cmp1)
-    assert float(cmp1[1].split(" / ")[0]) >= 5.7 + 0.3, cmp1        # fark eşiği aşılıyor (Faz 100)
+    assert round(float(cmp1[1].split(" / ")[0]) - 6.4, 1) >= 0.3, cmp1   # fark eşiği aşılıyor (Faz 100)
     assert not any("en hafif" in x for x in cmp1), cmp1
     cmp2 = json.loads(c["CMP2"])
     hafif = [x for x in cmp2 if "en hafif" in x]
