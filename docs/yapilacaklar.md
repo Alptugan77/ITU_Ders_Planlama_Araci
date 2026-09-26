@@ -672,6 +672,11 @@ her maddeden önce gelen tek iş.
 > dönem zorluğunu gösteriyor ✅
 > ➜ Ayrıntı: `docs/faz102-akts-zorluk.md`
 >
+> **Faz 103 (26.09.2026):** dönem zor/çok zorken özet hangi dersin
+> çıkarılacağını söylüyor ("GEO 385E çıkarılırsa 6.4 → 5.5"), tek dokunuşla
+> ve geri alınabilir; kritik, kilitli, tabanı bozan ve kalınan ders önerilmiyor ✅
+> ➜ Ayrıntı: `docs/faz103-hafiflet.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
