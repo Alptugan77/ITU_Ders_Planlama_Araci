@@ -130,6 +130,36 @@ def load_campus_overrides(path: Path | None = None) -> dict[str, str]:
     return dict(IST.bellek(("kampus_beyani", str(path)), oku))
 
 
+def load_code_migrations(path: Path | None = None) -> list[tuple[str, str]]:
+    """Faz 104 — beyan edilmiş kod göçleri: [(eski, yeni), ...].
+
+    Fakülte dersin kodunu değiştirmiş ama önşart metinleri eski kodda
+    kalmış (BLGE 2024-25: BLG 252E → BBF 203E). Etkisi yalnız önşartta
+    (`rules.prereq_view`). Otomatik tahmin YOK — her beyanın `not_` kanıtı var.
+    """
+    path = path or CATALOG_PATH
+    # `prereq_view` her önşart değerlendirmesinde çağırıyor: dosya, değiştiği
+    # (mtime) ya da yolu değiştiği zaman yeniden okunur.
+    try:
+        imza = (str(path), path.stat().st_mtime_ns)
+    except OSError:
+        return []
+    if imza not in _GOC_ONBELLEK:
+        raw = tomllib.loads(path.read_text(encoding="utf-8"))
+        out = []
+        for i in raw.get("kod_gocu", []):
+            eski = normalize_course_code(i.get("eski", ""))
+            yeni = normalize_course_code(i.get("yeni", ""))
+            if eski and yeni and eski != yeni:
+                out.append((eski, yeni))
+        _GOC_ONBELLEK.clear()
+        _GOC_ONBELLEK[imza] = out
+    return list(_GOC_ONBELLEK[imza])
+
+
+_GOC_ONBELLEK: dict[tuple, list[tuple[str, str]]] = {}
+
+
 def apply(con: sqlite3.Connection, path: Path | None = None) -> int:
     """Beyan edilen denklikleri KULLANICI veritabanına yazar. Idempotent.
 

@@ -64,3 +64,44 @@ not_   = "Katalog adı 'Bilgisayar ve Bilişim Binası'; Bilgisayar ve Bilişim 
 bina   = "MSB"
 kampus = "Maçka Yerleşkesi"
 not_   = "Katalog adı 'Maçka Silahhane Binası'; yerleşke adı binanın adında. 25.09.2026."
+
+# ============================================================================
+# KOD GÖÇÜ BEYANI (Faz 104)
+#
+# Fakülte bir dersin kodunu değiştirmiş, ama onu önşart olarak isteyen
+# derslerin önşart metni ESKİ kodda kalmış. Yeni planla okuyan öğrenci yeni
+# kodu geçiyor; motor eski kodu arıyor ve dersi engelliyordu.
+#
+#   [[kod_gocu]]
+#   eski = "BLG 252E"      # önşart metninde geçen kod
+#   yeni = "BBF 203E"      # planın koyduğu kod
+#   not_ = "kanıt"
+#
+# Etkisi YALNIZ önşartta: yeni kodu geçen, eski kodu isteyen önşartı karşılar
+# (ve tersi). Plan slotu doldurmaz, ilerleme yüzdesini değiştirmez.
+# ⚠️ Otomatik tahmin YOK: aynı adlı iki ders her zaman aynı ders değildir
+#    (FIZ 101E / PHY 107 başka programların ayrı dersleri). Her beyanın kanıtı
+#    yazılır; ölçüm aracı ve reddedilen adaylar: docs/faz104-kod-gocu.md.
+
+# BLGE 2024-2025 planı BLG kodlarını BBF'ye taşıdı; BBF 301E/302E ve
+# BLG 411E'nin önşartı hâlâ BLG 252E diyor. Resmî plan BBF 203E'yi 4., onu
+# isteyen BBF 301E'yi 5. döneme koyuyor.
+[[kod_gocu]]
+eski = "BLG 252E"
+yeni = "BBF 203E"
+not_ = "Ad (Object Oriented Programming), kredi 3, AKTS 5 ve önşart metni birebir aynı. Ölçüldü 26.09.2026."
+
+[[kod_gocu]]
+eski = "BLG 336E"
+yeni = "BBF 303E"
+not_ = "Ad (Analysis of Algorithms II), kredi 3, AKTS 5 ve önşart metni birebir aynı; BLG 417E ve BLG 4901E eski kodu istiyor. Ölçüldü 26.09.2026."
+
+[[kod_gocu]]
+eski = "BLG 454E"
+yeni = "BBF 304E"
+not_ = "Ad (Learning From Data), kredi 3, AKTS 5 ve önşart metni birebir aynı. Ölçüldü 26.09.2026."
+
+[[kod_gocu]]
+eski = "BLG 112E"
+yeni = "BBF 103E"
+not_ = "Ad (Discrete Mathematics), kredi 3, AKTS 5 aynı, ikisinin de önşartı yok; BBF 204E eski kodu istiyor. Ölçüldü 26.09.2026."

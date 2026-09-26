@@ -1345,7 +1345,12 @@ def _onsart_ayikla(eksik: set[str], katalog: set[str],
     sirali = alinabilir + hayalet
     gosterilen = sirali[:goster]
     kalan = len(sirali) - len(gosterilen)
-    parca = ", ".join(gosterilen)
+    # ★ Faz 104 — kod göçü beyanı olan eski kodun yanına yeni kodu: öğrenci
+    # planında "BLG 252E"yi değil "BBF 203E"yi görüyor.
+    from .declared import load_code_migrations
+    yeni_kod = {e: y for e, y in load_code_migrations()}
+    parca = ", ".join(f"{c} (yeni kodu {yeni_kod[c]})" if c in yeni_kod else c
+                      for c in gosterilen)
     if kalan:
         parca += f" +{kalan}"
     n_hayalet = sum(1 for c in gosterilen if c not in katalog)
@@ -1421,8 +1426,22 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
             progs = sorted({r[0] for r in con.execute(
                 "SELECT DISTINCT program_code FROM lesson_allowed_program WHERE crn IN (%s)"
                 % ",".join("?" * len(crns)), crns)})
+            # ★★ Faz 104 — "-" BİR PROGRAM DEĞİL. Kaynak, alabilecek programları
+            # henüz ilan edilmemiş şubeye "-" yazıyor (gerçek katalog, 2026 Güz:
+            # 3807 şubenin 70'i; 68'inde kontenjan 0, hoca "-", bina "-", yalnız
+            # 3'ünde saat var). Bunlar "başka programlara ayrılmış" değil,
+            # İLAN EDİLMEMİŞ: arayüz "yalnızca - alabilir" yazıyordu ve dersi
+            # arz uyarısında yanlış gruba (programa kapalı) koyuyordu. Dersin
+            # BÜTÜN şubeleri böyleyse ACILMAMIS (dönem başında ilanlar kademeli
+            # yayımlanıyor); ilanlı şubesi de varsa yalnız gerçek programlar yazılıyor.
+            gercek = [p for p in progs if p not in ("-", "")]
+            if not gercek:
+                out.append(Blocker(code, "ACILMAMIS",
+                                   f"{len(crns)} şube listelenmiş, ancak saati, kontenjanı ve "
+                                   "alabilecek programlar henüz ilan edilmemiştir"))
+                continue
             out.append(Blocker(code, "PROGRAMA_KAPALI",
-                               f"{len(crns)} şube bulunmaktadır; yalnızca {', '.join(progs)} alabilir"))
+                               f"{len(crns)} şube bulunmaktadır; yalnızca {', '.join(gercek)} alabilir"))
             continue
         code = acik_kod                    # önşart/kredi: açık olan kodla
         if code in unparsed:

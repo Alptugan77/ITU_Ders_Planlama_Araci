@@ -103,6 +103,10 @@ Bunlar tek satır iş ama araç bunlar olmadan başkasına ulaşmıyor.
 Faz 25 sırasında ölçtüm, kapsam dışında kaldı.
 
 ### 1.1 `BLG 4901` / `BLG 492` — aynı ders, iki kod · **M**
+> **Faz 104 (26.09.2026) — kısmen kapandı:** `[[kod_gocu]]` beyanı eklendi
+> ve BBF göçü (BLG 252E/336E/454E/112E → BBF 203E/303E/304E/103E) beyan
+> edildi. Engel yaratan 18 çiftin ölçümü ve reddedilenler:
+> `docs/faz104-kod-gocu.md`. `BLG 4901`/`BLG 492` hâlâ açık.
 "Açtıkları" özelliğini ölçerken çıktı: önşart ağacı bitirme çalışmasını
 `BLG 4901` diye anıyor, BLG planı `BLG 492` yazıyor. Dil eşi kuralı bunu
 yakalamıyor (biri öbürünün İngilizcesi değil, **eski/yeni kod**).
@@ -348,6 +352,9 @@ Faz 28 bunu dürüstçe söylüyor (geçen süreyi yazıyor) ama süre değişme
 `READ_ONLY_PATHS` ile aynı fikir, bir adım ötesi.
 
 ### F.4 Kod göçü tablosu hâlâ yok · **M**
+> **Faz 104 (26.09.2026):** tablo var (`config/katalog-duzeltmeleri.toml` →
+> `[[kod_gocu]]`), ilk dört beyanla. Ölçüm aracı ve kalan adaylar:
+> `docs/faz104-kod-gocu.md`.
 §1.1'in kardeşi. Faz 28'de plan slotlarını sayarken çıktı: **67 plan slotu**
 katalogda karşılığı olmayan bir derse bakıyor (`ELH 212`, `BLG 211`, `ELE
 321`…). Bunların bir kısmı kapanmış ders, bir kısmı kod göçü. Arayüz artık
