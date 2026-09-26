@@ -2734,6 +2734,8 @@ select:focus,input:focus,textarea:focus{outline:2px solid var(--focus);outline-o
 .ozetdolusatir button{margin-left:4px}
 .ozetnot{color:var(--ink-3)}
 .ozettekrar{padding-top:6px;border-top:1px solid var(--border)}
+.hafiflet{margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}   /* Faz 103 */
+.hafiflet .ozetbaslik{font-weight:600;margin-bottom:4px}
 .why.uyansube{color:var(--ok)}
 .tickliste{display:flex;flex-direction:column;gap:6px}
 .tickliste .tickbox{white-space:normal;align-items:flex-start;flex-wrap:wrap}
@@ -9400,6 +9402,8 @@ function render(){
     ${tercihNotu()}`;
   $("#schedSummary").querySelectorAll("[data-bosa]").forEach(b =>
     b.addEventListener("click", () => choose(b.dataset.bosa, b.dataset.crn)));
+  $("#schedSummary").querySelectorAll("[data-hafiflet]").forEach(b =>  // Faz 103
+    b.addEventListener("click", () => removeCourse(b.dataset.hafiflet)));
   $("#schedSummary").querySelectorAll("[data-tekrar]").forEach(b =>   // Faz 73
     b.addEventListener("click", () => choose(b.dataset.tekrar, b.dataset.crn)));
   /* Faz 101 — "değiştirildi" yalnız ızgara TANINAN hiçbir programa (öneri,
@@ -10117,7 +10121,52 @@ function zorlukOzeti(){
     pz.donem >= 8.5
       ? ` — <span class="yogun">dönem yükü çok ağır; ders sayısının azaltılması değerlendirilebilir</span>`
       : k.zor >= 3
-      ? ` — <span class="yogun">zor ders sayısı yüksek; yükün dengelenmesi değerlendirilebilir</span>` : ""}</div>`;
+      ? ` — <span class="yogun">zor ders sayısı yüksek; yükün dengelenmesi değerlendirilebilir</span>` : ""}</div>${
+    pz.donemKademe >= 4 ? hafifletmeOnerisi(ps, pz) : ""}`;
+}
+/* ★★ Faz 103 — "DÖNEMİ HAFİFLET" SOMUT. Özet "dönem yükü çok ağır; ders
+   sayısının azaltılması değerlendirilebilir" diyordu ama HANGİ dersin
+   çıkarılacağını söylemiyordu (bu repoda genel uyarı yasak — Faz 46).
+   Dönem "zor" ya da "çok zor"ken: her dersi tek tek çıkarıp dönem zorluğunu
+   yeniden hesaplıyoruz; en çok hafifleten, eşitlikte öneri puanı (bu dönem
+   alınmamasının maliyeti) en düşük olan önce. En çok iki satır.
+   Hiç önerilmeyenler:
+     · kritik yoldaki ders (`critical`: ertelenirse mezuniyet uzar),
+     · saate kilitlenmiş ders (öğrencinin kendi kararı),
+     · çıkarılınca ÇAP/yandal yarıyıl tabanını bozan ders (şu an sağlanıyorsa),
+     · daha önce KALINAN ders (transkriptte FAILED): tekrarı ertelenirse FF/VF
+       ortalamada kalmaya devam eder ve açtığı dersler de gecikir. Gerçek
+       katalogda (BLGE, 5. yarıyıl) ikinci öneri FF'li FIZ 102E çıkıyordu.
+   Çıkar düğmesi `removeCourse` — geri alınabilir. Öneri puanına ve motorun
+   önerisine dokunmuyor: karar öğrencinin. */
+function hafifletmeOnerisi(ps, pz){
+  const F = DATA.secondFloor;
+  const tabanVar = F && F.min && !F.undeclared && tabanDurumu(F).ok;
+  const kalinan = new Set(((SETUP && SETUP.transcript) || [])
+    .filter(t => t.status === "FAILED").map(t => t.course));
+  const adaylar = ps.filter(p => !p.cand.critical && !kilitliMi(p.cand.course, p.sec.crn)
+                               && !kalinan.has(p.cand.course))
+    .filter(p => {
+      if(!tabanVar || p.cand.role === "ANADAL") return true;
+      return tabanDurumu(F).kredi - (p.cand.credits || 0) + 1e-9 >= F.min;
+    })
+    .map(p => {
+      const kalan = programZorlugu(ps.filter(x => x !== p).map(x => x.cand));
+      return {p, yeni: kalan.donem, kademe: kalan.donemKademe,
+              dusus: Math.round((pz.donem - (kalan.donem ?? pz.donem)) * 10) / 10};
+    })
+    .filter(x => x.dusus > 0)
+    .sort((a, b) => b.dusus - a.dusus || (a.p.cand.score || 0) - (b.p.cand.score || 0))
+    .slice(0, 2);
+  if(!adaylar.length) return `<div class="hafiflet"><span class="ozetnot">Kritik yol, kilit
+    ve tekrar alınan dersler dışında çıkarılabilecek ders bulunmamaktadır.</span></div>`;
+  return `<div class="hafiflet"><div class="ozetbaslik">Dönemi hafifletmek için</div>${
+    adaylar.map(x => `<div class="ozetdolusatir"><b class="mono">${esc(x.p.cand.course)}</b>
+      <button class="ghost mini" data-hafiflet="${esc(x.p.cand.course)}">çıkar</button>
+      <span class="ozetnot">— çıkarılırsa dönem zorluğu <span class="mono">${zp(pz.donem)}</span>
+        → <b class="mono">${zp(x.yeni)}</b> (${ZORLUK_AD[x.kademe]}) · öneri puanı
+        <span class="mono">−${Math.round(x.p.cand.score || 0)}</span>; ders sonraki dönemlere kalır</span></div>`
+    ).join("")}</div>`;
 }
 const DONEM_ZORLUK_IPUCU = "Dönem zorluğu ders sayısı ve AKTS ile artar: AKTS dersin gerektirdiği "
   + "emeğin ölçüsüdür. Her dersin AKTS'si not dağılımından gelen zorluğuna göre ağırlıklandırılıp "
