@@ -677,6 +677,13 @@ her maddeden önce gelen tek iş.
 > ve geri alınabilir; kritik, kilitli, tabanı bozan ve kalınan ders önerilmiyor ✅
 > ➜ Ayrıntı: `docs/faz103-hafiflet.md`
 >
+> **Faz 104 (26.09.2026):** gerçek katalog gezisi iki hata buldu. (1) BBF kod
+> göçü: BBF 203E'yi geçen BLGE öğrencisi, önşartı hâlâ "BLG 252E" diyen
+> BBF 301E/302E'den engelleniyordu (öneri 11/22 kredi). Beyanlı `[[kod_gocu]]`
+> ile 17–20 krediye çıktı. (2) "-" ilan edilmemiş şube demek, "yalnızca -
+> alabilir" değil ✅
+> ➜ Ayrıntı: `docs/faz104-kod-gocu.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

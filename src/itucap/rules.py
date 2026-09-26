@@ -43,10 +43,21 @@ def prereq_view(grades: Mapping[str, str]) -> dict[str, str]:
     GEÇİLMİŞ değildir — plan slotunu doldurmaz, AKTS'ye sayılmaz. İkisini
     karıştırmak ilerlemeyi olduğundan iyi gösterirdi.
     """
-    from .declared import waiver_grades
+    from .declared import load_code_migrations, waiver_grades
 
     view = dict(waiver_grades())
     view.update(grades)          # gerçek notlar muafiyeti EZER
+    # ★★ Faz 104 — beyan edilmiş KOD GÖÇÜ: yeni kodu geçen, eski kodu isteyen
+    # önşartı karşılar (ve tersi). BLGE 2024-25 planıyla okuyan öğrenci
+    # BBF 203E'yi geçiyordu ama BBF 301E/302E'nin önşartı "BLG 252E" diyordu:
+    # 5. dönemin iki ana dersi engelli, program yarı boş kalıyordu. Yalnız
+    # önşart görünümünde — plan slotu doldurmaz (muafiyetlerle aynı ilke).
+    # İkisi de varsa İYİ olanı: eski kodla FF, yeni kodla BB alan öğrenci.
+    for eski, yeni in load_code_migrations():
+        notlar = [g for g in (view.get(eski), view.get(yeni)) if g is not None]
+        if notlar:
+            view[eski] = view[yeni] = max(
+                notlar, key=lambda g: GRADE_POINTS.get(str(g).upper(), -1.0))
     return view
 
 
