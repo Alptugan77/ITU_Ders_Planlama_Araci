@@ -74,7 +74,8 @@ def test_GERCEK_beyanlar_iki_kanitli():
     raw = tomllib.loads((KOK / "config" / "katalog-duzeltmeleri.toml").read_text(encoding="utf-8"))
     ciftler = {(g["eski"], g["yeni"]): g["not_"] for g in raw["kod_gocu"]}
     faz105 = {k: n for k, n in ciftler.items() if "27.09.2026" in n}
-    assert len(faz105) == 17
+    assert len(faz105) == 14          # Faz 109: resmî listede olmayan 3'ü kaldırıldı
+    assert not {("ECN 101E", "EFN 105E"), ("ELH 222", "EHB 222"), ("ELH 222E", "EHB 222E")} & set(ciftler)
     assert {("BLG 335E", "BBF 301E"), ("ELE 222", "EHB 222"), ("ECN 105E", "EFN 105E"),
             ("ISL 233E", "MMD 233E")} <= set(faz105)
     for n in faz105.values():                          # (1) aynılık + (2) plan zinciri

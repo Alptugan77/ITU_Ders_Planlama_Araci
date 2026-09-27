@@ -55,3 +55,20 @@ def test_SONUC_ayri_uctan_ve_JS_metni_bos_saydirmiyor(con):
 
 def test_TABLO_yoksa_bos(con):
     assert E._fetch_one(_Istemci(JS), con, 907, 2, 2340, 3) == 0
+
+
+def test_BEYAN_karsilastirma_taban_kodla(con, tmp_path, monkeypatch):
+    """Resmî sayfa kodları E'siz yazıyor ("BBF 203" ↔ "BLG 252"); E'li beyan
+    ("BLG 252E" → "BBF 203E") yine karşılanmış sayılmalı."""
+    import sys
+    from pathlib import Path
+    from itucap import declared as DEC
+    sys.path.insert(0, str(Path(DEC.__file__).resolve().parents[2] / "tools"))
+    import kod_gocu_taramasi as KG
+    dosya = tmp_path / "g.toml"
+    dosya.write_text('[[kod_gocu]]\neski = "BLG 252E"\nyeni = "BBF 203E"\nnot_ = "t"\n', encoding="utf-8")
+    monkeypatch.setattr(DEC, "CATALOG_PATH", dosya)
+    cur = con.execute("INSERT INTO equivalence(target_course, confidence) VALUES ('BBF 203','official')")
+    con.execute("INSERT INTO equivalence_source(equivalence_id, course_code) VALUES (?, 'BLG 252')", (cur.lastrowid,))
+    con.commit()
+    assert KG.beyan_karsilastir(con)["karsilanan"] == [("BLG 252E", "BBF 203E")]

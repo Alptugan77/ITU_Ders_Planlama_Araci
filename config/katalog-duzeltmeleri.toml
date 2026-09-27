@@ -120,6 +120,11 @@ not_ = "Ad (Discrete Mathematics), kredi 3, AKTS 5 aynı, ikisinin de önşartı
 #       önşartı karşılamasını açıkça bekliyor.
 # AKTS'si farklı olan adaylar (FIZ 252E, EHB 232E, JEO 114, GEM 211E, MUK 209E,
 # TEK 314) beyan EDİLMEDİ. Ayrıntı: docs/faz105-kod-gocu-taramasi.md.
+# Faz 109 — resmî liste (OBS DersPlanDenklikleri, 3183 denklik, 27.09.2026)
+# ile karşılaştırıldı: 21 beyanın 18'i resmî listede birebir var. Resmî
+# karşılığı OLMAYAN 3 beyan KALDIRILDI: ECN 101E → EFN 105E (resmîde yalnız
+# ECN 105 ↔ EFN 105), ELH 222(E) → EHB 222(E) (EHB 222'nin resmî eşleri
+# EEE 225, EHB 231, ELE 222).
 [[kod_gocu]]
 eski = "BLG 335E"
 yeni = "BBF 301E"
@@ -149,11 +154,6 @@ not_ = "Ad (Differential Equations), kredi 3, AKTS 5 aynı. EEE planı EEE 210E 
 eski = "EEF 232"
 yeni = "EEE 232E"
 not_ = "Ad (Circuit and System Analysis), kredi 3, AKTS 6 aynı. EEE planı EEE 232E dersini, önşartında EEF 232 isteyen KON 313E dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
-
-[[kod_gocu]]
-eski = "ECN 101E"
-yeni = "EFN 105E"
-not_ = "Ad (Principles of Microeconomics), kredi 3.5, AKTS 6.5 aynı; önşart metni de birebir aynı. EFN planı EFN 105E dersini, önşartında ECN 101E isteyen EFN 201E dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
 
 [[kod_gocu]]
 eski = "ECN 105E"
@@ -195,12 +195,3 @@ eski = "ELE 222E"
 yeni = "EHB 222E"
 not_ = "Ad (Introduction to Electronics), kredi 3, AKTS 4.5 aynı; önşart metni de birebir aynı. TEL planı EHB 222E dersini, önşartında ELE 222E isteyen ELE 311 dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
 
-[[kod_gocu]]
-eski = "ELH 222"
-yeni = "EHB 222"
-not_ = "Ad (Elektroniğe Giriş), kredi 3, AKTS 4.5 aynı; önşart metni de birebir aynı. TEL planı EHB 222 dersini, önşartında ELH 222 isteyen ELE 311 dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
-
-[[kod_gocu]]
-eski = "ELH 222E"
-yeni = "EHB 222E"
-not_ = "Ad (Introduction to Electronics), kredi 3, AKTS 4.5 aynı; önşart metni de birebir aynı. TEL planı EHB 222E dersini, önşartında ELH 222E isteyen ELE 311 dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."

@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import collections
 import pathlib
+import re
 import sqlite3
 import sys
 
@@ -83,6 +84,10 @@ def beyan_karsilastir(con: sqlite3.Connection) -> dict:
     Dönüş: {'resmi_sayi', 'karsilanan': [...], 'karsiliksiz': [...]}."""
     from itucap import declared as DEC
     resmi = con.execute("SELECT COUNT(*) FROM equivalence WHERE confidence='official'").fetchone()[0]
+    # ★ Faz 109 — resmî sayfa kodları TABAN (E'siz) yazıyor ("BLG 252" ↔
+    # "BBF 203"); karşılaştırma taban kodla. İlk koşuda E'li beyanların
+    # hepsi "karşılıksız" çıkmıştı.
+    kok = lambda k: re.sub(r"(\d)E$", r"\1", k)
     baglar: set[frozenset] = set()
     for hedef, kaynaklar in con.execute(
             """SELECT e.target_course, group_concat(s.course_code, '|')
@@ -90,10 +95,10 @@ def beyan_karsilastir(con: sqlite3.Connection) -> dict:
                 WHERE e.confidence='official' GROUP BY e.id"""):
         ks = [k for k in (kaynaklar or "").split("|") if k]
         if len(ks) == 1:                 # "A + B → C" bir kod göçü değil
-            baglar.add(frozenset({hedef, ks[0]}))
+            baglar.add(frozenset({kok(hedef), kok(ks[0])}))
     karsilanan, karsiliksiz = [], []
     for eski, yeni in DEC.load_code_migrations():
-        (karsilanan if frozenset({eski, yeni}) in baglar else karsiliksiz).append((eski, yeni))
+        (karsilanan if frozenset({kok(eski), kok(yeni)}) in baglar else karsiliksiz).append((eski, yeni))
     return {"resmi_sayi": resmi, "karsilanan": karsilanan, "karsiliksiz": karsiliksiz}
 
 

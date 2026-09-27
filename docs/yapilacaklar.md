@@ -701,6 +701,12 @@ her maddeden önce gelen tek iş.
 > güven grubu resmî denklik listesine yönlendiriyor ✅
 > ➜ Ayrıntı: `docs/faz108-denklik-akts.md`
 >
+> **Faz 109 (27.09.2026):** denklik kazıyıcısı üç sessiz kırılmadan onarıldı
+> (Türkçe program menüsü, ayrı `DersDenklikAra` ucu, JS'teki "bulunamadı").
+> 3183 resmî denklik geldi; 21 kod göçü beyanının 18'i resmî listede var,
+> karşılıksız 3'ü kaldırıldı ✅ — ⏳ yayın: `make all-plans` + site
+> ➜ Ayrıntı: `docs/faz109-denklik-kaziyici.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
