@@ -82,6 +82,10 @@ not_   = "Katalog adı 'Maçka Silahhane Binası'; yerleşke adı binanın adın
 # ⚠️ Otomatik tahmin YOK: aynı adlı iki ders her zaman aynı ders değildir
 #    (FIZ 101E / PHY 107 başka programların ayrı dersleri). Her beyanın kanıtı
 #    yazılır; ölçüm aracı ve reddedilen adaylar: docs/faz104-kod-gocu.md.
+# ⚠️ Faz 106: OBS resmî denklikleri yayınlıyor (DersPlanDenklikleri) ve
+#    `make all-plans` artık onları da çekiyor. Resmî denkliği olan bir göç için
+#    buradaki beyan gereksizleşir; resmî tabloda karşılığı OLMAYAN beyan yeniden
+#    değerlendirilmeli (docs/faz106-resmi-denklik.md).
 
 # BLGE 2024-2025 planı BLG kodlarını BBF'ye taşıdı; BBF 301E/302E ve
 # BLG 411E'nin önşartı hâlâ BLG 252E diyor. Resmî plan BBF 203E'yi 4., onu

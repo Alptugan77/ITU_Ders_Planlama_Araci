@@ -355,7 +355,12 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     zincir = max((b.yukseklik for b in kalan), default=0)
 
     # ---------------------------------------------- 3. dönem dönem yerleştir
-    gecilen = {c for c, g in grades.items() if R.passed(g)}
+    # ★ Faz 106 — önşartta RESMÎ DENKLİKLER de sayılıyor (öneri motoru
+    # `candidates`/`cap_blockers` gibi: `expand_with_equivalences`). Eskiden
+    # harita ham transkripte bakıyordu: denklikle karşılanan ders plan slotunu
+    # dolduruyor ama onu isteyen dersin önşartını açmıyordu — iki ekran farklı.
+    genis, _ = R.expand_with_equivalences(grades, equivalences)
+    gecilen = {c for c, g in genis.items() if R.passed(g)}
     varsayilan = set(gecilen) | alinan_kodlar
     # ★★ DIŞ ÖNŞART (24.09.2026, gerçek katalogla ölçüldü). Önşartın istediği
     # ders HİÇBİR planında yoksa (ING 201 dil dersi, MAT 210 ↔ yeni kodu gibi
@@ -397,7 +402,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     # BLG 4901E, "MIN BB" isteyen BLG 4902E'yi açıyordu. Bu dönemin önerileri
     # gerçek notla bakıp dersi engelliyordu — iki ekran çelişiyordu. Yalnız
     # yerleştirilen (gelecekte alınacak) dersler "AA" varsayılıyor.
-    gercek_not = {c: str(g).upper() for c, g in grades.items() if R.passed(g)}
+    gercek_not = {c: str(g).upper() for c, g in genis.items() if R.passed(g)}
 
     def gorunum(kodlar):
         v = {c: GECER for c in kodlar}

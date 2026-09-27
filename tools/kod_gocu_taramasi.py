@@ -37,6 +37,9 @@ def tara(con: sqlite3.Connection) -> dict:
     bilgi = {r[0]: (str(r[1] or "").strip().lower(), r[2], r[3])
              for r in con.execute("SELECT code, name, credits, ects FROM course")}
     engelli, incelenen = [], 0
+    # Faz 106 — resmî denklikler (çekildiyse) de sayılıyor: kalan engel, OBS'nin
+    # kendi denkliğiyle de açılmayan engel.
+    denklik = R.load_equivalences(con)
     adaylar: dict = collections.defaultdict(lambda: {"bolum": set(), "engel": set()})
     programlar = sorted(r[0] for r in con.execute(
         "SELECT DISTINCT program_code FROM plan WHERE plan_type='lisans' AND program_code IS NOT NULL"))
@@ -49,7 +52,7 @@ def tara(con: sqlite3.Connection) -> dict:
                  AND course_code IS NOT NULL AND term_no IS NOT NULL""", (pid,)).fetchall()
         for t in sorted({r[0] for r in rows}):
             onceki = [r[1] for r in rows if r[0] < t]
-            view = R.prereq_view({k: "BB" for k in onceki})
+            view = R.prereq_view(R.expand_with_equivalences({k: "BB" for k in onceki}, denklik)[0])
             for r in rows:
                 if r[0] != t or r[1] not in agac:
                     continue

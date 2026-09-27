@@ -119,6 +119,18 @@ def _orphan_equivalence(con):
         return f"{n} denklikte hedef ders bulunamadı"
 
 
+@check("official_equivalence_empty", "warn")
+def _official_equivalence_empty(con):
+    """★ Faz 106 — resmî denklik tablosu BOŞ. Yayınlanan katalog denklik adımı
+    hiç çalıştırılmadan kurulmuştu (adım isteğe bağlı); kullanıcı sordu: "itü
+    denklikleri yayınlıyor zaten" (DersPlanDenklikleri). Boşken kod göçü ve
+    eşdeğer dersler yalnız elle beyanla karşılanıyor — bunu SÖYLE."""
+    n = con.execute("SELECT COUNT(*) FROM equivalence WHERE confidence='official'").fetchone()[0]
+    if not n:
+        return ("Resmî ders denkliği yok (OBS DersPlanDenklikleri çekilmemiş). "
+                "`make all-plans` ya da ayarda `eq_all_programs = true` ile çekiniz.")
+
+
 @check("cap_plan_present")
 def _cap_plan_present(con):
     n = con.execute("SELECT COUNT(*) FROM plan WHERE plan_type='cap'").fetchone()[0]

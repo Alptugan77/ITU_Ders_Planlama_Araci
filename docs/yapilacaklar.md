@@ -690,6 +690,12 @@ her maddeden önce gelen tek iş.
 > sırası) 17 beyan, zincirler grup olarak ✅
 > ➜ Ayrıntı: `docs/faz105-kod-gocu-taramasi.md`
 >
+> **Faz 106 (27.09.2026):** resmî denklik tablosu yayınlanan katalogda BOŞTU
+> (adım isteğe bağlıydı). `make all-plans` artık çekiyor, kalite raporu boşken
+> uyarıyor, yol haritası önşartta denklikleri sayıyor ✅ — ⏳ denklikleri çekmek
+> OBS erişimi olan makinede `make all-plans` gerektiriyor
+> ➜ Ayrıntı: `docs/faz106-resmi-denklik.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
