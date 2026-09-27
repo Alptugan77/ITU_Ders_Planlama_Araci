@@ -5,8 +5,31 @@ geliştirmeye devam eder misin sonrasında ben make all-plans yapacağım"*.
 
 Komut, kopya katalogda (`ITUCAP_DATA` ile, gerçek `data/` dokunulmadan)
 `refresh --all-programs --all-equivalences` olarak uçtan uca denendi. Ayrıca
-Faz 109'da çekilen 3183 resmî denklik motorda satır satır sınandı. Yedi
-bulgu çıktı, yedisi de düzeltildi.
+Faz 109'da çekilen 3183 resmî denklik motorda satır satır sınandı. Sekiz
+bulgu çıktı, sekizi de düzeltildi.
+
+## Deneme sonucu (eski kodla, 21:58 → 23:29, 91 dakika)
+
+| Adım | Sonuç |
+|---|---|
+| itu-helper | 11.228 ders, 3904 şube, 130 program |
+| OBS anadal planı | 5 plan |
+| OBS ikinci program planı | **500 hatası** (bulgu 1) |
+| Bütün ÇAP/yandal planları | 1215 plan (ÇAP 1081, 63 kod; yandal 134, 76 kod), 24.793 slot, **0 hata**, ayrıştırılamayan satır yok · 63 dk |
+| Resmî denklikler | 93 lisans programı, **3183 denklik**; Faz 109 taramasıyla **birebir aynı küme** · 26 dk |
+| Önşart ağacı | 4641/4641 ders, 12 onarım, 0 çözülemeyen |
+| Kalite raporu | 15 bulgu, **0 hata** |
+
+Kopya temizliği atlandığı için katalogda BLGE'nin 5 + 5 planı kaldı (bulgu 1).
+`docs/prereq-patterns.md` yeniden yazıldı ama içeriği değişmedi.
+
+Yeni kodun farklı olduğu adımlar ayrıca denendi:
+
+* **Ağsız tazeleme** (`--offline --skip-obs`): kopya temizliği 1 planı
+  düşürdü, kalite raporunda 0 hata çıktı.
+* **Canlı kısmi denklik taraması**: bkz. bulgu 6.
+* **Yeni ayrıştırıcı**: bu taramanın satırlarında da tam 11 satırı
+  düzeltiyor.
 
 ## 1. OBS plan adımı, ikinci program seçilmemişken çöküyordu
 
@@ -180,10 +203,21 @@ kez yazılmıyor. Koruma yalnız bu kapsamı karşılaştırıyor.
 
 ## 7. Uzun taramada ilerleme
 
-Plan taraması kum havuzunda 20 program kodu için 19 dk sürdü, bütün
-programlar için bir saati aşıyor. Eskiden yalnız her 20 sorguda bir satır
-yazılıyordu. Artık önce toplam yazılıyor ("cap: N program kodu
-taranacak"), ardından her 10 kodda bir "cap 10/N kod" satırı geliyor.
+Plan taraması kum havuzunda 63 dakika sürdü (ÇAP 63 kod, yandal 76 kod;
+1215 plan, 24.793 slot, 0 hata, ayrıştırılamayan satır yok). İlk 20 kod
+tek başına 19 dakika tuttu. Eskiden yalnız her 20 sorguda bir satır
+yazılıyordu. Artık önce toplam yazılıyor ("cap: 63 program kodu taranacak
+(keşif)"), ardından her 10 kodda bir "cap 10/63 kod" satırı geliyor.
+
+## 8. Kalite uyarısı yanıltıcıydı: "1146 denklikte hedef ders bulunamadı"
+
+Denemenin kalite raporunda bu uyarı çıktı. Kontrol hedef kodu katalogda
+birebir arıyordu. 1146 hedefin 1126'sı katalogda yalnız İngilizce
+yazımıyla var (bulgu 2); motor onları zaten buluyor. Kontrol artık resmî
+denklikte iki yazımı da deniyor. Beyanlarda yalnız yazıldığı gibi arıyor,
+motorla aynı kural. Uyarı örnek de veriyor. Deneme kataloğunda 20 gerçek
+eksik kaldı; yeni ayrıştırıcıyla **14**'e iniyor (ELE 321, TEL 412,
+TEL 331, BLG 332, CEN 103 …, yani kapanmış dersler).
 
 ## Doğrulama
 
@@ -194,28 +228,35 @@ taranacak"), ardından her 10 kodda bir "cap 10/N kod" satırı geliyor.
   * `tests/test_faz110_denklik_dil.py`: ek ayrıştırma (10 durum), İngilizce
     kod, dil korunur, beyan yazıldığı gibi, karışık dil, anadal yuvası dil
     kuralı, en iyi not (iki sıra), FF + denk geçmiş, zincirde yükselme,
-    önbellek kirletilemez, yerinde değişen liste, tek sorgulu yükleyici.
+    önbellek kirletilemez, yerinde değişen liste, tek sorgulu yükleyici,
+    kalite kontrolünde iki yazım.
   * `tests/test_faz110_denklik_koruma.py`: tam tarama ezer; boş, hatalı ve
     küçük, yarıya inen, istisna ve Ctrl-C taramaları eskiyi korur; eski
     boşsa her sonuç kabul; `sweep_all` hataları sayar; kısmi tarama yalnız
     kendi programını yeniler (ProgramId=1, 15 ve 153 karışmıyor), boş
     kısmi tarama eskiyi korur.
-* **Mutasyonlar:** 31 mutasyonun 31'i kırmızı: dil, ayrıştırıcı, en iyi
+* **Mutasyonlar:** 33 mutasyonun 33'ü kırmızı: dil, ayrıştırıcı, en iyi
   not, önbellek, yükleyicide varsayılan not, ikinci programlar, kopya
-  temizliği (üç yerde), ilerleme çıktısı, denklik korumasının 9 kolu ve
-  kısmi taramanın 4 kolu.
+  temizliği (üç yerde), ilerleme çıktısı, denklik korumasının 9 kolu,
+  kısmi taramanın 4 kolu ve kalite kontrolünün 2 kolu.
   Yükleyicideki `ORDER BY … s.course_code` kaldırılınca sonuç değişmiyor:
   SQLite kaynakları zaten birincil anahtar dizininden, kod sırasıyla
   okuyor. Sıralama yalnız bu davranışı güvenceye alıyor.
 
 ## `make all-plans` sonrası
 
-1. Çıktıda `obs.plans.*` adımlarının hatasız geçtiğine ve "Tüm programlar:
-   … ÇAP/yandal planı" satırına bakınız.
-2. Denklik satırında "YENİ TABLO REDDEDİLDİ" yoksa yeni tablo yerleşmiştir
-   (Faz 109 ölçümü: 3183 denklik).
-3. `python tools/kod_gocu_taramasi.py`: beklenen sonuç 18 beyanın 18'i
-   resmî listede, engelli ders yaklaşık 92.
-4. `docs/prereq-patterns.md` her tazelemede yeniden yazılıyor (izlenen
-   dosya); farkı commit etmek isteğe bağlı.
-5. Siteyi yeniden kurunuz; öğrenciler yeni kataloğu ancak o zaman görür.
+Süre: yaklaşık 1.5 saat (plan taraması 63 dk, denklikler 26 dk).
+
+1. Çıktının başında "OBS plan adımı başarısız" satırı **olmamalı**.
+2. "Tüm programlar: 1215 ÇAP/yandal planı … (0 hata)" civarı bir satır
+   beklenir.
+3. Denklik satırında "YENİ TABLO REDDEDİLDİ" yoksa yeni tablo yerleşmiştir
+   (beklenen 3183 denklik).
+4. Kalite raporunda 0 hata beklenir. `orphan_equivalence` uyarısı yaklaşık
+   14 denklik (kapanmış dersler) göstermelidir.
+5. `python tools/kod_gocu_taramasi.py`: 18 beyanın 18'i resmî listede,
+   engelli ders yaklaşık 92 beklenir.
+6. `docs/prereq-patterns.md` her tazelemede yeniden yazılıyor (izlenen
+   dosya). Kum havuzunda içerik değişmedi; değişirse farkı commit etmek
+   isteğe bağlı.
+7. Siteyi yeniden kurunuz; öğrenciler yeni kataloğu ancak o zaman görür.

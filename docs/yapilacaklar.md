@@ -715,7 +715,9 @@ her maddeden önce gelen tek iş.
 > ders 104 → 92). Ayrıştırıcının ek hatası (11 satır) düzeldi. Denklikle
 > gelen not artık ulaşılabilen en iyi not ve sıradan bağımsız. Kurulum
 > 5.9 → 3 sn. Denklik taraması eksik ya da kesik sonuçla eski tabloyu ezmiyor;
-> kısmi tarama (`eq_program_ids`) yalnız kendi programlarını yeniliyor ✅
+> kısmi tarama (`eq_program_ids`) yalnız kendi programlarını yeniliyor. Deneme:
+> 1215 plan, 3183 denklik (Faz 109 ile aynı küme), kalite raporunda 0 hata;
+> yanıltıcı "1146 yetim denklik" uyarısı gerçek sayıya (14) indi ✅
 > ➜ Ayrıntı: `docs/faz110-all-plans-denetimi.md`
 >
 > ➜ Kalan eksikler: **`docs/fikirler.md`**

@@ -137,3 +137,18 @@ def test_YUKLEYICI_tek_sorgu(tmp_path):
         (1, "KIM 206", (("KIM 211", "DD"), ("KIM 212", "CC")))]
     assert [e.id for e in R.load_equivalences(con, include_cap=False)] == [1, 3]
     assert [e.id for e in R.load_equivalences(con, ucon=con)] == [1, R.BEYAN_ID_OFSET + 4]
+
+
+def test_KALITE_yetim_denklik_iki_yazimla(tmp_path):
+    """Kum havuzunda "1146 denklikte hedef ders bulunamadı" uyarısının 1126'sı
+    yalnız taban yazımdandı (katalogda BLG 252E var, sayfa BLG 252 diyor)."""
+    from itucap import quality as Q
+    con = db.connect(tmp_path / "r.sqlite3", "schema.sql")
+    con.executemany("INSERT INTO course(code,name) VALUES (?,?)", [("BLG 252E", "OOP"), ("MAT 101", "M")])
+    con.executemany("INSERT INTO equivalence(target_course,confidence) VALUES (?,?)",
+                    [("BLG 252", "official"), ("MAT 101", "official"), ("ESK 100", "official"),
+                     ("ESK 100", "official"), ("BLG 252", "user_declared")])
+    con.commit()
+    bulgu = {f.check_id: f for f in Q.run(con)}["orphan_equivalence"]
+    # resmî BLG 252 → BLG 252E var; beyan yazıldığı gibi (Türkçe BLG 252 yok)
+    assert "3 denklikte" in bulgu.detail and bulgu.detail.endswith("ESK 100, BLG 252")
