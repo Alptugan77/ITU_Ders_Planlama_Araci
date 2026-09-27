@@ -122,6 +122,10 @@ def tick(settings, skip_obs: bool = False) -> CH.Diff:
             pipeline.step_obs_plans(con, settings)
         except Exception as exc:                           # noqa: BLE001
             print(f"   ⚠️  OBS adımı atlandı: {exc}", file=sys.stderr)
+    # ★ Faz 110 — `step_ituhelper` sentetik planları yeniden yazdı; OBS
+    # sürümü olan programlarda kopyası kalmasın (bkz. pipeline.cmd_refresh).
+    # Nöbet turunda temizlik HİÇ yoktu: her turdan sonra kopyalar birikiyordu.
+    pipeline.step_dedupe_plans(con)
     CH.take(con)
     return CH.compare(con, watch=watch_codes(con, ucon, settings))
 

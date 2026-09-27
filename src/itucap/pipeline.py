@@ -59,15 +59,23 @@ def step_obs_plans(con, settings) -> None:
             box["rows"] = n
             box["message"] = f"{len(metas)} anadal planı"
 
-        with db.run_step(con, "obs.plans.cap") as box:
-            metas = obs_plan.list_plans(
-                client, config.plan_type_of(settings.second_kind),
-                f"{settings.second_program}_LS")
-            n = 0
-            for meta in metas:
-                n += obs_plan.scrape_plan(client, con, meta)
-            box["rows"] = n
-            box["message"] = f"{len(metas)} ÇAP planı"
+        # ★★ Faz 110 — `make all-plans` kum havuzunda denendi (27.09.2026):
+        #   * İkinci program SEÇİLMEMİŞKEN (`second_kind = "yok"`) boş kodla
+        #     `programKodu=_LS` isteniyor → 500 → istisna, sonraki itu-helper
+        #     kopyası temizliği (`step_dedupe_plans`) de ATLANIYORDU.
+        #   * Yalnız İLK ikinci program çekiliyordu (ÇAP + yandal birlikte
+        #     seçilebiliyor — `settings.seconds`).
+        #   * Yandal kodu zaten OBS biçiminde ("ECN_YD"); sonuna "_LS"
+        #     eklenince OBS 500 veriyor (canlı ölçüldü; ÇAP "EHB_LS" doğru).
+        for kind, _rol, etiket, kod, _pid in settings.seconds:
+            obs_kod = kod if "_" in kod else f"{kod}_LS"
+            with db.run_step(con, f"obs.plans.{kind}") as box:
+                metas = obs_plan.list_plans(client, config.plan_type_of(kind), obs_kod)
+                n = 0
+                for meta in metas:
+                    n += obs_plan.scrape_plan(client, con, meta)
+                box["rows"] = n
+                box["message"] = f"{len(metas)} {etiket} planı"
     finally:
         client.close()
 
@@ -138,9 +146,13 @@ def step_all_second_plans(con, settings, plan_types=("cap", "yandal"),
                     "SELECT code FROM program WHERE level='LS' ORDER BY code")]
                 kodlar = [(f"{c}_LS", c) for c in base]
             per[plan_type]["kodlar"] = len(kodlar)
+            # ★ Faz 110 — tam tarama bir saati aşabiliyor (kum havuzunda 20
+            # kod ≈ 19 dk); toplam baştan ve ilerleme "i/toplam" yazılıyor.
+            print(f"   {plan_type}: {len(kodlar)} program kodu taranacak "
+                  f"({yontem[plan_type]})", flush=True)
 
             # 3) Her kod için plan listesi + detay
-            for kod, _ad in kodlar:
+            for sira, (kod, _ad) in enumerate(kodlar, 1):
                 stats["lookups"] += 1
                 gorulen_kod.add(kod)
                 try:
@@ -161,9 +173,9 @@ def step_all_second_plans(con, settings, plan_types=("cap", "yandal"),
                         stats["errors"] += 1
                         per[plan_type]["errors"] += 1
                         ilk_hata.setdefault(plan_type, f"{kod}: {exc}")
-                if stats["lookups"] % 20 == 0:
-                    print(f"   … {stats['lookups']} sorgu, {stats['plans']} plan",
-                          flush=True)
+                if sira % 10 == 0:
+                    print(f"   … {plan_type} {sira}/{len(kodlar)} kod, "
+                          f"toplam {stats['plans']} plan", flush=True)
     finally:
         client.close()
 
@@ -202,6 +214,54 @@ def step_dedupe_plans(con) -> int:
     return cur.rowcount
 
 
+_RESMI = "confidence!='user_declared'"
+
+
+def _resmi_denklik_yedegi(con) -> tuple[list, list]:
+    esler = [tuple(r) for r in con.execute(
+        f"""SELECT id, target_course, target_plan_id, applies_to_cap, confidence,
+                   note_raw, source_url, scraped_at FROM equivalence WHERE {_RESMI}""")]
+    kaynaklar = [tuple(r) for r in con.execute(
+        f"""SELECT equivalence_id, course_code, min_grade FROM equivalence_source
+             WHERE equivalence_id IN (SELECT id FROM equivalence WHERE {_RESMI})""")]
+    return esler, kaynaklar
+
+
+def _resmi_denklik_sil(con) -> None:
+    con.execute(f"""DELETE FROM equivalence_source WHERE equivalence_id IN
+                    (SELECT id FROM equivalence WHERE {_RESMI})""")
+    con.execute(f"DELETE FROM equivalence WHERE {_RESMI}")
+
+
+def _resmi_denklik_geri_yukle(con, yedek: tuple[list, list]) -> None:
+    _resmi_denklik_sil(con)            # yarım (commit edilmemiş) sayfa dahil
+    con.executemany("""INSERT INTO equivalence(id, target_course, target_plan_id, applies_to_cap,
+                           confidence, note_raw, source_url, scraped_at)
+                       VALUES (?,?,?,?,?,?,?,?)""", yedek[0])
+    con.executemany("INSERT INTO equivalence_source(equivalence_id, course_code, min_grade)"
+                    " VALUES (?,?,?)", yedek[1])
+    con.commit()
+
+
+def denklik_korunmali(eski: int, yeni: int, hatali_program: int) -> str | None:
+    """Yeni tarama ESKİ tablonun yerine geçmeli mi? Geçmemeliyse gerekçe.
+
+    ★★ Faz 110 — tarama eski resmî denklikleri SİLİP sayfa sayfa commit
+    ediyor (26 dk, ~1200 istek). Faz 109'daki gibi sessizce kırılan bir
+    kazıyıcı (0 denklik), yarıda kesilen ağ ya da birkaç programın hatası
+    yayınlanan kataloğu boş/eksik bırakırdı; kalite raporu yalnız TAMAMEN
+    boşken uyarıyordu. Eski tablo boşsa her sonuç kabul (kaybedilecek yok)."""
+    if not eski:
+        return None
+    if yeni == 0:
+        return "tarama hiç denklik getirmedi"
+    if hatali_program and yeni < eski:
+        return f"{hatali_program} program taranamadı ve yeni tablo ({yeni}) öncekinden küçük"
+    if yeni * 2 < eski:
+        return f"yeni tablo ({yeni}) öncekinin ({eski}) yarısından küçük"
+    return None
+
+
 def step_equivalence(con, settings, program_ids: list[int], all_programs: bool = False) -> None:
     client = ObsClient(settings)
     try:
@@ -210,22 +270,43 @@ def step_equivalence(con, settings, program_ids: list[int], all_programs: bool =
             # yoksa her koşuda çoğalırlardı. Kullanıcı BEYANLARI (user_declared)
             # bu tabloda DEĞİL (Faz 28'de ucon'a taşındı) ama garanti olsun diye
             # yalnız official/requires_approval siliniyor.
-            con.execute("""DELETE FROM equivalence_source WHERE equivalence_id IN
-                           (SELECT id FROM equivalence WHERE confidence!='user_declared')""")
-            con.execute("DELETE FROM equivalence WHERE confidence!='user_declared'")
-            if all_programs:
-                nprog, tried, found = obs_equivalence.sweep_all(client, con, progress=print)
-            else:
-                nprog = len(program_ids)
-                tried = found = 0
-                seen: set = set()          # programlar arası tekilleştirme
-                for pid in program_ids:
-                    t, f = obs_equivalence.sweep_program(client, con, pid, seen=seen)
-                    tried += t
-                    found += f
+            # ★★ Faz 110 — silmeden önce YEDEK; tarama kesilir (Ctrl-C dahil),
+            # boş döner ya da hatalarla küçülürse eski tablo geri yükleniyor.
+            yedek = _resmi_denklik_yedegi(con)
+            _resmi_denklik_sil(con)
+            hatalar: list = []
+            try:
+                if all_programs:
+                    nprog, tried, found = obs_equivalence.sweep_all(
+                        client, con, progress=print, hatalar=hatalar)
+                else:
+                    nprog = len(program_ids)
+                    tried = found = 0
+                    seen: set = set()          # programlar arası tekilleştirme
+                    for pid in program_ids:
+                        t, f = obs_equivalence.sweep_program(client, con, pid, seen=seen)
+                        tried += t
+                        found += f
+            except BaseException:
+                if yedek[0]:
+                    _resmi_denklik_geri_yukle(con, yedek)
+                    print(f"⚠️  Denklik taraması yarıda kaldı — önceki {len(yedek[0])} "
+                          "resmî denklik geri yüklendi.", file=sys.stderr)
+                raise
+            con.commit()
+            yeni = con.execute(f"SELECT COUNT(*) FROM equivalence WHERE {_RESMI}").fetchone()[0]
+            gerekce = denklik_korunmali(len(yedek[0]), yeni, len(hatalar))
+            mesaj = (f"{nprog} program{' (tümü)' if all_programs else ''}, "
+                     f"{tried} kombinasyon denendi, {found} denklik bulundu"
+                     + (f", {len(hatalar)} program taranamadı" if hatalar else ""))
+            if gerekce:
+                _resmi_denklik_geri_yukle(con, yedek)
+                mesaj += f" — YENİ TABLO REDDEDİLDİ ({gerekce}), önceki {len(yedek[0])} korundu"
+                print(f"⚠️  Denklik: {gerekce}. Önceki {len(yedek[0])} resmî denklik "
+                      "korundu; ağ düzelince yeniden deneyiniz.", file=sys.stderr)
+                found = len(yedek[0])
             box["rows"] = found
-            box["message"] = (f"{nprog} program{' (tümü)' if all_programs else ''}, "
-                              f"{tried} kombinasyon denendi, {found} denklik bulundu")
+            box["message"] = mesaj
     finally:
         client.close()
 
@@ -266,9 +347,6 @@ def cmd_refresh(args) -> int:
     if not args.skip_obs:
         try:
             step_obs_plans(con, settings)
-            dropped = step_dedupe_plans(con)
-            if dropped:
-                print(f"↺ {dropped} itu-helper planı OBS sürümüyle değiştirildi")
         except Exception as exc:  # noqa: BLE001
             print(f"⚠️  OBS plan adımı başarısız: {exc}", file=sys.stderr)
             print("    Eski veri korundu. --skip-obs ile devam edebilirsin.", file=sys.stderr)
@@ -299,6 +377,16 @@ def cmd_refresh(args) -> int:
                 step_equivalence(con, settings, eq_ids, all_programs=eq_all)
             except Exception as exc:  # noqa: BLE001
                 print(f"⚠️  Denklik adımı başarısız: {exc}", file=sys.stderr)
+
+    # ★★ Faz 110 — itu-helper kopyası temizliği HER koşuda, OBS adımlarından
+    # BAĞIMSIZ. `step_ituhelper` sentetik planları her seferinde yeniden
+    # yazıyor; temizlik OBS plan adımıyla aynı `try` içindeyken o adım
+    # düşünce (ya da --skip-obs'ta) atlanıyordu ve önceki koşulardan kalan
+    # OBS planlarının yanında kopyalar kalıyordu. Kum havuzundaki
+    # `make all-plans` denemesinde BLGE'de 5 OBS + 5 itu-helper planı.
+    dropped = step_dedupe_plans(con)
+    if dropped:
+        print(f"↺ {dropped} itu-helper planı OBS sürümüyle değiştirildi")
 
     with db.run_step(con, "declared.equivalences") as box:
         # ★★ Faz 28 — beyanlar KULLANICI DB'sine yazılıyor (kişisel veri).

@@ -707,6 +707,16 @@ her maddeden önce gelen tek iş.
 > karşılıksız 3'ü kaldırıldı ✅ — ⏳ yayın: `make all-plans` + site
 > ➜ Ayrıntı: `docs/faz109-denklik-kaziyici.md`
 >
+> **Faz 110 (27.09.2026):** `make all-plans` kopya katalogda uçtan uca
+> denendi. İkinci program seçilmemişken OBS plan adımı çöküyordu, kopya plan
+> temizliği de atlanıyordu (BLGE'de 5 + 5 plan); artık ÇAP ve yandal ayrı
+> ayrı çekiliyor, temizlik her koşuda çalışıyor.
+> Resmî denklikler İngilizce kodlarda da uygulanıyor (dil korunur, engelli
+> ders 104 → 92). Ayrıştırıcının ek hatası (11 satır) düzeldi. Denklikle
+> gelen not artık ulaşılabilen en iyi not ve sıradan bağımsız. Kurulum
+> 5.9 → 3 sn. Denklik taraması eksik ya da kesik sonuçla eski tabloyu ezmiyor ✅
+> ➜ Ayrıntı: `docs/faz110-all-plans-denetimi.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

@@ -1,0 +1,203 @@
+# Faz 110 — `make all-plans` öncesi denetim
+
+Kullanıcı (27.09.2026): *"dikkatli bir şekilde düzeltmeleri yapıp
+geliştirmeye devam eder misin sonrasında ben make all-plans yapacağım"*.
+
+Komut, kopya katalogda (`ITUCAP_DATA` ile, gerçek `data/` dokunulmadan)
+`refresh --all-programs --all-equivalences` olarak uçtan uca denendi. Ayrıca
+Faz 109'da çekilen 3183 resmî denklik motorda satır satır sınandı. Yedi
+bulgu çıktı, yedisi de düzeltildi.
+
+## 1. OBS plan adımı, ikinci program seçilmemişken çöküyordu
+
+`step_obs_plans` ikinci programın planını `f"{second_program}_LS"` koduyla
+istiyordu:
+
+* **İkinci program yokken** (`second_kind = "yok"`) boş kodla
+  `programKodu=_LS` isteniyordu. OBS 500 döndürdü, istisna fırladı. Aynı
+  `try` içindeki itu-helper kopyası temizliği (`step_dedupe_plans`) da
+  **atlandı**; aynı programın iki kaynaklı planı katalogda kalıyordu.
+* **Yalnız ilk ikinci program** çekiliyordu. Oysa ÇAP ve yandal birlikte
+  seçilebiliyor (`settings.seconds`).
+* **Yandal kodu** zaten OBS biçiminde ("ECN_YD"). Sonuna "_LS" eklenince OBS
+  500 veriyor (canlı ölçüldü: "ECN_YD" 4 plan, ÇAP "EHB_LS" 17 plan).
+
+Artık `settings.seconds` içindeki her program ayrı adımda çekiliyor. Kodda
+alt çizgi varsa olduğu gibi kullanılıyor; yoksa sonuna "_LS" ekleniyor.
+
+**Kopya temizliği artık her koşuda.** `step_ituhelper` sentetik planları her
+tazelemede yeniden yazıyor. Temizlik OBS plan adımıyla aynı `try` içindeydi;
+o adım düşünce ya da `--skip-obs` ile çalışınca atlanıyordu. Önceki
+koşulardan kalan OBS planlarının yanında kopyalar kalıyordu. Kum
+havuzundaki denemede (eski kodla) BLGE'de 5 OBS planının yanında 5
+itu-helper planı, HTAE'de 1 + 1 plan kaldı. Kullanıcının ayarında
+`second_kind = "yok"` olduğundan kendi `make all-plans` koşusu da aynı
+duruma düşecekti. Temizlik artık bütün OBS adımlarından sonra, onların
+sonucundan bağımsız çalışıyor.
+
+Aynı kusur iki yerde daha vardı:
+
+* Arayüzdeki "veriyi tazele" (`server.State.refresh`) temizliği OBS
+  adımıyla aynı `try` içinde yapıyordu.
+* Nöbet turunda (`make watch`, `watch.tick`) temizlik **hiç yoktu**. Her
+  tur itu-helper planlarını yeniden yazıyor, kopyalar bir sonraki tam
+  tazelemeye kadar kalıyordu.
+
+İkisi de artık OBS'den bağımsız temizliyor.
+
+## 2. Resmî denklikler İngilizce kodlarda da uygulanıyor
+
+OBS DersPlanDenklikleri kodları **dilden bağımsız, taban biçimde** yazıyor
+("BBF 203 ≡ BLG 252"; 3183 kaynağın hiçbiri E'li değil). Motor kodları
+birebir eşleştirdiği için İngilizce programdaki öğrencide (BBF 203E,
+BLG 252E) **hiçbir resmî denklik tetiklenmiyordu**. Katalogdaki
+hedeflerden 1117'si yalnız E'li kodla var.
+
+Kural: **dil korunur** (`rules._dil_yazimlari`).
+
+* Kaynaklar İngilizce yazımlarıyla sağlanırsa hedefin İngilizce yazımı
+  kazanılır; kaynaklar Türkçeyse Türkçesi.
+* Türkçe ders İngilizce anadal yuvasını doldurmaz. Bu, Faz 92 ilkesiyle
+  aynı: dil serbestliği yalnız ÇAP/yandal yuvasında (`slot_codes`).
+* Karışık dilli, çok kaynaklı denklik tetiklenmez (ihtiyatlı).
+* Laboratuvar eki dil ekinden sonra gelir: FIZ 101L → FIZ 101EL
+  (`rules.ingilizce_kod`).
+* Kullanıcı **beyanları** yazıldığı gibi uygulanır; dili beyan seçer.
+
+Denklikler ders düzeyinde. Aynı hedef iki planda farklı kaynaklarla
+görünmüyor, bu yüzden denkliklerin her planda uygulanması doğru.
+
+**Etki** (`tools/kod_gocu_taramasi.py`, 3183 denklikli katalog): plana
+sadık öğrencide engelli zorunlu ders 104'ten **92**'ye indi (42 bölüm).
+Gerçek BLGE profiline yeni plan yuvası eklenmedi, yani ilerleme şişmiyor.
+
+## 3. Ayrıştırıcı, isme yapışık büyük harfi kod eki sanıyordu
+
+Ders adı büyük harfli bir kısaltmayla başlayınca ilk harfi koda yapışıyordu:
+
+* "EHB 101EHM Giriş…" → EHB 101E
+* "SBP 126CBS ve Planlama" → SBP 126C
+* "MET 435PÇT…" → MET 435P
+* "DFH 490E-Seyir…" → DFH 490E
+
+3183 satırın 11'i hatalıydı (7 farklı kod).
+
+`_lead_code` kuralı: ek **isme yapışıksa**
+
+* ardından küçük harf geliyorsa isim harfidir (eskisi gibi);
+* "E" hiçbir zaman ek sayılmaz, çünkü sayfa taban kod yazıyor;
+* "L" laboratuvar eki olarak korunur (sayfadaki 5 L'li satırın hepsi
+  laboratuvar);
+* başka bir harf ancak ekli kod katalogda varsa ek sayılır
+  ("ING 112AAkademik…" → ING 112A).
+
+Gerçek satırlarla yeniden ayrıştırınca tam olarak bu 11 satır değişiyor,
+başka satır değişmiyor.
+
+## 4. Denklikle gelen not: ulaşılabilen EN İYİ not
+
+Eski kural ilk bulunan yolu kullanıyordu. 300 rastgele transkriptin 5'inde
+not, listenin sırasına göre değişiyordu (DFH 321: DFH 474 yoluyla CC,
+GUV 491 yoluyla CB). Kendi aldığı dersten FF olan ama denk dersi geçmiş
+öğrenci de önşartta ve yuvada "kalmış" sayılıyordu.
+
+Yeni kural monoton bir sabit nokta:
+
+* Bir denklik, kaynaklarının en düşük notunu verir.
+* Hedefe birden çok yoldan varılıyorsa, ya da ham notu denklikten
+  gelenden kötüyse, **iyisi kalır**. Eşitlikte ham not kalır.
+* Notu yükselen ders zincirde ilerler (A → B → C).
+* Sonuç listenin sırasından bağımsız. Kod göçü görünümünün kuralıyla aynı
+  (`prereq_view`, Faz 104).
+
+**Not ortalaması etkilenmez.** Genişletilmiş notlar yalnız önşart, yuva ve
+yol haritası için kullanılıyor. Bütün `policy.gpa` çağrıları ham notlardan
+yapılıyor (`S.graded`); bu kontrol edildi.
+
+## 5. Hız
+
+3183 denklik iki dilde 6366 yazım demek. `slot_satisfied` her plan yuvası
+için genişletme istiyor (gerçek BLGE profilinde bir kurulumda 1724 çağrı);
+dil yazımları eklenince kurulum 5.9 sn'den 28.6 sn'ye çıktı. Alınan
+önlemler:
+
+* "Kaynak kod → yazımlar" dizini her liste için bir kez kuruluyor.
+* Her tur yalnız bir önceki turda notu değişen kodlara dokunan yazımları
+  deniyor.
+* Aynı not seti ve aynı yazım kümesi için sonuç önbellekte tutuluyor;
+  çağırana kopyası dönüyor. Sonuç kendi yazım listesiyle birlikte
+  saklandığı için eskimiş bir sonuç dönemez. Yerinde değiştirilen liste
+  yeniden kuruluyor.
+* Denklikler tek bir JOIN sorgusuyla yükleniyor. Eskiden her denklik için
+  ayrı bir kaynak sorgusu atılıyordu: 3183 denklikte çağrı başına 25 ms
+  yerine artık 11 ms, bir kurulumda 14 çağrı var. Sonuç liste, sırası
+  dahil, eskisiyle birebir aynı (gerçek katalogda karşılaştırıldı).
+
+Gerçek BLGE profili artık **3 sn**'de kuruluyor (Faz 109'da 5.9 sn).
+Doğrulama: 300 rastgele transkriptte sonuç, her turda bütün listeyi tarayan
+naif uygulamayla birebir aynı; liste karıştırılınca da değişmiyor
+(0/300 fark, 0/300 sıra farkı).
+
+## 6. Denklik taraması eski tabloyu ancak tam sonuçla eziyor
+
+`step_equivalence`, eski resmî denklikleri silip yeni sonucu sayfa sayfa
+commit ediyordu. Tam tarama yaklaşık 26 dakika sürüyor ve 1200 kadar
+istek atıyor. Şu
+durumlarda yayınlanacak katalog boş ya da eksik kalıyordu:
+
+* Faz 109'daki gibi sessizce kırılmış bir kazıyıcı (0 denklik),
+* ağın yarıda kopması ya da **Ctrl-C**,
+* birkaç programın hata vermesi.
+
+Kalite raporu yalnız tablo tamamen boşken uyarıyordu.
+
+Artık silmeden önce yedek alınıyor. Şu durumlarda eski tablo geri
+yükleniyor (`pipeline.denklik_korunmali`):
+
+* tarama istisnayla kesilirse (Ctrl-C dahil);
+* hiç denklik gelmezse;
+* program hataları varken yeni tablo eskisinden küçükse;
+* yeni tablo eskisinin yarısından küçükse.
+
+Eski tablo boşsa her sonuç kabul ediliyor, çünkü kaybedilecek bir şey yok.
+Reddedilen tarama hem çıktıda hem `ingest_run` mesajında yazıyor.
+`sweep_all` artık hata veren programları sayıyor.
+
+## 7. Uzun taramada ilerleme
+
+Plan taraması kum havuzunda 20 program kodu için 19 dk sürdü, bütün
+programlar için bir saati aşıyor. Eskiden yalnız her 20 sorguda bir satır
+yazılıyordu. Artık önce toplam yazılıyor ("cap: N program kodu
+taranacak"), ardından her 10 kodda bir "cap 10/N kod" satırı geliyor.
+
+## Doğrulama
+
+* **Testler:**
+  * `tests/test_faz110_all_plans.py`: ikinci program yok / ÇAP / ÇAP +
+    yandal; ilerleme çıktısı; OBS adımı düşünce ve `--skip-obs`'ta kopya
+    temizliği (komut satırı, arayüz, nöbet turu).
+  * `tests/test_faz110_denklik_dil.py`: ek ayrıştırma (10 durum), İngilizce
+    kod, dil korunur, beyan yazıldığı gibi, karışık dil, anadal yuvası dil
+    kuralı, en iyi not (iki sıra), FF + denk geçmiş, zincirde yükselme,
+    önbellek kirletilemez, yerinde değişen liste, tek sorgulu yükleyici.
+  * `tests/test_faz110_denklik_koruma.py`: tam tarama ezer; boş, hatalı ve
+    küçük, yarıya inen, istisna ve Ctrl-C taramaları eskiyi korur; eski
+    boşsa her sonuç kabul; `sweep_all` hataları sayar.
+* **Mutasyonlar:** 27 mutasyonun 27'si kırmızı: dil, ayrıştırıcı, en iyi
+  not, önbellek, yükleyicide varsayılan not, ikinci programlar, kopya
+  temizliği (üç yerde), ilerleme çıktısı ve denklik korumasının 9 kolu.
+  Yükleyicideki `ORDER BY … s.course_code` kaldırılınca sonuç değişmiyor:
+  SQLite kaynakları zaten birincil anahtar dizininden, kod sırasıyla
+  okuyor. Sıralama yalnız bu davranışı güvenceye alıyor.
+
+## `make all-plans` sonrası
+
+1. Çıktıda `obs.plans.*` adımlarının hatasız geçtiğine ve "Tüm programlar:
+   … ÇAP/yandal planı" satırına bakınız.
+2. Denklik satırında "YENİ TABLO REDDEDİLDİ" yoksa yeni tablo yerleşmiştir
+   (Faz 109 ölçümü: 3183 denklik).
+3. `python tools/kod_gocu_taramasi.py`: beklenen sonuç 18 beyanın 18'i
+   resmî listede, engelli ders yaklaşık 92.
+4. `docs/prereq-patterns.md` her tazelemede yeniden yazılıyor (izlenen
+   dosya); farkı commit etmek isteğe bağlı.
+5. Siteyi yeniden kurunuz; öğrenciler yeni kataloğu ancak o zaman görür.
