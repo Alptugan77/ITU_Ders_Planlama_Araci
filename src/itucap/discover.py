@@ -145,8 +145,21 @@ def _build(source, target, courses, grades, role) -> Suggestion:
     reasons = ["aynı ders adı"]
     confidence = MEDIUM
 
-    if sc and tc and abs(sc - tc) < 0.01:
+    # ★★ Faz 108 — AKTS de (kullanıcı 27.09.2026: "akts veya kredi farklıysa
+    # denklik olmuyor"). Eskiden yalnız krediye bakılıyordu: kredisi aynı,
+    # AKTS'si farklı çift "yüksek güven" alıyor ve "tümünü uygula" ile toplu
+    # uygulanabiliyordu. AKTS bilinmiyorsa (katalogda ~%20) karar krediyle.
+    sa = float(srow["ects"] or 0) if srow else 0.0
+    ta = float(trow["ects"] or 0) if trow else 0.0
+    akts_farkli = bool(sa and ta and abs(sa - ta) >= 0.01)
+    if sc and tc and abs(sc - tc) < 0.01 and akts_farkli:
         reasons.append(f"aynı kredi ({sc:g})")
+        reasons.append(f"AKTS farklı: {sa:g} ≠ {ta:g}")
+        confidence = LOW
+    elif sc and tc and abs(sc - tc) < 0.01:
+        reasons.append(f"aynı kredi ({sc:g})")
+        if sa and ta:
+            reasons.append(f"aynı AKTS ({sa:g})")
         confidence = HIGH
     elif sc and tc:
         reasons.append(f"kredi farklı: {sc:g} ≠ {tc:g}")

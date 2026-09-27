@@ -43,6 +43,9 @@ DIS_BAGLANTILAR = {
                    "aciklama": "güncel şube, saat ve kontenjan"},
     "obsPlan": {"ad": "OBS Ders Planları", "url": EP["plan_page"],
                 "aciklama": "resmî ders planları ve önşartlar"},
+    # Faz 108 — resmî ders denklikleri (kullanıcı 27.09.2026).
+    "obsDenklik": {"ad": "OBS Ders Plan Denklikleri", "url": EP["eq_page"],
+                   "aciklama": "İTÜ'nün yayınladığı resmî ders denklikleri"},
     "obsNot": {"ad": "OBS Ders Not Dağılımı", "url": f"{OBS}/public/DersNotDagilimi",
                "aciklama": "geçmiş dönemlerin harf notu dağılımları"},
     "yonerge": {"ad": "ÇAP/Yandal Yönergesi",

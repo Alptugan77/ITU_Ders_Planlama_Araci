@@ -6949,7 +6949,14 @@ function renderSuggestions(){
     if(!group.length) return;
     const [label, cls] = LABEL[level];
     html += `<div class="chipline"><span class="chip ${cls}">${label}</span>
-      <span style="color:var(--ink-3);font-size:var(--fs-md)">${group.length}</span></div>
+      <span style="color:var(--ink-3);font-size:var(--fs-md)">${group.length}</span></div>${
+      /* ★ Faz 108 — kredisi ya da AKTS'si farklı ders çoğunlukla denk sayılmaz
+         (kullanıcı 27.09.2026). Düğme kalıyor (karar öğrencinin) ama
+         uygulamadan önce neye bakılacağı yazıyor. */
+      level === "dusuk" ? `<div class="modenote" style="margin:4px 0 6px">Kredisi, AKTS'si ya da
+        dili farklı dersler çoğunlukla denk sayılmaz. Uygulamadan önce
+        ${disLink("obsDenklik", "İTÜ'nün resmî denklik listesine")} bakınız ya da
+        danışmanınıza sorunuz.</div>` : ""}
       <div class="optlist" style="max-height:none">${group.map(i => `
         <div class="opt" style="cursor:default">
           <span><b class="mono">${esc(i.source)}</b>

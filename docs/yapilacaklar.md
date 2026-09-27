@@ -696,6 +696,11 @@ her maddeden önce gelen tek iş.
 > OBS erişimi olan makinede `make all-plans` gerektiriyor
 > ➜ Ayrıntı: `docs/faz106-resmi-denklik.md`
 >
+> **Faz 108 (27.09.2026):** denklik önerisi AKTS'ye de bakıyor. Kredisi aynı,
+> AKTS'si farklı çift artık "yüksek güven" alıp toplu uygulanamıyor; düşük
+> güven grubu resmî denklik listesine yönlendiriyor ✅
+> ➜ Ayrıntı: `docs/faz108-denklik-akts.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
