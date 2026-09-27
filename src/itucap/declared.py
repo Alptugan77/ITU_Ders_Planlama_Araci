@@ -160,6 +160,26 @@ def load_code_migrations(path: Path | None = None) -> list[tuple[str, str]]:
 _GOC_ONBELLEK: dict[tuple, list[tuple[str, str]]] = {}
 
 
+def code_migration_groups(path: Path | None = None) -> dict[str, frozenset[str]]:
+    """Faz 105 — kod göçü GRUPLARI: {kod: aynı dersin bütün kodları}.
+
+    Beyanlar zincir kurabiliyor (ELE 222 ↔ EHB 222 ↔ EEE 225E): ikili
+    uygulamak sıraya bağlı ve eksik kalırdı. Birleşim-bul ile kapanış."""
+    ata: dict[str, str] = {}
+
+    def bul(k):
+        while ata.setdefault(k, k) != k:
+            ata[k] = ata[ata[k]]
+            k = ata[k]
+        return k
+    for eski, yeni in load_code_migrations(path):
+        ata[bul(eski)] = bul(yeni)
+    gruplar: dict[str, set[str]] = {}
+    for k in list(ata):
+        gruplar.setdefault(bul(k), set()).add(k)
+    return {k: frozenset(g) for g in gruplar.values() for k in g}
+
+
 def apply(con: sqlite3.Connection, path: Path | None = None) -> int:
     """Beyan edilen denklikleri KULLANICI veritabanına yazar. Idempotent.
 

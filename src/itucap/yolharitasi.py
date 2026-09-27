@@ -388,12 +388,9 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     # ★ Faz 104 — aynı sebeple: beyan edilmiş kod göçünün yeni kodu plandaysa
     # eski kod "dış" değil (BLG 252E → BBF 203E). Dış sayılınca geçilmiş
     # varsayılıyor ve BBF 301E, BBF 203E'den önceki döneme yerleşebiliyordu.
-    from .declared import load_code_migrations
-    goc = {}
-    for eski, yeni in load_code_migrations():
-        goc.setdefault(eski, set()).add(yeni)
-        goc.setdefault(yeni, set()).add(eski)
-    dis = {c for c in dis if not ((goc.get(c, set()) | goc.get(R.dil_esi(con, c) or "", set()))
+    from .declared import code_migration_groups
+    goc = code_migration_groups()
+    dis = {c for c in dis if not ((goc.get(c, frozenset()) | goc.get(R.dil_esi(con, c) or "", frozenset()))
                                   & plan_kodlari)}
     # ★★ Faz 98 — GEÇİLMİŞ DERSİN GERÇEK NOTU. Görünüm her geçilen derse "AA"
     # veriyordu; DD ile geçilmiş (ya da notsuz işaretlenip DD sayılan)

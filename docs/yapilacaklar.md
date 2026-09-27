@@ -684,6 +684,12 @@ her maddeden önce gelen tek iş.
 > alabilir" değil ✅
 > ➜ Ayrıntı: `docs/faz104-kod-gocu.md`
 >
+> **Faz 105 (27.09.2026):** kod göçü bütün planlarda tarandı
+> (`tools/kod_gocu_taramasi.py`). Plana sadık öğrencide engelli ders 126 →
+> 109; iki bağımsız kanıtlı (ad + kredi + AKTS aynı VE planın kendi dönem
+> sırası) 17 beyan, zincirler grup olarak ✅
+> ➜ Ayrıntı: `docs/faz105-kod-gocu-taramasi.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

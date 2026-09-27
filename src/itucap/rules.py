@@ -43,7 +43,7 @@ def prereq_view(grades: Mapping[str, str]) -> dict[str, str]:
     GEÇİLMİŞ değildir — plan slotunu doldurmaz, AKTS'ye sayılmaz. İkisini
     karıştırmak ilerlemeyi olduğundan iyi gösterirdi.
     """
-    from .declared import load_code_migrations, waiver_grades
+    from .declared import code_migration_groups, waiver_grades
 
     view = dict(waiver_grades())
     view.update(grades)          # gerçek notlar muafiyeti EZER
@@ -53,11 +53,14 @@ def prereq_view(grades: Mapping[str, str]) -> dict[str, str]:
     # 5. dönemin iki ana dersi engelli, program yarı boş kalıyordu. Yalnız
     # önşart görünümünde — plan slotu doldurmaz (muafiyetlerle aynı ilke).
     # İkisi de varsa İYİ olanı: eski kodla FF, yeni kodla BB alan öğrenci.
-    for eski, yeni in load_code_migrations():
-        notlar = [g for g in (view.get(eski), view.get(yeni)) if g is not None]
+    # Faz 105: beyanlar zincir kurabildiği için GRUP olarak (bkz.
+    # `declared.code_migration_groups`).
+    for grup in set(code_migration_groups().values()):
+        notlar = [view[k] for k in grup if k in view]
         if notlar:
-            view[eski] = view[yeni] = max(
-                notlar, key=lambda g: GRADE_POINTS.get(str(g).upper(), -1.0))
+            iyi = max(notlar, key=lambda g: GRADE_POINTS.get(str(g).upper(), -1.0))
+            for k in grup:
+                view[k] = iyi
     return view
 
 
