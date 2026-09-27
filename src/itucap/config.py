@@ -27,6 +27,8 @@ EP = {
     "eq_plan_types": f"{OBS}/public/GenelTanimlamalar/GetPlanTipleriByProgramId",       # POST
     "eq_plans": f"{OBS}/public/GenelTanimlamalar/GetDersPlanlariByProgramIdAndPlanTipiId",
     "eq_branches": f"{OBS}/public/GenelTanimlamalar/GetDersBransKodlariByPlanId",       # POST
+    # ★ Faz 109 — sonuç tablosu artık AYRI uçtan (sayfa formu AJAX ile çağırıyor).
+    "eq_search": f"{OBS}/public/GenelTanimlamalar/DersDenklikAra",                      # GET
 }
 
 # ★ Faz 67 — arayüzün yönlendirdiği DIŞ SİTELER (tek kaynak; arayüz

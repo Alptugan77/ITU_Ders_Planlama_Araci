@@ -85,10 +85,20 @@ def program_options(html: str, undergrad_only: bool = True) -> list[tuple[int, s
         name = o.text(strip=True)
         if not val.isdigit():
             continue
-        if undergrad_only and "Undergraduate" not in name:
+        if undergrad_only and not _lisans_mi(name):
             continue
         out.append((int(val), name))
     return out
+
+
+def _lisans_mi(ad: str) -> bool:
+    """★★ Faz 109 — sayfa artık TÜRKÇE geliyor: "Fizik Mühendisliği Lisans",
+    "… Yüksek Lisans", "… Doktora". Süzgeç yalnız İngilizce "Undergraduate"
+    arıyordu → 0 program, adım SESSİZCE boş dönüyordu ve yayınlanan katalogda
+    tek bir resmî denklik yoktu (Faz 106'nın kök nedeni). İki dil de tanınıyor;
+    "Yüksek Lisans" lisans DEĞİL."""
+    ad = " ".join(ad.split())
+    return "Undergraduate" in ad or (ad.endswith("Lisans") and not ad.endswith("Yüksek Lisans"))
 
 
 def all_program_ids(client: ObsClient, undergrad_only: bool = True) -> list[tuple[int, str]]:
@@ -153,8 +163,13 @@ def _fetch_one(client: ObsClient, con: sqlite3.Connection, program_id, plan_type
                plan_id, branch_id, plan_type_name: str = "", seen: set | None = None) -> int:
     params = {"ProgramId": program_id, "PlanTipiId": plan_type_id,
               "PlanId": plan_id, "DersBransKoduId": branch_id}
-    html = client.get(config.EP["eq_page"], params)
-    if NOT_FOUND.search(html):
+    # ★★ Faz 109 — İKİ SESSİZ KIRILMA. (1) Sayfa GET'i artık tablo vermiyor;
+    # form sonucu `DersDenklikAra`dan AJAX ile alıyor. (2) "Ders denklik bilgisi
+    # bulunamadı" metni artık HER sayfanın JavaScript'inde (AJAX hata
+    # işleyicisi) — eski denetim her sayfayı "boş" sayıyordu. Artık yalnız
+    # TABLO YOKSA "bulunamadı".
+    html = client.get(config.EP["eq_search"], params)
+    if "<table" not in html:
         return 0
     url = config.EP["eq_page"] + "?" + "&".join(f"{k}={v}" for k, v in params.items())
     return parse_table(con, html, plan_id, url, seen=seen)
