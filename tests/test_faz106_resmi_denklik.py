@@ -82,3 +82,23 @@ def test_YOL_HARITASI_onsartta_denklik(katalog):
     dis = {i["course"]: i["externalPrereq"] for t in h["terms"] for i in t["items"]}
     assert dis["YAP 201"] == []
     assert "ESKI 101" not in _yer(h)                  # slot da denklikle dolu
+
+
+def test_BEYAN_resmi_karsilastirma(katalog, tmp_path, monkeypatch):
+    """Faz 107 — beyanlar resmî tabloyla karşılaştırılıyor (tek kaynaklı bağ,
+    iki yönden biri); çok kaynaklı "A + B → C" kod göçü sayılmıyor."""
+    dosya = tmp_path / "goc.toml"
+    dosya.write_text('[[kod_gocu]]\neski = "ESKI 101"\nyeni = "YENI 101"\nnot_ = "t"\n'
+                     '[[kod_gocu]]\neski = "YAP 201"\nyeni = "YENI 101"\nnot_ = "t"\n'
+                     '[[kod_gocu]]\neski = "YAP 201"\nyeni = "ESKI 101"\nnot_ = "t"\n', encoding="utf-8")
+    monkeypatch.setattr(DEC, "CATALOG_PATH", dosya)
+    assert KG.beyan_karsilastir(katalog)["resmi_sayi"] == 0
+    _denklik(katalog, "ESKI 101", "YENI 101")               # ters yön de sayılır
+    cur = katalog.execute("INSERT INTO equivalence(target_course, confidence) VALUES ('YAP 201','official')")
+    katalog.executemany("INSERT INTO equivalence_source(equivalence_id, course_code) VALUES (?,?)",
+                        [(cur.lastrowid, "YENI 101"), (cur.lastrowid, "ESKI 101")])
+    katalog.commit()
+    k = KG.beyan_karsilastir(katalog)
+    assert k["karsilanan"] == [("ESKI 101", "YENI 101")]
+    # İki kaynaklı denklik (sıra ne olursa olsun) hiçbir kaynağı için göç değil.
+    assert k["karsiliksiz"] == [("YAP 201", "YENI 101"), ("YAP 201", "ESKI 101")]

@@ -36,10 +36,12 @@ Bu oturumun bulut ortamı `obs.itu.edu.tr`'ye erişemiyor (ağ politikası), bu
 yüzden denklikler burada çekilemedi. `make all-plans` erişimi olan bir
 makinede çalıştırılınca:
 
-1. `python tools/kod_gocu_taramasi.py` ile kalan engelleri ölç.
-2. Faz 104–105 beyanlarını resmî tabloyla karşılaştır. Resmî denkliği olan
-   beyan gereksizleşir (zararsız); resmî tabloda karşılığı olmayan beyan
-   yeniden değerlendirilmeli.
+1. `python tools/kod_gocu_taramasi.py` çalıştır. Araç kalan engelleri ölçüyor
+   ve (Faz 107) her `[[kod_gocu]]` beyanını resmî tabloyla karşılaştırıyor:
+   "N resmî listede var, M YOK". Karşılığı olmayan her beyan ⚠ ile listeleniyor.
+2. Resmî denkliği olan beyan gereksizleşir ama zararsızdır. Karşılığı olmayan
+   beyan yeniden değerlendirilmeli. Karşılaştırmada yalnız tek kaynaklı
+   denklik sayılıyor; "A + B → C" bir kod göçü değil.
 
 ## Doğrulama
 

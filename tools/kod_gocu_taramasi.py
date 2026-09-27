@@ -73,6 +73,30 @@ def tara(con: sqlite3.Connection) -> dict:
                         for (m, o, akts), v in adaylar.items()]}
 
 
+def beyan_karsilastir(con: sqlite3.Connection) -> dict:
+    """Faz 107 — kod göçü beyanlarını RESMÎ denkliklerle karşılaştırır.
+
+    Beyan (`[[kod_gocu]]`) resmî tablo boşken konmuş bir köprü (Faz 104–106).
+    Tablo dolunca her beyan için: resmî listede aynı iki kodu bağlayan bir
+    denklik var mı (hangi yönde olursa olsun, tek kaynaklı)? Karşılığı olan
+    beyan gereksizleşir; olmayan yeniden değerlendirilmeli.
+    Dönüş: {'resmi_sayi', 'karsilanan': [...], 'karsiliksiz': [...]}."""
+    from itucap import declared as DEC
+    resmi = con.execute("SELECT COUNT(*) FROM equivalence WHERE confidence='official'").fetchone()[0]
+    baglar: set[frozenset] = set()
+    for hedef, kaynaklar in con.execute(
+            """SELECT e.target_course, group_concat(s.course_code, '|')
+                 FROM equivalence e JOIN equivalence_source s ON s.equivalence_id = e.id
+                WHERE e.confidence='official' GROUP BY e.id"""):
+        ks = [k for k in (kaynaklar or "").split("|") if k]
+        if len(ks) == 1:                 # "A + B → C" bir kod göçü değil
+            baglar.add(frozenset({hedef, ks[0]}))
+    karsilanan, karsiliksiz = [], []
+    for eski, yeni in DEC.load_code_migrations():
+        (karsilanan if frozenset({eski, yeni}) in baglar else karsiliksiz).append((eski, yeni))
+    return {"resmi_sayi": resmi, "karsilanan": karsilanan, "karsiliksiz": karsiliksiz}
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--db", default=str(config.REF_DB))
@@ -88,6 +112,14 @@ def main(argv=None) -> int:
     for m, o, akts, bolum, engel in sorted(s["adaylar"], key=lambda x: (not x[2], x[0])):
         print(f"  {m:10} → {o:10} AKTS {'aynı' if akts else 'FARKLI'} · {', '.join(bolum)} · "
               f"engellenen: {', '.join(engel[:4])}")
+    k = beyan_karsilastir(sqlite3.connect(a.db))
+    if not k["resmi_sayi"]:
+        print("Resmî denklik tablosu BOŞ — beyanlar karşılaştırılamadı (make all-plans).")
+    else:
+        print(f"Kod göçü beyanları ({k['resmi_sayi']} resmî denklikle): "
+              f"{len(k['karsilanan'])} resmî listede var, {len(k['karsiliksiz'])} YOK")
+        for e, y in k["karsiliksiz"]:
+            print(f"  ⚠ {e} → {y}: resmî karşılığı yok, beyanı yeniden değerlendiriniz")
     return 0
 
 
