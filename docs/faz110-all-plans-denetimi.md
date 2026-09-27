@@ -163,6 +163,21 @@ Eski tablo boşsa her sonuç kabul ediliyor, çünkü kaybedilecek bir şey yok.
 Reddedilen tarama hem çıktıda hem `ingest_run` mesajında yazıyor.
 `sweep_all` artık hata veren programları sayıyor.
 
+**Kısmi tarama artık birleştiriyor.** Faz 34'ün önerdiği akışta tam
+taramadan sonra hızlı tazeleme için ayara `eq_program_ids` yazılıyor. Eski
+kod bu tazelemede 3183 satırlık tabloyu seçilen programların satırlarıyla
+eziyordu; yeni koruma da onu her seferinde reddederdi. Artık yalnız seçilen
+programların satırları (`source_url`deki `ProgramId`) silinip yenileniyor.
+Diğer programların satırları `seen`e konuyor, böylece aynı denklik ikinci
+kez yazılmıyor. Koruma yalnız bu kapsamı karşılaştırıyor.
+
+**Canlı deneme** (3183 denklikli kopya katalog, program 153):
+
+* Eski birleştirmesiz kod tabloyu 269 satıra indirecekti. Koruma bunu
+  reddetti ve 3183 satır birebir korundu.
+* Birleştirmeli kod programın 144 satırını yeniledi (içerik aynı). Diğer
+  programların 3039 satırı değişmedi, tekrar eden çift yok.
+
 ## 7. Uzun taramada ilerleme
 
 Plan taraması kum havuzunda 20 program kodu için 19 dk sürdü, bütün
@@ -182,10 +197,13 @@ taranacak"), ardından her 10 kodda bir "cap 10/N kod" satırı geliyor.
     önbellek kirletilemez, yerinde değişen liste, tek sorgulu yükleyici.
   * `tests/test_faz110_denklik_koruma.py`: tam tarama ezer; boş, hatalı ve
     küçük, yarıya inen, istisna ve Ctrl-C taramaları eskiyi korur; eski
-    boşsa her sonuç kabul; `sweep_all` hataları sayar.
-* **Mutasyonlar:** 27 mutasyonun 27'si kırmızı: dil, ayrıştırıcı, en iyi
+    boşsa her sonuç kabul; `sweep_all` hataları sayar; kısmi tarama yalnız
+    kendi programını yeniler (ProgramId=1, 15 ve 153 karışmıyor), boş
+    kısmi tarama eskiyi korur.
+* **Mutasyonlar:** 31 mutasyonun 31'i kırmızı: dil, ayrıştırıcı, en iyi
   not, önbellek, yükleyicide varsayılan not, ikinci programlar, kopya
-  temizliği (üç yerde), ilerleme çıktısı ve denklik korumasının 9 kolu.
+  temizliği (üç yerde), ilerleme çıktısı, denklik korumasının 9 kolu ve
+  kısmi taramanın 4 kolu.
   Yükleyicideki `ORDER BY … s.course_code` kaldırılınca sonuç değişmiyor:
   SQLite kaynakları zaten birincil anahtar dizininden, kod sırasıyla
   okuyor. Sıralama yalnız bu davranışı güvenceye alıyor.

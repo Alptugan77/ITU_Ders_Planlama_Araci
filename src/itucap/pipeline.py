@@ -227,10 +227,23 @@ def _resmi_denklik_yedegi(con) -> tuple[list, list]:
     return esler, kaynaklar
 
 
-def _resmi_denklik_sil(con) -> None:
+def _program_kapsami(program_ids) -> list[str]:
+    """Satırın hangi programın sayfasından geldiği `source_url`de yazıyor
+    (`…DersPlanDenklikleri?ProgramId=153&PlanTipiId=…`)."""
+    return [f"%?ProgramId={int(p)}&%" for p in program_ids]
+
+
+def _resmi_denklik_sil(con, kapsam: list[str] | None = None) -> int:
+    """Resmî denklikleri siler; `kapsam` verilirse yalnız o programlarınkini."""
+    kosul, param = _RESMI, []
+    if kapsam is not None:
+        if not kapsam:
+            return 0
+        kosul += " AND (" + " OR ".join(["source_url LIKE ?"] * len(kapsam)) + ")"
+        param = list(kapsam)
     con.execute(f"""DELETE FROM equivalence_source WHERE equivalence_id IN
-                    (SELECT id FROM equivalence WHERE {_RESMI})""")
-    con.execute(f"DELETE FROM equivalence WHERE {_RESMI}")
+                    (SELECT id FROM equivalence WHERE {kosul})""", param)
+    return con.execute(f"DELETE FROM equivalence WHERE {kosul}", param).rowcount
 
 
 def _resmi_denklik_geri_yukle(con, yedek: tuple[list, list]) -> None:
@@ -272,8 +285,16 @@ def step_equivalence(con, settings, program_ids: list[int], all_programs: bool =
             # yalnız official/requires_approval siliniyor.
             # ★★ Faz 110 — silmeden önce YEDEK; tarama kesilir (Ctrl-C dahil),
             # boş döner ya da hatalarla küçülürse eski tablo geri yükleniyor.
+            # ★★ Faz 110 — KISMİ tarama (`eq_program_ids`) yalnız KENDİ
+            # programlarının satırlarını yeniler. Eskiden tam taramadan sonra
+            # "hızlı tazeleme" (Faz 34'ün önerdiği akış) 3183 satırlık tabloyu
+            # tek programın ~270 satırıyla eziyordu; koruma da onu her seferinde
+            # reddederdi. Diğer programların satırları `seen`e konuyor ki aynı
+            # denklik ikinci kez yazılmasın.
             yedek = _resmi_denklik_yedegi(con)
-            _resmi_denklik_sil(con)
+            kapsam = None if all_programs else _program_kapsami(program_ids)
+            eski = _resmi_denklik_sil(con, kapsam)
+            kalan = len(yedek[0]) - eski
             hatalar: list = []
             try:
                 if all_programs:
@@ -282,7 +303,11 @@ def step_equivalence(con, settings, program_ids: list[int], all_programs: bool =
                 else:
                     nprog = len(program_ids)
                     tried = found = 0
-                    seen: set = set()          # programlar arası tekilleştirme
+                    # programlar arası tekilleştirme; kapsam dışı satırlar dahil
+                    seen: set = {tuple(r) for r in con.execute(
+                        f"""SELECT e.target_course, s.course_code FROM equivalence e
+                              JOIN equivalence_source s ON s.equivalence_id = e.id
+                             WHERE e.{_RESMI}""")}
                     for pid in program_ids:
                         t, f = obs_equivalence.sweep_program(client, con, pid, seen=seen)
                         tried += t
@@ -294,17 +319,18 @@ def step_equivalence(con, settings, program_ids: list[int], all_programs: bool =
                           "resmî denklik geri yüklendi.", file=sys.stderr)
                 raise
             con.commit()
-            yeni = con.execute(f"SELECT COUNT(*) FROM equivalence WHERE {_RESMI}").fetchone()[0]
-            gerekce = denklik_korunmali(len(yedek[0]), yeni, len(hatalar))
+            yeni = con.execute(f"SELECT COUNT(*) FROM equivalence WHERE {_RESMI}").fetchone()[0] - kalan
+            gerekce = denklik_korunmali(eski, yeni, len(hatalar))
             mesaj = (f"{nprog} program{' (tümü)' if all_programs else ''}, "
                      f"{tried} kombinasyon denendi, {found} denklik bulundu"
-                     + (f", {len(hatalar)} program taranamadı" if hatalar else ""))
+                     + (f", {len(hatalar)} program taranamadı" if hatalar else "")
+                     + (f"; diğer programların {kalan} denkliği korundu" if kalan else ""))
             if gerekce:
                 _resmi_denklik_geri_yukle(con, yedek)
                 mesaj += f" — YENİ TABLO REDDEDİLDİ ({gerekce}), önceki {len(yedek[0])} korundu"
                 print(f"⚠️  Denklik: {gerekce}. Önceki {len(yedek[0])} resmî denklik "
                       "korundu; ağ düzelince yeniden deneyiniz.", file=sys.stderr)
-                found = len(yedek[0])
+                found = eski
             box["rows"] = found
             box["message"] = mesaj
     finally:

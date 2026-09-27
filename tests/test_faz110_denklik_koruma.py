@@ -112,3 +112,57 @@ def test_SWEEP_ALL_hatalari_sayar(tmp_path, monkeypatch):
     hatalar = []
     assert EQ.sweep_all(None, None, hatalar=hatalar) == (3, 2, 2)
     assert [h[:2] for h in hatalar] == [(2, "B")]
+
+
+# ------------------------------------------------ kısmi tarama (eq_program_ids)
+URL = "https://obs.itu.edu.tr/public/GenelTanimlamalar/DersPlanDenklikleri?ProgramId={}&PlanTipiId=2"
+
+
+def _ekle_p(con, program, hedef, kaynak):
+    cur = con.execute("INSERT INTO equivalence(target_course,confidence,source_url) VALUES (?,?,?)",
+                      (hedef, "official", URL.format(program)))
+    con.execute("INSERT INTO equivalence_source(equivalence_id,course_code,min_grade) VALUES (?,?,'DD')",
+                (cur.lastrowid, kaynak))
+
+
+@pytest.fixture()
+def kismi(tmp_path, monkeypatch):
+    class Sahte:
+        def __init__(self, *_a, **_k): pass
+        def close(self): pass
+    monkeypatch.setattr(PL, "ObsClient", Sahte)
+    con = db.connect(tmp_path / "r.sqlite3", "schema.sql")
+    for i in range(10):
+        _ekle_p(con, 1, f"BIR {100 + i}", f"K1 {100 + i}")
+        _ekle_p(con, 15, f"ONB {100 + i}", f"K15 {100 + i}")       # 15 ≠ 1 (LIKE öneki)
+        _ekle_p(con, 153, f"YUZ {100 + i}", f"K153 {100 + i}")
+    con.commit()
+    gorulen = []
+
+    def tara(yeni: int, program=1):
+        def sahte_program(client, con, pid, seen=None, **_k):
+            gorulen.append(set(seen))
+            for i in range(yeni):
+                _ekle_p(con, pid, f"TAZ {100 + i}", f"K {100 + i}")
+            con.commit()
+            return 5, yeni
+        monkeypatch.setattr(EQ, "sweep_program", sahte_program)
+        PL.step_equivalence(con, config.Settings(), [program])
+        return _tablo(con)
+    return con, tara, gorulen
+
+
+def test_KISMI_tarama_yalniz_kendi_programini_yeniler(kismi):
+    con, tara, gorulen = kismi
+    sonra = tara(12, program=1)
+    hedefler = {h.split()[0] for h, _k, _g in sonra}
+    assert hedefler == {"TAZ", "ONB", "YUZ"} and len(sonra) == 32
+    assert ("ONB 100", "K15 100") in gorulen[0] and ("BIR 100", "K1 100") not in gorulen[0]
+    mesaj = con.execute("SELECT message FROM ingest_run ORDER BY id DESC").fetchone()[0]
+    assert "diğer programların 20 denkliği korundu" in mesaj
+
+
+def test_KISMI_bos_tarama_eskiyi_korur(kismi):
+    con, tara, _g = kismi
+    once = _tablo(con)
+    assert tara(0, program=153) == once

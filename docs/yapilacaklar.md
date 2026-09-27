@@ -714,7 +714,8 @@ her maddeden önce gelen tek iş.
 > Resmî denklikler İngilizce kodlarda da uygulanıyor (dil korunur, engelli
 > ders 104 → 92). Ayrıştırıcının ek hatası (11 satır) düzeldi. Denklikle
 > gelen not artık ulaşılabilen en iyi not ve sıradan bağımsız. Kurulum
-> 5.9 → 3 sn. Denklik taraması eksik ya da kesik sonuçla eski tabloyu ezmiyor ✅
+> 5.9 → 3 sn. Denklik taraması eksik ya da kesik sonuçla eski tabloyu ezmiyor;
+> kısmi tarama (`eq_program_ids`) yalnız kendi programlarını yeniliyor ✅
 > ➜ Ayrıntı: `docs/faz110-all-plans-denetimi.md`
 >
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
