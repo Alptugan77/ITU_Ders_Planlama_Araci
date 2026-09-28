@@ -1795,8 +1795,28 @@ def yol_senaryosu(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id:
     az = POL.load_max_duration()
     h["maxDuration"] = ({"semesters": az.semesters, "verified": az.verified,
                          "source": az.source, "note": az.note} if az else None)
-    h["scenario"] = {"maxLoad": g["max_load"], "empty": bos, "hardMax": zor}
+    h["scenario"] = {"maxLoad": g["max_load"], "empty": bos, "hardMax": zor,
+                     "loadBand": yuk_basamagi(g["max_load"])}             # Faz 119
     return h
+
+
+def yuk_basamagi(kredi: float) -> dict | None:
+    """★ Faz 119 — bu dönem yükü yönetmelikte hangi GNO ile alınabiliyor
+    (MADDE 17/2 basamakları, `kurallar.toml` [[kredi_yuku]]).
+
+    Senaryoya artık serbest değer giriliyor; mevcut sınırın ÜSTÜNDE bir yük
+    ancak GNO şartıyla alınabilir ve arayüz bunu söylüyor. En yüksek
+    basamağın da üstündeyse `aboveMax` — yönetmelik bu yükü hiç tanımıyor.
+    Basamak beyan edilmemişse `None` (şart uydurulmuyor)."""
+    bantlar, _ = POL.load_bands()
+    if not bantlar:
+        return None
+    uyan = [b for b in bantlar if b.max_credits + 1e-9 >= kredi]
+    if not uyan:
+        en_ust = max(bantlar, key=lambda b: b.max_credits)
+        return {"aboveMax": True, "max": en_ust.max_credits, "minGpa": None, "label": ""}
+    b = min(uyan, key=lambda b: (b.min_gpa, b.max_credits))
+    return {"aboveMax": False, "max": b.max_credits, "minGpa": b.min_gpa, "label": b.label}
 
 
 @_sube_onbellekli
@@ -3485,6 +3505,8 @@ table.cmp .meta.arti{color:var(--ok)}
 .yhsenaryo{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-bottom:14px;
   font-size:var(--fs-md)}
 .yhsenaryo select{width:auto}
+.yhsenaryo input[type=number]{width:5.5em;padding:6px 8px}
+.yhsenaryo input[aria-invalid=true]{border-color:var(--warn)}
 .yhbosetiket{color:var(--ink-3)}
 .yhseritsenaryo{border-left-color:var(--warn);margin-bottom:14px}
 .yhseritsenaryo button{margin-left:8px}
@@ -11500,14 +11522,21 @@ async function yhSenaryoKur(){
 function yhSenaryoPaneli(T){
   if(!(LIVE || window.__ITUCAP_API__)) return "";
   const A = yhAyar();
-  const yukler = [T.maxLoad, 21, 18, 15, 12].filter((v, i, a) =>
-    v <= T.maxLoad && a.indexOf(v) === i);
+  /* ★ Faz 119 (kullanıcı isteği 28.09.2026: "dönem başına en çok kredi
+     kısmında istenilen değerin girilmesine izin verebilir misin") — sabit
+     liste yerine SERBEST değer (1–60, yarım kredi adımı; sunucu aynı aralığı
+     doğruluyor). Liste yalnız öneri. Mevcut sınırın üstündeki değer kabul
+     ediliyor; yönetmeliğin istediği GNO şeritte yazıyor. */
+  const oneriler = [T.maxLoad, 25, 22, 21, 18, 15, 12].filter((v, i, a) =>
+    v && a.indexOf(v) === i);
   const donemler = (T.terms || []).filter(t => !t.current && !t.summer && t.index <= 8);
   return `<div class="yhsenaryo" role="group" aria-label="Senaryo">
     <span class="eyebrow">Senaryo</span>
-    <label>Dönem başına en çok <select id="yhYuk">${yukler.map(v =>
-      `<option value="${v}"${v === A.maxLoad ? " selected" : ""}>${v}${
-        v === T.maxLoad ? " (mevcut sınır)" : ""}</option>`).join("")}</select> kredi</label>
+    <label>Dönem başına en çok <input id="yhYuk" type="number" inputmode="decimal"
+      min="1" max="60" step="0.5" value="${A.maxLoad}" list="yhYukOneri"
+      aria-describedby="yhSenaryoDurum" title="Mevcut sınır: ${T.maxLoad} kredi"> kredi</label>
+    <datalist id="yhYukOneri">${oneriler.map(v => `<option value="${v}">${
+      v === T.maxLoad ? "mevcut sınır" : ""}</option>`).join("")}</datalist>
     ${yhZorVar(T) ? `<label title="Tahmini zorluğu 10 üzerinden 6 ve üstü olan dersler; fazlası sonraki uygun döneme bırakılır"
       >Dönem başına en çok <select id="yhZor">${[0, 1, 2, 3].map(v =>
       `<option value="${v}"${v === (A.zor || 0) ? " selected" : ""}>${v ? v : "sınırsız"}</option>`).join("")}</select>
@@ -11518,6 +11547,20 @@ function yhSenaryoPaneli(T){
         esc(t.label)}</button>`).join("")}
     <span class="meta" id="yhSenaryoDurum" aria-live="polite"></span>
   </div>`;
+}
+
+/* ★ Faz 119 — mevcut sınırın üstündeki senaryo yükü: yönetmeliğin istediği
+   GNO (MADDE 17/2, `kurallar.toml`). Basamak bilinmiyorsa hiçbir şart
+   uydurulmuyor, yalnız "mevcut sınırın üzerindedir" deniyor. */
+function yukSarti(sc, sinir){
+  if(!(sc.maxLoad > sinir)) return "";
+  const b = sc.loadBand;
+  const ust = ` <span class="uyari">(mevcut sınırınızın, ${sinir} kredinin, üzerindedir`;
+  if(!b) return ust + ")</span>";
+  if(b.aboveMax) return ust + `; yönetmelikteki en yüksek sınır ${b.max} kredidir,
+    bu yük alınamaz)</span>`;
+  return ust + (b.minGpa ? `; yönetmeliğe göre en az ${b.minGpa.toFixed(2)} GNO gerekir)`
+    : ")") + "</span>";
 }
 
 /* ★★ FAZ 118 — YOL HARİTASI ÖNCELİĞİ (kullanıcı isteği 28.09.2026).
@@ -11723,7 +11766,7 @@ function renderRoadmap(){
   const serit = R === T ? "" : `<div class="note yhseritsenaryo" role="status">
       <b>Senaryo görüntülenmektedir (kaydedilmedi).</b> ${[
         R.scenario.maxLoad !== T.maxLoad ? `dönem başına en çok <b class="mono">${
-          R.scenario.maxLoad}</b> kredi` : "",
+          R.scenario.maxLoad}</b> kredi${yukSarti(R.scenario, T.maxLoad)}` : "",
         R.scenario.empty.length ? `boş: ${(R.terms || []).filter(t => t.skipped)
           .map(t => esc(t.label)).join(", ")}` : "",
         R.scenario.hardMax ? `dönem başına en çok <b class="mono">${
@@ -11733,7 +11776,17 @@ function renderRoadmap(){
     simdi}${yaz}<div data-kalma="yh">${kalmaPanelIcerik()}</div>${varsayim}${zincir}${donemler}${kalan}`;
   kalmaBagla(); kalmaOto();        // Faz 75
   const yuk = $("#yhYuk");
-  if(yuk) yuk.addEventListener("change", () => { yhAyar().maxLoad = +yuk.value; yhSenaryoKur(); });
+  if(yuk) yuk.addEventListener("change", () => {
+    const v = Number(String(yuk.value).replace(",", "."));
+    if(!yuk.value || !isFinite(v) || v < 1 || v > 60 || Math.round(v * 2) !== v * 2){
+      const d = $("#yhSenaryoDurum");
+      if(d) d.textContent = "1 ile 60 arasında, tam ya da buçuklu bir kredi değeri giriniz.";
+      yuk.setAttribute("aria-invalid", "true");
+      return;
+    }
+    yuk.removeAttribute("aria-invalid");
+    yhAyar().maxLoad = v; yhSenaryoKur();
+  });
   const zorSec = $("#yhZor");
   if(zorSec) zorSec.addEventListener("change", () => { yhAyar().zor = +zorSec.value; yhSenaryoKur(); });
   body.querySelectorAll("[data-oncelik]").forEach(b => b.addEventListener("click", async () => {

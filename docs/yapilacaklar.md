@@ -764,6 +764,10 @@ her maddeden önce gelen tek iş.
 > bitiş 53, anadal bitişi 71 çiftte öne çekildi. Kurulum 78 → 15 ms ✅
 > ➜ Ayrıntı: `docs/faz118-yol-onceligi.md`
 >
+> **Faz 119 (28.09.2026):** senaryoda dönem kredisi serbest giriliyor (1–60).
+> Mevcut sınırın üstünde yönetmeliğin istediği GNO yazıyor ✅
+> ➜ Ayrıntı: `docs/faz119-serbest-kredi.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

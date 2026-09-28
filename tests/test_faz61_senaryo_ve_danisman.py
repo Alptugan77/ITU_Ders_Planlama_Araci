@@ -135,7 +135,7 @@ with sync_playwright() as p:
     pg.click('[data-bos="2"]'); pg.wait_for_timeout(600)
     print("S1:" + pg.evaluate(kart) + "|" + pg.evaluate(serit))
     print("ATLANDI:" + pg.evaluate("() => [...document.querySelectorAll('.yhdonem.atlandi h3 span')].map(e => e.textContent.trim()).join(',')"))
-    pg.select_option("#yhYuk", "15"); pg.wait_for_timeout(600)
+    pg.fill("#yhYuk", "15"); pg.press("#yhYuk", "Enter"); pg.wait_for_timeout(600)
     print("S2:" + pg.evaluate(serit))
     pg.click("#yhSenaryoKapat"); pg.wait_for_timeout(300)
     print("S3:" + pg.evaluate(serit) + "|" + pg.evaluate(kart))
