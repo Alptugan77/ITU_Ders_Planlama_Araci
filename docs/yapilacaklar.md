@@ -739,6 +739,12 @@ her maddeden önce gelen tek iş.
 > artık tanınıyor ✅
 > ➜ Ayrıntı: `docs/faz113-onsart-varsayimlari.md`
 >
+> **Faz 114 (28.09.2026):** yol haritası önce plan yolunu kullanıyor: önşart
+> planın dersleriyle (resmî denklik dahil) sağlanabiliyorsa dış varsayım
+> yapılmıyor. 127 planda "önşart varsayıldı" 277 → 84; sıra ihlali ve
+> yerleşemeyen ders artmadı ✅
+> ➜ Ayrıntı: `docs/faz114-plan-yolu.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

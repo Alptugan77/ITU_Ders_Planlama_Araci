@@ -455,6 +455,23 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     goc = code_migration_groups()
     dis = {c for c in dis if not ((goc.get(c, frozenset()) | goc.get(R.dil_esi(con, c) or "", frozenset()))
                                   & plan_kodlari)}
+    # ★★ Faz 114 — aynı sebeple: plandaki bir dersten RESMÎ DENKLİKLE
+    # kazanılan kod dış değil. Gerçek katalogda 127 lisans planında dış
+    # sayılan 4294 önşart kodunun 1499'u planın kendi derslerinden denklikle
+    # kazanılıyordu (BLG planı BLG 231E koyuyor, önşart "BLG 221" diyor;
+    # resmî liste BLG 231 ≡ BLG 221). Dış sayılınca geçilmiş varsayılıyor,
+    # ders onu açan plan dersinden ÖNCE yerleşebiliyor ve kartta yanlış bir
+    # "önşart varsayıldı" yazıyordu. Artık plan dersi yerleşince görünüm
+    # denkliği uyguluyor (`gorunum`), sıra kendiliğinden doğru kuruluyor.
+    # ⚠️ Yalnız BELİRLİ DERS olarak yerleşecek birimlerden (`kod_birim`), plan
+    # kodlarının hepsinden DEĞİL: havuz seçenekleri hiç tek tek yerleşmiyor.
+    # İlk denemede havuz seçeneğinin denkliği MTO 316'yı "dış değil" yaptı,
+    # ama hiçbir zaman sağlanmadı: MTO 4901/4902 yerleşemedi (IBM, MTO, ENTE).
+    if equivalences:
+        plan_genis = R.expand_with_equivalences({k: GECER for k in kod_birim},
+                                                equivalences)[0]
+        dis = {c for c in dis if c not in plan_genis
+               and (R.dil_esi(con, c) or "") not in plan_genis}
     # ★★ Faz 98 — GEÇİLMİŞ DERSİN GERÇEK NOTU. Görünüm her geçilen derse "AA"
     # veriyordu; DD ile geçilmiş (ya da notsuz işaretlenip DD sayılan)
     # BLG 4901E, "MIN BB" isteyen BLG 4902E'yi açıyordu. Bu dönemin önerileri
@@ -462,16 +479,32 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     # yerleştirilen (gelecekte alınacak) dersler "AA" varsayılıyor.
     gercek_not = {c: str(g).upper() for c, g in genis.items() if R.passed(g)}
 
-    def gorunum(kodlar):
+    plan_yolu = {k for k, b in kod_birim.items() if b.ders}   # tek tek yerleşecekler
+
+    def gorunum(kodlar, varsayim=frozenset()):
         v = {c: GECER for c in kodlar}
         v.update({c: g for c, g in gercek_not.items() if c in v})
+        if equivalences:                         # Faz 114: yerleşenin denkliği de
+            v = R.expand_with_equivalences(v, equivalences)[0]
+        # ⚠️ Dış varsayım denklikten SONRA ekleniyor: varsayılan dış dersten
+        # denklik zinciri kurulmaz. Kurulsaydı HTAE'de dış JDF 122 (≡ GEO 103)
+        # GEO 114E'yi, plandaki GEO 103E'den ÖNCE ve kartta hiçbir varsayım
+        # yazmadan açıyordu.
+        v.update({c: GECER for c in varsayim if c not in v})
         return R.prereq_view(v)
 
     def onsart_tamam(b: Birim, agac) -> bool:
         if agac is None or agac.satisfied(gorunum(varsayilan)):
             b.dis_onsart = []
             return True
-        if agac.satisfied(gorunum(varsayilan | dis)):
+        # ★★ Faz 114 — plan yolu ÖNCE. Önşart planın kendi dersleriyle
+        # (henüz yerleşmemiş olanlar dahil) sağlanabiliyorsa dış varsayım
+        # YAPILMIYOR; ders plan dersini bekliyor. Eskiden dış ders hemen
+        # varsayılıyordu: BIOE'de ING 201A, planın ING 112A'sından önce
+        # ("ING 101 varsayıldı"), JEO'da JEO 4901 JEO 359'dan önce yerleşiyordu.
+        if agac.satisfied(gorunum(varsayilan | plan_yolu)):
+            return False
+        if agac.satisfied(gorunum(varsayilan, dis)):
             b.dis_onsart = dis_gruplari(con, agac, gorunum(varsayilan), dis)
             return True
         return False
