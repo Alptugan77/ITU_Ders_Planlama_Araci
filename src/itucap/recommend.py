@@ -167,6 +167,10 @@ class Candidate:
     # puan mı 3 puan mı kattı, belli değildi.
     parts: list[dict] = field(default_factory=list)
     unit: str = "kredi"       # yük hangi birimden sayılıyor
+    # ★★ Faz 117 — plandaki `denk_of` dersinin yerine RESMÎ DENKLİKLE alınan
+    # ders (şubesi öğrencinin programına açık → dilekçesiz). Boşsa planın
+    # kendi dersi.
+    denk_of: str = ""
 
     @property
     def load(self) -> float:
@@ -352,6 +356,30 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
     for s in cap_steps:                     # aynı ders iki planda ise EN DERİN kademe
         tier_of[s.course] = max(tier_of.get(s.course, 0), s.tier)
 
+    # ★★ Faz 117 — DİLEKÇESİZ DENK DERSLER (kullanıcı 28.09.2026: "programda
+    # olan derslerin dilekçe gerektirmeyen denklerini öneride kullanabilirsin
+    # ve kullanıcı bunları diğer dersler gibi kullanabilir olacak"). Zorunlu
+    # plan dersinin resmî denkliği olan ders, şubesi öğrencinin KENDİ
+    # programına (anadal/ÇAP/yandal, BLG/BLGE/_LS) açıksa aday oluyor ve
+    # plandaki dersin YUVASINA bağlanıyor: yuva eşleştirmesi (Faz 81) ikisini
+    # birlikte seçtirmiyor. Denk dersin geçilmesi o yuvayı zaten dolduruyor
+    # (`expand_with_equivalences`, `slot_satisfied`).
+    from .normalize import kendi_program_kodlari
+    _ikinci_kodlar = [r[0] for pid in (p for _r, p in ikinciler) if pid
+                      for r in con.execute("SELECT program_code FROM plan WHERE id=?", (pid,))]
+    kendi = kendi_program_kodlari([anadal_program, cap_program, *_ikinci_kodlar])
+    denk_kaynak: dict[str, list[str]] = {}
+    for e in equivalences:
+        if e.confidence != "official" or len(e.sources) != 1:
+            continue
+        for hedef, kaynaklar in R._dil_yazimlari(e):
+            denk_kaynak.setdefault(hedef, []).append(kaynaklar[0][0])
+
+    def dilekcesiz_subeler(sections: list[Section]) -> list[Section]:
+        return [s for s in sections if any(
+            str(r[0]).strip().upper() in kendi for r in con.execute(
+                "SELECT program_code FROM lesson_allowed_program WHERE crn=?", (s.crn,)))]
+
     out: list[Candidate] = []
     # ★ Öğrenci hangi program kodlarıyla kayıt yapabiliyorsa o kodlar geçerli
     # (HTAE + BLG + BLGE). Kardeş kod OTOMATİK türetilmez — 'HTA' ile 'HTAE'yi
@@ -392,7 +420,11 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
                      else [r[0] for r in con.execute(
                          "SELECT course_code FROM pool_option WHERE slot_id=?", (slot["id"],))])
             pool_label = "" if slot["slot_kind"] == "REQUIRED" else (slot["pool_label_raw"] or "")
-            for code in filter(None, codes):
+            plan_kodu = {c for c in codes if c}
+            denkler = ([(k, h) for h in plan_kodu for k in denk_kaynak.get(h, ())
+                        if k not in plan_kodu]
+                       if slot["slot_kind"] == "REQUIRED" else [])
+            for code, denk_of in [*((c, "") for c in filter(None, codes)), *denkler]:
                 if R.passed(expanded.get(code)):
                     continue
                 if code in taking:
@@ -415,15 +447,25 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
                                  (info["class_restriction"] if info else None),
                                  catalog_rule):
                     continue                      # kredi eşiği — bitirme çalışması
+                # ★ Faz 117 — "Yabancı Öğr. İçin Türk Dili" (TUR 111/112) yalnız
+                # yabancı uyruklu öğrenci içindir; şubesi bütün programlara açık
+                # görünse de denk olarak önerilmiyor.
+                if denk_of and "yabancı öğr" in ((info["name"] if info else "") or "").lower():
+                    continue
                 sections = load_sections(con, code, allowed)
+                if denk_of:
+                    sections = dilekcesiz_subeler(sections)
                 if not sections:
                     continue
+                # Denk dersin yükü KENDİ kredisi/AKTS'si (alınan ders o).
+                _ects = (info["ects"] if info else 0) if denk_of else slot["ects"]
+                _kredi = (info["credits"] if info else 0) if denk_of else slot["credits"]
                 out.append(Candidate(
                     course=code,
                     name=(info["name"] if info else "") or "",
                     role=role,
-                    ects=float(slot["ects"] or (info["ects"] if info else 0) or 0),
-                    credits=float(slot["credits"] or (info["credits"] if info else 0) or 0),
+                    ects=float(_ects or (info["ects"] if info else 0) or 0),
+                    credits=float(_kredi or (info["credits"] if info else 0) or 0),
                     unlocks=acilan_sayisi(code),
                     tier=tier_of.get(code, 0),
                     critical=code in critical,
@@ -436,13 +478,17 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
                     term_no=slot["term_no"],
                     pool_label=pool_label,
                     unit=unit,
+                    denk_of=denk_of,
                 ))
-    # aynı ders iki slottan gelmişse teki kalsın (ikinci program öncelikli)
+    # aynı ders iki slottan gelmişse teki kalsın (ikinci program öncelikli;
+    # Faz 117: planın kendi dersi olarak gelen, denk olarak gelene üstün)
     unique: dict[str, Candidate] = {}
     yuvalari: dict[str, list] = {}
     for cand in out:
         yuvalari.setdefault(cand.course, []).append(cand.slot_id)
-        if cand.course not in unique or cand.role != "ANADAL":
+        onceki = unique.get(cand.course)
+        if (onceki is None or (onceki.denk_of and not cand.denk_of)
+                or (bool(onceki.denk_of) == bool(cand.denk_of) and cand.role != "ANADAL")):
             unique[cand.course] = cand
     # ★ Faz 81 — ama uyduğu BÜTÜN slotlar tutuluyor; birincil ilk sırada.
     for kod, cand in unique.items():
@@ -460,6 +506,7 @@ WEIGHTS = {
     "scarcity": 15,
     "deferrable": -20,   # ★ her dönem açılan ders ertelenebilir
     "full": -5,          # ★★ Faz 90 — bütün şubeleri dolu (aşağıya bak)
+    "denk": -40,         # ★ Faz 117 — plandaki ders de açıkken denk ders
 }
 # ★ Ağırlık gerekçeleri (ölçüme dayalı, 20.08.2026):
 #
@@ -675,6 +722,7 @@ def score_all(cands: list[Candidate]) -> list[Candidate]:
     """
     max_unlock = max((c.unlocks for c in cands), default=1) or 1
     max_tier = max((c.tier for c in cands), default=0)
+    _adaylar = {c.course for c in cands}
     for c in cands:
         score = 0.0
         c.reasons = []
@@ -704,6 +752,16 @@ def score_all(cands: list[Candidate]) -> list[Candidate]:
             kat("required", WEIGHTS["required"], "zorunlu ders")
         else:
             c.reasons.append("seçmeli havuzdan")
+        if c.denk_of:                                  # ★ Faz 117
+            # Plandaki ders de bu dönem alınabiliyorsa o önce: denk ders
+            # seçilebilir ama öneri planın kendi dersini tercih eder (gerçek
+            # katalog: TUR 122 açıkken "Yabancı Öğr. İçin Türk Dili II" TUR 112
+            # öneriye giriyordu). Plandaki ders açık değilse ceza yok.
+            _asil = {c.denk_of, c.denk_of + "E",
+                     c.denk_of[:-1] if c.denk_of.endswith("E") else c.denk_of}
+            if _asil & _adaylar:
+                kat("denk", WEIGHTS["denk"], f"{c.denk_of} bu dönem açık — plandaki ders önce")
+            c.reasons.insert(0, f"{c.denk_of} yerine (resmî denklik, dilekçesiz)")
         if max_tier:
             kat("early_tier", WEIGHTS["early_tier"] * (max_tier - c.tier) / max_tier,
                 "zincirin başında")

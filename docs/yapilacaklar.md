@@ -753,6 +753,11 @@ her maddeden önce gelen tek iş.
 > BBF 203E 1 → 22, planda BBF 301E/302E/BLG 411E'yi açıyor ✅
 > ➜ Ayrıntı: `docs/faz116-takma-adlar.md`
 >
+> **Faz 117 (28.09.2026):** plandaki zorunlu dersin dilekçesiz resmî denkliği
+> aday oluyor ve o dersin yuvasına bağlanıyor; plan dersi açıksa öneri onu
+> tercih ediyor. CRN ile yüklenen denk ders "plan dışı" değil ✅
+> ➜ Ayrıntı: `docs/faz117-denk-aday.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

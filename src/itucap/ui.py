@@ -88,15 +88,13 @@ def _acik_denklikler(con, equivalences, expanded, gereken, allowed,
     """
     # ★ Faz 115 — bölümün iki dil programı aynı bölüm (kullanıcı 28.09.2026:
     # anadal BLGE, şube "BLG_LS"/BLG'ye açık, kart yine "dilekçeyle" diyordu).
-    from .normalize import base_program_code
     # ★ Faz 115 — ÇAP/yandal programı da "kendi" programın (kullanıcı: "çap
-    # kodumdan bahsediyorum ve blg kodum").
-    kodlar = [kendi_program] if isinstance(kendi_program, (str, type(None))) else list(kendi_program)
-    kendi = set()
-    for _k in (str(k or "").strip().upper() for k in kodlar):
-        if _k:
-            kendi |= {_k, base_program_code(_k), base_program_code(_k) + "E"}
-    kendi |= {f"{k}_LS" for k in kendi}
+    # kodumdan bahsediyorum ve blg kodum"). Kural `normalize`da (Faz 117:
+    # öneri motoru da aynısını kullanıyor).
+    from .normalize import kendi_program_kodlari
+    kendi = kendi_program_kodlari(
+        [kendi_program] if isinstance(kendi_program, (str, type(None))) else kendi_program)
+
     def passed(code):
         return any(R.passed(expanded.get(s)) for s in _dil_esi(code))
 
@@ -934,6 +932,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             # İkisi ayrı sayı; birini öbürünün yerine yazmak yanlış olurdu.
             "opens": _acilanlar(c.course),
             "required": c.required, "reasons": c.reasons,
+            # ★ Faz 117 — plandaki bu dersin yerine resmî denklikle (dilekçesiz).
+            "denkOf": c.denk_of,
             # ★ Faz 38 — geçmiş dönemlerin not dağılımı (OBS yayınlıyor).
             # ⚠️ PUANA GİRMİYOR. Dağılımı puanlamaya sokmak aracı "kolay ders
             # bulucu"ya çevirirdi; hangi dersi almanın değdiği öğrencinin
@@ -7422,9 +7422,10 @@ function injectSections(bulunan){
                  doldurmuyor. Kredisi yüke ve çakışmaya girer, ilerleme
                  yüzdesine girmez. Projenin ana hata sınıfı tam burada:
                  alınmamış bir şartı alınmış saymak. */
-              pool: "", score: 0, opens: [],
+              pool: "", score: 0, opens: [], denkOf: x.denkOf || "",
               reasons: [x.role === "PLAN_DISI"
-                        ? "plan dışı; hiçbir şartı karşılamaz" : "CRN ile eklendi"],
+                        ? "plan dışı; hiçbir şartı karşılamaz"
+                        : x.denkOf ? `${x.denkOf} yerine (resmî denklik)` : "CRN ile eklendi"],
               sections: [sec]};
       CAND[x.course] = cand;
       MODES.forEach(m => { if(!(m.candidates || []).some(c => c.course === x.course))
@@ -10348,7 +10349,8 @@ function courseDialog(course){
 
   openDialog(`
     <div class="eyebrow">${cand.role === "ANADAL" ? "Anadal dersi" : LBL + " dersi"}${
-      cand.pool ? " · havuz: " + esc(cand.pool) : ""}</div>
+      cand.pool ? " · havuz: " + esc(cand.pool) : ""}${
+      cand.denkOf ? " · " + esc(cand.denkOf) + " yerine (resmî denklik)" : ""}</div>
     <h2 class="mono">${esc(cand.course)}</h2>
     <div style="color:var(--ink-2);font-size:var(--fs-md);margin:2px 0 6px">${esc(cand.name)}</div>
     <div class="meta" style="color:var(--ink-3);font-size:var(--fs-sm)">
@@ -10882,6 +10884,8 @@ function renderCandidates(){
       <td><b class="mono">${esc(c.course)}</b>
         ${inPlan ? `<span class="chip" style="margin-left:6px;color:var(--ok)">programda</span>` : ""}
         ${c.critical ? `<span class="chip supply" style="margin-left:6px">kritik yol</span>` : ""}
+        ${c.denkOf ? `<span class="chip prereq" style="margin-left:6px"
+          title="Plandaki ${esc(c.denkOf)} dersinin resmî denkliği; şubesi programınıza açık olduğundan dilekçe gerekmez. Bu ders geçilince ${esc(c.denkOf)} yuvası dolar.">${esc(c.denkOf)} yerine</span>` : ""}
         ${c.prereqUnknown ? `<span class="chip unknown"
           style="margin-left:6px" title="Önşart metni bulunmakla birlikte okunamamıştır; danışmanınıza danışınız">önşart okunamadı</span>`
           : (c.prereqMissing ? `<span class="chip unknown" style="margin-left:6px"
