@@ -3,15 +3,15 @@
 Faz 2 parser'ının karşılaması gereken girdi uzayı. Otomatik üretildi —
 elle düzenleme, `make prereq-report` ile yenile.
 
-- Önşartı olan ders sayısı: **4643**
+- Önşartı olan ders sayısı: **4646**
 - Benzersiz kalıp sayısı: **281**
 
 ## En sık kalıplar
 
 | # | Frekans | Kalıp (<C>=ders kodu, <G>=not) |
 |---|---------|--------------------------------|
-| 1 | 1098 | `<C> MIN <G>` |
-| 2 | 930 | `(<C> MIN DD OR <C> MIN <G>)` |
+| 1 | 1100 | `<C> MIN <G>` |
+| 2 | 931 | `(<C> MIN DD OR <C> MIN <G>)` |
 | 3 | 661 | `(<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)` |
 | 4 | 368 | `(<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>) OR (<C> MIN DD OR <C> MIN <G>)` |
 | 5 | 107 | `(<C> MIN CC OR <C> MIN <G>)` |
@@ -75,9 +75,9 @@ elle düzenleme, `make prereq-report` ile yenile.
 
 | Token | Frekans |
 |-------|---------|
-| `min` | 19748 |
-| `dd` | 9147 |
-| `ddveya` | 8966 |
+| `min` | 19752 |
+| `dd` | 9150 |
+| `ddveya` | 8967 |
 | `veya` | 4304 |
 | `ve` | 1427 |
 | `cc` | 1042 |
