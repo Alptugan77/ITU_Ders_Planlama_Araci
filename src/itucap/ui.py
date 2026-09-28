@@ -696,7 +696,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                             settings.anadal_program, settings.second_program,
                             settings.allowed_programs, settings.unit,
                             second_role=second_role, max_term=max_term,
-                            second_plans=[(s["role"], s["planId"]) for s in seconds])
+                            second_plans=[(s["role"], s["planId"]) for s in seconds],
+                            oncelik=settings.yol_onceligi)                # Faz 122
         # ★ Meşgul saatler `fixed` olarak giriyor: motor onları "zaten dolu"
         # sayıyor ve çakışan şubeyi hiç önermiyor. Ayrı bir çakışma yolu
         # yazmak iki tanım demek olurdu (bkz. REC.busy_sections).
@@ -953,6 +954,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     # ("İkinci programda neden alamıyorsun"); tek programlı öğrenci — yani
     # aracın kullanıcılarının çoğu — bu cevabı HİÇ görmüyordu.
     blockers = []
+    # Faz 120 — dilekçesiz denk (`candidates` ile aynı "kendi program" kümesi).
+    kendi_programlar = [settings.anadal_program, *(s["program"] for s in seconds)]
     if anadal_id:
         blockers += [{"course": b.course, "reason": b.reason, "detail": b.detail,
                       "name": names.get(b.course, ""),
@@ -961,7 +964,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                      for b in REC.cap_blockers(con, ucon, student_id, anadal_id,
                                                settings.anadal_program,
                                                settings.allowed_programs,
-                                               max_term=donem or None)]
+                                               max_term=donem or None,
+                                               kendi_programlar=kendi_programlar)]
     for s in seconds:
         blockers += [{"course": b.course, "reason": b.reason, "detail": b.detail,
                       "name": names.get(b.course, ""),
@@ -970,7 +974,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                      for b in REC.cap_blockers(con, ucon, student_id, s["planId"],
                                                s["program"],
                                                settings.allowed_programs,
-                                               dil_esi=True)]
+                                               dil_esi=True,
+                                               kendi_programlar=kendi_programlar)]
 
     # ★ Kredi eşiği (bitirme çalışması) — kaç kredin var, eşik ne, NEYİ tutuyor.
     # Son madde önemli: kural sessizce eleseydi kullanıcı 'GEO 4901E neden
@@ -1534,9 +1539,17 @@ def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
                 "program": settings.anadal_program}]
     planlar += [{"planId": s["planId"], "role": s["role"], "label": s["label"],
                  "program": s["program"]} for s in seconds if s.get("planId")]
+    # ★★ Faz 121 — PLANLAMA YÜKÜ. Gelecek dönemler yönetmelik sınırıyla değil,
+    # öğrencinin kaydettiği yükle (sınırı aşmadan) kuruluyor. "Bu dönem"
+    # yük aşımı (`overLoad`) yine yönetmelik sınırına göre.
+    planlama = min(float(settings.yol_yuk), float(sinir)) if settings.yol_yuk else float(sinir)
+    yuk_notu = ("kaydedilen planlama yükü" if settings.yol_yuk and planlama < float(sinir)
+                else "mevcut sınır")
+
     def kur(bu_donem, yaz=None):
         return YH.kur(con, grades, planlar, term=term, donem=donem or 0,
-                      max_load=float(sinir), bu_donem=bu_donem, bu_donem_kaynagi=kaynak,
+                      max_load=planlama, yuk_notu=yuk_notu,
+                      bu_donem=bu_donem, bu_donem_kaynagi=kaynak,
                       equivalences=equivalences, taban=taban, yaz=yaz,
                       mesgul=REC.busy_sections(settings.mesgul),          # Faz 82
                       oncelik=settings.yol_onceligi)                      # Faz 118
@@ -1572,9 +1585,13 @@ def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
         # ⚠️ En çok 5 aday: statik sitede her kurulum Pyodide'da çalışıyor.
         simdiki = bitisler(sonuc)
         yuk = sum(float(x["credits"] or 0) for x in bu)
+        # ★ Faz 122 — zincir başının yanında haritada SAAT ÇAKIŞMASIYLA
+        # ertelenen ders de aday (GEO 307E: zinciri yok ama GEO 227E ile aynı
+        # saatte olduğu için bir yıl kayıyor, bitişi o belirliyor).
+        saatle = {k for t in sonuc.get("terms", []) for k in t.get("timeDeferred") or ()}
         adaylar = [h for h in sonuc.get("heads", [])
                    if h["course"] in ders and ders[h["course"]].sections
-                   and h["chain"] >= 2][:5]
+                   and (h["chain"] >= 2 or h["course"] in saatle)][:5]
         etki = []
         for h in adaylar:
             c = ders[h["course"]]
@@ -1641,6 +1658,11 @@ def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
         az = POL.load_max_duration()
         sonuc["maxDuration"] = ({"semesters": az.semesters, "verified": az.verified,
                                  "source": az.source, "note": az.note} if az else None)
+        # Faz 121 — arayüz planlama yükünü yönetmelik sınırından ayırıyor.
+        sonuc["loadLimit"] = float(sinir)
+        sonuc["planLoad"] = {"saved": float(settings.yol_yuk or 0), "applied": planlama,
+                             "clamped": bool(settings.yol_yuk
+                                             and settings.yol_yuk > float(sinir) + 1e-9)}
         return sonuc
     except Exception as exc:                            # noqa: BLE001
         # Harita yardımcı bir görünüm: kurulamazsa sayfanın geri kalanı
@@ -11527,16 +11549,18 @@ function yhSenaryoPaneli(T){
      liste yerine SERBEST değer (1–60, yarım kredi adımı; sunucu aynı aralığı
      doğruluyor). Liste yalnız öneri. Mevcut sınırın üstündeki değer kabul
      ediliyor; yönetmeliğin istediği GNO şeritte yazıyor. */
-  const oneriler = [T.maxLoad, 25, 22, 21, 18, 15, 12].filter((v, i, a) =>
+  const sinir = T.loadLimit || T.maxLoad;                     // Faz 121
+  const oneriler = [T.maxLoad, sinir, 25, 22, 21, 18, 15, 12].filter((v, i, a) =>
     v && a.indexOf(v) === i);
   const donemler = (T.terms || []).filter(t => !t.current && !t.summer && t.index <= 8);
   return `<div class="yhsenaryo" role="group" aria-label="Senaryo">
     <span class="eyebrow">Senaryo</span>
     <label>Dönem başına en çok <input id="yhYuk" type="number" inputmode="decimal"
       min="1" max="60" step="0.5" value="${A.maxLoad}" list="yhYukOneri"
-      aria-describedby="yhSenaryoDurum" title="Mevcut sınır: ${T.maxLoad} kredi"> kredi</label>
+      aria-describedby="yhSenaryoDurum" title="Mevcut sınır: ${sinir} kredi"> kredi</label>
     <datalist id="yhYukOneri">${oneriler.map(v => `<option value="${v}">${
-      v === T.maxLoad ? "mevcut sınır" : ""}</option>`).join("")}</datalist>
+      v === sinir ? "mevcut sınır" : ""}</option>`).join("")}</datalist>
+    ${yhYukKaydi(T, A)}
     ${yhZorVar(T) ? `<label title="Tahmini zorluğu 10 üzerinden 6 ve üstü olan dersler; fazlası sonraki uygun döneme bırakılır"
       >Dönem başına en çok <select id="yhZor">${[0, 1, 2, 3].map(v =>
       `<option value="${v}"${v === (A.zor || 0) ? " selected" : ""}>${v ? v : "sınırsız"}</option>`).join("")}</select>
@@ -11561,6 +11585,31 @@ function yukSarti(sc, sinir){
     bu yük alınamaz)</span>`;
   return ust + (b.minGpa ? `; yönetmeliğe göre en az ${b.minGpa.toFixed(2)} GNO gerekir)`
     : ")") + "</span>";
+}
+
+/* ★★ FAZ 121 — PLANLAMA YÜKÜ. Senaryoda denenen kredi değeri KAYDEDİLEBİLİYOR:
+   sayfadaki harita, "bu dönem alırsanız", kalma riski ve ÇAP seçenekleri o
+   yükle kuruluyor (yönetmelik sınırını aşmadan). Kaydedilmemişken sınır
+   25'in üstündeyse (GNO ≥ 3.00 → 40) harita bunu SÖYLÜYOR: kullanıcının
+   verisinde 14 derslik, 39,5 kredilik dönemler kuruluyordu. */
+function yhYukKaydi(T, A){
+  const P = T.planLoad;
+  if(!P) return "";
+  const sinir = T.loadLimit || T.maxLoad;
+  const parca = [];
+  if(A.maxLoad !== T.maxLoad && A.maxLoad <= sinir)
+    parca.push(`<button type="button" class="ghost mini" id="yhYukKaydet">${
+      A.maxLoad} krediyi planlama yükü olarak kaydet</button>`);
+  if(P.saved){
+    parca.push(`<span class="meta">Kaydedilen planlama yükü: <b class="mono">${P.saved}</b> kredi${
+      P.clamped ? ` (mevcut sınır ${sinir} kredi uygulanmaktadır)` : ""}</span>
+      <button type="button" class="ghost mini" id="yhYukSifirla">Yönetmelik sınırına dön</button>`);
+  }else if(sinir > 25){
+    parca.push(`<span class="meta uyari">Harita, yönetmeliğin izin verdiği en yüksek yükle
+      (<span class="mono">${sinir}</span> kredi) kurulmuştur; bu yoğunlukta dönemler gerçekçi
+      olmayabilir. Daha düşük bir değer girip planlama yükü olarak kaydedebilirsiniz.</span>`);
+  }
+  return parca.join(" ");
 }
 
 /* ★★ FAZ 118 — YOL HARİTASI ÖNCELİĞİ (kullanıcı isteği 28.09.2026).
@@ -11721,7 +11770,12 @@ function renderRoadmap(){
         : ""}</div>` : ""}
       ${yhZorluk(t)}
       ${(t.timeDeferred || []).length ? `<div class="yhuyari">Saat çakışması nedeniyle bu döneme
-        konamadı: <span class="mono">${t.timeDeferred.map(esc).join(", ")}</span></div>` : ""}
+        konamadı: ${t.timeDeferred.map(k => {
+          /* Faz 121 — neyle çakıştığı (bütün şubeleri çakışan ders). */
+          const r = (t.timeDeferredWith || {})[k];
+          return `<span class="mono">${esc(k)}</span>${r && r.length
+            ? ` (${r.map(esc).join(", ")} ile aynı saatte)` : ""}`;
+        }).join(", ")}</div>` : ""}
       ${(t.hardDeferred || []).length ? `<div class="yhuyari">Dönem başına zor ders
         sınırı nedeniyle sonraki döneme bırakıldı:
         <span class="mono">${t.hardDeferred.map(esc).join(", ")}</span></div>` : ""}
@@ -11766,7 +11820,7 @@ function renderRoadmap(){
   const serit = R === T ? "" : `<div class="note yhseritsenaryo" role="status">
       <b>Senaryo görüntülenmektedir (kaydedilmedi).</b> ${[
         R.scenario.maxLoad !== T.maxLoad ? `dönem başına en çok <b class="mono">${
-          R.scenario.maxLoad}</b> kredi${yukSarti(R.scenario, T.maxLoad)}` : "",
+          R.scenario.maxLoad}</b> kredi${yukSarti(R.scenario, T.loadLimit || T.maxLoad)}` : "",
         R.scenario.empty.length ? `boş: ${(R.terms || []).filter(t => t.skipped)
           .map(t => esc(t.label)).join(", ")}` : "",
         R.scenario.hardMax ? `dönem başına en çok <b class="mono">${
@@ -11789,6 +11843,14 @@ function renderRoadmap(){
   });
   const zorSec = $("#yhZor");
   if(zorSec) zorSec.addEventListener("change", () => { yhAyar().zor = +zorSec.value; yhSenaryoKur(); });
+  [["#yhYukKaydet", () => yhAyar().maxLoad], ["#yhYukSifirla", () => 0]].forEach(([id, deger]) => {
+    const b = $(id);
+    if(b) b.addEventListener("click", async () => {
+      const geri = dugmeMesgul(b, "kaydediliyor…");
+      try{ applyState(await api("/api/yolyuk", {kredi: deger()})); }
+      catch(err){ geri(); hataBildir(b, err); }
+    });
+  });
   body.querySelectorAll("[data-oncelik]").forEach(b => b.addEventListener("click", async () => {
     if(b.getAttribute("aria-pressed") === "true") return;
     const geri = dugmeMesgul(b, "hesaplanıyor…");
