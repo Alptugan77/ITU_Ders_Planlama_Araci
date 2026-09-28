@@ -374,7 +374,8 @@ def kur(con: sqlite3.Connection, grades: Mapping[str, str], planlar: list[dict],
         bu_donem_kaynagi: str = "", equivalences=None,
         taban: POL.SecondFloor | None = None, ufuk: int = UFUK,
         yaz: str | None = None, bos: Iterable[int] = (), mesgul: Iterable = (),
-        zor_siniri: int | None = None, oncelik: str = "birlikte") -> dict:
+        zor_siniri: int | None = None, oncelik: str = "birlikte",
+        yuk_notu: str = "mevcut sınır") -> dict:
     """Yol haritası.
 
     `planlar`: `[{"planId", "role", "label", "program"}]` — anadal önce.
@@ -404,12 +405,13 @@ def kur(con: sqlite3.Connection, grades: Mapping[str, str], planlar: list[dict],
     eski = con.row_factory
     con.row_factory = sqlite3.Row
     try:
-        def tek(sira: str) -> dict:
+        def tek(sira: str, taban_saatli: bool = False) -> dict:
             return _kur(con, grades, planlar, term=term, donem=donem, max_load=max_load,
                         bu_donem=bu_donem, bu_donem_kaynagi=bu_donem_kaynagi,
                         equivalences=equivalences, taban=taban, ufuk=ufuk, yaz=yaz,
                         bos=frozenset(int(x) for x in bos), mesgul=tuple(mesgul),
-                        zor_siniri=zor_siniri, sira=sira)
+                        zor_siniri=zor_siniri, sira=sira, yuk_notu=yuk_notu,
+                        taban_saatli=taban_saatli)
         if oncelik in SIRALAR:
             h = tek(oncelik)
             h["priority"] = {"setting": None, "order": oncelik, "options": None}
@@ -419,24 +421,32 @@ def kur(con: sqlite3.Connection, grades: Mapping[str, str], planlar: list[dict],
             h = tek("kritik")
             h["priority"] = {"setting": oncelik, "order": "kritik", "options": None}
             return h
-        haritalar = {s: tek(s) for s in SIRALAR}
-        secim = {o: min(SIRALAR, key=lambda s: _olcut(haritalar[s], o, s))
+        # ★ Faz 122 — ÇAP tabanı varsa her sıra iki taban kuralıyla: eski
+        # (sıradaki ilk ÇAP dersleri) ve saatli (öndeki derse yer bırakan).
+        # Yalnız saatliyi koymak 383 gerçek çiftin ~%3'ünde sonucu
+        # kötüleştiriyordu; ikisi de aday olunca seçilen hiçbir zaman kötü değil.
+        varyant = [(s, False) for s in SIRALAR] + ([(s, True) for s in SIRALAR] if taban else [])
+        haritalar = {v: tek(*v) for v in varyant}
+        secim = {o: min(varyant, key=lambda v: _olcut(haritalar[v], o, v[0]) + (v[1],))
                  for o in ONCELIKLER}
         h = haritalar[secim[oncelik]]
         h["assumptions"].append(ONCELIK_METNI[oncelik] + (
             " ÇAP yarıyıl kredi tabanı her sırada uygulanmıştır." if taban else ""))
         # Öbür ayarın sonucu da DÖNÜYOR (zaten kuruldu): arayüz "anadala
         # öncelik verilseydi anadal X'te, ÇAP Y'de biterdi" diyebiliyor.
-        h["priority"] = {"setting": oncelik, "order": secim[oncelik],
-                         "options": {o: {"order": s, "finish": _bitis_ozeti(haritalar[s])}
-                                     for o, s in secim.items()}}
+        h["priority"] = {"setting": oncelik, "order": secim[oncelik][0],
+                         "floorByTime": secim[oncelik][1],
+                         "options": {o: {"order": v[0], "floorByTime": v[1],
+                                         "finish": _bitis_ozeti(haritalar[v])}
+                                     for o, v in secim.items()}}
         return h
     finally:
         con.row_factory = eski
 
 
 def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kaynagi,
-         mesgul=(), zor_siniri=None, sira="kritik",
+         mesgul=(), zor_siniri=None, sira="kritik", yuk_notu="mevcut sınır",
+         taban_saatli=False,
          equivalences, taban, ufuk, yaz=None, bos=frozenset()) -> dict:
     # ★ Faz 118 — liste KOPYALANMIYOR (yalnız okunuyor): `rules` denklik
     # dizinini liste nesnesine göre önbelleğe alıyor; her kurulumda yeni bir
@@ -852,6 +862,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
         uygun = [b for b in kalan if alinabilir(b, t, kod, kazanilan)]
         saat_bilinir = kod[4:] == term[4:]          # Faz 82 — aynı mevsim
         ertelenen_saat: list = []
+        saat_rakip: dict = {}                   # Faz 121 — neyle çakıştı
         ertelenen_butce: list = []
         ertelenen_zor: list = []                # Faz 89
         # Öncelik: en uzun zinciri başlatan önce (kritik yol), sonra planın
@@ -888,18 +899,49 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             ok = cakismasiz([x.ders for x in secilen if x.ders and saatli(x.ders)] + [b.ders])
             if not ok:
                 ertelenen_saat.append(b.ders)
+                # ★ Faz 121 — "neyle?" (kullanıcı: "GEO 307E ... ile ne
+                # çakışıyor"). Bütün şubeleri b'nin bütün şubeleriyle çakışan,
+                # yani b ile ASLA birlikte alınamayan dersler yazılıyor. Tek
+                # başına zorunlu çakışma yoksa (üçlü kombinasyon) liste boş
+                # kalıyor ve kart yalnız "saat çakışması" diyor.
+                saat_rakip[b.ders] = sorted(
+                    x.ders for x in secilen if x.ders and saatli(x.ders)
+                    and all(REC.section_conflict(p, q)
+                            for p in subeler(b.ders) for q in subeler(x.ders)))
             return ok
 
         # İki geçiş: ÇAP yarıyıl tabanı varsa önce ÇAP dersleri TABAN
         # DOLANA KADAR (öncelik sırasıyla), sonra herkes öncelik sırasıyla.
         # Hepsini ÇAP'a vermek anadalın kritik yolunu gereksiz geciktirirdi.
         if taban:
-            for b in uygun:
-                if cap_kredi + 1e-9 >= taban.minimum:
-                    break
-                if ("CAP" in b.roller and toplam + b.kredi <= max_load + 1e-9
-                        and zora_sigar(b) and saate_sigar(b)):
-                    al(b)
+            # ★★ Faz 122 — taban geçişi saate bakmadan en öndeki ÇAP dersini
+            # alıyordu. Kullanıcının verisinde (HTAE + BLG ÇAP) 2027-2028 Güz
+            # tabanı BLG 223E ile dolduruluyordu; BLG 223E'nin tek saati GEO
+            # 227E ve GEO 403E'nin tek saatleriyle çakışıyor ve ikisi bir yıl
+            # kayıyordu. Oysa aynı dönemin öbür ÇAP dersleri (BLG 335E, 4901E,
+            # 317E) tabanı dolduruyordu. Artık önce, sırada DAHA ÖNDEKİ bir
+            # dersle kesin çakışmayan ÇAP dersleri; taban yine dolmuyorsa eski
+            # kural (taban yönergeden, önce o).
+            def one_engel(b: Birim) -> bool:
+                if not saat_bilinir or not b.ders or not saatli(b.ders):
+                    return False
+                for x in uygun:
+                    if x is b:
+                        return False
+                    if ("CAP" not in x.roller and x.ders and saatli(x.ders)
+                            and all(REC.section_conflict(p, q) for p in subeler(b.ders)
+                                    for q in subeler(x.ders))):
+                        return True
+                return False
+            for gecis in ((True, False) if taban_saatli else (False,)):
+                for b in uygun:
+                    if cap_kredi + 1e-9 >= taban.minimum:
+                        break
+                    if ("CAP" in b.roller and b not in secilen
+                            and (not gecis or not one_engel(b))
+                            and toplam + b.kredi <= max_load + 1e-9
+                            and zora_sigar(b) and saate_sigar(b)):
+                        al(b)
         for b in uygun:
             if (b not in secilen and b.ders not in ertelenen_saat
                     and toplam + b.kredi <= max_load + 1e-9
@@ -935,6 +977,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             # bulundu) / "yok" (öbür mevsim, saat bilinmiyor).
             "timeCheck": "var" if saat_bilinir else "yok",
             "timeDeferred": sorted(set(ertelenen_saat)),
+            "timeDeferredWith": {k: v for k, v in saat_rakip.items() if v},   # Faz 121
             "hourDeferred": sorted(set(x for x in ertelenen_butce if x)),
             "hardDeferred": sorted(set(ertelenen_zor)),                   # Faz 89
             "weeklyMinutes": round(sum(haftalik_dk(b) for b in secilen)),
@@ -1058,7 +1101,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     varsayimlar = [
         "Planlanan her dersin ilk denemede başarıyla tamamlanacağı varsayılmıştır.",
         f"Bu dönem: {bu_donem_kaynagi or 'seçili program'} alınmış kabul edilmiştir.",
-        f"Her dönem en fazla {max_load:g} kredi (mevcut sınır) alınacağı varsayılmıştır; "
+        f"Her dönem en fazla {max_load:g} kredi ({yuk_notu}) alınacağı varsayılmıştır; "
         "GNO değiştiğinde sınır da değişebilir.",
         "Derslerin, plandaki dönemin yarıyılında açılacağı varsayılmıştır (tek dönem: Güz, "
         "çift dönem: Bahar); ÇAP/yandal dersinin yarıyılı ilgili programın lisans planından "

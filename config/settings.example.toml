@@ -74,6 +74,9 @@ kilitli = []
 #   "birlikte" → iki programın birlikte en erken bitmesi
 #   "anadal"   → önce anadalın en erken bitmesi; ÇAP/yandal onu geciktirmeden
 yol_onceligi = "birlikte"
+# ★ Yol haritasının gelecek dönemlere koyacağı en çok kredi (0 = yönetmelik
+# sınırı). Sınırın üstündeki değer sınıra indirilir. Arayüzden de kaydedilir.
+yol_yuk = 0
 
 [scraper]
 request_delay_s = 1.0        # OBS'yi yorma: istekler arası en az 1 sn

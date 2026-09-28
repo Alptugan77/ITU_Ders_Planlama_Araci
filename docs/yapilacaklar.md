@@ -773,6 +773,15 @@ her maddeden önce gelen tek iş.
 > "önşart eksik" grubunda eksik ders ve denk ders yazıyor (BLG 317E / BBF 302E) ✅
 > ➜ Ayrıntı: `docs/faz120-denk-engel.md`
 >
+> **Faz 121 (28.09.2026):** yol haritasında kaydedilebilir planlama yükü
+> (sınırı aşmadan); dönem kartında ertelenen dersin neyle çakıştığı ✅
+> ➜ Ayrıntı: `docs/faz121-planlama-yuku.md`
+>
+> **Faz 122 (28.09.2026):** öncelik ayarı bu dönemin önerisine de işliyor;
+> ÇAP tabanı saatli kuralla da deneniyor (383 çiftte kötüleşme yok).
+> Kullanıcının verisinde "anadal" ayarı anadalı 9 → 8. yarıyıla çekiyor ✅
+> ➜ Ayrıntı: `docs/faz122-oncelik-bu-donem.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

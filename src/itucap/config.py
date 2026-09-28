@@ -319,6 +319,12 @@ class Settings:
     # "anadal": önce anadalın bitişi en erken, ÇAP/yandal onu geciktirmeden.
     # Bkz. `yolharitasi.ONCELIKLER`. Geçersiz değer varsayılana düşüyor.
     yol_onceligi: str = "birlikte"
+    # ★★ Faz 121 — PLANLAMA YÜKÜ: yol haritasının gelecek dönemlere en çok
+    # kaç kredi koyacağı. 0 = yönetmelik sınırı (MADDE 17). GNO ≥ 3.00 olan
+    # öğrencide sınır 40'a çıkıyor ve harita 14 derslik dönemler kuruyordu
+    # (kullanıcının kendi verisi, 28.09.2026). Sınırı AŞAMAZ: harita
+    # min(bu değer, yönetmelik sınırı) ile kuruluyor.
+    yol_yuk: float = 0.0
     # ★★ SAATE KİLİT (Faz 45, kullanıcı isteği 17.09.2026: *"dersleri saate
     # kitleme ve önerilerin onun etrafında şekillenmesi"*).
     # Biçim: "DERS@CRN"  →  "GEO 315E@13601"
@@ -425,6 +431,12 @@ class Settings:
             obj.second_kind = "cap"
         if obj.yol_onceligi not in YOL_ONCELIKLERI:
             obj.yol_onceligi = "birlikte"
+        try:
+            obj.yol_yuk = float(obj.yol_yuk or 0)
+        except (TypeError, ValueError):
+            obj.yol_yuk = 0.0
+        if not 0 <= obj.yol_yuk <= 60:
+            obj.yol_yuk = 0.0
         # ⚠️ Buradaki "beyan yoksa kendi kodlarına düş" satırı KALDIRILDI:
         # türetme artık `allowed_programs`'ta, her seferinde. Alanı doldurmak,
         # türetilmiş kodları kullanıcının ELLE YAZDIĞI kodlardan ayırt
@@ -560,7 +572,7 @@ _EDITABLE = {
     "anadal_program", "anadal_plan_id", "second_kind",
     "cap_program", "cap_plan_id", "yandal_program", "yandal_plan_id",
     "donem", "term", "unit", "max_load", "max_load_auto", "program_codes", "watch_courses",
-    "cap_baslangic_yariyili", "mesgul", "kilitli", "yol_onceligi",
+    "cap_baslangic_yariyili", "mesgul", "kilitli", "yol_onceligi", "yol_yuk",
     "tercih_en_erken", "tercih_bos_gunler", "tercih_kampus_degisimi",
     "tercih_cevrimici", "tercih_istenen_hocalar", "tercih_istenmeyen_hocalar",
 }

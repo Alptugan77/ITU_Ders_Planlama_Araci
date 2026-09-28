@@ -308,6 +308,7 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
                second_role: str = "CAP", max_term: int | None = None,
                credit_rules: list[POL.CreditRule] | None = None,
                second_plans: list[tuple[str, int]] | None = None,
+               oncelik: str = "birlikte",
                ) -> list[Candidate]:
     """Bu dönem alınabilecek dersler.
 
@@ -493,7 +494,7 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
     # ★ Faz 81 — ama uyduğu BÜTÜN slotlar tutuluyor; birincil ilk sırada.
     for kod, cand in unique.items():
         cand.slot_ids = tuple(dict.fromkeys([cand.slot_id, *yuvalari[kod]]))
-    return score_all(list(unique.values()))
+    return score_all(list(unique.values()), oncelik)
 
 
 # ----------------------------------------------------------------- puanlama
@@ -712,7 +713,7 @@ def tercih_puani(picks: Iterable["Pick"], tercih: Preferences | None,
     return round(puan, 1), sebep
 
 
-def score_all(cands: list[Candidate]) -> list[Candidate]:
+def score_all(cands: list[Candidate], oncelik: str = "birlikte") -> list[Candidate]:
     """Adayları puanla ve puanın NEREDEN geldiğini kaydet.
 
     ★ Faz 27 — `parts` eklendi (yapılacaklar §3.1). Eskiden yalnız gerekçe
@@ -720,6 +721,14 @@ def score_all(cands: list[Candidate]) -> list[Candidate]:
     kattığı görünmüyordu. Sıralamaya güvenmek için ağırlığın büyüklüğünü
     görmek gerekiyor — özellikle "neden bu ders önde" sorusunda.
     """
+    # ★★ Faz 122 — YOL HARİTASI ÖNCELİĞİ BU DÖNEMİN ÖNERİSİNE DE (kullanıcı
+    # 28.09.2026: "anadala öncelik verince BLG 223E yerine GEO 307E'yi neden
+    # almıyor"). Ayar yalnız gelecek dönemleri yerleştiriyordu; bu dönemin
+    # önerisi ÇAP'a sabit +150 veriyordu (kritik yol 100 + rol 50) ve aynı
+    # saatteki anadal dersini hep dışarıda bırakıyordu. "anadal" ayarında rol
+    # artısı ANADAL dersine geçiyor, ÇAP kritik yol artısı uygulanmıyor.
+    # ÇAP yarıyıl tabanı (yönerge) program aramasında yine SERT kısıt.
+    anadal_once = oncelik == "anadal"
     max_unlock = max((c.unlocks for c in cands), default=1) or 1
     max_tier = max((c.tier for c in cands), default=0)
     _adaylar = {c.course for c in cands}
@@ -741,9 +750,11 @@ def score_all(cands: list[Candidate]) -> list[Candidate]:
             if sebep:
                 c.reasons.append(sebep)
 
-        if c.critical:
+        if c.critical and not anadal_once:
             kat("critical", WEIGHTS["critical"], "kritik yolda",
                 "kritik yolda — ÇAP süresini bu zincir belirler")
+        elif c.critical:
+            c.reasons.append("ÇAP kritik yolunda (anadal önceliği seçili)")
         share = c.unlocks / max_unlock
         kat("unlock", WEIGHTS["unlock"] * share,
             f"{c.unlocks} dersin önşartı",
@@ -778,7 +789,11 @@ def score_all(cands: list[Candidate]) -> list[Candidate]:
             kat("deferrable", WEIGHTS["deferrable"],
                 f"{len(c.sections)} şube — ertelenebilir",
                 f"{len(c.sections)} şube — her dönem açılır, ertelenebilir")
-        if c.role != "ANADAL":
+        if anadal_once:
+            if c.role == "ANADAL":
+                kat("anadal_oncelik", WEIGHTS["cap_role"], "anadal dersi — öncelik ayarı",
+                    "anadal dersi — öncelik ayarı")
+        elif c.role != "ANADAL":
             label = "Yandal" if c.role == "YANDAL" else "ÇAP"
             kat("cap_role", WEIGHTS["cap_role"], f"{label} dersi — arzı kısıtlı",
                 f"{label} dersi — arzı kısıtlı")

@@ -232,6 +232,9 @@ class State:
         if path == "/api/tercih":
             self.save_prefs(b)
             return {}
+        if path == "/api/yolyuk":
+            # Faz 121 — yol haritasının planlama yükü (0 = yönetmelik sınırı).
+            return {"yolYuk": self.save_roadmap_load(b.get("kredi"))}
         if path == "/api/yolonceligi":
             # Faz 118 — yol haritası önceliği (anadal önce / ikisi birlikte).
             return {"yolOnceligi": self.save_roadmap_priority(str(b.get("oncelik") or ""))}
@@ -1157,6 +1160,18 @@ class State:
                              + ", ".join(config.YOL_ONCELIKLERI))
         config.update_settings({"yol_onceligi": oncelik})
         return oncelik
+
+    def save_roadmap_load(self, kredi) -> float:
+        """Faz 121 — yol haritasının planlama yükü. 0 → yönetmelik sınırı;
+        1–60 arası tam ya da buçuklu (senaryo kutusuyla aynı aralık)."""
+        try:
+            v = float(kredi or 0)
+        except (TypeError, ValueError):
+            raise ValueError("planlama yükü geçersiz") from None
+        if v and (not 1 <= v <= 60 or round(v * 2) != v * 2):
+            raise ValueError("planlama yükü 1 ile 60 arasında, tam ya da buçuklu olmalıdır")
+        config.update_settings({"yol_yuk": v})
+        return v
 
     def save_busy(self, day: int, start: int, end: int, label: str = "",
                   remove: str = "") -> dict:
