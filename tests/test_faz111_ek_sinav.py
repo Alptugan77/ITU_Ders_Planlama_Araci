@@ -170,11 +170,16 @@ def test_DENKLIK_bolume_acik_sube_dilekcesiz(tmp_path):
                               kendi_program="MATE")
     k = {s["code"]: s for s in out[0]["sources"]}
     assert k["MAT 281E"]["dilekcesiz"] is True and k["GEO 220E"]["dilekcesiz"] is False
+    # ÇAP kodu: anadal HTAE, ÇAP GEO → GEO'ya açık şube dilekçesiz
+    con.execute("INSERT INTO lesson_allowed_program(crn,program_code) VALUES ('101','GEO')"); con.commit()
+    out = UI._acik_denklikler(con, eq, {}, {"MAT 210E"}, {"BLGE", "GEOE", "MATE"}, names, _sj,
+                              kendi_program=["HTAE", "GEO"])
+    assert {s["code"]: s for s in out[0]["sources"]}["GEO 220E"]["dilekcesiz"] is True
 
 
 def test_DENKLIK_arayuz_dilekcesiz():
     src = open(UI.__file__, encoding="utf-8").read()
-    assert "şubesi bölümünüze açık olduğundan <b>dilekçe gerekmez</b>" in src
+    assert "şubesi programınıza açık olduğundan <b>dilekçe gerekmez</b>" in src
     assert "olduğundan dilekçesiz alınabilir, diğerleri dilekçeyle saydırılır" in src
     assert 'k.dilekcesiz ? `<span class="chip prereq"' in src
-    assert "settings.anadal_program)," in src
+    assert "[settings.anadal_program, *(x[3] for x in settings.seconds)])," in src

@@ -110,5 +110,5 @@ Testler: `test_DENKLIK_bolume_acik_sube_dilekcesiz`,
 
 Kullanıcı: anadal BLGE, şubenin "alabilir" listesinde BLG_LS/BLG görünüyor,
 kart yine "dilekçeyle saydırılır" diyordu. Eşleşme yalnız birebir anadal
-kodunu arıyordu. Artık bölümün iki dil programı (BLG / BLGE) ve `_LS`
+kodunu arıyordu. Artık ÇAP/yandal kodları da (kullanıcı: "çap kodumdan bahsediyorum ve blg kodum"), bölümün iki dil programı (BLG / BLGE) ve `_LS`
 yazımları da sayılıyor (`normalize.base_program_code`).

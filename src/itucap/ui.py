@@ -89,8 +89,13 @@ def _acik_denklikler(con, equivalences, expanded, gereken, allowed,
     # ★ Faz 115 — bölümün iki dil programı aynı bölüm (kullanıcı 28.09.2026:
     # anadal BLGE, şube "BLG_LS"/BLG'ye açık, kart yine "dilekçeyle" diyordu).
     from .normalize import base_program_code
-    _k = (kendi_program or "").strip().upper()
-    kendi = {k for k in (_k, base_program_code(_k), base_program_code(_k) + "E") if _k}
+    # ★ Faz 115 — ÇAP/yandal programı da "kendi" programın (kullanıcı: "çap
+    # kodumdan bahsediyorum ve blg kodum").
+    kodlar = [kendi_program] if isinstance(kendi_program, (str, type(None))) else list(kendi_program)
+    kendi = set()
+    for _k in (str(k or "").strip().upper() for k in kodlar):
+        if _k:
+            kendi |= {_k, base_program_code(_k), base_program_code(_k) + "E"}
     kendi |= {f"{k}_LS" for k in kendi}
     def passed(code):
         return any(R.passed(expanded.get(s)) for s in _dil_esi(code))
@@ -1269,7 +1274,7 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             con, equivalences,
             R.expand_with_equivalences(grades, equivalences)[0],
             gereken_dersler, settings.allowed_programs, names, section_json,
-            settings.anadal_program),
+            [settings.anadal_program, *(x[3] for x in settings.seconds)]),
         # Her ikinci programın KENDİ kademe zinciri.
         "tierGroups": tier_groups,
         # ★★ Faz 57 — mezuniyet yol haritası (çok dönemli plan, §2.1).
@@ -6832,7 +6837,7 @@ function renderAcikDenklik(){
             style="margin-left:6px">çevrimiçi</span>` : ""}${
           /* ★ Faz 111 — şube bölümünüze açıksa dilekçe gerekmiyor. */
           k.dilekcesiz ? `<span class="chip prereq" style="margin-left:6px"
-            title="Şube, OBS'de bölümünüzün (${esc(DATA.anadal || "")}) alabileceği şube olarak listelenmiştir${
+            title="Şube, OBS'de programlarınızın (anadal veya ÇAP/yandal) alabileceği şube olarak listelenmiştir${
               k.dilekcesizCrn.length < k.sections.length
                 ? ": CRN " + esc(k.dilekcesizCrn.join(", ")) : ""}">dilekçesiz</span>` : ""}</div>
         <div class="denkmeta mono">
@@ -6864,9 +6869,9 @@ function renderAcikDenklik(){
       const onay = e.confidence === "requires_approval"
         ? "bölüm/yönetim kurulu onayı gerekebilir"
         : serbest.length === acik.length && acik.length
-          ? "şubesi bölümünüze açık olduğundan <b>dilekçe gerekmez</b>"
+          ? "şubesi programınıza açık olduğundan <b>dilekçe gerekmez</b>"
           : serbest.length
-            ? `<b>${serbest.map(k => esc(k.code)).join(", ")}</b> şubesi bölümünüze açık
+            ? `<b>${serbest.map(k => esc(k.code)).join(", ")}</b> şubesi programınıza açık
                olduğundan dilekçesiz alınabilir, diğerleri dilekçeyle saydırılır`
             : "dilekçeyle saydırılır";
       not += `<div class="denknot">OBS resmî ders denkliği${
