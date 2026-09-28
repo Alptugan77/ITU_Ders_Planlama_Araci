@@ -128,6 +128,53 @@ def gecmis_donemleri(gecmis: dict | None, en_cok: int = 6) -> list[dict]:
             if n > 0][:en_cok]
 
 
+def dis_gruplari(con, agac, gorunum: Mapping[str, str], dis: set[str]) -> list[str]:
+    """Varsayılan dış önşart — yalnız GERÇEKTEN eksik olan dallar.
+
+    ★ Faz 113 (kullanıcı 28.09.2026: "önşart varsayımları da yanlış
+    çalışıyor"). Eskiden ağaçtaki BÜTÜN dış dersler yazılıyordu: BLG 4901E
+    kartı "önşart varsayıldı: FIZ 101L, FIZ 102L" diyordu, oysa o dallar
+    öğrencinin geçtiği FIZ 101EL/102EL ile zaten sağlanıyordu; asıl varsayılan
+    MAT 210 hiç görünmüyordu (kart ilk ikisini gösteriyor). "Veya" dalları da
+    ayrı ayrı sayılıyordu (BBF 304E: MAT 271, MAT 271E, ECN 301E, YZV 231,
+    YZV 231E — beşi birden varsayılmış gibi).
+    Artık: karşılanmamış her dal için, onu sağlayabilecek dış dersler TEK
+    grup; "veya" ile birleşik, dil eşleri "MAT 210(E)" diye tek yazılıyor."""
+    def yurut(n) -> list[set[str]]:
+        if n.satisfied(gorunum):
+            return []
+        if n.kind == "LEAF":
+            return [{n.course}] if n.course in dis else []
+        alt = [g for c in n.children for g in yurut(c)]
+        if n.kind == "AND":
+            return alt
+        birlesik = set().union(*alt) if alt else set()
+        return [birlesik] if birlesik else []
+
+    def yaz(grup: set[str]) -> str:
+        kalan, parca = set(grup), []
+        for k in sorted(grup):
+            if k not in kalan:
+                continue
+            es = R.dil_esi(con, k)
+            if es and es in kalan:
+                tr, en = (k, es) if R.ingilizce_kod(k) == es else (es, k)
+                parca.append(f"{tr}(E)" if en == tr + "E" else f"{tr} / {en}")
+                kalan.discard(es)
+            else:
+                parca.append(k)
+            kalan.discard(k)
+        return " veya ".join(parca)
+
+    gorulen, out = set(), []
+    for g in yurut(agac):
+        metin = yaz(g)
+        if metin not in gorulen:
+            gorulen.add(metin)
+            out.append(metin)
+    return out
+
+
 def bu_donem_okutulan(con: sqlite3.Connection) -> set[str]:
     """Bu dönem şubesi olan dersler.
 
@@ -425,7 +472,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             b.dis_onsart = []
             return True
         if agac.satisfied(gorunum(varsayilan | dis)):
-            b.dis_onsart = sorted(agac.courses() & dis)
+            b.dis_onsart = dis_gruplari(con, agac, gorunum(varsayilan), dis)
             return True
         return False
     # ★★ Faz 85 — tahmini zorluk (not ortalamasından). Yerleşimi ETKİLEMİYOR;

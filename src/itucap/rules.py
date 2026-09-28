@@ -366,7 +366,17 @@ def ingilizce_esi(con: sqlite3.Connection | None, code: str | None) -> str | Non
 
 
 def _dil_esi(con: sqlite3.Connection, code: str) -> str | None:
-    es = code[:-1] if code.endswith("E") else code + "E"
+    # ★ Faz 113 — laboratuvar eki dil ekinden SONRA: 'FIZ 101L' ↔ 'FIZ 101EL'.
+    # Eskiden 'FIZ 101LE' aranıyordu (yok): lab dersinin eşi hiç bulunmuyordu,
+    # yol haritası "FIZ 101L veya FIZ 101EL" önşartında Türkçe kodu dış ders
+    # sayıp geçilmiş varsayıyordu (BLG 4901E kartı: "önşart varsayıldı:
+    # FIZ 101L, FIZ 102L" — öğrenci FIZ 101EL'i geçmişti).
+    m = _KOD_PARCA.match(code)
+    if m and m.group(3):
+        kok, e, ek = m.groups()
+        es = f"{kok}{ek}" if e else f"{kok}E{ek}"
+    else:
+        es = code[:-1] if code.endswith("E") else code + "E"
     kredi = dict(con.execute("SELECT code, credits FROM course WHERE code IN (?, ?)",
                              (code, es)).fetchall())
     if es not in kredi:

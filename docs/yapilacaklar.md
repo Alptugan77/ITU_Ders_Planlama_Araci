@@ -728,6 +728,17 @@ her maddeden önce gelen tek iş.
 > "dilekçesiz" diyor ✅
 > ➜ Ayrıntı: `docs/faz111-ek-sinav.md`
 >
+> **Faz 112 (28.09.2026):** danışman özetinde "Danışmana sorulacaklar" yerine
+> "Dilekçe gerektirenler": yük sınırı, ÇAP tabanı indirimi, dolu şubeye
+> kontenjan, denklikle saydırma. Diğer sorular kaldırıldı ✅
+> ➜ Ayrıntı: `docs/faz112-danisman-dilekce.md`
+>
+> **Faz 113 (28.09.2026):** yol haritasının önşart varsayımı yalnız gerçekten
+> eksik dalı gösteriyor ("MAT 210(E)"; eskiden geçilmiş lab derslerinin Türkçe
+> kodları), "veya" dalları tek grup; lab kodunun dil eşi (FIZ 101L ↔ FIZ 101EL)
+> artık tanınıyor ✅
+> ➜ Ayrıntı: `docs/faz113-onsart-varsayimlari.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
