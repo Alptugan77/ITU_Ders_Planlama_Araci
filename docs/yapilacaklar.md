@@ -745,6 +745,14 @@ her maddeden önce gelen tek iş.
 > yerleşemeyen ders artmadı ✅
 > ➜ Ayrıntı: `docs/faz114-plan-yolu.md`
 >
+> **Faz 115 (28.09.2026):** denk dersin şubesi ÇAP/yandal programınıza da
+> (BLG, BLG_LS, BLGE) açıksa "dilekçesiz" ✅
+>
+> **Faz 116 (28.09.2026):** "açtıkları" ve öneri puanındaki "açtığı ders"
+> sayısı dersin takma adlarıyla (yeni kod, dil eşi, kod göçü, denklik):
+> BBF 203E 1 → 22, planda BBF 301E/302E/BLG 411E'yi açıyor ✅
+> ➜ Ayrıntı: `docs/faz116-takma-adlar.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

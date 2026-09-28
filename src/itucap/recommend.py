@@ -320,7 +320,12 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
     expanded, _via = R.expand_with_equivalences(grades, equivalences)
     prereq_grades = R.prereq_view(expanded)   # muafiyetler yalnız önşartta
     trees = P.parsed_trees(con)
-    unlocks = P.unlock_counts(trees)
+    # ★ Faz 116 — "açtığı ders" sayısı dersin takma adlarıyla (yeni kod, dil
+    # eşi, denklik): BBF 203E, önşartlarda BLG 252E diye anılıyor.
+    _unlock_map = P.unlock_map(trees)
+
+    def acilan_sayisi(kod: str) -> int:
+        return len(R.acilan_hedefler(_unlock_map, R.takma_adlar(con, kod, equivalences)))
     unparsed = {r[0] for r in con.execute("SELECT course_code FROM prereq_unparsed")}
 
     # ★ Kredi eşiği (bitirme çalışması). Muafiyet krediye SAYILMAZ: gerçek notlar.
@@ -419,7 +424,7 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
                     role=role,
                     ects=float(slot["ects"] or (info["ects"] if info else 0) or 0),
                     credits=float(slot["credits"] or (info["credits"] if info else 0) or 0),
-                    unlocks=unlocks.get(code, 0),
+                    unlocks=acilan_sayisi(code),
                     tier=tier_of.get(code, 0),
                     critical=code in critical,
                     required=slot["slot_kind"] == "REQUIRED",

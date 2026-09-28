@@ -864,7 +864,10 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         demek olurdu. Planda birebir yazan varyant tercih ediliyor.
         """
         secili: dict[str, str] = {}
-        for k in _unlock_map.get(code, []):
+        # ★ Faz 116 — dersin takma adlarını (yeni kod, dil eşi, denklik) anan
+        # dersler de: BBF 203E alınınca, önşartı "BLG 252E" diyen BBF 301E açılır.
+        adlar = R.takma_adlar(con, code, equivalences)
+        for k in sorted(R.acilan_hedefler(_unlock_map, adlar)):
             if k not in _plan_codes or k in _passed:
                 continue
             if k == code or k == _dil_esi(code):

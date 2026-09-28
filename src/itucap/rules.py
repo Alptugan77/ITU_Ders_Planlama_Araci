@@ -349,6 +349,41 @@ def dil_esi(con: sqlite3.Connection | None, code: str | None) -> str | None:
     return IST.bellek(("dil_esi", id(con), code), lambda: _dil_esi(con, code))
 
 
+def takma_adlar(con: sqlite3.Connection | None, code: str,
+                equivalences=None) -> frozenset[str]:
+    """Önşart metinlerinde bu dersin YERİNE GEÇEN kodlar (kendisi dahil).
+
+    ★★ Faz 116. "Açtıkları" sayımı önşart metnindeki kodu birebir arıyordu.
+    Plan dersi yeni koduyla (BBF 203E), önşartlar eski koduyla (BLG 252E)
+    yazılıyor: BLGE planında BBF 202E/204E/301E "0 dersin önşartı", BBF 203E
+    "1" görünüyordu — öneri puanı ve "bunu almazsan kapalı kalan dersler"
+    listesi bu yeni kodlu dersleri küçümsüyordu. Dahil edilenler, önşart
+    denetiminin zaten kabul ettikleri: dil eşi (`dil_esi`), beyan edilmiş kod
+    göçü (`prereq_view`), resmî/beyan denklikle karşılanan kodlar
+    (`expand_with_equivalences`)."""
+    code = (code or "").strip()
+    if not code:
+        return frozenset()
+    from .declared import code_migration_groups
+    goc = code_migration_groups()
+    adlar = {code}
+    es = dil_esi(con, code)
+    if es:
+        adlar.add(es)
+    for k in list(adlar):
+        adlar |= set(goc.get(k, ()))
+    if equivalences:
+        for k in list(adlar):
+            adlar |= set(expand_with_equivalences({k: "AA"}, equivalences)[0])
+    return frozenset(adlar)
+
+
+def acilan_hedefler(unlock_map: Mapping[str, Iterable[str]], adlar: Iterable[str]) -> set[str]:
+    """`adlar`dan herhangi birini önşartında anan dersler (adların kendisi hariç)."""
+    adlar = set(adlar)
+    return {h for a in adlar for h in unlock_map.get(a, ())} - adlar
+
+
 def ingilizce_esi(con: sqlite3.Connection | None, code: str | None) -> str | None:
     """Türkçe kodun İngilizce eşi ('EHB 222' → 'EHB 222E'); İngilizce kodda None.
 
