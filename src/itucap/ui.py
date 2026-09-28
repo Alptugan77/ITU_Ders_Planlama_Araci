@@ -1538,7 +1538,8 @@ def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
         return YH.kur(con, grades, planlar, term=term, donem=donem or 0,
                       max_load=float(sinir), bu_donem=bu_donem, bu_donem_kaynagi=kaynak,
                       equivalences=equivalences, taban=taban, yaz=yaz,
-                      mesgul=REC.busy_sections(settings.mesgul))          # Faz 82
+                      mesgul=REC.busy_sections(settings.mesgul),          # Faz 82
+                      oncelik=settings.yol_onceligi)                      # Faz 118
 
     def bitisler(h):
         return {p["role"]: (p["finish"] or {}).get("index") for p in h["programs"]}
@@ -1733,7 +1734,8 @@ def kalma_riski(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: i
         return YH.kur(con, g["grades"], planlar, term=g["term"], donem=g["donem"],
                       max_load=g["max_load"], bu_donem=bu, bu_donem_kaynagi="senaryo",
                       equivalences=g["equivalences"], taban=taban,
-                      mesgul=REC.busy_sections(settings.mesgul))
+                      mesgul=REC.busy_sections(settings.mesgul),
+                      oncelik=settings.yol_onceligi)                      # Faz 118
 
     def bitisler(h):
         return {p["role"]: p for p in h.get("programs") or []}
@@ -1789,7 +1791,7 @@ def yol_senaryosu(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id:
                max_load=g["max_load"], bu_donem=g["bu"],
                bu_donem_kaynagi="senaryo", equivalences=g["equivalences"],
                taban=taban, bos=bos, mesgul=REC.busy_sections(settings.mesgul),
-               zor_siniri=zor)
+               zor_siniri=zor, oncelik=settings.yol_onceligi)             # Faz 118
     az = POL.load_max_duration()
     h["maxDuration"] = ({"semesters": az.semesters, "verified": az.verified,
                          "source": az.source, "note": az.note} if az else None)
@@ -1825,7 +1827,8 @@ def cap_bitisleri(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id:
     def kur(planlar):
         return YH.kur(con, grades, planlar, term=term, donem=donem, max_load=max_load,
                       bu_donem=bu, equivalences=equivalences, taban=taban,
-                      mesgul=REC.busy_sections(settings.mesgul))
+                      mesgul=REC.busy_sections(settings.mesgul),
+                      oncelik=settings.yol_onceligi)                      # Faz 118
 
     def bitis(h, rol):
         p = next((p for p in h["programs"] if p["role"] == rol), None)
@@ -3472,6 +3475,12 @@ table.cmp .meta.arti{color:var(--ok)}
 .yhdonem.yaz{border-style:dashed;border-color:var(--warn)}
 .yhyaz{margin-top:14px}
 .yhdugmeler{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+/* Faz 118 — yol haritası önceliği. */
+.yhoncelik{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-bottom:12px;
+  font-size:var(--fs-md)}
+.yhoncelik .radios{flex:0 1 auto}
+.yhoncelik .radios button{flex:0 1 auto;padding:6px 12px}
+.yhoncelik .meta{flex:1 1 260px}
 /* Faz 61 — senaryo. */
 .yhsenaryo{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-bottom:14px;
   font-size:var(--fs-md)}
@@ -11511,6 +11520,40 @@ function yhSenaryoPaneli(T){
   </div>`;
 }
 
+/* ★★ FAZ 118 — YOL HARİTASI ÖNCELİĞİ (kullanıcı isteği 28.09.2026).
+   İkinci program varken iki ayar: programların BİRLİKTE en kısa sürede
+   bitmesi ya da anadalın önce bitmesi. KAYDEDİLİYOR (`/api/yolonceligi`):
+   senaryo değil, öğrencinin tercihi — sayfadaki harita, "bu dönem alırsan",
+   kalma riski ve ÇAP seçenekleri aynı ayarla kuruluyor. Motor her iki
+   ayarın sonucunu da döndürdüğü için öbür seçeneğin bitişi seçmeden önce
+   yazıyor: öğrenci neyi neye değiştiğini görerek karar veriyor. */
+const YH_ONCELIK_AD = {birlikte: "Programları birlikte en kısa sürede bitir",
+                       anadal: "Anadala öncelik ver"};
+function yhOncelikPaneli(T, R){
+  const P = R.priority || T.priority;
+  if(!P || !P.options) return "";
+  const secili = (T.priority && T.priority.setting) || P.setting || "birlikte";
+  const prog = (rol) => (R.programs || []).find(x => x.role === rol) || {label: rol};
+  /* Ortak programın (UOLP) bitişi zaten tahmin edilmiyor — satırda da yok. */
+  const bitis = (f) => Object.keys(f).filter(rol => !prog(rol).jointDegree)
+    .map(rol => `${esc(prog(rol).label)} <b>${
+      f[rol].label ? esc(f[rol].label) : "hesaplanamadı"}</b>`).join(" · ");
+  const oburu = secili === "birlikte" ? "anadal" : "birlikte";
+  const a = P.options[secili], b = P.options[oburu];
+  const ayni = a && b && Object.keys(a.finish).every(r =>
+    (a.finish[r] || {}).index === ((b.finish || {})[r] || {}).index);
+  const yazilabilir = LIVE || window.__ITUCAP_API__;
+  return `<div class="yhoncelik" role="group" aria-label="Yol haritası önceliği">
+    <span class="eyebrow">Öncelik</span>
+    <div class="radios">${["birlikte", "anadal"].map(k => `<button type="button"
+      data-oncelik="${k}" aria-pressed="${k === secili}"${yazilabilir ? "" : " disabled"}
+      >${YH_ONCELIK_AD[k]}</button>`).join("")}</div>
+    <span class="meta">${!b ? "" : ayni
+      ? "İki ayar bu plan için aynı bitişi vermektedir."
+      : `${YH_ONCELIK_AD[oburu]} seçilirse: ${bitis(b.finish)}`}</span>
+  </div>`;
+}
+
 /* ★★ Faz 89 — "zor dersleri dağıt" senaryosu yalnız haritada zor ders
    VARSA sunuluyor (verisiz katalogda anlamsız bir seçenek olurdu). */
 const yhZorVar = (T) => (T.terms || []).some(t => !t.current
@@ -11686,13 +11729,19 @@ function renderRoadmap(){
         R.scenario.hardMax ? `dönem başına en çok <b class="mono">${
           R.scenario.hardMax}</b> zor ders` : ""].filter(Boolean).join(" · ")}
       <button class="ghost mini" id="yhSenaryoKapat">Mevcut plana dön</button></div>`;
-  body.innerHTML = `${yhSenaryoPaneli(T)}${serit}<div class="yhprogramlar">${programlar}</div>${
+  body.innerHTML = `${yhOncelikPaneli(T, R)}${yhSenaryoPaneli(T)}${serit}<div class="yhprogramlar">${programlar}</div>${
     simdi}${yaz}<div data-kalma="yh">${kalmaPanelIcerik()}</div>${varsayim}${zincir}${donemler}${kalan}`;
   kalmaBagla(); kalmaOto();        // Faz 75
   const yuk = $("#yhYuk");
   if(yuk) yuk.addEventListener("change", () => { yhAyar().maxLoad = +yuk.value; yhSenaryoKur(); });
   const zorSec = $("#yhZor");
   if(zorSec) zorSec.addEventListener("change", () => { yhAyar().zor = +zorSec.value; yhSenaryoKur(); });
+  body.querySelectorAll("[data-oncelik]").forEach(b => b.addEventListener("click", async () => {
+    if(b.getAttribute("aria-pressed") === "true") return;
+    const geri = dugmeMesgul(b, "hesaplanıyor…");
+    try{ applyState(await api("/api/yolonceligi", {oncelik: b.dataset.oncelik})); }
+    catch(err){ geri(); hataBildir(b, err); }
+  }));
   body.querySelectorAll("[data-bos]").forEach(b => b.addEventListener("click", () => {
     const A = yhAyar(), i = +b.dataset.bos;
     if(A.bos.has(i)) A.bos.delete(i); else A.bos.add(i);

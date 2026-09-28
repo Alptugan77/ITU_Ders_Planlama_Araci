@@ -758,6 +758,12 @@ her maddeden önce gelen tek iş.
 > tercih ediyor. CRN ile yüklenen denk ders "plan dışı" değil ✅
 > ➜ Ayrıntı: `docs/faz117-denk-aday.md`
 >
+> **Faz 118 (28.09.2026):** yol haritası önceliği ayarı: "Programları
+> birlikte en kısa sürede bitir" / "Anadala öncelik ver". Üç yerleştirme sırası
+> denenip ayarın ölçütüne göre en iyisi seçiliyor. 383 gerçek çiftte ortak
+> bitiş 53, anadal bitişi 71 çiftte öne çekildi. Kurulum 78 → 15 ms ✅
+> ➜ Ayrıntı: `docs/faz118-yol-onceligi.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

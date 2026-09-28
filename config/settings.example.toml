@@ -70,6 +70,11 @@ mesgul = []
 # "Öğleden sonra olsun". Okunamayan satır UYGULANMAZ ve arayüz bunu söyler.
 kilitli = []
 
+# ★ Yol haritası önceliği (ikinci program varken). Arayüzden de seçilebilir.
+#   "birlikte" → iki programın birlikte en erken bitmesi
+#   "anadal"   → önce anadalın en erken bitmesi; ÇAP/yandal onu geciktirmeden
+yol_onceligi = "birlikte"
+
 [scraper]
 request_delay_s = 1.0        # OBS'yi yorma: istekler arası en az 1 sn
 # ⚠️ SADECE ASCII — HTTP başlıklarında Türkçe karakter olamaz.

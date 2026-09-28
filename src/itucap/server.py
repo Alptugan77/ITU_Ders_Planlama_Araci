@@ -232,6 +232,9 @@ class State:
         if path == "/api/tercih":
             self.save_prefs(b)
             return {}
+        if path == "/api/yolonceligi":
+            # Faz 118 — yol haritası önceliği (anadal önce / ikisi birlikte).
+            return {"yolOnceligi": self.save_roadmap_priority(str(b.get("oncelik") or ""))}
         if path == "/api/tercih/onizle":
             return {"onizleme": self.preview_prefs(b)}
         if path == "/api/capbitis":
@@ -1145,6 +1148,15 @@ class State:
             values["cap_baslangic_yariyili"] = cb
         config.update_settings(values)
         return donem
+
+    def save_roadmap_priority(self, oncelik: str) -> str:
+        """Faz 118 — yol haritası önceliğini kaydeder. Doğrulama burada:
+        statik site de aynı `dispatch`'i çağırıyor."""
+        if oncelik not in config.YOL_ONCELIKLERI:
+            raise ValueError("yol haritası önceliği geçersiz; geçerli değerler: "
+                             + ", ".join(config.YOL_ONCELIKLERI))
+        config.update_settings({"yol_onceligi": oncelik})
+        return oncelik
 
     def save_busy(self, day: int, start: int, end: int, label: str = "",
                   remove: str = "") -> dict:

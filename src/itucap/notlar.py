@@ -523,12 +523,21 @@ def akts_ile(genel: float, etki: float | None) -> float:
 
 def ders_aktsi(con: sqlite3.Connection, code: str) -> float | None:
     """Dersin AKTS'si: katalog, yoksa planlardaki slot AKTS'si (en büyüğü).
-    Katalogdaki derslerin ~%20'sinde AKTS boş (ölçüldü: 2173 / 10792)."""
-    r = con.execute("SELECT ects FROM course WHERE code=?", (code,)).fetchone()
-    if r and r[0]:
-        return float(r[0])
-    r = con.execute("SELECT MAX(ects) FROM plan_slot WHERE course_code=?", (code,)).fetchone()
-    return float(r[0]) if r and r[0] else None
+    Katalogdaki derslerin ~%20'sinde AKTS boş (ölçüldü: 2173 / 10792).
+
+    ★ Faz 118 — istek boyunca ders başına bir kez: `plan_slot.course_code`
+    dizinsiz (ikinci sorgu tablo taraması, ~0.7 ms) ve yol haritası aynı
+    dersi her kurulumda yeniden soruyordu."""
+    from . import istek as IST
+
+    def hesap():
+        r = con.execute("SELECT ects FROM course WHERE code=?", (code,)).fetchone()
+        if r and r[0]:
+            return float(r[0])
+        r = con.execute("SELECT MAX(ects) FROM plan_slot WHERE course_code=?",
+                        (code,)).fetchone()
+        return float(r[0]) if r and r[0] else None
+    return IST.bellek(("ders_aktsi", id(con), code), hesap)
 
 
 def zorluk_kademesi(genel: float) -> int:
