@@ -768,6 +768,11 @@ her maddeden önce gelen tek iş.
 > Mevcut sınırın üstünde yönetmeliğin istediği GNO yazıyor ✅
 > ➜ Ayrıntı: `docs/faz119-serbest-kredi.md`
 >
+> **Faz 120 (28.09.2026):** engel paneli dilekçesiz denk dersi görüyor: denk
+> açık ve önşartı tutuyorsa ders "alınamayan" sayılmıyor; önşart eksikse
+> "önşart eksik" grubunda eksik ders ve denk ders yazıyor (BLG 317E / BBF 302E) ✅
+> ➜ Ayrıntı: `docs/faz120-denk-engel.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

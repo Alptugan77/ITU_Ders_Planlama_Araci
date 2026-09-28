@@ -953,6 +953,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     # ("İkinci programda neden alamıyorsun"); tek programlı öğrenci — yani
     # aracın kullanıcılarının çoğu — bu cevabı HİÇ görmüyordu.
     blockers = []
+    # Faz 120 — dilekçesiz denk (`candidates` ile aynı "kendi program" kümesi).
+    kendi_programlar = [settings.anadal_program, *(s["program"] for s in seconds)]
     if anadal_id:
         blockers += [{"course": b.course, "reason": b.reason, "detail": b.detail,
                       "name": names.get(b.course, ""),
@@ -961,7 +963,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                      for b in REC.cap_blockers(con, ucon, student_id, anadal_id,
                                                settings.anadal_program,
                                                settings.allowed_programs,
-                                               max_term=donem or None)]
+                                               max_term=donem or None,
+                                               kendi_programlar=kendi_programlar)]
     for s in seconds:
         blockers += [{"course": b.course, "reason": b.reason, "detail": b.detail,
                       "name": names.get(b.course, ""),
@@ -970,7 +973,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                      for b in REC.cap_blockers(con, ucon, student_id, s["planId"],
                                                s["program"],
                                                settings.allowed_programs,
-                                               dil_esi=True)]
+                                               dil_esi=True,
+                                               kendi_programlar=kendi_programlar)]
 
     # ★ Kredi eşiği (bitirme çalışması) — kaç kredin var, eşik ne, NEYİ tutuyor.
     # Son madde önemli: kural sessizce eleseydi kullanıcı 'GEO 4901E neden

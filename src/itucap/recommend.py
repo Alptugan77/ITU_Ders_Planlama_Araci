@@ -1396,6 +1396,7 @@ class Blocker:
     course: str
     # 'ACILMAMIS' | 'EK_SINAV' | 'PROGRAMA_KAPALI' | 'ONSART' | 'ONSART_KATALOGDA_YOK'
     # | 'KREDI_ESIGI' | 'ALIYORSUN' | 'BILINMIYOR'
+    # | 'DENK_ACIK' (Faz 120: engel değil, durum — dilekçesiz denği açık)
     reason: str
     detail: str = ""
 
@@ -1454,7 +1455,8 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
                  cap_plan_id: int, cap_program: str,
                  allowed_programs: Iterable[str] = (),
                  max_term: int | None = None,
-                 dil_esi: bool = False) -> list[Blocker]:
+                 dil_esi: bool = False,
+                 kendi_programlar: Iterable[str] | None = None) -> list[Blocker]:
     """Kalan her ders için 'neden bu dönem alamıyorum' cevabı.
 
     Ölçüm (18.08.2026): engelin çoğu önşart DEĞİL, **arz**. ÇAP dersleri ya bu
@@ -1479,6 +1481,51 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
     credits_have = POL.earned_credits(con, grades)
     # Faz 42 — hayalet önşartı ayırt etmek için katalogdaki kodlar (tek sorgu).
     katalog_kodlari = {r[0] for r in con.execute("SELECT code FROM course")}
+
+    # ★★ Faz 120 — AÇILMAMIŞ AMA DİLEKÇESİZ DENĞİ AÇIK (kullanıcı 28.09.2026:
+    # "BLG 317 bu dönem açılmamış gözüküyor ama yeni adıyla BBF 302 açılmış").
+    # Faz 117'den beri denk ders öneride "BLG 317E yerine" çıkıyordu, ama bu
+    # panel aynı dersi hâlâ "bu dönem açılmamış" diye ALINAMAYANLAR arasında
+    # sayıyordu — iki ekran çelişiyordu. Kural `candidates` ile aynı: resmî,
+    # tek kaynaklı denklik; şube öğrencinin KENDİ programına açık.
+    from .normalize import kendi_program_kodlari
+    kendi = kendi_program_kodlari(list(kendi_programlar)) if kendi_programlar else set()
+    denk_kaynak: dict[str, list[str]] = {}
+    for e in equivalences if kendi else ():
+        if e.confidence != "official" or len(e.sources) != 1:
+            continue
+        for hedef, kaynaklar in R._dil_yazimlari(e):
+            denk_kaynak.setdefault(hedef, []).append(kaynaklar[0][0])
+
+    def acik_denk(kodlar: list[str]) -> tuple[str, object] | None:
+        """(denk ders, önşart kararı) — dilekçesiz şubesi açık denk; önşartı
+        tutan önce."""
+        adaylar = []
+        for k in dict.fromkeys(d for h in kodlar for d in denk_kaynak.get(h, ())
+                               if d not in kodlar):
+            # `load_sections` şubeyi zaten bu kodlara açık olanlarla süzüyor.
+            if not load_sections(con, k, kendi):
+                continue
+            karar = None if k in unparsed else R.can_take_tree(trees.get(k), prereq_grades)
+            adaylar.append((k, karar))
+        return max(adaylar, key=lambda a: a[1] is None
+                   or a[1].status is not R.Status.BLOCKED) if adaylar else None
+
+    def arz_engeli(code: str, kodlar: list[str], neden: str, detay: str) -> Blocker:
+        d = acik_denk(kodlar)
+        if d is None:
+            return Blocker(code, neden, detay)
+        k, karar = d
+        if karar is None or karar.status is not R.Status.BLOCKED:
+            return Blocker(code, "DENK_ACIK",
+                           f"bu dönem açılmamıştır; resmî denkliği {k} açılmıştır ve "
+                           f"dilekçesiz alınabilir (önerilerde “{code} yerine”)")
+        # Denk ders AÇIK: asıl engel arz değil önşart — "önşart eksik"
+        # grubunda, eksik dersiyle (Faz 120; kullanıcının verisinde BBF 302E
+        # açık, ama BLG 252E / BBF 203E geçilmemiş).
+        metin, _ = _onsart_ayikla({m[0] for m in karar.missing}, katalog_kodlari)
+        return Blocker(code, "ONSART", f"eksik: {metin} — {code} bu dönem açılmamıştır; "
+                                       f"resmî denkliği {k} açık ve dilekçesiz alınabilir")
 
     out: list[Blocker] = []
     for row in con.execute(
@@ -1514,7 +1561,7 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
             out.append(Blocker(code, "EK_SINAV", ek_sinav_metni(sinavlar)))
             continue
         if not crns:
-            out.append(Blocker(code, "ACILMAMIS", "bu dönem şube açılmamıştır"))
+            out.append(arz_engeli(code, kodlar, "ACILMAMIS", "bu dönem şube açılmamıştır"))
             continue
         allowed = {c.upper() for c in allowed_programs} or {cap_program}
         acik_kod = next((k for k in kodlar if load_sections(con, k, allowed)), None)
@@ -1532,12 +1579,13 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
             # yayımlanıyor); ilanlı şubesi de varsa yalnız gerçek programlar yazılıyor.
             gercek = [p for p in progs if p not in ("-", "")]
             if not gercek:
-                out.append(Blocker(code, "ACILMAMIS",
-                                   f"{len(crns)} şube listelenmiş, ancak saati, kontenjanı ve "
-                                   "alabilecek programlar henüz ilan edilmemiştir"))
+                out.append(arz_engeli(code, kodlar, "ACILMAMIS",
+                                      f"{len(crns)} şube listelenmiş, ancak saati, kontenjanı ve "
+                                      "alabilecek programlar henüz ilan edilmemiştir"))
                 continue
-            out.append(Blocker(code, "PROGRAMA_KAPALI",
-                               f"{len(crns)} şube bulunmaktadır; yalnızca {', '.join(gercek)} alabilir"))
+            out.append(arz_engeli(code, kodlar, "PROGRAMA_KAPALI",
+                                  f"{len(crns)} şube bulunmaktadır; yalnızca "
+                                  f"{', '.join(gercek)} alabilir"))
             continue
         code = acik_kod                    # önşart/kredi: açık olan kodla
         if code in unparsed:
@@ -1595,6 +1643,7 @@ def format_blockers(blockers: list[Blocker], n_lessons: int | None = None) -> st
         "KREDI_ESIGI": "kredi eşiği dolmamış",
         "ALIYORSUN": "bu dönem alıyorsun",
         "BILINMIYOR": "önşart okunamadı",
+        "DENK_ACIK": "yerine dilekçesiz denği açık",
     }
     groups: dict[str, list[Blocker]] = {}
     for b in blockers:
@@ -1605,7 +1654,7 @@ def format_blockers(blockers: list[Blocker], n_lessons: int | None = None) -> st
     # düşürüyordu. Eleyen kural kendini göstermek zorunda (bkz. tasarım ilkesi)
     # — "GEO 4901E neden kayboldu" sorusunun komut satırındaki hâliydi.
     for reason in ("PROGRAMA_KAPALI", "ACILMAMIS", "EK_SINAV", "ONSART",
-                   "ONSART_KATALOGDA_YOK", "KREDI_ESIGI", "BILINMIYOR"):
+                   "ONSART_KATALOGDA_YOK", "KREDI_ESIGI", "BILINMIYOR", "DENK_ACIK"):
         items = groups.get(reason)
         if not items:
             continue
