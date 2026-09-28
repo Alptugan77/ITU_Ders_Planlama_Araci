@@ -355,6 +355,8 @@ Faz 28 bunu dürüstçe söylüyor (geçen süreyi yazıyor) ama süre değişme
 > **Faz 104 (26.09.2026):** tablo var (`config/katalog-duzeltmeleri.toml` →
 > `[[kod_gocu]]`), ilk dört beyanla. Ölçüm aracı ve kalan adaylar:
 > `docs/faz104-kod-gocu.md`.
+> **Faz 105:** tarama aracı `tools/kod_gocu_taramasi.py`; 17 beyan daha.
+> Kalan adaylar (AKTS farklı) elle incelenmeli: `docs/faz105-kod-gocu-taramasi.md`.
 §1.1'in kardeşi. Faz 28'de plan slotlarını sayarken çıktı: **67 plan slotu**
 katalogda karşılığı olmayan bir derse bakıyor (`ELH 212`, `BLG 211`, `ELE
 321`…). Bunların bir kısmı kapanmış ders, bir kısmı kod göçü. Arayüz artık

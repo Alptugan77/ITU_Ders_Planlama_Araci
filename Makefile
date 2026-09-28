@@ -139,7 +139,7 @@ plan-info:
 	$(BIN)/python -m itucap.pipeline plan-info $(ID)
 
 all-plans:
-	$(BIN)/python -m itucap.pipeline refresh --all-programs
+	$(BIN)/python -m itucap.pipeline refresh --all-programs --all-equivalences
 
 programs:
 	$(BIN)/python -m itucap.pipeline programs $(if $(T),--tur $(T),) $(if $(Q),--ara $(Q),)

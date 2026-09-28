@@ -111,12 +111,35 @@ def _overfull(con):
 
 @check("orphan_equivalence", "warn")
 def _orphan_equivalence(con):
-    n = con.execute(
-        """SELECT COUNT(*) FROM equivalence e
-           LEFT JOIN course c ON c.code = e.target_course WHERE c.code IS NULL"""
-    ).fetchone()[0]
-    if n:
-        return f"{n} denklikte hedef ders bulunamadı"
+    """★ Faz 110 — resmî sayfa kodları TABAN yazıyor ("BLG 252"); katalogda
+    çoğu yalnız İngilizce yazımıyla var ("BLG 252E"). Motor resmî denklikte
+    iki yazımı da deniyor (`rules._dil_yazimlari`), kontrol de öyle. Kum
+    havuzundaki `make all-plans` denemesinde "1146 denklikte hedef ders
+    bulunamadı" uyarısının 1126'sı yalnız bu yüzdendi; gerçekten katalogda
+    olmayan (kapanmış ya da yanlış ayrıştırılmış) hedef 20 taneydi."""
+    from .rules import ingilizce_kod
+    katalog = {r[0] for r in con.execute("SELECT code FROM course")}
+    yok: dict[str, int] = {}
+    for hedef, guven in con.execute("SELECT target_course, confidence FROM equivalence"):
+        if hedef in katalog or (guven == "official" and ingilizce_kod(hedef) in katalog):
+            continue
+        yok[hedef] = yok.get(hedef, 0) + 1
+    if yok:
+        ornek = ", ".join(sorted(yok, key=lambda k: (-yok[k], k))[:6])
+        return (f"{sum(yok.values())} denklikte hedef ders katalogda yok "
+                f"(İngilizce yazımı da yok; kapanmış ders olabilir): {ornek}")
+
+
+@check("official_equivalence_empty", "warn")
+def _official_equivalence_empty(con):
+    """★ Faz 106 — resmî denklik tablosu BOŞ. Yayınlanan katalog denklik adımı
+    hiç çalıştırılmadan kurulmuştu (adım isteğe bağlı); kullanıcı sordu: "itü
+    denklikleri yayınlıyor zaten" (DersPlanDenklikleri). Boşken kod göçü ve
+    eşdeğer dersler yalnız elle beyanla karşılanıyor — bunu SÖYLE."""
+    n = con.execute("SELECT COUNT(*) FROM equivalence WHERE confidence='official'").fetchone()[0]
+    if not n:
+        return ("Resmî ders denkliği yok (OBS DersPlanDenklikleri çekilmemiş). "
+                "`make all-plans` ya da ayarda `eq_all_programs = true` ile çekiniz.")
 
 
 @check("cap_plan_present")

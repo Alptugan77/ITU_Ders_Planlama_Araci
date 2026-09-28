@@ -82,6 +82,10 @@ not_   = "Katalog adı 'Maçka Silahhane Binası'; yerleşke adı binanın adın
 # ⚠️ Otomatik tahmin YOK: aynı adlı iki ders her zaman aynı ders değildir
 #    (FIZ 101E / PHY 107 başka programların ayrı dersleri). Her beyanın kanıtı
 #    yazılır; ölçüm aracı ve reddedilen adaylar: docs/faz104-kod-gocu.md.
+# ⚠️ Faz 106: OBS resmî denklikleri yayınlıyor (DersPlanDenklikleri) ve
+#    `make all-plans` artık onları da çekiyor. Resmî denkliği olan bir göç için
+#    buradaki beyan gereksizleşir; resmî tabloda karşılığı OLMAYAN beyan yeniden
+#    değerlendirilmeli (docs/faz106-resmi-denklik.md).
 
 # BLGE 2024-2025 planı BLG kodlarını BBF'ye taşıdı; BBF 301E/302E ve
 # BLG 411E'nin önşartı hâlâ BLG 252E diyor. Resmî plan BBF 203E'yi 4., onu
@@ -105,3 +109,89 @@ not_ = "Ad (Learning From Data), kredi 3, AKTS 5 ve önşart metni birebir aynı
 eski = "BLG 112E"
 yeni = "BBF 103E"
 not_ = "Ad (Discrete Mathematics), kredi 3, AKTS 5 aynı, ikisinin de önşartı yok; BBF 204E eski kodu istiyor. Ölçüldü 26.09.2026."
+
+# ---------------------------------------------------------------------------
+# Faz 105 — sistematik tarama (bütün lisans planları; t. dönemdeki her zorunlu
+# ders, önceki dönemlerin bütün zorunluları geçilmiş sayılarak). Beyan ölçütü
+# İKİ BAĞIMSIZ KANIT:
+#   (1) eski ve yeni dersin adı, kredisi ve AKTS'si aynı;
+#   (2) bölümün KENDİ resmî planı yeni kodu, önşartında eski kodu isteyen
+#       dersten ÖNCEKİ döneme koyuyor — fakülte yeni kodla alınan dersin
+#       önşartı karşılamasını açıkça bekliyor.
+# AKTS'si farklı olan adaylar (FIZ 252E, EHB 232E, JEO 114, GEM 211E, MUK 209E,
+# TEK 314) beyan EDİLMEDİ. Ayrıntı: docs/faz105-kod-gocu-taramasi.md.
+# Faz 109 — resmî liste (OBS DersPlanDenklikleri, 3183 denklik, 27.09.2026)
+# ile karşılaştırıldı: 21 beyanın 18'i resmî listede birebir var. Resmî
+# karşılığı OLMAYAN 3 beyan KALDIRILDI: ECN 101E → EFN 105E (resmîde yalnız
+# ECN 105 ↔ EFN 105), ELH 222(E) → EHB 222(E) (EHB 222'nin resmî eşleri
+# EEE 225, EHB 231, ELE 222).
+[[kod_gocu]]
+eski = "BLG 335E"
+yeni = "BBF 301E"
+not_ = "Ad (Analysis of Algorithms I), kredi 3, AKTS 4.5 aynı. BLGE, SECE, YZVE planı BBF 301E dersini, önşartında BLG 335E isteyen BBF 303E dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
+
+[[kod_gocu]]
+eski = "FIZ 313E"
+yeni = "FIZ 215"
+not_ = "Ad (Modern Physics), kredi 4, AKTS 8 aynı. FIZ, FZT planı FIZ 215 dersini, önşartında FIZ 313E isteyen FIZ 310, FZT 302E dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
+
+[[kod_gocu]]
+eski = "MAT 210"
+yeni = "BLG 210E"
+not_ = "Ad (Mühendislik Matematiği), kredi 4, AKTS 5.5 aynı. BLG planı BLG 210E dersini, önşartında MAT 210 isteyen BLG 4901 dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
+
+[[kod_gocu]]
+eski = "EHB 222"
+yeni = "EEE 225E"
+not_ = "Ad (Elektroniğe Giriş), kredi 3, AKTS 4.5 aynı; önşart metni de birebir aynı. CEN planı EEE 225E dersini, önşartında EHB 222 isteyen EEE 315E dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
+
+[[kod_gocu]]
+eski = "EEF 210"
+yeni = "EEE 210E"
+not_ = "Ad (Differential Equations), kredi 3, AKTS 5 aynı. EEE planı EEE 210E dersini, önşartında EEF 210 isteyen KON 313E dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
+
+[[kod_gocu]]
+eski = "EEF 232"
+yeni = "EEE 232E"
+not_ = "Ad (Circuit and System Analysis), kredi 3, AKTS 6 aynı. EEE planı EEE 232E dersini, önşartında EEF 232 isteyen KON 313E dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
+
+[[kod_gocu]]
+eski = "ECN 105E"
+yeni = "EFN 105E"
+not_ = "Ad (Principles of Microeconomics), kredi 3.5, AKTS 6.5 aynı; önşart metni de birebir aynı. EFN planı EFN 105E dersini, önşartında ECN 105E isteyen EFN 201E dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
+
+[[kod_gocu]]
+eski = "ICM 104E"
+yeni = "IAD 104E"
+not_ = "Ad (History&Theo.in Inte. Archit.I), kredi 3, AKTS 4 aynı. IAD planı IAD 104E dersini, önşartında ICM 104E isteyen IAD 4902E dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
+
+[[kod_gocu]]
+eski = "END 210"
+yeni = "IND 210E"
+not_ = "Ad (Linear Algebra for Indust.Eng.), kredi 3, AKTS 4.5 aynı. IND planı IND 210E dersini, önşartında END 210 isteyen IND 4901E dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
+
+[[kod_gocu]]
+eski = "MAT 271E"
+yeni = "MDN 271"
+not_ = "Ad (Probability and Statistics), kredi 3, AKTS 5 aynı; önşart metni de birebir aynı. MAD planı MDN 271 dersini, önşartında MAT 271E isteyen MAD 441E dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
+
+[[kod_gocu]]
+eski = "ISL 233E"
+yeni = "MMD 233E"
+not_ = "Ad (Microeconomics), kredi 3, AKTS 5 aynı; önşart metni de birebir aynı. MMD planı MMD 233E dersini, önşartında ISL 233E isteyen MMD 244E, MMD 353E dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
+
+[[kod_gocu]]
+eski = "MUK 203E"
+yeni = "NAE 203"
+not_ = "Ad (Strength of Materials I), kredi 3, AKTS 4.5 aynı. NAE planı NAE 203 dersini, önşartında MUK 203E isteyen GEM 325E, MUK 204E dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
+
+[[kod_gocu]]
+eski = "ELE 222"
+yeni = "EHB 222"
+not_ = "Ad (Elektroniğe Giriş), kredi 3, AKTS 4.5 aynı; önşart metni de birebir aynı. TEL planı EHB 222 dersini, önşartında ELE 222 isteyen ELE 311 dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
+
+[[kod_gocu]]
+eski = "ELE 222E"
+yeni = "EHB 222E"
+not_ = "Ad (Introduction to Electronics), kredi 3, AKTS 4.5 aynı; önşart metni de birebir aynı. TEL planı EHB 222E dersini, önşartında ELE 222E isteyen ELE 311 dersinden ÖNCEKİ döneme koyuyor. Ölçüldü 27.09.2026."
+

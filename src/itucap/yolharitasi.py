@@ -355,7 +355,12 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     zincir = max((b.yukseklik for b in kalan), default=0)
 
     # ---------------------------------------------- 3. dönem dönem yerleştir
-    gecilen = {c for c, g in grades.items() if R.passed(g)}
+    # ★ Faz 106 — önşartta RESMÎ DENKLİKLER de sayılıyor (öneri motoru
+    # `candidates`/`cap_blockers` gibi: `expand_with_equivalences`). Eskiden
+    # harita ham transkripte bakıyordu: denklikle karşılanan ders plan slotunu
+    # dolduruyor ama onu isteyen dersin önşartını açmıyordu — iki ekran farklı.
+    genis, _ = R.expand_with_equivalences(grades, equivalences)
+    gecilen = {c for c, g in genis.items() if R.passed(g)}
     varsayilan = set(gecilen) | alinan_kodlar
     # ★★ DIŞ ÖNŞART (24.09.2026, gerçek katalogla ölçüldü). Önşartın istediği
     # ders HİÇBİR planında yoksa (ING 201 dil dersi, MAT 210 ↔ yeni kodu gibi
@@ -388,19 +393,16 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     # ★ Faz 104 — aynı sebeple: beyan edilmiş kod göçünün yeni kodu plandaysa
     # eski kod "dış" değil (BLG 252E → BBF 203E). Dış sayılınca geçilmiş
     # varsayılıyor ve BBF 301E, BBF 203E'den önceki döneme yerleşebiliyordu.
-    from .declared import load_code_migrations
-    goc = {}
-    for eski, yeni in load_code_migrations():
-        goc.setdefault(eski, set()).add(yeni)
-        goc.setdefault(yeni, set()).add(eski)
-    dis = {c for c in dis if not ((goc.get(c, set()) | goc.get(R.dil_esi(con, c) or "", set()))
+    from .declared import code_migration_groups
+    goc = code_migration_groups()
+    dis = {c for c in dis if not ((goc.get(c, frozenset()) | goc.get(R.dil_esi(con, c) or "", frozenset()))
                                   & plan_kodlari)}
     # ★★ Faz 98 — GEÇİLMİŞ DERSİN GERÇEK NOTU. Görünüm her geçilen derse "AA"
     # veriyordu; DD ile geçilmiş (ya da notsuz işaretlenip DD sayılan)
     # BLG 4901E, "MIN BB" isteyen BLG 4902E'yi açıyordu. Bu dönemin önerileri
     # gerçek notla bakıp dersi engelliyordu — iki ekran çelişiyordu. Yalnız
     # yerleştirilen (gelecekte alınacak) dersler "AA" varsayılıyor.
-    gercek_not = {c: str(g).upper() for c, g in grades.items() if R.passed(g)}
+    gercek_not = {c: str(g).upper() for c, g in genis.items() if R.passed(g)}
 
     def gorunum(kodlar):
         v = {c: GECER for c in kodlar}

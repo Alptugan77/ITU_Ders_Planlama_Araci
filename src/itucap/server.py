@@ -764,11 +764,14 @@ class State:
             if not skip_obs:
                 try:
                     pipeline.step_obs_plans(self.con, settings)
-                    pipeline.step_dedupe_plans(self.con)
                 except Exception as exc:                      # noqa: BLE001
                     # OBS erişilemiyorsa ESKİ VERİ KORUNUR; sessizce başarılı
                     # görünmek yanlış olurdu.
                     obs_error = str(exc)
+            # ★ Faz 110 — kopya temizliği OBS'den BAĞIMSIZ (bkz.
+            # pipeline.cmd_refresh): itu-helper planları az önce yeniden
+            # yazıldı; OBS düşse de önceki OBS planlarının kopyası kalmamalı.
+            pipeline.step_dedupe_plans(self.con)
             # ⚠️ Katalog değişti: dil eşi önbelleği düşüyor, yoksa
             # tazelemeden sonra eski eşler gösterilirdi.
             self._esler_onbellek = None

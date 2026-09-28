@@ -27,6 +27,8 @@ EP = {
     "eq_plan_types": f"{OBS}/public/GenelTanimlamalar/GetPlanTipleriByProgramId",       # POST
     "eq_plans": f"{OBS}/public/GenelTanimlamalar/GetDersPlanlariByProgramIdAndPlanTipiId",
     "eq_branches": f"{OBS}/public/GenelTanimlamalar/GetDersBransKodlariByPlanId",       # POST
+    # ★ Faz 109 — sonuç tablosu artık AYRI uçtan (sayfa formu AJAX ile çağırıyor).
+    "eq_search": f"{OBS}/public/GenelTanimlamalar/DersDenklikAra",                      # GET
 }
 
 # ★ Faz 67 — arayüzün yönlendirdiği DIŞ SİTELER (tek kaynak; arayüz
@@ -43,6 +45,9 @@ DIS_BAGLANTILAR = {
                    "aciklama": "güncel şube, saat ve kontenjan"},
     "obsPlan": {"ad": "OBS Ders Planları", "url": EP["plan_page"],
                 "aciklama": "resmî ders planları ve önşartlar"},
+    # Faz 108 — resmî ders denklikleri (kullanıcı 27.09.2026).
+    "obsDenklik": {"ad": "OBS Ders Plan Denklikleri", "url": EP["eq_page"],
+                   "aciklama": "İTÜ'nün yayınladığı resmî ders denklikleri"},
     "obsNot": {"ad": "OBS Ders Not Dağılımı", "url": f"{OBS}/public/DersNotDagilimi",
                "aciklama": "geçmiş dönemlerin harf notu dağılımları"},
     "yonerge": {"ad": "ÇAP/Yandal Yönergesi",

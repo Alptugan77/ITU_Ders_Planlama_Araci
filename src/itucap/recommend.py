@@ -1348,7 +1348,9 @@ def _onsart_ayikla(eksik: set[str], katalog: set[str],
     # ★ Faz 104 — kod göçü beyanı olan eski kodun yanına yeni kodu: öğrenci
     # planında "BLG 252E"yi değil "BBF 203E"yi görüyor.
     from .declared import load_code_migrations
-    yeni_kod = {e: y for e, y in load_code_migrations()}
+    yeni_kod = {}
+    for e, y in load_code_migrations():
+        yeni_kod.setdefault(e, y)
     parca = ", ".join(f"{c} (yeni kodu {yeni_kod[c]})" if c in yeni_kod else c
                       for c in gosterilen)
     if kalan:

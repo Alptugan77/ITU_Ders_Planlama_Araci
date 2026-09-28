@@ -40,14 +40,34 @@ APPROVAL_RE = re.compile(r"(yönetim kurulu|dilekçe|onay|approval)", re.IGNOREC
 _LEAD = re.compile(r"^\s*([A-ZÇĞİÖŞÜ]{2,4})\s*(\d{3,4})([A-Z]?)")
 
 
-def _lead_code(text: str) -> str | None:
-    """'BLG 202Numerical…' -> 'BLG 202'; 'MAT 210 Müh. Mat.' -> 'MAT 210'."""
+def _lead_code(text: str, katalog: set[str] | None = None) -> str | None:
+    """'BLG 202Numerical…' -> 'BLG 202'; 'MAT 210 Müh. Mat.' -> 'MAT 210'.
+
+    ★★ Faz 110 — isim BÜYÜK harfli kısaltmayla başlayınca ilk harf koda
+    yapışıyordu (gerçek sayfada ölçüldü, 3183 satırda 11, 7 farklı kod):
+    "EHB 101EHM Giriş…" → EHB 101E, "DFH 490E-Seyir…" → DFH 490E,
+    "SBP 126CBS ve Planlama" → SBP 126C, "MET 435PÇT…" → MET 435P.
+    Ek, isme YAPIŞIKSA (ardında boşluk yoksa):
+      * küçük harf geliyorsa isim harfidir (Numerical) — eskisi gibi;
+      * 'E' hiçbir zaman ek sayılmaz: sayfa dilden bağımsız TABAN kod yazıyor
+        (kaynakların hiçbiri E'li değil), dil eşi motor katmanında kuruluyor;
+      * 'L' LABORATUVAR eki olarak korunur ("FIZ 113LMekanik Laboratuvarı"):
+        katalog eski lab kodlarını kapsamıyor, düşürmek dersi (FIZ 113) lab
+        yerine koyardı — gerçek sayfadaki 5 L'li satırın hepsi laboratuvar;
+      * başka harf ancak ekli kod KATALOGDA varsa ek ("ING 112AAkademik");
+        yoksa isme ait ("PEM 251CBSe giriş").
+    Ardında boşluk varsa ek korunur ("ING 101R English", "BLG 202E X")."""
     m = _LEAD.match(text or "")
     if not m:
         return None
     pre, num, suf = m.group(1), m.group(2), m.group(3)
-    if suf and text[m.end():m.end() + 1].islower():
-        suf = ""                       # 'N' aslında ismin baş harfi (Numerical)
+    if suf:
+        sonraki = text[m.end():m.end() + 1]
+        if sonraki and not sonraki.isspace():             # isme yapışık
+            if sonraki.islower() or suf == "E":
+                suf = ""
+            elif suf != "L" and katalog is not None and f"{pre} {num}{suf}" not in katalog:
+                suf = ""
     return f"{pre} {num}{suf}"
 
 
@@ -85,10 +105,20 @@ def program_options(html: str, undergrad_only: bool = True) -> list[tuple[int, s
         name = o.text(strip=True)
         if not val.isdigit():
             continue
-        if undergrad_only and "Undergraduate" not in name:
+        if undergrad_only and not _lisans_mi(name):
             continue
         out.append((int(val), name))
     return out
+
+
+def _lisans_mi(ad: str) -> bool:
+    """★★ Faz 109 — sayfa artık TÜRKÇE geliyor: "Fizik Mühendisliği Lisans",
+    "… Yüksek Lisans", "… Doktora". Süzgeç yalnız İngilizce "Undergraduate"
+    arıyordu → 0 program, adım SESSİZCE boş dönüyordu ve yayınlanan katalogda
+    tek bir resmî denklik yoktu (Faz 106'nın kök nedeni). İki dil de tanınıyor;
+    "Yüksek Lisans" lisans DEĞİL."""
+    ad = " ".join(ad.split())
+    return "Undergraduate" in ad or (ad.endswith("Lisans") and not ad.endswith("Yüksek Lisans"))
 
 
 def all_program_ids(client: ObsClient, undergrad_only: bool = True) -> list[tuple[int, str]]:
@@ -120,7 +150,8 @@ def sweep_program(client: ObsClient, con: sqlite3.Connection, program_id: int,
 
 
 def sweep_all(client: ObsClient, con: sqlite3.Connection, max_plans: int | None = 1,
-              undergrad_only: bool = True, progress=None) -> tuple[int, int, int]:
+              undergrad_only: bool = True, progress=None,
+              hatalar: list | None = None) -> tuple[int, int, int]:
     """TÜM (lisans) programların denkliklerini tarar — kullanıcı isteği
     28.08.2026: *"diğer programlar için de denklikleri kontrol edip uygun ders
     var mı diye baksın"*.
@@ -128,7 +159,10 @@ def sweep_all(client: ObsClient, con: sqlite3.Connection, max_plans: int | None 
     Kapsamlı ama YAVAŞ (çok istek). `max_plans=1`: her plan tipinin yalnız EN
     SON planı (eski sürümler denklikleri büyük ölçüde tekrar eder). Programlar
     arası tekilleştirme paylaşılan `seen` ile. Bir programın hatası ötekini
-    kesmesin diye tek tek yutuluyor. Dönüş: (program, kombinasyon, denklik).
+    kesmesin diye tek tek yutuluyor — ama SAYILIYOR: `hatalar` listesi
+    verilirse (program_id, ad, hata) eklenir (Faz 110: eksik tarama eski
+    tabloyu ezmesin, bkz. `pipeline.denklik_korunmali`).
+    Dönüş: (program, kombinasyon, denklik).
     """
     progs = all_program_ids(client, undergrad_only)
     if progress:
@@ -139,6 +173,8 @@ def sweep_all(client: ObsClient, con: sqlite3.Connection, max_plans: int | None 
         try:
             t, f = sweep_program(client, con, pid, max_plans=max_plans, seen=seen)
         except Exception as exc:                       # noqa: BLE001
+            if hatalar is not None:
+                hatalar.append((pid, name, str(exc)[:200]))
             if progress:
                 progress(f"  ⚠ {name} ({pid}): {exc}")
             continue
@@ -153,8 +189,13 @@ def _fetch_one(client: ObsClient, con: sqlite3.Connection, program_id, plan_type
                plan_id, branch_id, plan_type_name: str = "", seen: set | None = None) -> int:
     params = {"ProgramId": program_id, "PlanTipiId": plan_type_id,
               "PlanId": plan_id, "DersBransKoduId": branch_id}
-    html = client.get(config.EP["eq_page"], params)
-    if NOT_FOUND.search(html):
+    # ★★ Faz 109 — İKİ SESSİZ KIRILMA. (1) Sayfa GET'i artık tablo vermiyor;
+    # form sonucu `DersDenklikAra`dan AJAX ile alıyor. (2) "Ders denklik bilgisi
+    # bulunamadı" metni artık HER sayfanın JavaScript'inde (AJAX hata
+    # işleyicisi) — eski denetim her sayfayı "boş" sayıyordu. Artık yalnız
+    # TABLO YOKSA "bulunamadı".
+    html = client.get(config.EP["eq_search"], params)
+    if "<table" not in html:
         return 0
     url = config.EP["eq_page"] + "?" + "&".join(f"{k}={v}" for k, v in params.items())
     return parse_table(con, html, plan_id, url, seen=seen)
@@ -177,20 +218,21 @@ def parse_table(con: sqlite3.Connection, html: str, plan_id: int | None, url: st
         return 0
     rows = table.css("tbody tr") or table.css("tr")
     n = 0
+    katalog = {r[0] for r in con.execute("SELECT code FROM course")}   # Faz 110
     if seen is None:
         seen = set()                       # tek sayfa için yerel; sweep paylaşır
     for row in rows:
         tds = row.css("td")
         if len(tds) < 2:
             continue                                  # başlık / boş satır
-        target = _lead_code(tds[0].text(strip=True))
+        target = _lead_code(tds[0].text(strip=True), katalog)
         if not target:
             continue
         # ★ Hücreyi `separator="\n"` ile oku: <br> satır sonuna dönüşsün. Ham
         #   `text(strip=True)` alternatifleri BİTİŞİK verir ("…PythonBIL 101")
         #   ve kod çıkarımı sessizce bozulur (normalize.py'deki uyarı).
         for ln in tds[1].text(separator="\n").split("\n"):
-            src = _lead_code(ln.strip())
+            src = _lead_code(ln.strip(), katalog)
             if not src or src == target or (target, src) in seen:
                 continue
             seen.add((target, src))

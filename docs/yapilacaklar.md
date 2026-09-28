@@ -684,6 +684,42 @@ her maddeden önce gelen tek iş.
 > alabilir" değil ✅
 > ➜ Ayrıntı: `docs/faz104-kod-gocu.md`
 >
+> **Faz 105 (27.09.2026):** kod göçü bütün planlarda tarandı
+> (`tools/kod_gocu_taramasi.py`). Plana sadık öğrencide engelli ders 126 →
+> 109; iki bağımsız kanıtlı (ad + kredi + AKTS aynı VE planın kendi dönem
+> sırası) 17 beyan, zincirler grup olarak ✅
+> ➜ Ayrıntı: `docs/faz105-kod-gocu-taramasi.md`
+>
+> **Faz 106 (27.09.2026):** resmî denklik tablosu yayınlanan katalogda BOŞTU
+> (adım isteğe bağlıydı). `make all-plans` artık çekiyor, kalite raporu boşken
+> uyarıyor, yol haritası önşartta denklikleri sayıyor ✅ — ⏳ denklikleri çekmek
+> OBS erişimi olan makinede `make all-plans` gerektiriyor
+> ➜ Ayrıntı: `docs/faz106-resmi-denklik.md`
+>
+> **Faz 108 (27.09.2026):** denklik önerisi AKTS'ye de bakıyor. Kredisi aynı,
+> AKTS'si farklı çift artık "yüksek güven" alıp toplu uygulanamıyor; düşük
+> güven grubu resmî denklik listesine yönlendiriyor ✅
+> ➜ Ayrıntı: `docs/faz108-denklik-akts.md`
+>
+> **Faz 109 (27.09.2026):** denklik kazıyıcısı üç sessiz kırılmadan onarıldı
+> (Türkçe program menüsü, ayrı `DersDenklikAra` ucu, JS'teki "bulunamadı").
+> 3183 resmî denklik geldi; 21 kod göçü beyanının 18'i resmî listede var,
+> karşılıksız 3'ü kaldırıldı ✅ — ⏳ yayın: `make all-plans` + site
+> ➜ Ayrıntı: `docs/faz109-denklik-kaziyici.md`
+>
+> **Faz 110 (27.09.2026):** `make all-plans` kopya katalogda uçtan uca
+> denendi. İkinci program seçilmemişken OBS plan adımı çöküyordu, kopya plan
+> temizliği de atlanıyordu (BLGE'de 5 + 5 plan); artık ÇAP ve yandal ayrı
+> ayrı çekiliyor, temizlik her koşuda çalışıyor.
+> Resmî denklikler İngilizce kodlarda da uygulanıyor (dil korunur, engelli
+> ders 104 → 92). Ayrıştırıcının ek hatası (11 satır) düzeldi. Denklikle
+> gelen not artık ulaşılabilen en iyi not ve sıradan bağımsız. Kurulum
+> 5.9 → 3 sn. Denklik taraması eksik ya da kesik sonuçla eski tabloyu ezmiyor;
+> kısmi tarama (`eq_program_ids`) yalnız kendi programlarını yeniliyor. Deneme:
+> 1215 plan, 3183 denklik (Faz 109 ile aynı küme), kalite raporunda 0 hata;
+> yanıltıcı "1146 yetim denklik" uyarısı gerçek sayıya (14) indi ✅
+> ➜ Ayrıntı: `docs/faz110-all-plans-denetimi.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

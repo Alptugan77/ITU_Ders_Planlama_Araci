@@ -41,8 +41,8 @@ def test_GERCEK_beyanlar_kanitli():
     raw = tomllib.loads((Path(DEC.__file__).resolve().parents[2] / "config"
                          / "katalog-duzeltmeleri.toml").read_text(encoding="utf-8"))
     ciftler = {(g["eski"], g["yeni"]): g["not_"] for g in raw["kod_gocu"]}
-    assert set(ciftler) == {("BLG 252E", "BBF 203E"), ("BLG 336E", "BBF 303E"),
-                            ("BLG 454E", "BBF 304E"), ("BLG 112E", "BBF 103E")}
+    assert set(ciftler) >= {("BLG 252E", "BBF 203E"), ("BLG 336E", "BBF 303E"),
+                            ("BLG 454E", "BBF 304E"), ("BLG 112E", "BBF 103E")}   # Faz 105: ve dahası
     assert all("aynı" in n and "Ölçüldü" in n for n in ciftler.values())
 
 

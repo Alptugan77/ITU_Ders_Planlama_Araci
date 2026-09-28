@@ -11,6 +11,7 @@ yönlendirir. Sessizce yanlış cevap vermek, cevap verememekten kötüdür.
 """
 from __future__ import annotations
 
+import re
 import sqlite3
 from dataclasses import dataclass, field
 from enum import Enum
@@ -43,7 +44,7 @@ def prereq_view(grades: Mapping[str, str]) -> dict[str, str]:
     GEÇİLMİŞ değildir — plan slotunu doldurmaz, AKTS'ye sayılmaz. İkisini
     karıştırmak ilerlemeyi olduğundan iyi gösterirdi.
     """
-    from .declared import load_code_migrations, waiver_grades
+    from .declared import code_migration_groups, waiver_grades
 
     view = dict(waiver_grades())
     view.update(grades)          # gerçek notlar muafiyeti EZER
@@ -53,11 +54,14 @@ def prereq_view(grades: Mapping[str, str]) -> dict[str, str]:
     # 5. dönemin iki ana dersi engelli, program yarı boş kalıyordu. Yalnız
     # önşart görünümünde — plan slotu doldurmaz (muafiyetlerle aynı ilke).
     # İkisi de varsa İYİ olanı: eski kodla FF, yeni kodla BB alan öğrenci.
-    for eski, yeni in load_code_migrations():
-        notlar = [g for g in (view.get(eski), view.get(yeni)) if g is not None]
+    # Faz 105: beyanlar zincir kurabildiği için GRUP olarak (bkz.
+    # `declared.code_migration_groups`).
+    for grup in set(code_migration_groups().values()):
+        notlar = [view[k] for k in grup if k in view]
         if notlar:
-            view[eski] = view[yeni] = max(
-                notlar, key=lambda g: GRADE_POINTS.get(str(g).upper(), -1.0))
+            iyi = max(notlar, key=lambda g: GRADE_POINTS.get(str(g).upper(), -1.0))
+            for k in grup:
+                view[k] = iyi
     return view
 
 
@@ -87,13 +91,21 @@ def _denklik_oku(con: sqlite3.Connection, include_cap: bool,
                  ofset: int = 0, yalniz_beyan: bool = False,
                  beyan_haric: bool = False) -> list[Equivalence]:
     out: list[Equivalence] = []
+    # ★ Faz 110 — TEK sorgu. Denklik başına ayrı kaynak sorgusu 3183 resmî
+    # denklikte çağrı başına ~40 ms tutuyordu; gerçek BLGE kurulumunda 14
+    # çağrı = 0.59 sn (kurulumun %20'si). Sıra eskisiyle aynı: denklik id'si,
+    # içinde kaynak kodu (eski sorgu birincil anahtar dizinini kullanıyordu).
     try:
         rows = list(con.execute(
-            "SELECT id, target_course, confidence, applies_to_cap, note_raw "
-            "FROM equivalence"))
+            """SELECT e.id, e.target_course, e.confidence, e.applies_to_cap, e.note_raw,
+                      s.course_code, s.min_grade
+                 FROM equivalence e JOIN equivalence_source s ON s.equivalence_id = e.id
+                ORDER BY e.id, s.course_code"""))
     except sqlite3.Error:
         # Tablo yoksa (eski kullanıcı DB'si) denklik yok demektir — çökmüyoruz.
         return out
+    kaynaklar: dict[int, list] = {}
+    satir: dict[int, tuple] = {}
     for row in rows:
         if include_cap and not row[3]:
             continue
@@ -102,14 +114,11 @@ def _denklik_oku(con: sqlite3.Connection, include_cap: bool,
             continue
         if beyan_haric and beyan:
             continue
-        sources = tuple(
-            (r[0], r[1] or "DD") for r in con.execute(
-                "SELECT course_code, min_grade FROM equivalence_source WHERE equivalence_id=?",
-                (row[0],))
-        )
-        if sources:
-            out.append(Equivalence(row[0] + ofset, row[1], sources,
-                                   row[2], bool(row[3]), row[4]))
+        satir.setdefault(row[0], row)
+        kaynaklar.setdefault(row[0], []).append((row[5], row[6] or "DD"))
+    for eid, row in satir.items():
+        out.append(Equivalence(eid + ofset, row[1], tuple(kaynaklar[eid]),
+                               row[2], bool(row[3]), row[4]))
     return out
 
 
@@ -140,6 +149,79 @@ def load_equivalences(con: sqlite3.Connection, include_cap: bool = True,
     return out
 
 
+_KOD_PARCA = re.compile(r"^([A-ZÇĞİÖŞÜ]{2,4} \d{3,4})(E?)([A-Z]*)$")
+
+
+def ingilizce_kod(code: str) -> str:
+    """Kodun İngilizce yazımı: 'BLG 252' → 'BLG 252E', 'FIZ 101L' → 'FIZ 101EL'
+    (dil eki laboratuvar ekinden ÖNCE — katalogda FIZ 101EL). Zaten E'liyse
+    ya da biçim tanınmıyorsa kodun kendisi."""
+    m = _KOD_PARCA.match(code or "")
+    if not m:
+        return code
+    kok, _e, ek = m.groups()
+    return f"{kok}E{ek}"
+
+
+def _dil_yazimlari(eq: Equivalence) -> list[tuple[str, tuple[tuple[str, str], ...]]]:
+    """Denkliğin uygulanacağı (hedef, kaynaklar) yazımları.
+
+    ★★ Faz 110 — resmî sayfa (OBS DersPlanDenklikleri) kodları DİLDEN
+    BAĞIMSIZ, taban biçimde yazıyor ("BBF 203 ≡ BLG 252"; 3183 kaynağın
+    hiçbiri E'li değil). Motor birebir eşleştirdiği için İngilizce programdaki
+    öğrencide (BBF 203E, BLG 252E) HİÇBİR resmî denklik tetiklenmiyordu —
+    katalogdaki hedeflerin 1117'si yalnız E'li kodla var.
+    Kural: DİL KORUNUR. Kaynaklar İngilizce yazımlarıyla sağlanırsa hedefin
+    İngilizce yazımı kazanılır; Türkçe ise Türkçesi. Türkçe ders İngilizce
+    anadal yuvasını doldurmaz (Faz 92 ilkesi: dil serbestliği yalnız
+    ÇAP/yandal slotunda, `slot_codes`). Karışık dilli çok kaynaklı denklik
+    tetiklenmez (ihtiyatlı).
+    Kullanıcı BEYANLARI kodu tam yazıldığı gibi — beyan kendi dilini seçiyor."""
+    yazim = [(eq.target, eq.sources)]
+    if eq.confidence == "official":
+        en = (ingilizce_kod(eq.target),
+              tuple((ingilizce_kod(c), g) for c, g in eq.sources))
+        if en != yazim[0]:
+            yazim.append(en)
+    return yazim
+
+
+# ★★ Faz 110 — HIZ. 3183 resmî denklik iki dilde 6366 yazım; `slot_satisfied`
+# her plan yuvası için genişletme istiyor (gerçek BLGE profilinde bir kurulumda
+# 1724 çağrı) ve her çağrı bütün listeyi tur tur tarıyordu: kurulum 5.9 sn →
+# 28.6 sn. İki önlem, SONUÇ AYNI:
+#   * yazımlar ve "kaynak kod → yazımlar" dizini liste başına BİR kez kurulur
+#     (liste nesnesine göre; önbellek listeyi TUTAR, kimlik yeniden
+#     kullanılamaz — uzunluk ve uçlar da denetlenir: yerinde eklenen liste
+#     yeniden kurulur);
+#   * aynı not seti + aynı yazım kümesi için sonuç önbellekte (kopya döner).
+#     Sonuç, üretildiği yazım listesinin KENDİSİYLE saklanır ve kimliği
+#     denetlenir; eskimiş bir kurulumun sonucu dönemez.
+_YAZIM_ONBELLEK: list = []          # [(liste, (uzunluk, ilk, son), yazımlar, dizin)]
+_GENIS_ONBELLEK: dict = {}          # anahtar → (yazımlar, notlar, via)
+
+
+def _yazim_dizini(eqs: list) -> tuple[list, dict]:
+    imza = (len(eqs), eqs[0] if eqs else None, eqs[-1] if eqs else None)
+    for i, (liste, im, yazimlar, dizin) in enumerate(_YAZIM_ONBELLEK):
+        if liste is eqs:
+            if im[0] == imza[0] and im[1] is imza[1] and im[2] is imza[2]:
+                return yazimlar, dizin
+            del _YAZIM_ONBELLEK[i]      # liste yerinde değişmiş: yeniden kur
+            break
+    yazimlar = [(eq.id, hedef, kaynaklar)
+                for eq in eqs for hedef, kaynaklar in _dil_yazimlari(eq)]
+    dizin: dict[str, list[int]] = {}
+    for n, (_id, _h, kaynaklar) in enumerate(yazimlar):
+        for kod, _g in kaynaklar:
+            dizin.setdefault(kod, []).append(n)
+    if len(_YAZIM_ONBELLEK) >= 8:
+        _YAZIM_ONBELLEK.pop(0)
+        _GENIS_ONBELLEK.clear()
+    _YAZIM_ONBELLEK.append((eqs, imza, yazimlar, dizin))
+    return yazimlar, dizin
+
+
 def expand_with_equivalences(
     grades: Mapping[str, str],
     equivalences: Iterable[Equivalence],
@@ -149,32 +231,64 @@ def expand_with_equivalences(
 
     {A,B} -> C ve {C} -> D varsa, A+B alan öğrenci D'yi de almış sayılır.
     Sabit noktaya kadar döner (en fazla max_rounds, döngüye karşı emniyet).
+    Resmî denklikler iki dilde de (bkz. `_dil_yazimlari`).
+
+    Her turda yalnız bir önceki turda kazanılan (ya da notu yükselen) kodlara
+    dokunan yazımlar denenir.
+
+    ★★ Faz 110 — NOT: öğrencinin ulaşabildiği EN İYİ not. Bir yazım, kaynaklarının
+    en düşük notunu verir; hedefe birden çok yoldan varılıyorsa (ya da hedefi
+    kendisi almış ama denk dersten daha iyi geçmişse — FF alıp denğini BB ile
+    geçen) iyisi kalır. Eşitlikte ham not. Monoton bir sabit nokta: sonuç
+    listenin SIRASINDAN bağımsız (eski "ilk bulunan" kuralında 300 rastgele
+    transkriptin 5'inde not sıraya göre değişiyordu). Kod göçü görünümünün
+    (`prereq_view`, Faz 104) kuralıyla aynı. Genişletilmiş notlar yalnız
+    önşart/slot/harita için; not ORTALAMASI ham notlardan (`policy.gpa`).
 
     Dönüş: (genişletilmiş notlar, ders -> hangi denklik id'siyle kazanıldı)
     """
+    eqs = equivalences if isinstance(equivalences, list) else list(equivalences)
+    if not eqs:
+        return dict(grades), {}
+    yazimlar, dizin = _yazim_dizini(eqs)
+    anahtar = (id(yazimlar), max_rounds,
+               frozenset((k, str(v)) for k, v in grades.items()))
+    hazir = _GENIS_ONBELLEK.get(anahtar)
+    if hazir is not None and hazir[0] is yazimlar:
+        return dict(hazir[1]), dict(hazir[2])
+
     result = dict(grades)
     via: dict[str, int] = {}
-    equivalences = list(equivalences)
+    yeni = set(result)
     for _ in range(max_rounds):
-        changed = False
-        for eq in equivalences:
-            if eq.target in result:
-                continue
+        adaylar = sorted({n for kod in yeni for n in dizin.get(kod, ())})
+        yeni = set()
+        for n in adaylar:
+            eq_id, target, sources = yazimlar[n]
             got = []
-            for code, min_grade in eq.sources:
+            for code, min_grade in sources:
                 have = result.get(code)
                 need = GRADE_POINTS.get(min_grade.upper(), PASSING_MIN)
                 if have is None or GRADE_POINTS.get(str(have).upper(), -1.0) < need:
                     got = None
                     break
                 got.append(str(have).upper())
-            if got:
-                # denklikle kazanılan derse, kaynakların EN DÜŞÜK notunu ver
-                result[eq.target] = min(got, key=lambda g: GRADE_POINTS.get(g, 0.0))
-                via[eq.target] = eq.id
-                changed = True
-        if not changed:
+            if not got:
+                continue
+            # denklikle kazanılan derse, kaynakların EN DÜŞÜK notunu ver
+            aday = min(got, key=lambda g: GRADE_POINTS.get(g, 0.0))
+            eski = result.get(target)
+            if eski is not None and (GRADE_POINTS.get(aday, -1.0)
+                                     <= GRADE_POINTS.get(str(eski).upper(), -1.0)):
+                continue
+            result[target] = aday
+            via[target] = eq_id
+            yeni.add(target)
+        if not yeni:
             break
+    if len(_GENIS_ONBELLEK) > 4096:
+        _GENIS_ONBELLEK.clear()
+    _GENIS_ONBELLEK[anahtar] = (yazimlar, dict(result), dict(via))
     return result, via
 
 
