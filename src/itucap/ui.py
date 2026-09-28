@@ -60,7 +60,7 @@ def _dil_esi(code: str) -> list[str]:
 
 
 def _acik_denklikler(con, equivalences, expanded, gereken, allowed,
-                     names, section_json) -> list[dict]:
+                     names, section_json, kendi_program: str | None = None) -> list[dict]:
     """Almam gereken bir dersin DENKLİĞİ bu dönem açıksa, onu bilgileriyle
     listeler (kullanıcı isteği 27.08.2026; resmi OBS denklikleri 28.08.2026).
 
@@ -78,7 +78,15 @@ def _acik_denklikler(con, equivalences, expanded, gereken, allowed,
 
     Dil eşi: OBS "MAT 202" ↔ katalog "MAT 202E" (bkz. `_dil_esi`). Hedefi
     gereken'e, kaynağı şubelere eşle; iki varyant da açıksa şubeleri birleştir.
+
+    ★★ Faz 111 — DİLEKÇESİZ (kullanıcı 28.09.2026: *"denk derslerde bölümümün
+    kodu alabilir gözüküyorsa dilekçesiz de alabiliyorum"*). Şubenin OBS'deki
+    "alabilir" listesinde ANADAL kodu (`kendi_program`) açıkça yazıyorsa
+    kaynak `dilekcesiz` işaretleniyor ve o şubeler `dilekcesizCrn`'de.
+    Listesi boş ya da "-" olan şube bu iddiaya GİRMİYOR: bilinmeyen, bilinen
+    gibi gösterilmez.
     """
+    kendi = (kendi_program or "").strip().upper()
     def passed(code):
         return any(R.passed(expanded.get(s)) for s in _dil_esi(code))
 
@@ -94,8 +102,12 @@ def _acik_denklikler(con, equivalences, expanded, gereken, allowed,
             for sec in REC.load_sections(con, s, allowed):
                 if sec.crn not in crn:
                     crn.add(sec.crn); secs.append(sec)
+        dilekcesiz = [sec.crn for sec in secs if kendi and con.execute(
+            "SELECT 1 FROM lesson_allowed_program WHERE crn=? AND upper(program_code)=?",
+            (sec.crn, kendi)).fetchone()]
         return {"code": code, "name": name_of(code), "minGrade": min_not,
                 "passed": passed(code), "open": bool(secs),
+                "dilekcesiz": bool(dilekcesiz), "dilekcesizCrn": dilekcesiz,
                 "sections": [section_json(s) for s in secs]}
 
     def gereken_kodu(target):
@@ -1251,7 +1263,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         "openEquivalents": _acik_denklikler(
             con, equivalences,
             R.expand_with_equivalences(grades, equivalences)[0],
-            gereken_dersler, settings.allowed_programs, names, section_json),
+            gereken_dersler, settings.allowed_programs, names, section_json,
+            settings.anadal_program),
         # Her ikinci programın KENDİ kademe zinciri.
         "tierGroups": tier_groups,
         # ★★ Faz 57 — mezuniyet yol haritası (çok dönemli plan, §2.1).
@@ -4386,6 +4399,11 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c =>
   ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const hhmm = (m) => String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+/* ★ Faz 111 — saati olmayan şubenin yazısı. Ek/sınırsız sınav şubesi (OBS
+   öğretim yöntemi) bir ders değil, azami süreyi dolduranın sınav hakkı
+   (2547 s. Kanun m. 44/c): saati "ilan edilmemiş" değil, HİÇ yok. */
+const saatsizYazi = (sec, kip) => sec && sec.sinav ? sec.sinav
+  : (kip === "kisa" ? "saat ilan edilmemiş" : "saati ilan edilmemiş");
 /* ★ Faz 67 — DIŞ SİTEYE YÖNLENDİRME. Adresler tek yerde:
    `config.DIS_BAGLANTILAR` (→ DATA.links). Yeni sekmede açılır ve
    `noreferrer`: hangi sayfadan gelindiği (ve adres çubuğundaki paylaşım
@@ -6783,7 +6801,7 @@ function renderAcikDenklik(){
   if(!liste.length){ $("#denklikBody").innerHTML = ""; return; }
   const saat = (secs) => (secs[0] && secs[0].meetings.length)
     ? secs[0].meetings.map(m => `${DAYS[m.day-1]} ${hhmm(m.start)}–${hhmm(m.end)}`).join(", ")
-    : "saat ilan edilmemiş";
+    : saatsizYazi(secs[0], "kisa");
   $("#denklikBody").innerHTML = liste.map(e => {
     /* Açık ve henüz alınmamış kaynaklar — asıl gösterilecek olanlar. */
     const acik = e.sources.filter(k => k.open && !k.passed);
@@ -6806,7 +6824,12 @@ function renderAcikDenklik(){
         <div><b class="mono">${esc(k.code)}</b>
           ${k.name ? `<span class="denkad">${esc(k.name)}</span>` : ""}
           ${k.sections.some(x => x.online) ? `<span class="chip online"
-            style="margin-left:6px">çevrimiçi</span>` : ""}</div>
+            style="margin-left:6px">çevrimiçi</span>` : ""}${
+          /* ★ Faz 111 — şube bölümünüze açıksa dilekçe gerekmiyor. */
+          k.dilekcesiz ? `<span class="chip prereq" style="margin-left:6px"
+            title="Şube, OBS'de bölümünüzün (${esc(DATA.anadal || "")}) alabileceği şube olarak listelenmiştir${
+              k.dilekcesizCrn.length < k.sections.length
+                ? ": CRN " + esc(k.dilekcesizCrn.join(", ")) : ""}">dilekçesiz</span>` : ""}</div>
         <div class="denkmeta mono">
           ${k.sections.length === 1 ? `CRN ${esc(s.crn)} · ` : ""}${esc(saat(k.sections))}
           ${s.instructor ? ` · ${esc(s.instructor)}` : ""}</div>
@@ -6831,9 +6854,16 @@ function renderAcikDenklik(){
     }
     /* Köken çerçevesi: resmi = OBS + dilekçe; beyan = kendi bildirdiğin. */
     if (!e.declared) {
+      /* ★ Faz 111 — şubesi bölümünüze açık kaynak dilekçesiz alınıyor. */
+      const serbest = acik.filter(k => k.dilekcesiz);
       const onay = e.confidence === "requires_approval"
         ? "bölüm/yönetim kurulu onayı gerekebilir"
-        : "dilekçeyle saydırılır";
+        : serbest.length === acik.length && acik.length
+          ? "şubesi bölümünüze açık olduğundan <b>dilekçe gerekmez</b>"
+          : serbest.length
+            ? `<b>${serbest.map(k => esc(k.code)).join(", ")}</b> şubesi bölümünüze açık
+               olduğundan dilekçesiz alınabilir, diğerleri dilekçeyle saydırılır`
+            : "dilekçeyle saydırılır";
       not += `<div class="denknot">OBS resmî ders denkliği${
         capraz ? " — <b>başka bölümden</b>" : ""}; ${onay}. Danışmanınızla doğrulayınız.</div>`;
     }
@@ -7052,7 +7082,7 @@ function renderSaved(){
       <div class="miss">şube bu dönemin verisinde bulunmamaktadır</div></div>`; }
     kredi += hit.cand.credits || 0; akts += hit.cand.ects || 0;
     const saat = (hit.sec.meetings || []).map(m =>
-      `${DAYS[m.day-1] || "?"} ${hhmm(m.start)}`).join(" · ") || "saati ilan edilmemiş";
+      `${DAYS[m.day-1] || "?"} ${hhmm(m.start)}`).join(" · ") || saatsizYazi(hit.sec);
     return `<div class="savedcard ${hit.cand.role === "ANADAL" ? "" : "ikinci"}"
       style="${tonStil(p.course, hit.cand.role)}">
       <b class="mono">${esc(p.course)}</b><span class="crn mono">${esc(p.crn)}</span>
@@ -7363,6 +7393,7 @@ function injectSections(bulunan){
     const sec = {crn: x.crn, capacity: x.capacity, enrolled: x.enrolled,
                  free: Math.max(0, (x.capacity||0) - (x.enrolled||0)),
                  instructor: x.instructor || "", online: !!x.online,
+                 sinav: x.sinav || null,                       /* Faz 111 */
                  meetings: (x.meetings || []).map(m => ({
                    day: m.day, start: m.start, end: m.end,
                    building: m.building, room: m.room || "", campus: m.campus}))};
@@ -7553,9 +7584,9 @@ function icsMetni(){
   const sat = ["BEGIN:VCALENDAR", "VERSION:2.0",
                "PRODID:-//itucap//__AD_ASCII__//TR",
                "CALSCALE:GREGORIAN"];
-  let saatsiz = 0;
+  let saatsiz = 0, sinavli = 0;
   picks().forEach(p => {
-    if(!p.sec.meetings.length){ saatsiz++; return; }
+    if(!p.sec.meetings.length){ p.sec.sinav ? sinavli++ : saatsiz++; return; }
     p.sec.meetings.forEach((m, i) => {
       const ad = `${p.cand.course}${p.cand.name ? " — " + p.cand.name : ""}`;
       sat.push("BEGIN:VEVENT",
@@ -7577,7 +7608,7 @@ function icsMetni(){
     });
   });
   sat.push("END:VCALENDAR");
-  return {metin: sat.join("\r\n"), saatsiz};
+  return {metin: sat.join("\r\n"), saatsiz, sinavli};
 }
 
 const icsKacis = (s) => String(s ?? "")
@@ -7585,7 +7616,7 @@ const icsKacis = (s) => String(s ?? "")
   .replace(/\n/g, "\\n");
 
 function icsIndir(){
-  const {metin, saatsiz} = icsMetni();
+  const {metin, saatsiz, sinavli} = icsMetni();
   const blob = new Blob([metin], {type: "text/calendar;charset=utf-8"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -7594,6 +7625,9 @@ function icsIndir(){
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   if(saatsiz) alertLine(
     `${saatsiz} dersin saati ilan edilmediğinden takvim dosyasına eklenmemiştir.`);
+  /* Faz 111 — ek sınav şubesinin ders saati yok; sınav tarihi OBS'de ilan edilir. */
+  if(sinavli) alertLine(
+    `${sinavli} ek sınav şubesinin ders saati olmadığından takvim dosyasına eklenmemiştir.`);
 }
 
 /* ---------- ★★ FAZ 61 — DANIŞMAN ÖZETİ ----------
@@ -7627,7 +7661,7 @@ function danismanSorulari(){
       (CRN ${esc(p.sec.crn)})`).join(", ")} ${doluSube.length > 1 ? "şubelerimin" : "şubemin"}
     kontenjanı doludur ve programımla çakışmayan boş şube bulunmamaktadır. Kontenjan
     açılması mümkün müdür, yoksa başka bir ders mi almalıyım?`);
-  picks().filter(p => !p.sec.meetings.length).forEach(p =>
+  picks().filter(p => !p.sec.meetings.length && !p.sec.sinav).forEach(p =>
     q.push(`<b class="mono">${esc(p.cand.course)}</b> dersinin saati ilan edilmemiştir.
       Çakışma olup olmadığını nasıl öğrenebilirim?`));
   if(R && R.noTranscript)
@@ -7878,7 +7912,8 @@ async function resimIndir(){
   });
   let ay = y0(son) + 24;
   if(saatsiz.length){
-    yaz(`Saati ilan edilmemiş: ${saatsiz.map(p => p.cand.course + " (CRN " + p.sec.crn + ")").join(", ")}`,
+    yaz(`Saati olmayan: ${saatsiz.map(p => p.cand.course + " (CRN " + p.sec.crn
+          + (p.sec.sinav ? ", " + p.sec.sinav.toLowerCase() : "") + ")").join(", ")}`,
         PAY, ay, `400 12px ${SANS}`, j("ink-2"), G - 2 * PAY);
     ay += 22;
   }
@@ -8031,7 +8066,7 @@ function crnDialog(){
                 style="margin-left:6px">${esc(p.cand.role)}</span></td>
             <td class="meta mono">${p.sec.meetings.length
               ? p.sec.meetings.map(m => `${DAYS[m.day-1]} ${hhmm(m.start)}`).join(", ")
-              : "saat ilan edilmemiş"}</td>
+              : saatsizYazi(p.sec, "kisa")}</td>
             <td class="mono ${p.sec.free ? "" : "over"}">${p.sec.free}</td>
           </tr>`).join("")}</tbody>
         </table>
@@ -8447,11 +8482,12 @@ function renderArzUyarisi(){
   const kutu = $("#arzUyari");
   if(!kutu) return;
   const arz = (DATA.blockers || []).filter(
-    b => b.reason === "ACILMAMIS" || b.reason === "PROGRAMA_KAPALI");
+    b => b.reason === "ACILMAMIS" || b.reason === "PROGRAMA_KAPALI" || b.reason === "EK_SINAV");
   if(!arz.length){ kutu.hidden = true; kutu.innerHTML = ""; return; }
   kutu.hidden = false;
   const acilmamis = arz.filter(b => b.reason === "ACILMAMIS");
   const kapali = arz.filter(b => b.reason === "PROGRAMA_KAPALI");
+  const sinav = arz.filter(b => b.reason === "EK_SINAV");
   const satir = (liste, ad) => liste.length
     ? `<div style="margin-top:4px"><b>${liste.length}</b> ders ${ad}:
        <span class="mono">${liste.slice(0, 6).map(b => esc(b.course)).join(", ")}${
@@ -8474,6 +8510,7 @@ function renderArzUyarisi(){
       <div class="arzgovde">
         ${satir(acilmamis, "henüz ilan edilmemiştir")}
         ${satir(kapali, "şubeleri başka programlara ayrılmıştır")}
+        ${satir(sinav, "için yalnızca ek sınav açılmıştır (ders saati yoktur)")}
         <div style="margin-top:6px" class="meta">Veri
           <span class="mono">${esc(veriTarihi())}</span> itibarıyladır;
           dönem başında ilanlar kademeli olarak yayımlanır.
@@ -8556,7 +8593,7 @@ function renderPrintCrn(){
           ? p.sec.meetings.map(m =>
               `${DAYS[m.day-1]} ${hhmm(m.start)}–${hhmm(m.end)} · ${
                 p.sec.online ? "çevrimiçi" : esc(yerYazi(m))}`).join("<br>")
-          : "saati ilan edilmemiş"}</td>
+          : saatsizYazi(p.sec)}</td>
         <td class="mono">${p.cand.credits}</td>
       </tr>`).join("")}</tbody></table>
     <div style="margin-top:3mm;font-size:9pt">
@@ -9542,13 +9579,23 @@ function render(){
   renderDayList();
   esDersBagla();
 
-  $("#notime").innerHTML = timeless.length ? `
-    <div class="eyebrow" style="margin-bottom:6px">Saati ilan edilmemiş</div>
-    <div class="blocklist">${timeless.map(p =>
+  /* ★ Faz 111 — ek sınav şubesi, saati ilan edilmemişler grubunda DEĞİL: saati
+     hiç yok, bir ders değil, bir sınav hakkı. Ayrı başlık, kısa açıklama. */
+  const notimeGrup = (liste, baslik, aciklama) => liste.length ? `
+    <div class="eyebrow" style="margin-bottom:6px">${baslik}</div>
+    ${aciklama ? `<div class="meta" style="margin-bottom:6px">${aciklama}</div>` : ""}
+    <div class="blocklist">${liste.map(p =>
       `<div class="blockitem" data-course="${esc(p.cand.course)}" tabindex="0"
          role="button" style="cursor:pointer"><b class="mono">${esc(p.cand.course)}</b>
         <span class="tag ${p.cand.role}" style="margin-left:4px">${p.cand.role}</span>
-        CRN ${esc(p.sec.crn)} · ${p.cand.credits} kredi</div>`).join("")}</div>` : "";
+        CRN ${esc(p.sec.crn)} · ${p.sec.sinav ? esc(p.sec.sinav.toLowerCase()) + " · " : ""}${
+        p.cand.credits} kredi</div>`).join("")}</div>` : "";
+  const sinavli = timeless.filter(p => p.sec.sinav);
+  $("#notime").innerHTML =
+    notimeGrup(timeless.filter(p => !p.sec.sinav), "Saati ilan edilmemiş", "")
+    + notimeGrup(sinavli, "Ek sınav",
+        `Ders saati yoktur; ek sınav hakkı azami öğrenim süresini dolduran
+         öğrencilere tanınır (2547 sayılı Kanun m. 44/c).`);
   $("#notime").querySelectorAll("[data-course]").forEach(el =>
     bind(el, () => courseDialog(el.dataset.course)));
 
@@ -9969,7 +10016,7 @@ function optionRow(cand, section, note){
     ? section.meetings.map(m =>
         `${DAYS[m.day-1]} ${hhmm(m.start)}–${hhmm(m.end)} <span class="yer" title="${
            esc(yerBaslik(m))}">${esc(yerYazi(m))}</span>`).join("<br>")
-    : "saat ilan edilmemiş";
+    : saatsizYazi(section, "kisa");
   return `<button class="opt" data-course="${esc(cand.course)}" data-crn="${esc(section.crn)}">
       <span><b class="mono">${esc(cand.course)}</b>
         <span class="tag ${cand.role}" style="margin-left:6px">${cand.role}</span>
@@ -11040,6 +11087,10 @@ const LABELS = {
   KREDI_ESIGI:["kredi eşiği dolmamış","credit"],
   PROGRAMA_KAPALI:["şubeleri programa kapalı","supply"],
   ACILMAMIS:["bu dönem açılmamış","supply"],
+  /* ★ Faz 111 — yalnız ek/sınırsız sınav şubesi açılmış ders. Arz sorunu
+     değil (izleme düğmesi yok): ders bu dönem okutulmuyor, açılan şube
+     azami süreyi dolduranın sınav hakkı. */
+  EK_SINAV:["yalnız ek sınav açılmış","unknown"],
   ONSART:["önşart eksik","prereq"],
   /* ★★ FAZ 42 — önşartı katalogda OLMAYAN bir dersi isteyen ders.
      "eksik: ELH 332" demek öğrenciyi var olmayan bir dersi aramaya
@@ -11996,7 +12047,7 @@ const groups = {};
 DATA.blockers.forEach(b => (groups[b.reason] = groups[b.reason] || []).push(b));
 let bhtml = "";
 ["PROGRAMA_KAPALI","ACILMAMIS","ONSART","ONSART_KATALOGDA_YOK",
- "KREDI_ESIGI","BILINMIYOR"].forEach(k => {
+ "KREDI_ESIGI","BILINMIYOR","EK_SINAV"].forEach(k => {
   const items = groups[k]; if(!items) return;
   const [label, cls] = LABELS[k];
   bhtml += `<div class="chipline"><span class="chip ${cls}">${label}</span>

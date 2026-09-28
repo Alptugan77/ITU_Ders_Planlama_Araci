@@ -720,6 +720,14 @@ her maddeden önce gelen tek iş.
 > yanıltıcı "1146 yetim denklik" uyarısı gerçek sayıya (14) indi ✅
 > ➜ Ayrıntı: `docs/faz110-all-plans-denetimi.md`
 >
+> **Faz 111 (28.09.2026):** "Ek Sınav" / "Sınırsız Sınav" yöntemli şube
+> (2547 s. K. m. 44/c) artık ders sayılmıyor: öneriye ve programa girmiyor,
+> yalnız ek sınavı açılmış ders "yalnız ek sınav açılmış" engeliyle
+> görünüyor (eskiden "henüz ilan edilmemiş"), CRN'den gelen ek sınav şubesi
+> saat yerine "Ek sınav" yazıyor. Denk dersin şubesi bölümünüze açıksa kart
+> "dilekçesiz" diyor ✅
+> ➜ Ayrıntı: `docs/faz111-ek-sinav.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

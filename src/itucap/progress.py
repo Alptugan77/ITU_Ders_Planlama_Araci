@@ -174,10 +174,14 @@ def _open_sections(con: sqlite3.Connection, course_code: str,
                    allowed_programs: set[str] | None = None) -> str:
     """Şube özeti — PROGRAM KISITINA göre. Alamayacağın şubeyi 'var' saymak
     yanıltıcı: BLG 223E'nin 2 şubesi var ama ikisi de yalnız SECE'ye açık."""
-    from .recommend import load_sections
+    from .recommend import load_sections, sinav_turu
 
-    total = con.execute(
-        "SELECT COUNT(*) FROM lesson WHERE course_code=?", (course_code,)).fetchone()[0]
+    yontemler = [r[0] for r in con.execute(
+        "SELECT teaching_method FROM lesson WHERE course_code=?", (course_code,))]
+    # ★ Faz 111 — ek/sınırsız sınav şubesi ders değil (2547 s. K. m. 44/c).
+    total = sum(1 for y in yontemler if not sinav_turu(y))
+    if not total and yontemler:
+        return "[bu dönem yalnız ek sınav açılmış]"
     if not total:
         return "[bu dönem açılmamış]"
     if allowed_programs is None:

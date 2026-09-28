@@ -128,6 +128,17 @@ def gecmis_donemleri(gecmis: dict | None, en_cok: int = 6) -> list[dict]:
             if n > 0][:en_cok]
 
 
+def bu_donem_okutulan(con: sqlite3.Connection) -> set[str]:
+    """Bu dönem şubesi olan dersler.
+
+    ★ Faz 111 — ek/sınırsız sınav şubesi SAYILMIYOR: her dönem açılabiliyor ve
+    dersin o dönem okutulduğunu göstermiyor (azami süreyi dolduranın sınav
+    hakkı, 2547 s. Kanun m. 44/c). Saymak, bahar dersine "Güz'de de açılıyor"
+    dedirtirdi (gerçek katalog: BLG 322E, BLG 354E)."""
+    return {r[0] for r in con.execute("SELECT course_code, teaching_method FROM lesson")
+            if r[0] and not REC.sinav_turu(r[1])}
+
+
 def gecmis_mevsimleri(con: sqlite3.Connection, kodlar: Iterable[str]) -> dict | None:
     """Faz 58 — dersin geçmiş not dağılımından GERÇEKTEN verildiği yarıyıllar.
 
@@ -299,7 +310,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     # ★ Bu dönemin şubeleri VERİ: planı "Bahar" dese de bu Güz şubesi olan
     # ders Güz'de de açılıyor (vitrinde MAT 210E: plan 4. dönem, bu Güz iki
     # şube). Yalnız plana bakmak onu gereksiz yere bir dönem kaydırıyordu.
-    acik = {r[0] for r in con.execute("SELECT DISTINCT course_code FROM lesson")}
+    acik = bu_donem_okutulan(con)
     bilinmeyen_mevsim = gecmisten = 0
     for b in birimler:
         plan = b._plan                                  # type: ignore[attr-defined]
