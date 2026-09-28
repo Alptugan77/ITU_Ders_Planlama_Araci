@@ -45,7 +45,7 @@ def test_OZET_ve_DANISMAN():
     assert 'querySelectorAll("[data-tekrar]")' in r
     assert "choose(b.dataset.tekrar, b.dataset.crn)" in r
     q = _js("danismanSorulari")
-    assert 'tekrarDurumu().filter(x => x.tur !== "UYAR")' in q
+    assert "tekrarDurumu()" not in q                              # Faz 112: yalnız dilekçe
 
 
 _CANLI = r'''
@@ -141,8 +141,7 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
                   "ekle, BLG 252E çıkar", "BLG 252E ile çakışmaktadır",
                   "ÇAP yarıyıl tabanı (9 kredi) sağlanamaz"):
         assert parca in c["O1"], (parca, c["O1"])
-    assert any("Başarısız olduğum <span class=\"mono\">MAT 210E (FF)</span>" in s and "çakışmaktadır" in s
-               for s in json.loads(c["Q1"])), c["Q1"]
+    assert not any("Başarısız olduğum" in s for s in json.loads(c["Q1"])), c["Q1"]   # Faz 112
     d2 = json.loads(c["D2"])
     assert d2[0]["tur"] == "UYAR" and d2[0]["cikar"] == [] and d2[0]["crn"], d2
     assert "programa ekle" in c["O2"] and "programla çakışmamaktadır" in c["O2"]

@@ -7641,102 +7641,40 @@ function icsIndir(){
    görüyor. Sayfa bunu yazıyor. Hesaplar görünümlerle AYNI yardımcılardan
    (`tabanDurumu`, `totals`, `picks`); özet kendi hesabını yapmıyor. */
 const buyukBas = (m) => m ? m.charAt(0).toLocaleUpperCase("tr") + m.slice(1) : m;
+/* ★★ Faz 112 — YALNIZ DİLEKÇE GEREKTİRENLER (kullanıcı 28.09.2026: "danışman
+   özeti kısmında da dilekçe dışında danışmana sorulacak diye yazdığın
+   şeyleri çıkarabilirsin"). Eskiden ~20 kaynaktan soru üretiliyordu (bitiş
+   gecikmesi, GNO eşikleri, zor dersler, kalma riski, saat…); bunlar
+   görünümlerde zaten var. Burada yalnız danışman görüşmesinde DİLEKÇEYLE
+   yapılacak işler kalıyor: yük sınırı, ÇAP tabanı indirimi, dolu şubeye
+   kontenjan, denklikle saydırma. */
 function danismanSorulari(){
-  const q = [], F = DATA.secondFloor, t = totals(), R = DATA.roadmap, g = DATA.gpa;
+  const q = [], F = DATA.secondFloor, t = totals();
   if(DATA.maxLoad && t.load > DATA.maxLoad)
     q.push(`Programım <b>${t.load}</b> ${esc(DATA.unitLabel)} olup ${DATA.maxLoad} sınırını
-      aşmaktadır. Hangi dersi bırakmam gerekir veya sınırın artırılması mümkün müdür?`);
-  if(F && !F.undeclared){
+      aşmaktadır; sınırın üzerinde ders alabilmek için dilekçe gerekir.`);
+  if(F && !F.undeclared && F.relief){
     const d = tabanDurumu(F);
     if(!d.ok) q.push(`İkinci anadaldan bu dönem <b>${d.kredi}</b> kredi alıyorum; yarıyıl
-      tabanı ${F.min} kredidir (<b>${d.eksik}</b> kredi eksik).${F.relief ? ` Tabanın ${F.relief.min}
-      krediye indirilmesi için başvuru yapabilir miyim?` : ""}`);
+      tabanı ${F.min} kredidir (<b>${d.eksik}</b> kredi eksik). Tabanın ${F.relief.min}
+      krediye indirilmesi için dilekçe verilebilir.`);
   }
-  /* ★★ Faz 90 — dolu şubeler TEK soruda. Gerçek sitede (BLGE, 5. yarıyıl)
-     aynı cümle dört kez yazılıyordu ve biri, programla çakışmayan BOŞ şubesi
-     olan dersti — o soru değil, tek dokunuşla çözülüyor (Faz 57 "boş şubeye
-     geç"); sayfada ayrıca söyleniyor (danismanOzeti → dolu şube satırı). */
+  /* ★★ Faz 90 — dolu şubeler TEK maddede; programla çakışmayan BOŞ şubesi
+     olan ders dilekçe değil, tek dokunuşla çözülüyor (bosSube). */
   const doluSube = picks().filter(p => p.sec.capacity && yerSayisi(p.sec) === 0 && !bosSube(p.cand.course));
   if(doluSube.length) q.push(`${doluSube.map(p => `<b class="mono">${esc(p.cand.course)}</b>
       (CRN ${esc(p.sec.crn)})`).join(", ")} ${doluSube.length > 1 ? "şubelerimin" : "şubemin"}
-    kontenjanı doludur ve programımla çakışmayan boş şube bulunmamaktadır. Kontenjan
-    açılması mümkün müdür, yoksa başka bir ders mi almalıyım?`);
-  picks().filter(p => !p.sec.meetings.length && !p.sec.sinav).forEach(p =>
-    q.push(`<b class="mono">${esc(p.cand.course)}</b> dersinin saati ilan edilmemiştir.
-      Çakışma olup olmadığını nasıl öğrenebilirim?`));
-  if(R && R.noTranscript)
-    q.push(`Başarılı olduğum dersleri araca girmedim. Mezuniyet planımı birlikte
-      gözden geçirebilir miyiz?`);
-  if(R && !R.error && !R.noTranscript){
-    (R.programs || []).filter(p => p.jointDegree && p.remaining).forEach(p =>
-      q.push(`Ortak lisans programına kayıtlıyım (${esc(p.jointDegree)}). Kalan yarıyıllarımdan
-        hangileri İTÜ'de, hangileri ortak üniversitede geçecektir? Mezuniyet dönemim nedir?`));
-    (R.programs || []).forEach(p => {
-      if(p.finish && p.nominal && p.finish.index > p.nominal.index)
-        q.push(`${esc(buyukBas(p.label))} tahmini bitişim <b>${esc(p.finish.label)}</b> olup planımdakinden
-          ${p.finish.index - p.nominal.index} dönem geç görünmektedir. Hangi dersleri öne almalıyım?`);
-      if(p.role === "ANADAL" && p.finishSemester && R.maxDuration
-         && p.finishSemester > R.maxDuration.semesters)
-        q.push(`Tahmini bitişim ${p.finishSemester}. yarıyıl olup azami öğrenim süresini
-          (${R.maxDuration.semesters}) aşmaktadır. Seçeneklerim nelerdir?`);
-    });
-    (R.takeNow || []).slice(0, 2).forEach(x =>
-      q.push(`<b class="mono">${esc(x.course)}</b> bu dönem alınırsa ${x.gains.map(gg =>
-        `${esc(gg.label)} ${gg.terms} dönem erken`).join(", ")} bitiyor${x.drop
-        ? ` (${esc(x.drop.course)} çıkarılarak)` : ""}. Bu dersi programıma eklemeli miyim?`));
-    (R.unplaced || []).forEach(u =>
-      q.push(`<b class="mono">${esc(u.course || u.pool)}</b> planlanamamaktadır: ${esc(u.reason)}.`));
-    const tg = (R.terms || []).filter(x => x.floorGap);
-    if(tg.length) q.push(`Yol haritasında ${tg.map(x => esc(x.label)).join(", ")} döneminde
-      ÇAP yarıyıl tabanı sağlanamamaktadır (yeterli ÇAP dersi açılmamaktadır). Nasıl planlama yapmalıyım?`);
-  }
-  if(g && g.counted){
-    /* ★★ Faz 90 — BAŞVURU eşiği bir SEÇENEK, sorun değil: ikinci programı
-       olmayan öğrenciye "ÇAP başvurusu ≥ 3.00 — nasıl ulaşırım?" diye
-       sormak, istemediği bir hedefi dayatıyordu (gerçek sitede, BLGE). */
-    (g.thresholds || []).filter(x => x.ok === false && !kayitliBasvuru(x))
-      .forEach(x => q.push(x.kind === "basvuru"
-        ? `${esc(x.label.replace(/\s*başvurusu$/, ""))} başvurusunu düşünürsem GNO ≥ ${x.min.toFixed(2)}
-           gerekmektedir; tahmini GNO'm ${g.value.toFixed(2)}. Bu hedef benim için gerçekçi midir?`
-        : `${esc(x.label)} için GNO ≥ ${x.min.toFixed(2)} gerekmektedir;
-        tahmini GNO'm ${g.value.toFixed(2)}. Bu eşiğe nasıl ulaşabilirim?`));
-    /* ★ Faz 70 — kalan bütün derslerde AA bile yetmiyorsa (Faz 69 hesabı). */
-    const ik = (g.secondGpa || [])[0];
-    gnoHedefleri().forEach(h => {
-      const k = kalanGereken(h, g, ik);
-      if(k && k.T && k.x > 4 + 1e-9)
-        q.push(`${esc(h.adlar.join(" · "))} için ${h.taban === "ikinci" ? "ÇAP ortalamasının" : "GNO'nun"}
-          ${h.min.toFixed(2)} olması gerekmektedir; kalan tüm derslerim (${k.T} kredi) AA olsa
-          bile ortalamam en fazla ${k.enIyi.toFixed(2)} olur. Seçeneklerim nelerdir?`);
-    });
-    if((g.conditional || []).length && g.conditionalRule && g.conditionalRule.ok === false)
-      q.push(`Şartlı geçtiğim ${g.conditional.length} ders bulunmaktadır ve GNO'm 2.00'ın
-        altındadır. Hangi dersleri tekrar almalıyım?`);
-  }
-  /* ★ Faz 73 — başarısız olunan ders bu dönem programda değilse. Uyan
-     şubesi olan ("programa eklenebilir") soru değil; tek dokunuşla çözülüyor. */
-  /* ★★ Faz 89 — tahmini zorluk (Faz 87) ve kalma oranı (Faz 88). Kalma
-     riski yalnız ZATEN hesaplanmışsa kullanılıyor; özet hesap tetiklemiyor. */
-  const zorlar = picks().filter(p => { const z = zorlukOf(p.cand); return z && z.level >= 4; });
-  if(zorlar.length >= 3)
-    q.push(`Bu dönemki programımda geçmiş not dağılımına göre <b>${zorlar.length}</b> zor ders
-      bulunmaktadır (<span class="mono">${zorlar.map(p => esc(p.cand.course)).join(", ")}</span>).
-      Yük dengesi açısından birini sonraki döneme bırakmalı mıyım?`);
-  if(kalmaGuncel() && KALMA.veri && !KALMA.yukleniyor)
-    KALMA.veri.courses.forEach(c => {
-      const z = zorlukOf(candOf(c.course)), oran = z ? +(100 - z.passRate).toFixed(1) : null;
-      const gec = Math.max(...c.programs.map(p => p.delay || 0));
-      if(gec > 0 && oran !== null && oran >= 20)
-        /* Sayıya ek getirilmiyor ("%30'u", "%25'i"…): ek sayıya göre değişir. */
-        q.push(`<b class="mono">${esc(c.course)}</b> dersinden kalmam mezuniyetimi
-          geciktirebilir; geçmişte bu dersi geçemeyen öğrenci oranı <b>%${oran}</b>.
-          Bu derse nasıl hazırlanmam önerilir?`);
-    });
-  const tk = tekrarDurumu().filter(x => x.tur !== "UYAR");
-  if(tk.length) q.push(`Başarısız olduğum <span class="mono">${tk.map(x =>
-      esc(x.course) + (x.grade ? ` (${esc(x.grade)})` : "")).join(", ")}</span> bu dönem
-    programımda yer almamaktadır${tk.some(x => x.tur === "CAKISIYOR") ? ` (şubeleri
-    programımdaki derslerle çakışmaktadır)` : ""}. Bu dersi ne zaman tekrar almalıyım?`);
+    kontenjanı doludur ve programımla çakışmayan boş şube bulunmamaktadır; kontenjan
+    açılması için dilekçe verilebilir.`);
+  /* ★ Faz 111/112 — programdaki ders, gereken bir dersin resmî denkliğiyse ve
+     şubesi bölümüne açık DEĞİLSE saydırmak için dilekçe gerekiyor. */
+  const secili = new Set(picks().map(p => p.cand.course));
+  (DATA.openEquivalents || []).filter(e => !e.declared && e.needed).forEach(e =>
+    e.sources.filter(k => secili.has(k.code) && k.open && !k.passed && !k.dilekcesiz)
+      .forEach(k => q.push(`<b class="mono">${esc(k.code)}</b> dersini
+        <b class="mono">${esc(e.target)}</b> yerine saydırmak için denklik dilekçesi
+        verilmelidir${e.confidence === "requires_approval"
+          ? " (bölüm/yönetim kurulu onayı gerekebilir)" : ""}.`)));
   return q;
 }
 
@@ -7785,9 +7723,9 @@ function danismanOzeti(){
       : `<div class="empty">Programda ders bulunmamaktadır.</div>`}
     <h3>Kontroller</h3><ul>${kontrol.map(k => `<li>${k}</li>`).join("")}</ul>
     ${bitis ? `<h3>Tahmini bitiş</h3><ul>${bitis}</ul>` : ""}
-    <h3>Danışmana sorulacaklar</h3>
+    <h3>Dilekçe gerektirenler</h3>
     ${sorular.length ? `<ul class="dsoru">${sorular.map(x => `<li>${x}</li>`).join("")}</ul>`
-      : `<div class="meta">Tespit edilen bir sorun bulunmamaktadır; program kurallara uygundur.</div>`}
+      : `<div class="meta">Dilekçe gerektiren bir durum bulunmamaktadır.</div>`}
     <div class="dnot">GNO ve bitiş bilgileri tahminidir (transkript ve yol haritası
       varsayımlarına dayanır). Kesin bilgi için OBS esas alınmalıdır. ⚠️ Bu sayfa GNO
       bilgisini içerir; yalnızca danışmanınızla paylaşınız. __AD_TAM__ ile hazırlanmıştır;
