@@ -86,7 +86,12 @@ def _acik_denklikler(con, equivalences, expanded, gereken, allowed,
     Listesi boş ya da "-" olan şube bu iddiaya GİRMİYOR: bilinmeyen, bilinen
     gibi gösterilmez.
     """
-    kendi = (kendi_program or "").strip().upper()
+    # ★ Faz 115 — bölümün iki dil programı aynı bölüm (kullanıcı 28.09.2026:
+    # anadal BLGE, şube "BLG_LS"/BLG'ye açık, kart yine "dilekçeyle" diyordu).
+    from .normalize import base_program_code
+    _k = (kendi_program or "").strip().upper()
+    kendi = {k for k in (_k, base_program_code(_k), base_program_code(_k) + "E") if _k}
+    kendi |= {f"{k}_LS" for k in kendi}
     def passed(code):
         return any(R.passed(expanded.get(s)) for s in _dil_esi(code))
 
@@ -102,9 +107,9 @@ def _acik_denklikler(con, equivalences, expanded, gereken, allowed,
             for sec in REC.load_sections(con, s, allowed):
                 if sec.crn not in crn:
                     crn.add(sec.crn); secs.append(sec)
-        dilekcesiz = [sec.crn for sec in secs if kendi and con.execute(
-            "SELECT 1 FROM lesson_allowed_program WHERE crn=? AND upper(program_code)=?",
-            (sec.crn, kendi)).fetchone()]
+        dilekcesiz = [sec.crn for sec in secs if any(
+            str(r[0]).strip().upper() in kendi for r in con.execute(
+                "SELECT program_code FROM lesson_allowed_program WHERE crn=?", (sec.crn,)))]
         return {"code": code, "name": name_of(code), "minGrade": min_not,
                 "passed": passed(code), "open": bool(secs),
                 "dilekcesiz": bool(dilekcesiz), "dilekcesizCrn": dilekcesiz,
