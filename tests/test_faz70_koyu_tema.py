@@ -55,7 +55,9 @@ def test_DANISMAN_sorusu_ayni_hesaptan():
     assert "const k = kalanGereken(h, g, ik);" in KAYNAK
     i = KAYNAK.index("function danismanSorulari(")
     f = KAYNAK[i:KAYNAK.index("\n}\n", i)]
-    assert "kalanGereken(h, g, ik)" in f and "k.x > 4 + 1e-9" in f
+  # Faz 112: özet yalnız DİLEKÇE gerektirenleri listeliyor (ulaşılamaz eşik
+    # GNO panelinde gösteriliyor, danışman özetinde değil).
+    assert "kalanGereken(" not in f
 
 
 _CANLI = r'''
@@ -99,6 +101,5 @@ def test_UCTAN_UCA_ulasilamaz_esik_danismana_soruluyor(tmp_path, monkeypatch):
     assert json.loads(c["ONCE"]) == [], "ulaşılabilir eşik için soru üretildi"
     sonra = json.loads(c["SONRA"])
     # 2.00 için: (2·(200−3+66) − 0)/66 > 4 → ulaşılamaz; en fazla 4·66/263 = 1.00.
-    assert any(s.startswith("Mezuniyet için GNO'nun 2.00 olması gerekmektedir; kalan tüm "
-                            "derslerim (66 kredi) AA olsa") and "en fazla 1.00" in s
-               for s in (" ".join(x.split()) for x in sonra)), sonra
+  # Faz 112: özet yalnız DİLEKÇE gerektirenleri listeliyor.
+    assert sonra == [], sonra

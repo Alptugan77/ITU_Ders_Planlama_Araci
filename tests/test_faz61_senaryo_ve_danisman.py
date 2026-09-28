@@ -216,7 +216,9 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     # çakıştığından soru olarak kalıyor.)
     assert any(s.startswith("GEO 331E (CRN 13603) şubemin kontenjanı doludur ve programımla "
                             "çakışmayan boş şube bulunmamaktadır") for s in soru), soru
-    assert any(s.startswith("Anadal tahmini bitişim") for s in soru), soru
+  # Faz 112: özet yalnız DİLEKÇE gerektirenleri listeliyor; bitiş sorusu yok.
+    assert not any(s.startswith("Anadal tahmini bitişim") for s in soru), soru
+    assert any("dilekçe" in s for s in soru), soru
     satir, secim = c["TABLO"].split("|")
     assert satir == secim, "özetteki tablo programdaki derslerle aynı değil"
     b = json.loads(c["BASKI"])

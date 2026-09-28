@@ -928,6 +928,9 @@ class State:
                 "instructor": UI._hoca(row["instructor"]),
                 "online": REC.Section("", "", None, 0, 0, (),
                                       row["teaching_method"]).online,
+                # ★ Faz 111 — ek/sınırsız sınav şubesi: saati yok, bir ders
+                # değil; arayüz saat yerine bunu yazıyor.
+                "sinav": REC.sinav_turu(row["teaching_method"]),
                 # ★ Planlarında OLMAYAN ders de gösteriliyor ('PLAN DIŞI').
                 # Gizleseydik kullanıcı gerçek programını göremezdi; serbest
                 # seçmeli ya da başka bir ders de kayıtta olabiliyor.
@@ -981,6 +984,8 @@ class State:
                       COALESCE(es.name,'') AS alt_name
                FROM course c
                JOIN lesson l ON l.course_code = c.code
+                    -- Faz 111: ek/sınırsız sınav şubesi eklenecek bir ders değil
+                    AND COALESCE(l.teaching_method, '') NOT IN ('Ek Sınav', 'Sınırsız Sınav')
                LEFT JOIN course es ON es.code =
                     (CASE WHEN c.code LIKE '%E'
                           THEN substr(c.code, 1, length(c.code)-1)
@@ -1031,8 +1036,11 @@ class State:
         var (`loadFromCrn`), iki ayrı biçim iki ayrı hata demek olurdu.
         """
         course = (course or "").strip().upper()
+        # ★ Faz 111 — ek/sınırsız sınav şubesi programa eklenecek bir ders
+        # değil (azami süreyi dolduranın sınav hakkı); katalogdan eklemede yok.
         crns = [r[0] for r in self.con.execute(
-            "SELECT crn FROM lesson WHERE upper(course_code)=?", (course,))]
+            "SELECT crn, teaching_method FROM lesson WHERE upper(course_code)=?", (course,))
+                if not REC.sinav_turu(r[1])]
         return self.resolve_crns(crns)
 
     def _plan_codes(self, plan_id: int) -> set[str]:

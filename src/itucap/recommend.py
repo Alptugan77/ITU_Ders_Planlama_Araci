@@ -53,6 +53,24 @@ class Meeting:
                 f"{self.end // 60:02d}:{self.end % 60:02d}")
 
 
+# ★★ Faz 111 — EK SINAV şubesi bir DERS DEĞİL (kullanıcı 28.09.2026: "öğretim
+# yöntemi ek sınav olanları ek sınav olarak göster yönetmeliğe uygun şekilde o
+# yüzden saatleri yok"). 2547 s. Kanun m. 44/c: azami süre sonunda mezun
+# olamayan öğrenciye başarısız olduğu dersler için İKİ EK SINAV hakkı; tek
+# dersi kalana SINIRSIZ SINAV hakkı. OBS bunları "Ek Sınav" / "Sınırsız Sınav"
+# yöntemli şube olarak listeliyor: saati, kontenjanı yok (gerçek katalog:
+# 71 + 2 şube; 71 dersin 69'unun tek şubesi). Motor onları "saati ilan
+# edilmemiş" normal şube sanıyordu: programa açık 6'sı öneriye girebiliyor,
+# "-" programlı 65'i "henüz ilan edilmemiştir" diye gösteriliyordu.
+SINAV_YONTEMLERI = {"ek sınav": "Ek sınav", "sınırsız sınav": "Sınırsız sınav"}
+
+
+def sinav_turu(method: str | None) -> str | None:
+    """'Ek sınav' | 'Sınırsız sınav' | None — şube bir sınav hakkı mı?"""
+    anahtar = " ".join(str(method or "").replace("I", "ı").lower().split())
+    return SINAV_YONTEMLERI.get(anahtar)
+
+
 @dataclass
 class Section:
     crn: str
@@ -86,6 +104,11 @@ class Section:
     def online(self) -> bool:
         return "online" in (self.method or "").lower() \
             or "virtual" in (self.method or "").lower()
+
+    @property
+    def sinav(self) -> str | None:
+        """Faz 111 — ek/sınırsız sınav şubesi mi (bkz. `sinav_turu`)."""
+        return sinav_turu(self.method)
 
     @property
     def free(self) -> int:
@@ -236,6 +259,8 @@ def _load_sections(con: sqlite3.Connection, course: str,
            FROM lesson WHERE course_code=?""",
         (course,),
     ):
+        if sinav_turu(row[4]):
+            continue                       # Faz 111: sınav hakkı, ders değil
         progs = {r[0] for r in con.execute(
             "SELECT program_code FROM lesson_allowed_program WHERE crn=?", (row[0],))}
         if progs and not (progs & allowed_programs):
@@ -1306,7 +1331,7 @@ def weekly_grid(schedule: Schedule, start_hour: int = 8, end_hour: int = 20) -> 
 @dataclass
 class Blocker:
     course: str
-    # 'ACILMAMIS' | 'PROGRAMA_KAPALI' | 'ONSART' | 'ONSART_KATALOGDA_YOK'
+    # 'ACILMAMIS' | 'EK_SINAV' | 'PROGRAMA_KAPALI' | 'ONSART' | 'ONSART_KATALOGDA_YOK'
     # | 'KREDI_ESIGI' | 'ALIYORSUN' | 'BILINMIYOR'
     reason: str
     detail: str = ""
@@ -1417,8 +1442,14 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
             # önerilmedi' sorusuna yanlış cevap verirdik.
             out.append(Blocker(code, "ALIYORSUN", "bu dönem programında"))
             continue
-        crns = [r[0] for k in kodlar for r in con.execute(
-            "SELECT crn FROM lesson WHERE course_code=?", (k,))]
+        satirlar = [r for k in kodlar for r in con.execute(
+            "SELECT crn, teaching_method FROM lesson WHERE course_code=?", (k,))]
+        # ★ Faz 111 — ek/sınırsız sınav şubesi ders değil; arz hesabına girmez.
+        sinavlar = sorted({t for t in (sinav_turu(r[1]) for r in satirlar) if t})
+        crns = [r[0] for r in satirlar if not sinav_turu(r[1])]
+        if not crns and sinavlar:
+            out.append(Blocker(code, "EK_SINAV", ek_sinav_metni(sinavlar)))
+            continue
         if not crns:
             out.append(Blocker(code, "ACILMAMIS", "bu dönem şube açılmamıştır"))
             continue
@@ -1481,11 +1512,20 @@ def _tr_upper(text: str) -> str:
     return text.replace("i", "İ").upper()
 
 
+def ek_sinav_metni(turler) -> str:
+    """Faz 111 — yalnız sınav şubesi açılmış dersin engel metni."""
+    tur = " ve ".join(t.lower() for t in turler)
+    return (f"bu dönem yalnızca {tur} şubesi açılmıştır; ders saati yoktur. "
+            "Ek sınav hakkı azami öğrenim süresini dolduran öğrencilere "
+            "tanınır (2547 s. Kanun m. 44/c)")
+
+
 def format_blockers(blockers: list[Blocker], n_lessons: int | None = None) -> str:
     if not blockers:
         return ""
     labels = {
         "ACILMAMIS": "bu dönem açılmamış",
+        "EK_SINAV": "yalnız ek sınav açılmış",
         "PROGRAMA_KAPALI": "şubeleri programına kapalı",
         "ONSART": "önşart eksik",
         "ONSART_KATALOGDA_YOK": "önşartı katalogda yok",
@@ -1501,7 +1541,7 @@ def format_blockers(blockers: list[Blocker], n_lessons: int | None = None) -> st
     # etiketi duruyor, arayüz gösteriyor; `make recommend` çıktısı ise sessizce
     # düşürüyordu. Eleyen kural kendini göstermek zorunda (bkz. tasarım ilkesi)
     # — "GEO 4901E neden kayboldu" sorusunun komut satırındaki hâliydi.
-    for reason in ("PROGRAMA_KAPALI", "ACILMAMIS", "ONSART",
+    for reason in ("PROGRAMA_KAPALI", "ACILMAMIS", "EK_SINAV", "ONSART",
                    "ONSART_KATALOGDA_YOK", "KREDI_ESIGI", "BILINMIYOR"):
         items = groups.get(reason)
         if not items:

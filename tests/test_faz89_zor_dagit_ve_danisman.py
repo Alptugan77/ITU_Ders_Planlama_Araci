@@ -189,8 +189,8 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     assert ("Tahmini dönem zorluğu 6.4 / 10 (zor; 8 ders, 40 AKTS; geçmiş not dağılımından) · "
             "ders ortalaması 3.8 · zor ders yok") in d0          # Faz 100
     assert "zor ders bulunmaktadır" not in d0 and "hazırlanmam önerilir" not in d0
-    assert f"geçmiş not dağılımına göre 3 zor ders bulunmaktadır ({', '.join(ilk)})" in d1, d1
-    # Kalma sorusu: yalnız gecikme > 0 VE kalma oranı ≥ %20 olan ders (ilki: %30).
-    assert (f"{ilk[0]} dersinden kalmam mezuniyetimi geciktirebilir; geçmişte bu dersi "
-            "geçemeyen öğrenci oranı %30.") in d1, d1
+  # Faz 112: özet yalnız DİLEKÇE gerektirenleri listeliyor: zor ders ve
+    # kalma riski soruları yok (tablo ve kontroller satırı duruyor).
+    assert "zor ders bulunmaktadır" not in d1 and "kalmam mezuniyetimi" not in d1, d1
+    assert "3 zor ders" in d1, d1
     assert f"{ilk[1]} dersinden kalmam" not in d1                       # gecikme 0

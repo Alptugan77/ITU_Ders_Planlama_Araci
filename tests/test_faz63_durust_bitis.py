@@ -79,7 +79,8 @@ def test_UOLP_arayuzde_yaziyor():
     assert 'p.jointDegree ? "tahmin edilmedi" : "hesaplanamadı"' in r
     assert "ortak üniversitedeki dönemler veride bulunmamaktadır" in r
     assert "tahmin edilmedi — ortak program" in _js("danismanOzeti")
-    assert "Ortak lisans programına kayıtlıyım" in _js("danismanSorulari")
+  # Faz 112: özet yalnız DİLEKÇE gerektirenleri listeliyor.
+    assert "Ortak lisans programına kayıtlıyım" not in _js("danismanSorulari")
 
 
 # ------------------------------------------------------------------ transkript
@@ -173,6 +174,7 @@ def test_UCTAN_UCA_transkriptsiz_vitrin(tmp_path, monkeypatch):
     assert "Dersleri girin" in c["YH"] and "yarıyılında" not in c["YH"]
     assert c["DLG"] == "setup"
     soru = json.loads(c["SORU"])
-    assert any(s.startswith("Başarılı olduğum dersleri araca girmedim") for s in soru), soru
+  # Faz 112: özet yalnız DİLEKÇE gerektirenleri listeliyor.
+    assert not any(s.startswith("Başarılı olduğum dersleri araca girmedim") for s in soru), soru
     assert not any("tahmini bitişim" in s or "azami süre" in s for s in soru), soru
     assert c["BITIS"] == "False" and c["CAPB"] == "False"

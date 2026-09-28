@@ -720,6 +720,31 @@ her maddeden önce gelen tek iş.
 > yanıltıcı "1146 yetim denklik" uyarısı gerçek sayıya (14) indi ✅
 > ➜ Ayrıntı: `docs/faz110-all-plans-denetimi.md`
 >
+> **Faz 111 (28.09.2026):** "Ek Sınav" / "Sınırsız Sınav" yöntemli şube
+> (2547 s. K. m. 44/c) artık ders sayılmıyor: öneriye ve programa girmiyor,
+> yalnız ek sınavı açılmış ders "yalnız ek sınav açılmış" engeliyle
+> görünüyor (eskiden "henüz ilan edilmemiş"), CRN'den gelen ek sınav şubesi
+> saat yerine "Ek sınav" yazıyor. Denk dersin şubesi bölümünüze açıksa kart
+> "dilekçesiz" diyor ✅
+> ➜ Ayrıntı: `docs/faz111-ek-sinav.md`
+>
+> **Faz 112 (28.09.2026):** danışman özetinde "Danışmana sorulacaklar" yerine
+> "Dilekçe gerektirenler": yük sınırı, ÇAP tabanı indirimi, dolu şubeye
+> kontenjan, denklikle saydırma. Diğer sorular kaldırıldı ✅
+> ➜ Ayrıntı: `docs/faz112-danisman-dilekce.md`
+>
+> **Faz 113 (28.09.2026):** yol haritasının önşart varsayımı yalnız gerçekten
+> eksik dalı gösteriyor ("MAT 210(E)"; eskiden geçilmiş lab derslerinin Türkçe
+> kodları), "veya" dalları tek grup; lab kodunun dil eşi (FIZ 101L ↔ FIZ 101EL)
+> artık tanınıyor ✅
+> ➜ Ayrıntı: `docs/faz113-onsart-varsayimlari.md`
+>
+> **Faz 114 (28.09.2026):** yol haritası önce plan yolunu kullanıyor: önşart
+> planın dersleriyle (resmî denklik dahil) sağlanabiliyorsa dış varsayım
+> yapılmıyor. 127 planda "önşart varsayıldı" 277 → 84; sıra ihlali ve
+> yerleşemeyen ders artmadı ✅
+> ➜ Ayrıntı: `docs/faz114-plan-yolu.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

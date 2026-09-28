@@ -183,10 +183,8 @@ def test_DANISMAN_vitrin(tmp_path, monkeypatch):
     dolu = [s for s in soru if "kontenjanı doludur" in s]
     # Tek soru; boş şubesi olan BLG 223E soru DEĞİL, GEO 331E soru.
     assert len(dolu) == 1 and "GEO 331E (CRN 13603)" in dolu[0] and "BLG 223E" not in dolu[0], soru
-    assert ("Yandal başvurusunu düşünürsem GNO ≥ 2.50 gerekmektedir; tahmini GNO'm 2.78. "
-            "Bu hedef benim için gerçekçi midir?") in soru, soru
-    assert any(s.startswith("ÇAP'a devam") and s.endswith("Bu eşiğe nasıl ulaşabilirim?")
-               for s in soru), soru
+  # Faz 112: özet yalnız DİLEKÇE gerektirenleri listeliyor.
+    assert soru == dolu and dolu[0].endswith("kontenjan açılması için dilekçe verilebilir."), soru
     satir = json.loads(c["SATIR"])
     blg = [x for x in satir if x.startswith("BLG 223E")][0]
     geo = [x for x in satir if x.startswith("GEO 331E")][0]

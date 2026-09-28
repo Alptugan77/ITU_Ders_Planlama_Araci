@@ -40,7 +40,7 @@ def test_KAYITLI_BASVURU_tek_kural_dort_yerde():
     assert "const esikler = g.thresholds.filter(t => !kayitliBasvuru(t));" in _js("renderGpa")
     assert "!kayitliBasvuru(t)" in _js("gnoHedefleri")
     assert "!kayitliBasvuru(t)" in _js("renderNotSenaryo")
-    assert "!kayitliBasvuru(x)" in _js("danismanSorulari")
+    assert "kayitliBasvuru" not in _js("danismanSorulari")      # Faz 112: eşik sorusu yok
 
 
 def test_GNO_paneli_eşikleri_süzülmüş_listeden_sayıyor():

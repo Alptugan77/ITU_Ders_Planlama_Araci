@@ -128,6 +128,64 @@ def gecmis_donemleri(gecmis: dict | None, en_cok: int = 6) -> list[dict]:
             if n > 0][:en_cok]
 
 
+def dis_gruplari(con, agac, gorunum: Mapping[str, str], dis: set[str]) -> list[str]:
+    """Varsayılan dış önşart — yalnız GERÇEKTEN eksik olan dallar.
+
+    ★ Faz 113 (kullanıcı 28.09.2026: "önşart varsayımları da yanlış
+    çalışıyor"). Eskiden ağaçtaki BÜTÜN dış dersler yazılıyordu: BLG 4901E
+    kartı "önşart varsayıldı: FIZ 101L, FIZ 102L" diyordu, oysa o dallar
+    öğrencinin geçtiği FIZ 101EL/102EL ile zaten sağlanıyordu; asıl varsayılan
+    MAT 210 hiç görünmüyordu (kart ilk ikisini gösteriyor). "Veya" dalları da
+    ayrı ayrı sayılıyordu (BBF 304E: MAT 271, MAT 271E, ECN 301E, YZV 231,
+    YZV 231E — beşi birden varsayılmış gibi).
+    Artık: karşılanmamış her dal için, onu sağlayabilecek dış dersler TEK
+    grup; "veya" ile birleşik, dil eşleri "MAT 210(E)" diye tek yazılıyor."""
+    def yurut(n) -> list[set[str]]:
+        if n.satisfied(gorunum):
+            return []
+        if n.kind == "LEAF":
+            return [{n.course}] if n.course in dis else []
+        alt = [g for c in n.children for g in yurut(c)]
+        if n.kind == "AND":
+            return alt
+        birlesik = set().union(*alt) if alt else set()
+        return [birlesik] if birlesik else []
+
+    def yaz(grup: set[str]) -> str:
+        kalan, parca = set(grup), []
+        for k in sorted(grup):
+            if k not in kalan:
+                continue
+            es = R.dil_esi(con, k)
+            if es and es in kalan:
+                tr, en = (k, es) if R.ingilizce_kod(k) == es else (es, k)
+                parca.append(f"{tr}(E)" if en == tr + "E" else f"{tr} / {en}")
+                kalan.discard(es)
+            else:
+                parca.append(k)
+            kalan.discard(k)
+        return " veya ".join(parca)
+
+    gorulen, out = set(), []
+    for g in yurut(agac):
+        metin = yaz(g)
+        if metin not in gorulen:
+            gorulen.add(metin)
+            out.append(metin)
+    return out
+
+
+def bu_donem_okutulan(con: sqlite3.Connection) -> set[str]:
+    """Bu dönem şubesi olan dersler.
+
+    ★ Faz 111 — ek/sınırsız sınav şubesi SAYILMIYOR: her dönem açılabiliyor ve
+    dersin o dönem okutulduğunu göstermiyor (azami süreyi dolduranın sınav
+    hakkı, 2547 s. Kanun m. 44/c). Saymak, bahar dersine "Güz'de de açılıyor"
+    dedirtirdi (gerçek katalog: BLG 322E, BLG 354E)."""
+    return {r[0] for r in con.execute("SELECT course_code, teaching_method FROM lesson")
+            if r[0] and not REC.sinav_turu(r[1])}
+
+
 def gecmis_mevsimleri(con: sqlite3.Connection, kodlar: Iterable[str]) -> dict | None:
     """Faz 58 — dersin geçmiş not dağılımından GERÇEKTEN verildiği yarıyıllar.
 
@@ -299,7 +357,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     # ★ Bu dönemin şubeleri VERİ: planı "Bahar" dese de bu Güz şubesi olan
     # ders Güz'de de açılıyor (vitrinde MAT 210E: plan 4. dönem, bu Güz iki
     # şube). Yalnız plana bakmak onu gereksiz yere bir dönem kaydırıyordu.
-    acik = {r[0] for r in con.execute("SELECT DISTINCT course_code FROM lesson")}
+    acik = bu_donem_okutulan(con)
     bilinmeyen_mevsim = gecmisten = 0
     for b in birimler:
         plan = b._plan                                  # type: ignore[attr-defined]
@@ -397,6 +455,23 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     goc = code_migration_groups()
     dis = {c for c in dis if not ((goc.get(c, frozenset()) | goc.get(R.dil_esi(con, c) or "", frozenset()))
                                   & plan_kodlari)}
+    # ★★ Faz 114 — aynı sebeple: plandaki bir dersten RESMÎ DENKLİKLE
+    # kazanılan kod dış değil. Gerçek katalogda 127 lisans planında dış
+    # sayılan 4294 önşart kodunun 1499'u planın kendi derslerinden denklikle
+    # kazanılıyordu (BLG planı BLG 231E koyuyor, önşart "BLG 221" diyor;
+    # resmî liste BLG 231 ≡ BLG 221). Dış sayılınca geçilmiş varsayılıyor,
+    # ders onu açan plan dersinden ÖNCE yerleşebiliyor ve kartta yanlış bir
+    # "önşart varsayıldı" yazıyordu. Artık plan dersi yerleşince görünüm
+    # denkliği uyguluyor (`gorunum`), sıra kendiliğinden doğru kuruluyor.
+    # ⚠️ Yalnız BELİRLİ DERS olarak yerleşecek birimlerden (`kod_birim`), plan
+    # kodlarının hepsinden DEĞİL: havuz seçenekleri hiç tek tek yerleşmiyor.
+    # İlk denemede havuz seçeneğinin denkliği MTO 316'yı "dış değil" yaptı,
+    # ama hiçbir zaman sağlanmadı: MTO 4901/4902 yerleşemedi (IBM, MTO, ENTE).
+    if equivalences:
+        plan_genis = R.expand_with_equivalences({k: GECER for k in kod_birim},
+                                                equivalences)[0]
+        dis = {c for c in dis if c not in plan_genis
+               and (R.dil_esi(con, c) or "") not in plan_genis}
     # ★★ Faz 98 — GEÇİLMİŞ DERSİN GERÇEK NOTU. Görünüm her geçilen derse "AA"
     # veriyordu; DD ile geçilmiş (ya da notsuz işaretlenip DD sayılan)
     # BLG 4901E, "MIN BB" isteyen BLG 4902E'yi açıyordu. Bu dönemin önerileri
@@ -404,17 +479,33 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     # yerleştirilen (gelecekte alınacak) dersler "AA" varsayılıyor.
     gercek_not = {c: str(g).upper() for c, g in genis.items() if R.passed(g)}
 
-    def gorunum(kodlar):
+    plan_yolu = {k for k, b in kod_birim.items() if b.ders}   # tek tek yerleşecekler
+
+    def gorunum(kodlar, varsayim=frozenset()):
         v = {c: GECER for c in kodlar}
         v.update({c: g for c, g in gercek_not.items() if c in v})
+        if equivalences:                         # Faz 114: yerleşenin denkliği de
+            v = R.expand_with_equivalences(v, equivalences)[0]
+        # ⚠️ Dış varsayım denklikten SONRA ekleniyor: varsayılan dış dersten
+        # denklik zinciri kurulmaz. Kurulsaydı HTAE'de dış JDF 122 (≡ GEO 103)
+        # GEO 114E'yi, plandaki GEO 103E'den ÖNCE ve kartta hiçbir varsayım
+        # yazmadan açıyordu.
+        v.update({c: GECER for c in varsayim if c not in v})
         return R.prereq_view(v)
 
     def onsart_tamam(b: Birim, agac) -> bool:
         if agac is None or agac.satisfied(gorunum(varsayilan)):
             b.dis_onsart = []
             return True
-        if agac.satisfied(gorunum(varsayilan | dis)):
-            b.dis_onsart = sorted(agac.courses() & dis)
+        # ★★ Faz 114 — plan yolu ÖNCE. Önşart planın kendi dersleriyle
+        # (henüz yerleşmemiş olanlar dahil) sağlanabiliyorsa dış varsayım
+        # YAPILMIYOR; ders plan dersini bekliyor. Eskiden dış ders hemen
+        # varsayılıyordu: BIOE'de ING 201A, planın ING 112A'sından önce
+        # ("ING 101 varsayıldı"), JEO'da JEO 4901 JEO 359'dan önce yerleşiyordu.
+        if agac.satisfied(gorunum(varsayilan | plan_yolu)):
+            return False
+        if agac.satisfied(gorunum(varsayilan, dis)):
+            b.dis_onsart = dis_gruplari(con, agac, gorunum(varsayilan), dis)
             return True
         return False
     # ★★ Faz 85 — tahmini zorluk (not ortalamasından). Yerleşimi ETKİLEMİYOR;
