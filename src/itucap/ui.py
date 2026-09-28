@@ -648,6 +648,7 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                     .startswith(config.OBS + "/public/DersPlan/DersPlanDetay/") else None),
             "source": plan["source"],
             "percent": stats["percent"],
+            "percentBasis": stats["percent_basis"],                      # Faz 123
             "slotsDone": stats["slots_done"], "slotsTotal": stats["slots_total"],
             "openRequired": stats["open_required"],
             "ectsDone": stats["ects_done"], "ectsTotal": stats["ects_total"],
@@ -8244,7 +8245,11 @@ function renderCredits(){
    katman 'bu dönemi bitirirsen ne olur' sorusunun cevabı — barın taralı
    kısmı, yüzdenin sağındaki ok ve kalan zorunlu sayısındaki düşüş. */
 function panelHTML(p, plan){
-  const pctAfter = p.slotsTotal
+  /* ★ Faz 123 — yüzde AKTS ağırlıklı; plan AKTS taşımıyorsa yuva sayısı. */
+  const aktsli = p.percentBasis === "akts" && p.ectsTotal;
+  const pctAfter = aktsli
+    ? Math.min(100, Math.round(1000 * (p.ectsDone + (plan.ects || 0)) / p.ectsTotal) / 10)
+    : p.slotsTotal
     ? Math.round(1000 * (p.slotsDone + plan.slots) / p.slotsTotal) / 10 : p.percent;
   const kind = {ANADAL:"Anadal", CAP:"Çift anadal", YANDAL:"Yandal",
               PLAN_DISI:"Plan dışı"}[p.role] || p.role;
@@ -8265,7 +8270,7 @@ function panelHTML(p, plan){
         <div class="pct mono${bilinmiyor ? " unknown" : ""}"
           title="${bilinmiyor ? "Başarılan dersler girilmedi" : ""}"
           >${bilinmiyor ? "—" : "%" + p.percent}</div>
-        ${bilinmiyor ? "" : `<div class="pctlbl">tamamlandı</div>`}
+        ${bilinmiyor ? "" : `<div class="pctlbl">tamamlandı${aktsli ? " (AKTS)" : ""}</div>`}
       </div>
     </div>
     <div class="name">${esc(p.title)}${p.url
@@ -8282,7 +8287,8 @@ function panelHTML(p, plan){
       <i class="plan" style="width:${Math.max(0, pctAfter - p.percent)}%"></i>
     </div>`}
     ${bilinmiyor ? "" : `<div class="proj">${plan.slots
-      ? `bu dönem <b class="mono">${plan.slots}</b> slot dolarsa
+      ? `bu dönem <b class="mono">${plan.slots}</b> slot${aktsli
+          ? ` (<span class="mono">${plan.ects}</span> AKTS)` : ""} dolarsa
          <span class="mono">%${p.percent}</span> <span class="arrow">→</span>
          <b class="mono">%${pctAfter}</b>`
       : `<span class="flat">bu dönemki seçimde bu plandan ders bulunmamaktadır</span>`}</div>`}
