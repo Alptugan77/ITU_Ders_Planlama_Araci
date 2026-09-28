@@ -1,299 +1,371 @@
-# İTÜ DEPAR
+# İTÜ DEPAR — Ders Planlama Aracı
 
-**DE**rs **P**lanlama **AR**acı — kısaltma uydurma değil, açılımın kendisi.
+İTÜ DEPAR (**DE**rs **P**lanlama **AR**acı), İstanbul Teknik Üniversitesi
+lisans öğrencilerinin dönemlik ders programını ve mezuniyete kadarki
+planını hazırlamalarına yardımcı olan bir araçtır. Anadal programıyla
+birlikte **çift anadal (ÇAP)** ve **yandal** programlarını da destekler.
 
-İTÜ'de **çift anadal (ÇAP)** veya **yandal** yapan öğrenciler için ders
-planlama aracı. Kendi bilgisayarında çalışır, verin senin makinenden çıkmaz.
+Araç web tarayıcısında ya da kullanıcının kendi bilgisayarında çalışır.
+Kişisel veriler (transkript, notlar, tercihler) bu ortamların dışına
+gönderilmez.
 
-> Python paketi ve import yolu `itucap` olarak kalıyor — `pip install -e .`,
-> `python -m itucap.pipeline` gibi her şey aynı. Değişen aracın **görünen
-> adı**; repo adı ve site adresi de aynı.
+**Web sürümü:** <https://alptugan77.github.io/ITU_Ders_Planlama_Araci/>
 
-> ⚠️ Bu araç **bilgilendirme amaçlıdır**. Ders kayıt kararların için
-> danışmanına ve OBS'ye danış. Araç senin adına **kayıt yapmaz**, OBS
-> şifreni **istemez**.
+> [!IMPORTANT]
+> Bu araç yalnızca **bilgilendirme amaçlıdır** ve İTÜ'nün resmî bir aracı
+> değildir. Ders kaydına ilişkin kararlar için akademik danışmanınıza ve
+> OBS'ye başvurunuz. Araç, kullanıcı adına ders kaydı yapmaz ve OBS
+> şifresi istemez.
 
 ---
 
-## Ne yapar
+## İçindekiler
 
-İki programın planını aynı anda tutmak, elle takip edilmesi zor bir iş: hangi
-ders hangisine sayılıyor, hangi önşart açık, bu dönem hangi kombinasyon
-çakışmıyor, kredi tavanını aşıyor muyum. Araç bunları hesaplıyor:
+1. [Genel bakış](#genel-bakış)
+2. [Özellikler](#özellikler)
+3. [Temel ilke: belirsizliğin açıkça gösterilmesi](#temel-ilke-belirsizliğin-açıkça-gösterilmesi)
+4. [Kullanım seçenekleri](#kullanım-seçenekleri)
+5. [Kurulum (yerel sürüm)](#kurulum-yerel-sürüm)
+6. [Komutlar](#komutlar)
+7. [Yapılandırma](#yapılandırma)
+8. [Veri kaynakları ve güncelleme](#veri-kaynakları-ve-güncelleme)
+9. [Gizlilik ve güvenlik](#gizlilik-ve-güvenlik)
+10. [Mimari](#mimari)
+11. [Test ve kalite güvencesi](#test-ve-kalite-güvencesi)
+12. [Web sürümünün yayımlanması](#web-sürümünün-yayımlanması)
+13. [Katkı](#katkı)
+14. [Sorumluluk reddi ve lisans](#sorumluluk-reddi-ve-lisans)
 
-* **Çakışmasız program önerisi** — açık şubeleri, önşartları, kredi tavanını
-  ve kritik yolu birlikte değerlendirip haftalık program kuruyor. Tercihlerin
-  (erken saat, boş gün, kampüs, hoca) sıralamayı etkiliyor ve **kaydetmeden
-  denenebiliyor**: 1. önerinin nasıl değişeceği yan yana gösteriliyor.
-* **İlerleme paneli** — anadal ve ikinci program ayrı ayrı; "bu dönemi
-  bitirirsen nerede olursun" taramalı katmanla gösteriliyor.
-* **Önşart motoru** — katalog metnini ayrıştırıp (`MAT 103 MIN DD veya ...`)
-  ağaç kuruyor; denklik ve muafiyet beyanlarını hesaba katıyor.
-* **Mevzuat kontrolü** — dönem kredi yükü (MADDE 17), GNO eşikleri, bitirme
-  çalışması kredi şartı. Hepsi `config/kurallar.toml`'da **beyan edilmiş**,
-  koda gömülmemiş.
-* **"Başvurabilir miyim"** — hangi ÇAP/yandal programlarına başvurabilirsin,
-  hangisinde kaç dersin zaten sayılıyor.
-* **Kontenjan nöbeti** — `make watch` ile izlediğin derste yer açılınca
-  bildirim. macOS'ta `make watch-kur` onu **arka planda** çalıştırıyor:
-  terminal gerekmiyor, oturum açılınca kendiliğinden başlıyor
-  (`make watch-durum`, `make watch-kaldir`).
-* **Geçmiş dönem not dağılımı** — İTÜ'nün her dönem yayınladığı harf notu
-  dağılımı (`make notdagilimi`). ⚠️ Dağılım TÜRKÇE VE İNGİLİZCE kodu
-  birlikte kapsıyor (kaynak öyle yayınlıyor), geçmiş bir döneme ait ve
-  **öneri puanına girmiyor** — hangi dersin değdiği senin kararın.
-* **Darboğaz raporu** — bir ders neden alınamıyor: önşart mı, kontenjan mı,
-  programa kapalı mı, kredi eşiği mi.
-* **Mezuniyet yol haritası** — kalan dersler dönem dönem: önşart sırası,
-  dönem kredi sınırın, dersin açıldığı mevsim ve ÇAP yarıyıl tabanı hesaba
-  katılıyor; her programın tahmini bitişi planındaki bitişle
-  karşılaştırılıyor ve **"bu dönem şunu alırsan N dönem erken bitersin"**
-  yazıyor — yük sınırını aşıyorsa hangi dersin çıkabileceğiyle. Planda
-  mevsimi olmayan dersin mevsimi geçmiş not dağılımından okunuyor
-  (bütünleme için açılan birkaç kişilik not listesi sayılmadan); geçen yaz
-  açılmış ders için **"yazın alırsan"** hesabı da var. Bitişin kaçıncı
-  yarıyıl olduğu ve azami öğrenim süresi (14 yarıyıl) kartta yazıyor;
-  ÇAP başvuru penceresi her program için **"bu ÇAP'la ne zaman bitirirsin"**
-  sorusunu da cevaplıyor. **Senaryo**: "dönemde en çok 18 kredi", "şu dönem
-  Erasmus'tayım" — harita kaydetmeden yeniden kuruluyor ve bugünkü plana göre
-  farkı yazıyor.
-* **Danışman özeti** — görüşmeye götürülecek tek sayfa: bu dönemin programı
-  CRN'leriyle, kredi/taban/GNO kontrolleri, tahmini bitiş ve yalnız ölçülen
-  sorunlardan çıkan **"danışmana sorulacaklar"**. Yalnız o sayfa basılıyor. ⚠️ Bir plan, kehanet
-  değil: varsayımları (her ders ilk denemede geçilir, gelecek dönemlerin
-  şubesi bilinmiyor, geçen yıl açılması bu yıl açılacağı demek değil)
-  haritanın üstünde yazıyor.
-* **GNO hedefi** — eşikte kalmak (ÇAP'a devam, mezuniyet, bir üst kredi
-  bandı, ÇAP'ın kendi ortalaması) için bu dönem **en az** hangi ortalama
-  gerekiyor; tekrar aldığın dersin eski notu düşülerek. Tahmin değil,
-  gereken notun hesabı.
-* **Okunur haftalık program** — renk hangi programdan olduğunu (anadal /
-  ÇAP / yandal), ton hangi ders olduğunu söylüyor; seçtiğin şube doluysa
-  ya da son birkaç yeri kaldıysa blokta **DOLU / SON N** yazıyor; dolu
-  şubenin yerine boş ve çakışmayan bir şube varsa özetten **tek dokunuşla**
-  geçiliyor. Özet haftanın şeklini de yazıyor (kaç gün kampüstesin, en uzun
-  ara); program `.ics`, bağlantı ya da **resim (PNG)** olarak dışarı
-  alınabiliyor. ⚠️ Ton merdiveni ölçüyle
-  seçildi: yazı kontrastı iki temada da WCAG AA'nın (4.5) üstünde, 9 tondan
-  sonrası tekrar ediyor ve bunu ekranda **yazıyor**.
+---
 
-## Tasarım ilkesi: bilinmeyen, bilinen gibi gösterilmez
+## Genel bakış
 
-Bu araç bir öğrencinin mezuniyet planı hakkında konuşuyor; yanlış bir "evet"
-gerçek bir zarar. O yüzden baştan beri tek bir kural işliyor:
+Birden fazla programın öğretim planını aynı anda izlemek, elle yürütülmesi
+güç bir iştir. Öğrencinin şu sorulara aynı anda cevap vermesi gerekir:
+hangi dersin hangi programa sayıldığı, hangi önşartın sağlandığı, bu dönem
+açılan şubelerle çakışmasız bir programın kurulup kurulamayacağı, dönem
+kredi sınırının aşılıp aşılmadığı ve mezuniyetin hangi yarıyılda
+gerçekleşeceği.
 
-| Durum | Ne yapılıyor |
+İTÜ DEPAR bu soruları OBS'de yayımlanan öğretim planları, ders kataloğu,
+şube bilgileri ve ilgili mevzuat üzerinden hesaplar. Hesabın dayandığı her
+varsayım, sonucun yanında açıkça belirtilir.
+
+## Özellikler
+
+### Dönemlik ders programı
+
+* **Çakışmasız program önerisi.** Açık şubeler, önşartlar, kontenjan,
+  dönem kredi sınırı ve kritik yol birlikte değerlendirilerek haftalık
+  program önerileri oluşturulur.
+* **Yumuşak tercihler.** En erken ders saati, boş gün, yerleşke değişimi,
+  çevrimiçi şube ve öğretim üyesi tercihleri önerilerin sıralamasını
+  etkiler; programları elemez. Tercihlerin etkisi kaydedilmeden önizlenebilir.
+* **Saate kilitleme ve meşgul saatler.** Bir ders belirli bir şubeye ya da
+  saat aralığına kilitlenebilir; iş, staj gibi nedenlerle kapalı tutulan
+  saatlere ders yerleştirilmez.
+* **Dilekçesiz denk dersler.** Plandaki bir dersin resmî denkliği olan ve
+  şubesi öğrencinin kendi programına (anadal, ÇAP veya yandal kodu) açık
+  olan dersler aday olarak sunulur ve plandaki dersin yerine sayılır.
+* **Ek sınav şubeleri.** Öğretim yöntemi "Ek Sınav" olan şubeler, ilgili
+  mevzuata uygun biçimde ders saati olmayan sınav hakları olarak ayrıca
+  gösterilir.
+* **Alternatif programlar ve karşılaştırma.** Birden fazla program (Plan A,
+  B, C) kaydedilebilir ve yan yana karşılaştırılabilir.
+* **Dışa aktarma.** Program takvim dosyası (`.ics`), paylaşılabilir
+  bağlantı ya da görüntü (PNG) olarak dışa aktarılabilir. Derslik ve bina
+  bilgisi programda yer alır.
+
+### İlerleme ve mezuniyet planı
+
+* **İlerleme paneli.** Anadal ve ikinci program ayrı ayrı izlenir; bu
+  dönemin dersleri tamamlandığında ulaşılacak durum ayrıca gösterilir.
+* **Mezuniyet yol haritası.** Kalan dersler; önşart sırası, dönem kredi
+  sınırı, dersin açıldığı yarıyıl, haftalık saat uygunluğu ve ÇAP yarıyıl
+  kredi tabanı dikkate alınarak dönemlere yerleştirilir. Her programın
+  tahmini bitiş yarıyılı, plandaki bitişle ve azami öğrenim süresiyle
+  karşılaştırılır.
+* **Yol haritası önceliği.** İkinci program bulunan öğrenciler için iki
+  ayar sunulur: *"Programları birlikte en kısa sürede bitir"* ve *"Anadala
+  öncelik ver"*. Harita birkaç yerleştirme sırasıyla kurulur ve seçilen
+  ölçüte göre en iyi yerleşim gösterilir; öbür ayarın sonucu da karşılaştırma
+  için belirtilir.
+* **Senaryolar.** Dönem başına en çok kredi (serbest değer), boş bırakılacak
+  dönemler (Erasmus, staj) ve dönem başına zor ders sınırı değiştirilerek
+  bitişin nasıl etkileneceği kaydedilmeden hesaplanabilir. Mevcut sınırın
+  üzerindeki bir kredi değeri için yönetmeliğin aradığı GNO belirtilir.
+* **Karar desteği.** "Bu dönem alınırsa bitişi öne çekecek dersler",
+  "yaz okulunda alınırsa" hesabı ve "bu dersten kalınırsa mezuniyet ne kadar
+  gecikir" (kalma riski) analizleri sunulur.
+* **GNO hedefi ve not senaryosu.** Eşiklerin (ÇAP'a devam, mezuniyet, bir
+  üst kredi basamağı) korunması için bu dönem gereken en düşük ortalama ve
+  dönem sonu notlarına göre tahmini GNO hesaplanır.
+
+### Mevzuat ve başvuru
+
+* **Mevzuat denetimleri.** Dönem kredi yükü (Lisans Yönetmeliği MADDE 17),
+  GNO eşikleri, bitirme çalışması kredi şartı ve ÇAP yarıyıl kredi tabanı
+  denetlenir. Eşikler koda gömülü değildir; kaynaklarıyla birlikte
+  `config/kurallar.toml` dosyasında tanımlıdır.
+* **Başvuru uygunluğu.** Başvurulabilecek ÇAP ve yandal programları, her
+  programda halihazırda sayılan dersler ve her ÇAP seçeneği için tahmini
+  bitiş yarıyılı listelenir.
+* **Darboğaz raporu.** Bir dersin neden alınamadığı (önşart, kontenjan,
+  programa kapalı şube, kredi eşiği) açıkça gösterilir.
+* **Danışman özeti.** Danışman görüşmesi için tek sayfalık, yazdırılabilir
+  bir özet hazırlanır: bu dönemin programı ve CRN'leri, kredi ve GNO
+  denetimleri, tahmini bitiş ve dilekçe gerektiren işlemler.
+
+### Veri ve izleme
+
+* **Geçmiş not dağılımları ve tahmini zorluk.** OBS'nin yayımladığı harf
+  notu dağılımlarından dersin geçme oranı ve tahmini zorluğu hesaplanır.
+  Bu bilgi yalnızca yol gösterici niteliktedir.
+* **Kontenjan izleme.** Seçilen derslerde yer açıldığında bildirim
+  gönderilir (`make watch`). macOS'ta izleme arka planda çalıştırılabilir.
+* **Değişiklik raporu.** İki veri güncellemesi arasında eklenen dersler ve
+  dolan kontenjanlar listelenir.
+
+## Temel ilke: belirsizliğin açıkça gösterilmesi
+
+Araç, öğrencinin mezuniyet planı hakkında bilgi vermektedir; hatalı bir
+olumlu sonuç gerçek bir zarara yol açabilir. Bu nedenle tüm bileşenlerde
+aşağıdaki kural uygulanır: **bilinmeyen bir bilgi, biliniyormuş gibi
+gösterilmez.**
+
+| Durum | Uygulama |
 |---|---|
-| Mevzuattan doğrulanmamış eşik | ⚠ ile işaretlenir, kesinmiş gibi gösterilmez |
-| Hesaplanamayan şart (ör. başarı sıralaması) | `—` "buradan bakılamaz" — atlanmaz, "sağlandı" sayılmaz |
-| Notu girilmemiş ders | En kötü durum (DD) varsayılır — eşik yanlışlıkla açılmasın |
-| Ad benzerliğinden çıkan denklik | **Önerilir**, otomatik uygulanmaz (17 dersin adı "Fluid Mechanics") |
-| Bir dersi eleyen kural | Kendini gösterir — "GEO 4901E neden kayboldu" sorusu sorulmasın |
-| Önşart, katalogda olmayan bir dersi istiyor | Ayrı kategori: *"önşartı katalogda yok"* — olmayan bir dersi aramaya gönderilmiyorsun (16 ders) |
-| Kaçıncı dönemde olduğun bilinmiyor | Program **her dönemden** ders karıştırır ve bunu ölçüp yazar ("7 ayrı dönemden: 1.'den 4, 7.'den 3") — dönem **tahmin edilmez** |
-| Duramayacağımız sayı | Hiç gösterilmez (bkz. başvuru ekranında kalan kredi) |
+| Mevzuattan doğrulanmamış eşik | ⚠ işaretiyle gösterilir, kesin bilgi olarak sunulmaz |
+| Hesaplanamayan şart (örneğin başarı sıralaması) | "Buradan denetlenemez" olarak belirtilir; sağlanmış sayılmaz |
+| Notu girilmemiş ders | En elverişsiz durum (DD) varsayılır |
+| Ad benzerliğinden çıkarılan denklik | Yalnızca önerilir; kullanıcı onaylamadan uygulanmaz |
+| Bir dersi eleyen kural | Gerekçesiyle birlikte gösterilir |
+| Katalogda bulunmayan bir dersi isteyen önşart | Ayrı bir kategori olarak raporlanır |
+| Gelecek dönemlere ilişkin varsayımlar | Yol haritasının üstünde açıkça listelenir |
 
-Hesaplanan GNO bir **tahmindir**, OBS'nin resmi ortalaması değildir; arayüz
-bunu her yerde yazar.
+Hesaplanan GNO bir **tahmindir**; resmî ortalama OBS'de yer alan değerdir.
 
-## Tasarım sistemi
+## Kullanım seçenekleri
 
-Arayüzün jetonları (renk, yazı, aralık, katman, hareket) tek bir yerde:
-`src/itucap/tasarim.py`. Sayfanın gece/gündüz/kâğıt paletleri oradan
-**üretiliyor**; kontrast ve ton ölçüm araçları da aynı kaynağı okuyor.
-`python tools/tasarim_envanteri.py --denetle` elle yazılan CSS'te ölçek dışı
-bir değer (ör. `font-size:12.5px`, `#ff0000`) kalmadığını denetliyor — test
-paketinin parçası. Gerekçe ve ölçümler: `docs/faz56-tasarim-sistemi-v2.md`.
-
-## Gizlilik
-
-* **Web sürümünde sunucu yok.** Notların tarayıcında hesaplanıyor,
-  tarayıcında saklanıyor, hiçbir yere gönderilmiyor: uç yok, istek yok,
-  telemetri yok. Pyodide **ve yazı tipleri** CDN'den değil siteden
-  geliyor — açılışta üçüncü bir tarafa haber verilmiyor. Ölçülüyor:
-  üretilen HTML'de tek bir dış kaynak bile geçemiyor (test).
-  ⚠️ Bunun bedeli: veri **yalnız o tarayıcıda**. Tarayıcı verisini silersen
-  ya da cihaz değiştirirsen gider — Ayar görünümündeki **Yedeğini indir**
-  bir JSON dosyası veriyor, yeni cihazda ilk karttan "yedeğinden devam et"
-  ile geri yükleniyor (ikisi de tamamen tarayıcıda).
-* **Kayıt günü bağlantı yoksa da açılıyor.** Web sürümü bir kez açıldıktan
-  sonra kendi dosyalarının (sayfa, motor, katalog, Pyodide) kopyasını
-  tarayıcıda tutuyor; başka hiçbir yere dokunmuyor. Kopyadan açılınca sayfa
-  bunu **verinin tarihiyle** söylüyor — eski kontenjan canlıymış gibi
-  gösterilmiyor.
-* Yerel sürümde notların yalnız `data/user.sqlite3` dosyasında; `data/`
-  klasörünün tamamı **`.gitignore`da**.
-* Ders kataloğu (`data/reference.sqlite3`) herkese açık veri, ayrı dosyada.
-* Yerel sunucu **yalnız `127.0.0.1`**'e bağlanır. Dışarı açmak için
-  tasarlanmadı; portu tünelleme.
-* Üretilen `data/itucap.html` **notlarını içerir** — paylaşma.
-* Araç OBS şifresi istemez, oturum açmaz, senin adına kayıt yapmaz.
-
-## İki kullanım yolu
-
-| | Nerede çalışır | Veri nerede | Ne gerekir |
+| | Çalıştığı ortam | Verinin saklandığı yer | Gereksinim |
 |---|---|---|---|
-| **Web** | tarayıcıda (Pyodide) | senin tarayıcında (IndexedDB) | yok — siteyi aç |
-| **Yerel** | kendi bilgisayarında | `data/user.sqlite3` | Python 3.11+ |
+| **Web sürümü** | Tarayıcı (Pyodide) | Kullanıcının tarayıcısı (IndexedDB) | Yok |
+| **Yerel sürüm** | Kullanıcının bilgisayarı | `data/user.sqlite3` | Python 3.11 veya üzeri |
 
-Web sürümü aynı motoru çalıştırıyor — JavaScript'e çevrilmiş bir kopya değil,
-Python'un WebAssembly derlemesi. Yani iki sürüm ayrışamaz. Farkı yalnız
-**veri tazeleme**: OBS'den tarama kendi makinende yapılıyor, web sürümü
-siteyle birlikte yayınlanan katalogu kullanıyor.
+Web sürümü, yerel sürümle **aynı Python motorunu** WebAssembly üzerinde
+çalıştırır; iki sürümün hesapları bu nedenle birbirinden ayrışmaz. Aradaki
+tek fark veri güncellemesidir: OBS'den veri çekme yalnızca yerel sürümde
+yapılır, web sürümü siteyle birlikte yayımlanan kataloğu kullanır.
 
-### Siteyi kendin yayınla
+## Kurulum (yerel sürüm)
 
-Site: <https://alptugan77.github.io/ITU_Ders_Secim_Araci/>
-
-⚠️ **Repo herkese açık olmalı.** GitHub Pages ücretsiz planda yalnız public
-repolarda çalışıyor (private için GitHub Pro / Team gerekiyor).
+Python 3.11 veya üzeri bir sürüm gereklidir.
 
 ```bash
-make refresh                     # OBS'den taze katalog
-# Katalogu bir sürüm varlığı olarak yükle:
-#   gh release create katalog-$(date +%Y%m%d) data/reference.sqlite3
-#   (gh yoksa: GitHub -> Releases -> Draft a new release -> etiket
-#    "katalog-YYYYAAGG" -> data/reference.sqlite3 dosyasını sürükle)
-# Sonra: GitHub -> Actions -> "pages" -> Run workflow
+git clone https://github.com/Alptugan77/ITU_Ders_Planlama_Araci.git
+cd ITU_Ders_Planlama_Araci
+make setup            # sanal ortam, bağımlılıklar ve örnek yapılandırma dosyaları
 ```
 
-Katalog repoya girmiyor (türetilmiş veri, 15 MB); yayın akışı onu sürüm
-varlığından indirip siteyi kuruyor ve **yayından önce gizlilik denetimi
-çalıştırıyor** — kirliyse yayın durur. Yerelde denemek için: `make site`.
-
-## Kurulum
-
-Python 3.11+ gerekiyor (`tomllib` için).
+Ardından program bilgileri tanımlanır ve veriler çekilir:
 
 ```bash
-git clone https://github.com/Alptugan77/ITU_Ders_Secim_Araci.git
-cd ITU_Ders_Secim_Araci
-make setup                    # sanal ortam + bağımlılıklar + örnek config
+make programs                  # ÇAP/yandal planlarını ve kimlik numaralarını listeler
+$EDITOR config/settings.toml   # anadal ve ikinci program bilgileri
+make refresh                   # katalog, öğretim planları ve şubeler (OBS)
+make app                       # arayüzü tarayıcıda açar
 ```
 
-Sonra kendi bölümünü tanıt:
+Transkript, arayüzdeki **Plandan işaretle** penceresinden dönem dönem
+girilebilir ya da OBS'den kopyalanan metin yapıştırılarak yüklenebilir.
 
-```bash
-make programs                 # ÇAP/yandal planlarını listeler, id'leri gösterir
-$EDITOR config/settings.toml  # anadal_program, cap_program, cap_plan_id
-make refresh                  # katalog + planlar + şubeler (OBS'den)
-make student                  # transkript şablonu üretir
-make app                      # tarayıcıda açılır
-```
+## Komutlar
 
-`make app` yerine `make ui` tek dosyalık statik rapor üretir — sunucusuz,
-çift tıkla açılır, ama düzenleme yapamazsın.
+| Komut | Açıklama |
+|---|---|
+| `make app` | Düzenlenebilir arayüzü yerel sunucuyla açar |
+| `make ui` | Sunucu gerektirmeyen tek dosyalık statik rapor üretir |
+| `make refresh` | Katalog, planlar ve şubeleri OBS'den günceller |
+| `make all-plans` | Bütün programların ÇAP/yandal planlarını ve resmî denklikleri çeker (uzun sürer; dönemde bir kez yeterlidir) |
+| `make notdagilimi` | Geçmiş dönemlerin harf notu dağılımlarını çeker |
+| `make basvuru` | Başvurulabilecek ÇAP/yandal programlarını listeler |
+| `make recommend` | Komut satırında program önerisi üretir |
+| `make progress` | İlerleme panelini komut satırında gösterir |
+| `make changes` | Son iki güncelleme arasındaki değişiklikleri raporlar |
+| `make watch` | Kontenjan izlemeyi başlatır |
+| `make watch-kur` / `watch-durum` / `watch-kaldir` | İzlemeyi arka planda kurar, durumunu gösterir, kaldırır (macOS) |
+| `make status` | Veritabanı özetini gösterir |
+| `make site` | Statik web sürümünü üretir |
+| `make vitrin` | Uydurma bir örnek öğrenciyle arayüzü açar |
+| `make test` | Test takımını ve gizlilik denetimini çalıştırır |
 
-## Günlük kullanım
-
-```bash
-make app                      # ana arayüz (düzenlenebilir)
-make basvuru                  # hangi programlara başvurabilirim
-make recommend                # komut satırında program önerisi
-make progress                 # ilerleme paneli
-make changes                  # son iki tazeleme arasında ne değişti
-make notdagilimi              # geçmiş dönemlerin harf notu dağılımı
-make watch                    # kontenjan nöbeti (kayıt haftası)
-make watch-kur                # aynı nöbet ARKA PLANDA (macOS; watch-durum / watch-kaldir)
-make status                   # veritabanı özeti
-make test                     # test paketi
-```
-
-Transkriptini arayüzden girmek en kolayı: **Plandan işaretle** düğmesi planın
-derslerini dönem dönem listeliyor, tik atıp not seçiyorsun.
+Tüm komutların listesi için `make help` kullanılabilir.
 
 ## Yapılandırma
 
-`config/` altındaki dosyalar elle düzenlenebilir ve **yorumları korunur**:
+`config/` dizinindeki dosyalar elle düzenlenebilir; arayüzden yapılan
+değişiklikler dosyadaki açıklama satırlarını korur.
 
-| Dosya | Ne | Repoda mı |
+| Dosya | İçerik | Depoda |
 |---|---|---|
-| `settings.toml` | hangi program, hangi dönem, kredi tavanı | ❌ kişisel (`.example` var) |
-| `denklikler.toml` | senin denklik ve muafiyet beyanların | ❌ kişisel (`.example` var) |
-| `kurallar.toml` | mevzuat eşikleri (GNO, kredi yükü, bitirme) | ✅ herkese ait |
-| `katalog-duzeltmeleri.toml` | OBS kataloğundaki hataların düzeltmesi | ✅ herkese ait |
+| `settings.toml` | Program seçimi, bulunulan yarıyıl, kredi sınırı, tercihler | Hayır (kişisel; `settings.example.toml` örnektir) |
+| `denklikler.toml` | Kullanıcının denklik ve muafiyet beyanları | Hayır (kişisel; örnek dosyası vardır) |
+| `kurallar.toml` | Mevzuat eşikleri (GNO, kredi yükü, bitirme çalışması, ÇAP tabanı) | Evet |
+| `katalog-duzeltmeleri.toml` | OBS kataloğundaki bilinen hataların düzeltmeleri | Evet |
 
-Mevzuat değişirse `kurallar.toml` düzenlenir — **kod değişmez**. Her eşik
-kaynağını (madde numarası) ve doğrulanma durumunu taşır.
+`settings.toml` dosyasındaki başlıca ayarlar:
+
+| Ayar | Açıklama |
+|---|---|
+| `anadal_program` | Anadal program kodu (örneğin `BLGE`) |
+| `second_kind` | İkinci program türü: `cap`, `yandal`, `ikisi` veya `yok` |
+| `cap_program`, `yandal_program` | İkinci program kodları |
+| `donem` | Bulunulan yarıyıl (0: otomatik) |
+| `cap_baslangic_yariyili` | ÇAP'a başlanan yarıyıl; yarıyıl kredi tabanı buna göre belirlenir |
+| `max_load` | Dönem kredi sınırı |
+| `mesgul` | Ders konulmayacak saatler (örneğin `"PZT 12:30-14:30 iş"`) |
+| `kilitli` | Belirli şubeye ya da saate kilitlenen dersler |
+| `yol_onceligi` | Yol haritası önceliği: `birlikte` veya `anadal` |
+
+Mevzuatta bir değişiklik olduğunda yalnızca `kurallar.toml` güncellenir;
+kodun değiştirilmesi gerekmez. Her eşik, dayandığı madde ve doğrulanma
+durumuyla birlikte tanımlanır.
+
+## Veri kaynakları ve güncelleme
+
+| Kaynak | Kullanım |
+|---|---|
+| [İTÜ Helper veri seti](https://github.com/itu-helper/data) | Ders kataloğu ve önşart metinleri; şubeler (saat, derslik, kontenjan); program ve bina kodları |
+| OBS öğretim planları | Lisans, ÇAP ve yandal öğretim planları |
+| OBS resmî ders denklikleri | Dersler arası resmî denklikler |
+| OBS not dağılımları | Geçme oranı ve tahmini zorluk |
+
+Veriler herkese açık kaynaklardan, istekler arasında bekleme süresi
+bırakılarak çekilir. Kayıt döneminde `make refresh` komutunun gün içinde
+birkaç kez çalıştırılması, değişiklik raporunu (`make changes`) anlamlı
+kılar.
+
+## Gizlilik ve güvenlik
+
+* **Web sürümünde sunucu bulunmaz.** Tüm hesaplar tarayıcıda yapılır;
+  veriler tarayıcıda saklanır ve hiçbir yere gönderilmez. Pyodide ve yazı
+  tipleri de siteyle birlikte sunulur; açılışta üçüncü taraf bir hizmete
+  istek yapılmaz. Bu durum otomatik testle denetlenir.
+* **Verinin yedeklenmesi.** Web sürümünde veriler yalnızca kullanılan
+  tarayıcıda bulunur. Tarayıcı verileri silindiğinde ya da cihaz
+  değiştirildiğinde kaybolur. Ayar bölümündeki **Yedek indir** düğmesiyle
+  alınan dosya, yeni cihazda **Yedekten yükle** ile geri yüklenebilir.
+* **Çevrimdışı kullanım.** Web sürümü bir kez açıldıktan sonra bağlantı
+  olmadan da açılabilir; bu durumda verinin tarihi ekranda belirtilir.
+* **Yerel sürüm.** Kişisel veriler yalnızca `data/user.sqlite3` dosyasında
+  tutulur; `data/` dizini sürüm denetimine dahil edilmez. Yerel sunucu
+  yalnızca `127.0.0.1` adresinden erişilebilir.
+* `make ui` ile üretilen `data/itucap.html` dosyası kişisel notları içerir;
+  paylaşılmamalıdır.
+* Araç OBS şifresi istemez, OBS'de oturum açmaz ve ders kaydı yapmaz.
 
 ## Mimari
 
 ```
 src/itucap/
-  sources/      OBS ve itu-helper scraper'ları
-  normalize.py  ders kodu / havuz etiketi / saat normalleştirme
-  prereq.py     önşart ayrıştırıcı (özyinelemeli iniş) + not ölçeği
-  rules.py      slot doldurma, denklik kapalılığı, plan ilerlemesi
-  sequence.py   önşart kademelendirme (kritik yol)
-  recommend.py  aday puanlama + çakışmasız program arama
-  policy.py     mevzuat: kredi eşiği, GNO eşikleri, kredi yükü
-  basvuru.py    "başvurabilir miyim" taraması
-  discover.py   aday denklik keşfi (ad + kredi eşleşmesi)
-  changes.py    anlık görüntü ve fark
-  watch.py      kontenjan nöbeti
-  plans.py      plan çözümleme (tarama bağımlılığı YOK — web için şart)
-  ui.py         tek dosyalık HTML arayüz üretici
-  tasarim.py    tasarım sistemi v2: palet ve ölçeklerin TEK kaynağı
-  server.py     State + yönlendirme; iki taşıyıcı da bunu kullanır
+  sources/       OBS ve İTÜ Helper veri toplayıcıları
+  pipeline.py    komut satırı ve veri güncelleme adımları
+  normalize.py   ders kodu, havuz etiketi ve saat normalleştirme
+  prereq.py      önşart ayrıştırıcı ve not ölçeği
+  rules.py       plan yuvası doldurma, denklik kapanışı, plan ilerlemesi
+  sequence.py    önşart kademeleri (kritik yol)
+  recommend.py   aday puanlama ve çakışmasız program arama
+  policy.py      mevzuat: kredi yükü, GNO eşikleri, kredi şartları
+  yolharitasi.py çok dönemli mezuniyet planı
+  notlar.py      not dağılımları ve tahmini zorluk
+  progress.py    ilerleme paneli
+  basvuru.py     başvuru uygunluğu taraması
+  discover.py    aday denklik keşfi
+  changes.py     anlık görüntü ve değişiklik raporu
+  watch.py       kontenjan izleme
+  plans.py       plan çözümleme (web sürümü için veri toplama bağımlılığı yoktur)
+  istek.py       istek süresince önbellek
+  server.py      uygulama durumu ve uç yönlendirmesi
+  ui.py          tek dosyalık HTML arayüz üreticisi
+  tasarim.py     tasarım sistemi (renk, yazı, aralık ölçekleri)
 tools/
-  site_kur.py            statik site üretici (katalogu budar + temizler)
+  site_kur.py            statik site üreticisi
   gizlilik_denetimi.py   kişisel veri sızıntısı denetimi
-  tasarim_envanteri.py   CSS envanteri + ölçek denetimi (--denetle, --jetonlar)
-  kontrast_olcumu.py     palet kontrastı (70 çift, iki tema)
-  vitrin.py              gerçekçi UYDURMA öğrenciyle arayüzü aç / ekran görüntüsü
-web/app.js               tarayıcı çalıştırıcısı (Pyodide + IndexedDB)
+  tasarim_envanteri.py   CSS envanteri ve ölçek denetimi
+  kontrast_olcumu.py     renk kontrastı ölçümü
+  vitrin.py              örnek öğrenciyle arayüz ve ekran görüntüsü
+web/
+  app.js, sw.js          tarayıcı çalıştırıcısı (Pyodide, IndexedDB, çevrimdışı önbellek)
 ```
 
-`State` iki taşıyıcıyla kullanılıyor: yerel HTTP sunucusu ve tarayıcıdaki
-Pyodide. Yönlendirme `State.dispatch()`'te tek yerde — kopyalansaydı iki
-sürüm zamanla ayrışırdı.
+Uygulama durumu (`server.State`) iki taşıyıcı tarafından ortak
+kullanılır: yerel HTTP sunucusu ve tarayıcıdaki Pyodide. Uç yönlendirmesi
+tek bir yerde (`State.dispatch`) tanımlıdır; böylece iki sürüm aynı
+davranışı gösterir.
 
-İki veritabanı ayrı tutuluyor: `reference.sqlite3` (herkese açık katalog) ve
-`user.sqlite3` (senin notların). Ayrım kasıtlı — kişisel veri tek bir dosyada
-toplanıyor, yedeklemesi ve silmesi kolay.
+Veriler iki ayrı veritabanında tutulur: herkese açık katalog
+(`reference.sqlite3`) ve kişisel veriler (`user.sqlite3`). Kullanıcının
+denklik beyanları da kişisel veri kabul edilir ve yalnızca
+`user.sqlite3` dosyasında saklanır.
 
-**Denklik beyanların da `user.sqlite3`'te** (Faz 28). Daha önce referans
-veritabanına yazılıyorlardı; `declared.py` "bunlar müfredat bilgisi, kişisel
-değil" diyordu ama `tools/gizlilik_denetimi.py` yayınlanan katalogda beyan
-görünce hata veriyordu — aynı soruya iki farklı cevap. Denetim haklıydı:
-*"şu dersim şunun yerine saysın"* beyanı hem hangi dersi aldığını hem neye
-başvurduğunu ele verir. Eski veritabanlarında kalmış beyanlar açılışta
-siliniyor ve `config/denklikler.toml`'dan kullanıcı veritabanına yeniden
-uygulanıyor; kaynak dosya değişmediği için hiçbir beyan kaybolmuyor.
+Ölçüme dayalı tasarım kararlarının gerekçeleri `docs/` dizinindeki faz
+belgelerinde yer almaktadır.
 
-## Test
+## Test ve kalite güvencesi
 
 ```bash
-make test        # 1238 test + gizlilik denetimi
+make test
 ```
 
-Gizlilik denetimi (`tools/gizlilik_denetimi.py`) dosya adına **değil
-içeriğine** bakıyor: kurulmuş siteyi açıp katalogda kişisel denklik beyanı,
-yerel dosya yolu ya da öğrenci tablosu arıyor. Bir kez sızan veri geri
-alınamaz, o yüzden yayın hattının zorunlu adımı.
+* Test takımı 1.750'yi aşkın test içerir: motor kuralları küçük, elle
+  kurulmuş kataloglarla; uçtan uca davranış ise örnek öğrenciyle gerçek
+  tarayıcıda (Playwright) sınanır. Playwright kurulu değilse tarayıcı
+  testleri atlanır.
+* Yeni kurallar, kod bilinçli olarak bozulduğunda testlerin başarısız
+  olduğu doğrulanarak (mutasyon denetimi) eklenir.
+* Gizlilik denetimi (`tools/gizlilik_denetimi.py`) üretilen sitenin
+  içeriğini tarar; kişisel denklik beyanı, yerel dosya yolu ya da öğrenci
+  verisi bulunursa yayımlama durdurulur.
+* Tasarım denetimi, arayüzde tasarım ölçeği dışında bir değer
+  kullanılmadığını doğrular.
 
-Playwright kuruluysa tarayıcı testleri de koşar; kurulu değilse atlanır —
-proje bağımlılığı değil.
+## Web sürümünün yayımlanması
+
+Web sürümü GitHub Pages üzerinden yayımlanır. GitHub Pages'in ücretsiz
+planı yalnızca herkese açık depolarda çalışır.
+
+```bash
+make refresh
+gh release create katalog-$(date +%Y%m%d) data/reference.sqlite3
+```
+
+Katalog (yaklaşık 15 MB) depoya eklenmez; yayımlama akışı
+(`.github/workflows/pages.yml`) en son `katalog-*` sürümünden kataloğu
+indirir, siteyi kurar ve yayımlamadan önce gizlilik denetimini çalıştırır.
+Akış, `main` dalına kod gönderildiğinde, yeni bir sürüm yayımlandığında ya
+da elle tetiklendiğinde çalışır. Yerel deneme için `make site` komutu
+kullanılabilir.
 
 ## Katkı
 
-Sorun bildirimi ve PR açık. İki şey rica:
+Hata bildirimleri ve değişiklik önerileri memnuniyetle karşılanır. Bu
+süreçte aşağıdaki hususlara dikkat edilmesi rica olunur:
 
-1. **Kişisel veri gönderme.** Hata bildirirken transkript, not ya da
-   `data/` altındaki dosyaları paylaşma; hata mesajı ve adımlar yeterli.
-2. **Mevzuat değişikliğini kaynağıyla bildir.** Bir eşik yanlışsa madde
-   numarasıyla söyle; `kurallar.toml`'da `dogrulandi` ve `kaynak` alanları var.
+1. **Kişisel veri paylaşılmamalıdır.** Hata bildirimlerinde transkript,
+   not ya da `data/` dizinindeki dosyalar yerine hata mesajı ve hatayı
+   yeniden oluşturma adımları yeterlidir.
+2. **Mevzuat değişiklikleri kaynağıyla bildirilmelidir.** Hatalı bir eşik,
+   ilgili madde numarasıyla birlikte bildirilmelidir; `kurallar.toml`
+   dosyasında her eşik için `kaynak` ve `dogrulandi` alanları bulunur.
+3. **Kural değişikliklerinden önce ilgili faz belgesi incelenmelidir.**
+   Kuralların çoğu, gerçek veriyle yapılan ölçümler sonucunda
+   düzeltilmiş varsayımlardır.
 
-Ölçüme dayalı kararların gerekçesi `docs/` altındaki faz belgelerinde. Bir
-kuralı değiştirmeden önce oraya bak — çoğu, gerçek veriyle karşılaştırma
-sonucu düzeltilmiş bir varsayım.
+## Sorumluluk reddi ve lisans
 
-## Sorumluluk reddi
+Bu yazılım İstanbul Teknik Üniversitesi'nin resmî bir aracı değildir ve
+üniversiteyle kurumsal bir bağı bulunmamaktadır. Veriler OBS ve İTÜ
+Helper'dan alınmaktadır; hatalı ya da güncel olmayan bilgiler içerebilir.
+Kayıt kararları danışman ve OBS ile doğrulanmalıdır.
 
-Bu resmî bir İTÜ aracı **değildir** ve İTÜ ile bir ilişkisi yoktur. Veriler
-OBS ve itu-helper'dan alınır, hatalı ya da güncel olmayabilir. Kayıt
-kararlarını danışmanına ve OBS'ye doğrulat.
-
-## Lisans
-
-[MIT](LICENSE)
+Yazılım [MIT Lisansı](LICENSE) ile lisanslanmıştır.

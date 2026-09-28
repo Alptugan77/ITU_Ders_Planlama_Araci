@@ -232,6 +232,9 @@ class State:
         if path == "/api/tercih":
             self.save_prefs(b)
             return {}
+        if path == "/api/yolonceligi":
+            # Faz 118 — yol haritası önceliği (anadal önce / ikisi birlikte).
+            return {"yolOnceligi": self.save_roadmap_priority(str(b.get("oncelik") or ""))}
         if path == "/api/tercih/onizle":
             return {"onizleme": self.preview_prefs(b)}
         if path == "/api/capbitis":
@@ -912,6 +915,17 @@ class State:
             if plan_id:
                 for kod in self._plan_codes(plan_id):
                     rol_of.setdefault(kod, rol)
+        # ★ Faz 117 — plandaki dersin resmî denkliği de plan dersi gibi: OBS'den
+        # yapıştırılan CRN denk dersinse "plan dışı" değil, o dersin yerine.
+        denk_of: dict[str, str] = {}
+        for e in R.load_equivalences(self.con, ucon=self.ucon):
+            if e.confidence != "official" or len(e.sources) != 1:
+                continue
+            for hedef, kaynaklar in R._dil_yazimlari(e):
+                if hedef in rol_of and kaynaklar[0][0] not in rol_of:
+                    denk_of.setdefault(kaynaklar[0][0], hedef)
+        for kod, hedef in denk_of.items():
+            rol_of.setdefault(kod, rol_of[hedef])
 
         from . import declared as DEC
         kampus = DEC.load_campus_overrides()
@@ -935,6 +949,7 @@ class State:
                 # Gizleseydik kullanıcı gerçek programını göremezdi; serbest
                 # seçmeli ya da başka bir ders de kayıtta olabiliyor.
                 "role": rol_of.get(row["course_code"], "PLAN_DISI"),
+                "denkOf": denk_of.get(row["course_code"], ""),      # Faz 117
                 # ★ Faz 93: derslik de; bina/derslik öneri motoruyla AYNI
                 # temizlikten geçiyor (eskiden ham "undeclared" bina adı
                 # diye gidiyordu).
@@ -1133,6 +1148,15 @@ class State:
             values["cap_baslangic_yariyili"] = cb
         config.update_settings(values)
         return donem
+
+    def save_roadmap_priority(self, oncelik: str) -> str:
+        """Faz 118 — yol haritası önceliğini kaydeder. Doğrulama burada:
+        statik site de aynı `dispatch`'i çağırıyor."""
+        if oncelik not in config.YOL_ONCELIKLERI:
+            raise ValueError("yol haritası önceliği geçersiz; geçerli değerler: "
+                             + ", ".join(config.YOL_ONCELIKLERI))
+        config.update_settings({"yol_onceligi": oncelik})
+        return oncelik
 
     def save_busy(self, day: int, start: int, end: int, label: str = "",
                   remove: str = "") -> dict:

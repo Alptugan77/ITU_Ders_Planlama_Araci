@@ -189,6 +189,23 @@ def base_program_code(code: str) -> str:
     return code[:-1] if len(code) > 2 and code.endswith("E") else code
 
 
+def kendi_program_kodlari(kodlar) -> set[str]:
+    """Öğrencinin şube "alabilir" listesinde KENDİ sayılan program kodları.
+
+    ★ Faz 115/117 — anadal ve ÇAP/yandal kodları, bölümün iki dil programı
+    (BLG / BLGE) ve OBS'nin `_LS` yazımı. Şube listesinde bunlardan biri
+    varsa ders, denklikle alınırken DİLEKÇE gerektirmiyor (kullanıcı
+    28.09.2026)."""
+    out: set[str] = set()
+    for k in kodlar or ():
+        k = str(k or "").strip().upper()
+        if k.endswith("_LS"):
+            k = k[:-3]
+        if k:
+            out |= {k, base_program_code(k), base_program_code(k) + "E"}
+    return out | {f"{k}_LS" for k in out}
+
+
 def merge_language_variants(codes) -> list[str]:
     """Dil varyantlarını tekleştirir: {'BLG','BLGE','HTAE'} -> ['BLG','HTAE'].
 

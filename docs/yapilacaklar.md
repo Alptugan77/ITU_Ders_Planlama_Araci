@@ -745,6 +745,29 @@ her maddeden önce gelen tek iş.
 > yerleşemeyen ders artmadı ✅
 > ➜ Ayrıntı: `docs/faz114-plan-yolu.md`
 >
+> **Faz 115 (28.09.2026):** denk dersin şubesi ÇAP/yandal programınıza da
+> (BLG, BLG_LS, BLGE) açıksa "dilekçesiz" ✅
+>
+> **Faz 116 (28.09.2026):** "açtıkları" ve öneri puanındaki "açtığı ders"
+> sayısı dersin takma adlarıyla (yeni kod, dil eşi, kod göçü, denklik):
+> BBF 203E 1 → 22, planda BBF 301E/302E/BLG 411E'yi açıyor ✅
+> ➜ Ayrıntı: `docs/faz116-takma-adlar.md`
+>
+> **Faz 117 (28.09.2026):** plandaki zorunlu dersin dilekçesiz resmî denkliği
+> aday oluyor ve o dersin yuvasına bağlanıyor; plan dersi açıksa öneri onu
+> tercih ediyor. CRN ile yüklenen denk ders "plan dışı" değil ✅
+> ➜ Ayrıntı: `docs/faz117-denk-aday.md`
+>
+> **Faz 118 (28.09.2026):** yol haritası önceliği ayarı: "Programları
+> birlikte en kısa sürede bitir" / "Anadala öncelik ver". Üç yerleştirme sırası
+> denenip ayarın ölçütüne göre en iyisi seçiliyor. 383 gerçek çiftte ortak
+> bitiş 53, anadal bitişi 71 çiftte öne çekildi. Kurulum 78 → 15 ms ✅
+> ➜ Ayrıntı: `docs/faz118-yol-onceligi.md`
+>
+> **Faz 119 (28.09.2026):** senaryoda dönem kredisi serbest giriliyor (1–60).
+> Mevcut sınırın üstünde yönetmeliğin istediği GNO yazıyor ✅
+> ➜ Ayrıntı: `docs/faz119-serbest-kredi.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
@@ -958,7 +981,7 @@ Bunlar "unutuldu" değil, **karar**:
 
 * `make refresh` her çalıştığında bir **anlık görüntü** bırakıyor (son 12).
   Kayıt haftasında günde birkaç kez çalıştırmak `make changes`'i anlamlı kılar.
-* `make test` 1238 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
+* `make test` 1770 test + gizlilik denetimi (penetrasyon testi dahil). Playwright kuruluysa tarayıcı testleri de koşar,
   değilse atlanır — proje bağımlılığı değil.
 * `make all-plans` ✅ çalıştırıldı (katalogda 1081 ÇAP + 134 yandal planı).
   Dönemde bir kez yeter; program değiştirmeyi düşünmüyorsan gerekmez.

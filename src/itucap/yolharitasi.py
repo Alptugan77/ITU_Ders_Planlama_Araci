@@ -287,6 +287,83 @@ def ortak_program(con: sqlite3.Connection, program: str) -> str | None:
     return m.group(1).strip() if m else "ortak üniversite"
 
 
+# ★★ Faz 118 — YOL HARİTASI ÖNCELİĞİ (kullanıcı isteği 28.09.2026: "yol
+# haritasında anadala öncelik ver veya ikisini en kısa sürede bitir gibi bir
+# ayar"). Harita her dönemi tek bir sırayla dolduruyordu: en uzun zinciri
+# başlatan ders önce (kritik yol). Bu sezgisel bir kural; iki programın hangi
+# bitişinin önemli olduğunu bilmiyor. Artık AYAR:
+#   birlikte — iki programın BİRLİKTE (sonuncusunun) bitişi en erken olsun;
+#   anadal   — önce anadalın bitişi en erken olsun, ÇAP/yandal onu
+#              geciktirmeden en erken bitsin.
+# Nasıl: aynı harita birkaç YERLEŞTİRME SIRASIYLA kuruluyor (`SIRALAR`) ve
+# ayarın ölçütüne göre en iyisi seçiliyor. Tek sırayı "anadal önce" diye
+# sabitlemek yetmiyordu: anadalı hiç öne çekmeyip ÇAP'ı geciktiren (yani her
+# iki bitiş açısından da KÖTÜ) bir plan gösterebilirdi.
+ONCELIKLER = ("birlikte", "anadal")
+SIRALAR = ("kritik", "anadal_once", "ikinci_once")
+ONCELIK_METNI = {
+    "birlikte": ("Öncelik: programların birlikte en kısa sürede tamamlanması. Dersler üç "
+                 "farklı sırayla (en uzun önşart zinciri önce, anadal önce, ikinci program "
+                 "önce) yerleştirilmiş; en geç biten programı en erkene alan yerleşim "
+                 "seçilmiştir."),
+    "anadal": ("Öncelik: anadal. Dersler üç farklı sırayla (en uzun önşart zinciri önce, "
+               "anadal önce, ikinci program önce) yerleştirilmiş; anadalı en erken bitiren "
+               "yerleşim seçilmiş, eşitlik durumunda ikinci programı en erken bitiren "
+               "tercih edilmiştir."),
+}
+
+
+def sira_anahtari(sira: str):
+    """Bir dönemde alınabilir birimlerin sırası.
+
+    kritik      — en uzun zinciri başlatan önce, sonra planın dönem sırası,
+                  zorunlu ders havuzdan önce (Faz 57'den beri tek kural);
+    anadal_once — anadal birimleri önce (ortak ders anadal sayılıyor), kendi
+                  içinde kritik sıra;
+    ikinci_once — ÇAP/yandal birimleri önce, kendi içinde kritik sıra.
+    Adlar ayar adlarından (`ONCELIKLER`) AYRI: "anadal" ayarı üç sırayı
+    deniyor, "anadal_once" tek bir sıra.
+    ÇAP yarıyıl tabanı her sırada ÖNCE doldurulmaya çalışılıyor (yönerge).
+    """
+    def kritik(b):
+        return (-b.yukseklik, b.donem_no or 99, bool(b.havuz), b.anahtar)
+    if sira == "anadal_once":
+        return lambda b: ("ANADAL" not in b.roller, *kritik(b))
+    if sira == "ikinci_once":
+        return lambda b: (not (b.roller - {"ANADAL"}), *kritik(b))
+    return kritik
+
+
+def _bitis_ozeti(h: dict) -> dict:
+    """Bir haritanın program başına bitişi — sıra seçimi ve arayüz için."""
+    return {p["role"]: {"index": (p.get("finish") or {}).get("index"),
+                        "label": (p.get("finish") or {}).get("label"),
+                        "finishSemester": p.get("finishSemester"),
+                        "unplaced": p.get("unplaced") or 0}
+            for p in h.get("programs") or []}
+
+
+def _olcut(h: dict, oncelik: str, sira: str) -> tuple:
+    """Küçük olan iyi. Yerleşmeyen ders her şeyden önce: bitişi hesaplanamayan
+    bir planı "daha erken biten" diye seçmek yanlış olurdu."""
+    ozet = _bitis_ozeti(h)
+    ufuk_disi = 10 ** 3
+
+    def bitis(r):
+        v = ozet[r]["index"]
+        return ufuk_disi if v is None else v
+    roller = list(ozet)
+    toplam_yerlesmeyen = sum(o["unplaced"] for o in ozet.values())
+    en_gec = max((bitis(r) for r in roller), default=0)
+    toplam = sum(bitis(r) for r in roller)
+    tercih = (("anadal_once", "kritik", "ikinci_once") if oncelik == "anadal"
+              else SIRALAR).index(sira)
+    if oncelik == "anadal" and "ANADAL" in ozet:
+        return (ozet["ANADAL"]["unplaced"], bitis("ANADAL"), toplam_yerlesmeyen,
+                en_gec, toplam, tercih)
+    return (toplam_yerlesmeyen, en_gec, toplam, tercih)
+
+
 def _sondaki_boslari_at(donemler: list[dict]) -> list[dict]:
     son = max((d["index"] for d in donemler if d["current"] or d["items"]), default=0)
     return [d for d in donemler if d["index"] <= son]
@@ -297,7 +374,7 @@ def kur(con: sqlite3.Connection, grades: Mapping[str, str], planlar: list[dict],
         bu_donem_kaynagi: str = "", equivalences=None,
         taban: POL.SecondFloor | None = None, ufuk: int = UFUK,
         yaz: str | None = None, bos: Iterable[int] = (), mesgul: Iterable = (),
-        zor_siniri: int | None = None) -> dict:
+        zor_siniri: int | None = None, oncelik: str = "birlikte") -> dict:
     """Yol haritası.
 
     `planlar`: `[{"planId", "role", "label", "program"}]` — anadal önce.
@@ -311,35 +388,74 @@ def kur(con: sqlite3.Connection, grades: Mapping[str, str], planlar: list[dict],
     `zor_siniri` (Faz 89): bir döneme en çok bu kadar "zor" ders (tahmini
     zorluk kademesi ≥ 4, yani genel puan ≥ 6) konur; fazlası sonraki uygun
     döneme kalır. Senaryo — "zor dersleri dağıtırsam ne zaman biterim".
+    `oncelik` (Faz 118): `ONCELIKLER`'den biri (ayar) — iki program varsa
+    harita `SIRALAR`'ın hepsiyle kurulup ayarın ölçütüne göre en iyisi
+    dönüyor; `SIRALAR`'dan biri verilirse YALNIZ o sıra (türetilen
+    haritalar ana haritanın seçtiği sırayı böyle tekrar kullanıyor — aynı
+    kıyas tabanı, üç kat maliyet yok).
 
     ⚠️ Bağlantının `row_factory`si çağıranın; burada geçici değişip geri
     konuyor (sunucu `Row`, testler düz demet kullanıyor).
     """
+    if oncelik not in ONCELIKLER and oncelik not in SIRALAR:
+        raise ValueError(f"yol haritası önceliği geçersiz: {oncelik!r}")
+    bu_donem = [dict(p) for p in bu_donem]
+    equivalences = equivalences if isinstance(equivalences, list) else list(equivalences or [])
     eski = con.row_factory
     con.row_factory = sqlite3.Row
     try:
-        return _kur(con, grades, planlar, term=term, donem=donem, max_load=max_load,
-                    bu_donem=bu_donem, bu_donem_kaynagi=bu_donem_kaynagi,
-                    equivalences=equivalences, taban=taban, ufuk=ufuk, yaz=yaz,
-                    bos=frozenset(int(x) for x in bos), mesgul=tuple(mesgul),
-                    zor_siniri=zor_siniri)
+        def tek(sira: str) -> dict:
+            return _kur(con, grades, planlar, term=term, donem=donem, max_load=max_load,
+                        bu_donem=bu_donem, bu_donem_kaynagi=bu_donem_kaynagi,
+                        equivalences=equivalences, taban=taban, ufuk=ufuk, yaz=yaz,
+                        bos=frozenset(int(x) for x in bos), mesgul=tuple(mesgul),
+                        zor_siniri=zor_siniri, sira=sira)
+        if oncelik in SIRALAR:
+            h = tek(oncelik)
+            h["priority"] = {"setting": None, "order": oncelik, "options": None}
+            return h
+        if len({p.get("role") for p in planlar}) < 2:
+            # Tek program: sıra bitişi değiştirmiyor, üç kez kurmaya gerek yok.
+            h = tek("kritik")
+            h["priority"] = {"setting": oncelik, "order": "kritik", "options": None}
+            return h
+        haritalar = {s: tek(s) for s in SIRALAR}
+        secim = {o: min(SIRALAR, key=lambda s: _olcut(haritalar[s], o, s))
+                 for o in ONCELIKLER}
+        h = haritalar[secim[oncelik]]
+        h["assumptions"].append(ONCELIK_METNI[oncelik] + (
+            " ÇAP yarıyıl kredi tabanı her sırada uygulanmıştır." if taban else ""))
+        # Öbür ayarın sonucu da DÖNÜYOR (zaten kuruldu): arayüz "anadala
+        # öncelik verilseydi anadal X'te, ÇAP Y'de biterdi" diyebiliyor.
+        h["priority"] = {"setting": oncelik, "order": secim[oncelik],
+                         "options": {o: {"order": s, "finish": _bitis_ozeti(haritalar[s])}
+                                     for o, s in secim.items()}}
+        return h
     finally:
         con.row_factory = eski
 
 
 def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kaynagi,
-         mesgul=(), zor_siniri=None,
+         mesgul=(), zor_siniri=None, sira="kritik",
          equivalences, taban, ufuk, yaz=None, bos=frozenset()) -> dict:
-    equivalences = list(equivalences or [])
+    # ★ Faz 118 — liste KOPYALANMIYOR (yalnız okunuyor): `rules` denklik
+    # dizinini liste nesnesine göre önbelleğe alıyor; her kurulumda yeni bir
+    # kopya, 3183 denkliğin dizinini her seferinde baştan kurduruyordu
+    # (gerçek katalogda kurulum başına ~25 ms, ölçüldü).
+    equivalences = equivalences if isinstance(equivalences, list) else list(equivalences or [])
     from . import istek as IST
     # ★ Faz 91 — istek boyunca bir kez (harita bir istekte 12 kez kuruluyor).
     names = IST.bellek(("ders_adlari", id(con)), lambda: {
         r[0]: r[1] for r in con.execute("SELECT code, name FROM course")})
-    siniflama = {r[0]: r[1] for r in con.execute(
-        "SELECT code, class_restriction FROM course WHERE class_restriction IS NOT NULL")}
+    # ★ Faz 118 — bunlar da istek boyunca bir kez: öncelik ayarı haritayı
+    # birkaç sırayla kuruyor (`SIRALAR`), her kurulum aynı tabloları okuyordu.
+    siniflama = IST.bellek(("sinif_kisiti", id(con)), lambda: {
+        r[0]: r[1] for r in con.execute(
+            "SELECT code, class_restriction FROM course WHERE class_restriction IS NOT NULL")})
     kurallar, katalog_kurali = POL.load_rules(), POL.load_catalog_rule()
     agaclar = P.parsed_trees(con)
-    okunamayan = {r[0] for r in con.execute("SELECT course_code FROM prereq_unparsed")}
+    okunamayan = IST.bellek(("okunamayan_onsart", id(con)), lambda: {
+        r[0] for r in con.execute("SELECT course_code FROM prereq_unparsed")})
 
     birimler = _birimler(con, planlar, grades, equivalences, names)
     bu_donem = [dict(p) for p in bu_donem]
@@ -357,7 +473,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     # ★ Bu dönemin şubeleri VERİ: planı "Bahar" dese de bu Güz şubesi olan
     # ders Güz'de de açılıyor (vitrinde MAT 210E: plan 4. dönem, bu Güz iki
     # şube). Yalnız plana bakmak onu gereksiz yere bir dönem kaydırıyordu.
-    acik = bu_donem_okutulan(con)
+    acik = IST.bellek(("bu_donem_okutulan", id(con)), lambda: bu_donem_okutulan(con))
     bilinmeyen_mevsim = gecmisten = 0
     for b in birimler:
         plan = b._plan                                  # type: ignore[attr-defined]
@@ -481,7 +597,18 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
 
     plan_yolu = {k for k, b in kod_birim.items() if b.ders}   # tek tek yerleşecekler
 
+    _gorunum: dict = {}
+
     def gorunum(kodlar, varsayim=frozenset()):
+        # ★ Faz 118 — aynı dönemde her birim aynı görünümü istiyor; denklik
+        # genişletmesi ve önşart görünümü bir kez hesaplanıyor. Görünüm
+        # yalnız OKUNUYOR (`agac.satisfied`/`missing`), paylaşmak güvenli.
+        anahtar = (frozenset(kodlar), frozenset(varsayim))
+        if anahtar not in _gorunum:
+            _gorunum[anahtar] = _gorunum_kur(kodlar, varsayim)
+        return _gorunum[anahtar]
+
+    def _gorunum_kur(kodlar, varsayim):
         v = {c: GECER for c in kodlar}
         v.update({c: g for c, g in gercek_not.items() if c in v})
         if equivalences:                         # Faz 114: yerleşenin denkliği de
@@ -729,8 +856,7 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
         ertelenen_zor: list = []                # Faz 89
         # Öncelik: en uzun zinciri başlatan önce (kritik yol), sonra planın
         # dönem sırası, zorunlu ders seçmeli havuzdan önce.
-        uygun.sort(key=lambda b: (-b.yukseklik, b.donem_no or 99,
-                                  bool(b.havuz), b.anahtar))
+        uygun.sort(key=sira_anahtari(sira))
         secilen, toplam, cap_kredi = [], 0.0, 0.0
 
         def al(b: Birim) -> None:

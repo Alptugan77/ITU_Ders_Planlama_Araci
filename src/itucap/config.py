@@ -228,6 +228,10 @@ def donem_adi(kod: str) -> str:
     return f"{int(yil) - 1}-{yil} {ad}"
 
 
+# Faz 118 — `yolharitasi.ONCELIKLER` ile AYNI (config motoru içe aktarmıyor;
+# eşitliği test denetliyor).
+YOL_ONCELIKLERI = ("birlikte", "anadal")
+
 # Dosyadan OKUNMAYAN, yalnız yükleme sonucunu taşıyan alanlar.
 _IC_ALANLAR = {"load_error", "load_uyarilari"}
 
@@ -310,6 +314,11 @@ class Settings:
     # Liste olarak tutuluyor çünkü `update_settings` liste yazabiliyor —
     # ayrı bir [[tablo]] biçimi yeni bir yazıcı gerektirirdi.
     mesgul: list[str] = field(default_factory=list)
+    # ★★ Faz 118 — YOL HARİTASI ÖNCELİĞİ (ikinci program varken).
+    # "birlikte": iki programın birlikte (sonuncusunun) bitişi en erken;
+    # "anadal": önce anadalın bitişi en erken, ÇAP/yandal onu geciktirmeden.
+    # Bkz. `yolharitasi.ONCELIKLER`. Geçersiz değer varsayılana düşüyor.
+    yol_onceligi: str = "birlikte"
     # ★★ SAATE KİLİT (Faz 45, kullanıcı isteği 17.09.2026: *"dersleri saate
     # kitleme ve önerilerin onun etrafında şekillenmesi"*).
     # Biçim: "DERS@CRN"  →  "GEO 315E@13601"
@@ -414,6 +423,8 @@ class Settings:
                                else (varlar[0] if varlar else "yok"))
         if obj.second_kind not in SECOND_CHOICES:
             obj.second_kind = "cap"
+        if obj.yol_onceligi not in YOL_ONCELIKLERI:
+            obj.yol_onceligi = "birlikte"
         # ⚠️ Buradaki "beyan yoksa kendi kodlarına düş" satırı KALDIRILDI:
         # türetme artık `allowed_programs`'ta, her seferinde. Alanı doldurmak,
         # türetilmiş kodları kullanıcının ELLE YAZDIĞI kodlardan ayırt
@@ -549,7 +560,7 @@ _EDITABLE = {
     "anadal_program", "anadal_plan_id", "second_kind",
     "cap_program", "cap_plan_id", "yandal_program", "yandal_plan_id",
     "donem", "term", "unit", "max_load", "max_load_auto", "program_codes", "watch_courses",
-    "cap_baslangic_yariyili", "mesgul", "kilitli",
+    "cap_baslangic_yariyili", "mesgul", "kilitli", "yol_onceligi",
     "tercih_en_erken", "tercih_bos_gunler", "tercih_kampus_degisimi",
     "tercih_cevrimici", "tercih_istenen_hocalar", "tercih_istenmeyen_hocalar",
 }

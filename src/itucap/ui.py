@@ -86,7 +86,15 @@ def _acik_denklikler(con, equivalences, expanded, gereken, allowed,
     Listesi boş ya da "-" olan şube bu iddiaya GİRMİYOR: bilinmeyen, bilinen
     gibi gösterilmez.
     """
-    kendi = (kendi_program or "").strip().upper()
+    # ★ Faz 115 — bölümün iki dil programı aynı bölüm (kullanıcı 28.09.2026:
+    # anadal BLGE, şube "BLG_LS"/BLG'ye açık, kart yine "dilekçeyle" diyordu).
+    # ★ Faz 115 — ÇAP/yandal programı da "kendi" programın (kullanıcı: "çap
+    # kodumdan bahsediyorum ve blg kodum"). Kural `normalize`da (Faz 117:
+    # öneri motoru da aynısını kullanıyor).
+    from .normalize import kendi_program_kodlari
+    kendi = kendi_program_kodlari(
+        [kendi_program] if isinstance(kendi_program, (str, type(None))) else kendi_program)
+
     def passed(code):
         return any(R.passed(expanded.get(s)) for s in _dil_esi(code))
 
@@ -102,9 +110,9 @@ def _acik_denklikler(con, equivalences, expanded, gereken, allowed,
             for sec in REC.load_sections(con, s, allowed):
                 if sec.crn not in crn:
                     crn.add(sec.crn); secs.append(sec)
-        dilekcesiz = [sec.crn for sec in secs if kendi and con.execute(
-            "SELECT 1 FROM lesson_allowed_program WHERE crn=? AND upper(program_code)=?",
-            (sec.crn, kendi)).fetchone()]
+        dilekcesiz = [sec.crn for sec in secs if any(
+            str(r[0]).strip().upper() in kendi for r in con.execute(
+                "SELECT program_code FROM lesson_allowed_program WHERE crn=?", (sec.crn,)))]
         return {"code": code, "name": name_of(code), "minGrade": min_not,
                 "passed": passed(code), "open": bool(secs),
                 "dilekcesiz": bool(dilekcesiz), "dilekcesizCrn": dilekcesiz,
@@ -854,7 +862,10 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
         demek olurdu. Planda birebir yazan varyant tercih ediliyor.
         """
         secili: dict[str, str] = {}
-        for k in _unlock_map.get(code, []):
+        # ★ Faz 116 — dersin takma adlarını (yeni kod, dil eşi, denklik) anan
+        # dersler de: BBF 203E alınınca, önşartı "BLG 252E" diyen BBF 301E açılır.
+        adlar = R.takma_adlar(con, code, equivalences)
+        for k in sorted(R.acilan_hedefler(_unlock_map, adlar)):
             if k not in _plan_codes or k in _passed:
                 continue
             if k == code or k == _dil_esi(code):
@@ -921,6 +932,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             # İkisi ayrı sayı; birini öbürünün yerine yazmak yanlış olurdu.
             "opens": _acilanlar(c.course),
             "required": c.required, "reasons": c.reasons,
+            # ★ Faz 117 — plandaki bu dersin yerine resmî denklikle (dilekçesiz).
+            "denkOf": c.denk_of,
             # ★ Faz 38 — geçmiş dönemlerin not dağılımı (OBS yayınlıyor).
             # ⚠️ PUANA GİRMİYOR. Dağılımı puanlamaya sokmak aracı "kolay ders
             # bulucu"ya çevirirdi; hangi dersi almanın değdiği öğrencinin
@@ -1264,7 +1277,7 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             con, equivalences,
             R.expand_with_equivalences(grades, equivalences)[0],
             gereken_dersler, settings.allowed_programs, names, section_json,
-            settings.anadal_program),
+            [settings.anadal_program, *(x[3] for x in settings.seconds)]),
         # Her ikinci programın KENDİ kademe zinciri.
         "tierGroups": tier_groups,
         # ★★ Faz 57 — mezuniyet yol haritası (çok dönemli plan, §2.1).
@@ -1525,7 +1538,8 @@ def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
         return YH.kur(con, grades, planlar, term=term, donem=donem or 0,
                       max_load=float(sinir), bu_donem=bu_donem, bu_donem_kaynagi=kaynak,
                       equivalences=equivalences, taban=taban, yaz=yaz,
-                      mesgul=REC.busy_sections(settings.mesgul))          # Faz 82
+                      mesgul=REC.busy_sections(settings.mesgul),          # Faz 82
+                      oncelik=settings.yol_onceligi)                      # Faz 118
 
     def bitisler(h):
         return {p["role"]: (p["finish"] or {}).get("index") for p in h["programs"]}
@@ -1720,7 +1734,8 @@ def kalma_riski(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: i
         return YH.kur(con, g["grades"], planlar, term=g["term"], donem=g["donem"],
                       max_load=g["max_load"], bu_donem=bu, bu_donem_kaynagi="senaryo",
                       equivalences=g["equivalences"], taban=taban,
-                      mesgul=REC.busy_sections(settings.mesgul))
+                      mesgul=REC.busy_sections(settings.mesgul),
+                      oncelik=settings.yol_onceligi)                      # Faz 118
 
     def bitisler(h):
         return {p["role"]: p for p in h.get("programs") or []}
@@ -1776,12 +1791,32 @@ def yol_senaryosu(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id:
                max_load=g["max_load"], bu_donem=g["bu"],
                bu_donem_kaynagi="senaryo", equivalences=g["equivalences"],
                taban=taban, bos=bos, mesgul=REC.busy_sections(settings.mesgul),
-               zor_siniri=zor)
+               zor_siniri=zor, oncelik=settings.yol_onceligi)             # Faz 118
     az = POL.load_max_duration()
     h["maxDuration"] = ({"semesters": az.semesters, "verified": az.verified,
                          "source": az.source, "note": az.note} if az else None)
-    h["scenario"] = {"maxLoad": g["max_load"], "empty": bos, "hardMax": zor}
+    h["scenario"] = {"maxLoad": g["max_load"], "empty": bos, "hardMax": zor,
+                     "loadBand": yuk_basamagi(g["max_load"])}             # Faz 119
     return h
+
+
+def yuk_basamagi(kredi: float) -> dict | None:
+    """★ Faz 119 — bu dönem yükü yönetmelikte hangi GNO ile alınabiliyor
+    (MADDE 17/2 basamakları, `kurallar.toml` [[kredi_yuku]]).
+
+    Senaryoya artık serbest değer giriliyor; mevcut sınırın ÜSTÜNDE bir yük
+    ancak GNO şartıyla alınabilir ve arayüz bunu söylüyor. En yüksek
+    basamağın da üstündeyse `aboveMax` — yönetmelik bu yükü hiç tanımıyor.
+    Basamak beyan edilmemişse `None` (şart uydurulmuyor)."""
+    bantlar, _ = POL.load_bands()
+    if not bantlar:
+        return None
+    uyan = [b for b in bantlar if b.max_credits + 1e-9 >= kredi]
+    if not uyan:
+        en_ust = max(bantlar, key=lambda b: b.max_credits)
+        return {"aboveMax": True, "max": en_ust.max_credits, "minGpa": None, "label": ""}
+    b = min(uyan, key=lambda b: (b.min_gpa, b.max_credits))
+    return {"aboveMax": False, "max": b.max_credits, "minGpa": b.min_gpa, "label": b.label}
 
 
 @_sube_onbellekli
@@ -1812,7 +1847,8 @@ def cap_bitisleri(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id:
     def kur(planlar):
         return YH.kur(con, grades, planlar, term=term, donem=donem, max_load=max_load,
                       bu_donem=bu, equivalences=equivalences, taban=taban,
-                      mesgul=REC.busy_sections(settings.mesgul))
+                      mesgul=REC.busy_sections(settings.mesgul),
+                      oncelik=settings.yol_onceligi)                      # Faz 118
 
     def bitis(h, rol):
         p = next((p for p in h["programs"] if p["role"] == rol), None)
@@ -3459,10 +3495,18 @@ table.cmp .meta.arti{color:var(--ok)}
 .yhdonem.yaz{border-style:dashed;border-color:var(--warn)}
 .yhyaz{margin-top:14px}
 .yhdugmeler{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+/* Faz 118 — yol haritası önceliği. */
+.yhoncelik{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-bottom:12px;
+  font-size:var(--fs-md)}
+.yhoncelik .radios{flex:0 1 auto}
+.yhoncelik .radios button{flex:0 1 auto;padding:6px 12px}
+.yhoncelik .meta{flex:1 1 260px}
 /* Faz 61 — senaryo. */
 .yhsenaryo{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-bottom:14px;
   font-size:var(--fs-md)}
 .yhsenaryo select{width:auto}
+.yhsenaryo input[type=number]{width:5.5em;padding:6px 8px}
+.yhsenaryo input[aria-invalid=true]{border-color:var(--warn)}
 .yhbosetiket{color:var(--ink-3)}
 .yhseritsenaryo{border-left-color:var(--warn);margin-bottom:14px}
 .yhseritsenaryo button{margin-left:8px}
@@ -6827,7 +6871,7 @@ function renderAcikDenklik(){
             style="margin-left:6px">çevrimiçi</span>` : ""}${
           /* ★ Faz 111 — şube bölümünüze açıksa dilekçe gerekmiyor. */
           k.dilekcesiz ? `<span class="chip prereq" style="margin-left:6px"
-            title="Şube, OBS'de bölümünüzün (${esc(DATA.anadal || "")}) alabileceği şube olarak listelenmiştir${
+            title="Şube, OBS'de programlarınızın (anadal veya ÇAP/yandal) alabileceği şube olarak listelenmiştir${
               k.dilekcesizCrn.length < k.sections.length
                 ? ": CRN " + esc(k.dilekcesizCrn.join(", ")) : ""}">dilekçesiz</span>` : ""}</div>
         <div class="denkmeta mono">
@@ -6859,9 +6903,9 @@ function renderAcikDenklik(){
       const onay = e.confidence === "requires_approval"
         ? "bölüm/yönetim kurulu onayı gerekebilir"
         : serbest.length === acik.length && acik.length
-          ? "şubesi bölümünüze açık olduğundan <b>dilekçe gerekmez</b>"
+          ? "şubesi programınıza açık olduğundan <b>dilekçe gerekmez</b>"
           : serbest.length
-            ? `<b>${serbest.map(k => esc(k.code)).join(", ")}</b> şubesi bölümünüze açık
+            ? `<b>${serbest.map(k => esc(k.code)).join(", ")}</b> şubesi programınıza açık
                olduğundan dilekçesiz alınabilir, diğerleri dilekçeyle saydırılır`
             : "dilekçeyle saydırılır";
       not += `<div class="denknot">OBS resmî ders denkliği${
@@ -7409,9 +7453,10 @@ function injectSections(bulunan){
                  doldurmuyor. Kredisi yüke ve çakışmaya girer, ilerleme
                  yüzdesine girmez. Projenin ana hata sınıfı tam burada:
                  alınmamış bir şartı alınmış saymak. */
-              pool: "", score: 0, opens: [],
+              pool: "", score: 0, opens: [], denkOf: x.denkOf || "",
               reasons: [x.role === "PLAN_DISI"
-                        ? "plan dışı; hiçbir şartı karşılamaz" : "CRN ile eklendi"],
+                        ? "plan dışı; hiçbir şartı karşılamaz"
+                        : x.denkOf ? `${x.denkOf} yerine (resmî denklik)` : "CRN ile eklendi"],
               sections: [sec]};
       CAND[x.course] = cand;
       MODES.forEach(m => { if(!(m.candidates || []).some(c => c.course === x.course))
@@ -10335,7 +10380,8 @@ function courseDialog(course){
 
   openDialog(`
     <div class="eyebrow">${cand.role === "ANADAL" ? "Anadal dersi" : LBL + " dersi"}${
-      cand.pool ? " · havuz: " + esc(cand.pool) : ""}</div>
+      cand.pool ? " · havuz: " + esc(cand.pool) : ""}${
+      cand.denkOf ? " · " + esc(cand.denkOf) + " yerine (resmî denklik)" : ""}</div>
     <h2 class="mono">${esc(cand.course)}</h2>
     <div style="color:var(--ink-2);font-size:var(--fs-md);margin:2px 0 6px">${esc(cand.name)}</div>
     <div class="meta" style="color:var(--ink-3);font-size:var(--fs-sm)">
@@ -10869,6 +10915,8 @@ function renderCandidates(){
       <td><b class="mono">${esc(c.course)}</b>
         ${inPlan ? `<span class="chip" style="margin-left:6px;color:var(--ok)">programda</span>` : ""}
         ${c.critical ? `<span class="chip supply" style="margin-left:6px">kritik yol</span>` : ""}
+        ${c.denkOf ? `<span class="chip prereq" style="margin-left:6px"
+          title="Plandaki ${esc(c.denkOf)} dersinin resmî denkliği; şubesi programınıza açık olduğundan dilekçe gerekmez. Bu ders geçilince ${esc(c.denkOf)} yuvası dolar.">${esc(c.denkOf)} yerine</span>` : ""}
         ${c.prereqUnknown ? `<span class="chip unknown"
           style="margin-left:6px" title="Önşart metni bulunmakla birlikte okunamamıştır; danışmanınıza danışınız">önşart okunamadı</span>`
           : (c.prereqMissing ? `<span class="chip unknown" style="margin-left:6px"
@@ -11474,14 +11522,21 @@ async function yhSenaryoKur(){
 function yhSenaryoPaneli(T){
   if(!(LIVE || window.__ITUCAP_API__)) return "";
   const A = yhAyar();
-  const yukler = [T.maxLoad, 21, 18, 15, 12].filter((v, i, a) =>
-    v <= T.maxLoad && a.indexOf(v) === i);
+  /* ★ Faz 119 (kullanıcı isteği 28.09.2026: "dönem başına en çok kredi
+     kısmında istenilen değerin girilmesine izin verebilir misin") — sabit
+     liste yerine SERBEST değer (1–60, yarım kredi adımı; sunucu aynı aralığı
+     doğruluyor). Liste yalnız öneri. Mevcut sınırın üstündeki değer kabul
+     ediliyor; yönetmeliğin istediği GNO şeritte yazıyor. */
+  const oneriler = [T.maxLoad, 25, 22, 21, 18, 15, 12].filter((v, i, a) =>
+    v && a.indexOf(v) === i);
   const donemler = (T.terms || []).filter(t => !t.current && !t.summer && t.index <= 8);
   return `<div class="yhsenaryo" role="group" aria-label="Senaryo">
     <span class="eyebrow">Senaryo</span>
-    <label>Dönem başına en çok <select id="yhYuk">${yukler.map(v =>
-      `<option value="${v}"${v === A.maxLoad ? " selected" : ""}>${v}${
-        v === T.maxLoad ? " (mevcut sınır)" : ""}</option>`).join("")}</select> kredi</label>
+    <label>Dönem başına en çok <input id="yhYuk" type="number" inputmode="decimal"
+      min="1" max="60" step="0.5" value="${A.maxLoad}" list="yhYukOneri"
+      aria-describedby="yhSenaryoDurum" title="Mevcut sınır: ${T.maxLoad} kredi"> kredi</label>
+    <datalist id="yhYukOneri">${oneriler.map(v => `<option value="${v}">${
+      v === T.maxLoad ? "mevcut sınır" : ""}</option>`).join("")}</datalist>
     ${yhZorVar(T) ? `<label title="Tahmini zorluğu 10 üzerinden 6 ve üstü olan dersler; fazlası sonraki uygun döneme bırakılır"
       >Dönem başına en çok <select id="yhZor">${[0, 1, 2, 3].map(v =>
       `<option value="${v}"${v === (A.zor || 0) ? " selected" : ""}>${v ? v : "sınırsız"}</option>`).join("")}</select>
@@ -11491,6 +11546,54 @@ function yhSenaryoPaneli(T){
       aria-pressed="${A.bos.has(t.index)}">${A.bos.has(t.index) ? "✓ " : ""}${
         esc(t.label)}</button>`).join("")}
     <span class="meta" id="yhSenaryoDurum" aria-live="polite"></span>
+  </div>`;
+}
+
+/* ★ Faz 119 — mevcut sınırın üstündeki senaryo yükü: yönetmeliğin istediği
+   GNO (MADDE 17/2, `kurallar.toml`). Basamak bilinmiyorsa hiçbir şart
+   uydurulmuyor, yalnız "mevcut sınırın üzerindedir" deniyor. */
+function yukSarti(sc, sinir){
+  if(!(sc.maxLoad > sinir)) return "";
+  const b = sc.loadBand;
+  const ust = ` <span class="uyari">(mevcut sınırınızın, ${sinir} kredinin, üzerindedir`;
+  if(!b) return ust + ")</span>";
+  if(b.aboveMax) return ust + `; yönetmelikteki en yüksek sınır ${b.max} kredidir,
+    bu yük alınamaz)</span>`;
+  return ust + (b.minGpa ? `; yönetmeliğe göre en az ${b.minGpa.toFixed(2)} GNO gerekir)`
+    : ")") + "</span>";
+}
+
+/* ★★ FAZ 118 — YOL HARİTASI ÖNCELİĞİ (kullanıcı isteği 28.09.2026).
+   İkinci program varken iki ayar: programların BİRLİKTE en kısa sürede
+   bitmesi ya da anadalın önce bitmesi. KAYDEDİLİYOR (`/api/yolonceligi`):
+   senaryo değil, öğrencinin tercihi — sayfadaki harita, "bu dönem alırsan",
+   kalma riski ve ÇAP seçenekleri aynı ayarla kuruluyor. Motor her iki
+   ayarın sonucunu da döndürdüğü için öbür seçeneğin bitişi seçmeden önce
+   yazıyor: öğrenci neyi neye değiştiğini görerek karar veriyor. */
+const YH_ONCELIK_AD = {birlikte: "Programları birlikte en kısa sürede bitir",
+                       anadal: "Anadala öncelik ver"};
+function yhOncelikPaneli(T, R){
+  const P = R.priority || T.priority;
+  if(!P || !P.options) return "";
+  const secili = (T.priority && T.priority.setting) || P.setting || "birlikte";
+  const prog = (rol) => (R.programs || []).find(x => x.role === rol) || {label: rol};
+  /* Ortak programın (UOLP) bitişi zaten tahmin edilmiyor — satırda da yok. */
+  const bitis = (f) => Object.keys(f).filter(rol => !prog(rol).jointDegree)
+    .map(rol => `${esc(prog(rol).label)} <b>${
+      f[rol].label ? esc(f[rol].label) : "hesaplanamadı"}</b>`).join(" · ");
+  const oburu = secili === "birlikte" ? "anadal" : "birlikte";
+  const a = P.options[secili], b = P.options[oburu];
+  const ayni = a && b && Object.keys(a.finish).every(r =>
+    (a.finish[r] || {}).index === ((b.finish || {})[r] || {}).index);
+  const yazilabilir = LIVE || window.__ITUCAP_API__;
+  return `<div class="yhoncelik" role="group" aria-label="Yol haritası önceliği">
+    <span class="eyebrow">Öncelik</span>
+    <div class="radios">${["birlikte", "anadal"].map(k => `<button type="button"
+      data-oncelik="${k}" aria-pressed="${k === secili}"${yazilabilir ? "" : " disabled"}
+      >${YH_ONCELIK_AD[k]}</button>`).join("")}</div>
+    <span class="meta">${!b ? "" : ayni
+      ? "İki ayar bu plan için aynı bitişi vermektedir."
+      : `${YH_ONCELIK_AD[oburu]} seçilirse: ${bitis(b.finish)}`}</span>
   </div>`;
 }
 
@@ -11663,19 +11766,35 @@ function renderRoadmap(){
   const serit = R === T ? "" : `<div class="note yhseritsenaryo" role="status">
       <b>Senaryo görüntülenmektedir (kaydedilmedi).</b> ${[
         R.scenario.maxLoad !== T.maxLoad ? `dönem başına en çok <b class="mono">${
-          R.scenario.maxLoad}</b> kredi` : "",
+          R.scenario.maxLoad}</b> kredi${yukSarti(R.scenario, T.maxLoad)}` : "",
         R.scenario.empty.length ? `boş: ${(R.terms || []).filter(t => t.skipped)
           .map(t => esc(t.label)).join(", ")}` : "",
         R.scenario.hardMax ? `dönem başına en çok <b class="mono">${
           R.scenario.hardMax}</b> zor ders` : ""].filter(Boolean).join(" · ")}
       <button class="ghost mini" id="yhSenaryoKapat">Mevcut plana dön</button></div>`;
-  body.innerHTML = `${yhSenaryoPaneli(T)}${serit}<div class="yhprogramlar">${programlar}</div>${
+  body.innerHTML = `${yhOncelikPaneli(T, R)}${yhSenaryoPaneli(T)}${serit}<div class="yhprogramlar">${programlar}</div>${
     simdi}${yaz}<div data-kalma="yh">${kalmaPanelIcerik()}</div>${varsayim}${zincir}${donemler}${kalan}`;
   kalmaBagla(); kalmaOto();        // Faz 75
   const yuk = $("#yhYuk");
-  if(yuk) yuk.addEventListener("change", () => { yhAyar().maxLoad = +yuk.value; yhSenaryoKur(); });
+  if(yuk) yuk.addEventListener("change", () => {
+    const v = Number(String(yuk.value).replace(",", "."));
+    if(!yuk.value || !isFinite(v) || v < 1 || v > 60 || Math.round(v * 2) !== v * 2){
+      const d = $("#yhSenaryoDurum");
+      if(d) d.textContent = "1 ile 60 arasında, tam ya da buçuklu bir kredi değeri giriniz.";
+      yuk.setAttribute("aria-invalid", "true");
+      return;
+    }
+    yuk.removeAttribute("aria-invalid");
+    yhAyar().maxLoad = v; yhSenaryoKur();
+  });
   const zorSec = $("#yhZor");
   if(zorSec) zorSec.addEventListener("change", () => { yhAyar().zor = +zorSec.value; yhSenaryoKur(); });
+  body.querySelectorAll("[data-oncelik]").forEach(b => b.addEventListener("click", async () => {
+    if(b.getAttribute("aria-pressed") === "true") return;
+    const geri = dugmeMesgul(b, "hesaplanıyor…");
+    try{ applyState(await api("/api/yolonceligi", {oncelik: b.dataset.oncelik})); }
+    catch(err){ geri(); hataBildir(b, err); }
+  }));
   body.querySelectorAll("[data-bos]").forEach(b => b.addEventListener("click", () => {
     const A = yhAyar(), i = +b.dataset.bos;
     if(A.bos.has(i)) A.bos.delete(i); else A.bos.add(i);
