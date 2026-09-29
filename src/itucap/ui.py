@@ -3772,6 +3772,22 @@ table.cmp .meta.arti{color:var(--ok)}
   body:not(.kurulum) header .sub{flex:1 1 100%;order:4;font-size:var(--fs-sm)}
   body:not(.kurulum) header #theme{order:2;min-height:44px;padding:0 12px}
   .veriyasi{gap:2px 6px}
+  /* ★★ Faz 129 — telefonda üst çubuk her görünümde ekranın ~üçte birini
+     kaplıyordu (ölçüldü, 390px: içerik 240px'ten sonra başlıyordu). Ad ve
+     Kılavuz/Tema TEK satırda; durum satırı (açık şube, yük sınırı, dönem)
+     yalnız PROGRAM görünümünde — öbür görünümlerde o bilgi zaten kendi
+     bölümünde; veri yaşı satırı küçük. Dokunma hedefleri 44px kalıyor. */
+  body:not(.kurulum) header .basdugme{order:2;margin-left:auto;display:flex;gap:6px}
+  body:not(.kurulum) header .basdugme button{min-height:44px;padding:0 12px}
+  :root:not([data-gorunum="schedSection"]) body:not(.kurulum) header #subtitle{display:none}
+  body:not(.kurulum) header .veriyasi{font-size:var(--fs-xs);order:5}
+  body:not(.kurulum) header .veriyasi button{min-height:44px;padding:0 10px}
+  /* Ad sütunu esnek: uzun dönem satırı (ör. "HTAE + BLG ÇAP · 2026-2027
+     GÜZ") düğmeleri alt satıra itmesin — ölçüldü, itiyordu. Veri yaşı
+     cümlesi ile "tazele" düğmesi aynı satırda, düğme sağda. */
+  body:not(.kurulum) header .masthead>div:first-child{flex:1 1 0}
+  body:not(.kurulum) header .veriyasi{flex-wrap:nowrap}
+  body:not(.kurulum) header .veriyasi .veriyazi{flex:1 1 auto;min-width:0}
   /* Dördü çubukta, gerisi "Daha" altında. */
   .ray a[data-alt]{display:none}
   .raydaha{display:flex;flex:1 1 0;min-width:0;min-height:56px;padding:0 4px;
@@ -6232,6 +6248,21 @@ function tabanDurumu(F){
   return {ikinci, kredi, ok: kredi + 1e-9 >= F.min, eksik: +(F.min - kredi).toFixed(1)};
 }
 
+/* ★ Faz 129 — bu dönem ikinci anadaldan ALINABİLECEK derslerin toplamı
+   (aday havuzu: önşartı ve kredi eşiği tutan, açık şubesi olanlar; aynı
+   yuvanın denk dersi ayrıca sayılmıyor). Tabanın karşılanıp
+   karşılanamayacağının üst sınırı. */
+function tabanArzi(){
+  const gorulen = new Set(), dersler = [];
+  (M().candidates || []).filter(c => c.role === "CAP").forEach(c => {
+    const yuva = c.slotId || c.course;
+    if(gorulen.has(yuva)) return;
+    gorulen.add(yuva);
+    dersler.push({course: c.course, credits: c.credits});
+  });
+  return {dersler, kredi: Math.round(10 * dersler.reduce((a, d) => a + (+d.credits || 0), 0)) / 10};
+}
+
 function renderFloor(){
   const box = $("#floorBody");
   const F = DATA.secondFloor;
@@ -6260,15 +6291,29 @@ function renderFloor(){
   const oneriler = M().schedules || [];
   const hicbiriOlmuyor = oneriler.length > 0 &&
     oneriler.every(s => (s.floorGaps || []).length);
+  /* ★★ Faz 129 — SEBEP ARZ MI? (kullanıcının verisi: üç önerinin üçü de
+     "TABAN ✗"; mesaj "arz, saat çakışması veya önşart" diye üç ihtimal
+     sayıyordu. Oysa bu dönem alınabilecek BÜTÜN ÇAP dersleri 7,5 kredi —
+     hiçbir program 9'a ulaşamaz.) Arz tabanın altındaysa bu ölçülüp yazılıyor. */
+  const arz = tabanArzi();
+  const arzYetmiyor = arz.kredi + 1e-9 < F.min;
 
   box.innerHTML = `
     ${hicbiriOlmuyor ? `<div class="note" style="margin-top:12px;
-        border-left-color:var(--warn)">
-      <b>Bu dönem açılan derslerle tabanı karşılayan çakışmasız bir program
-      bulunamamıştır.</b> Oluşturulan ${oneriler.length} öneriden hiçbiri, ders
-      arzı, saat çakışması veya önşart nedeniyle ${F.min} krediye ulaşmamaktadır.
-      Tabanın indirilmesi mümkündür (aşağıda) ve dönem başında yeni şubeler
-      açılabilir. Danışmanınızla görüşmeniz önerilir.</div>` : ""}
+        border-left-color:var(--warn)">${arzYetmiyor
+      ? `<b>Bu dönem ikinci anadaldan alınabilecek derslerin tamamı
+        ${arz.kredi} kredidir; taban ${F.min} kredi olduğundan hiçbir program
+        tabanı karşılayamaz.</b> Alınabilecek dersler: ${arz.dersler.map(d =>
+          `<span class="mono">${esc(d.course)}</span> (${d.credits})`).join(", ") || "yok"}.
+        Açılmayan veya önşartı eksik dersler "Alınamayan dersler" bölümünde
+        listelenmiştir. Tabanın indirilmesi için başvuru yapılabilir (aşağıda);
+        dönem başında yeni şubeler de açılabilir.`
+      : `<b>Bu dönem açılan derslerle tabanı karşılayan çakışmasız bir program
+        bulunamamıştır.</b> İkinci anadaldan alınabilecek dersler toplam
+        ${arz.kredi} kredi olduğu hâlde oluşturulan ${oneriler.length} öneriden
+        hiçbiri ${F.min} krediye ulaşmamaktadır; sebep saat çakışması veya yük
+        sınırıdır. Tabanın indirilmesi mümkündür (aşağıda). Danışmanınızla
+        görüşmeniz önerilir.`}</div>` : ""}
     <div class="gauge" style="margin-top:14px;padding-top:14px;
          border-top:1px solid var(--border)">
       <div class="gaugebar" style="max-width:230px">
@@ -7816,8 +7861,11 @@ function danismanSorulari(){
       aşmaktadır; sınırın üzerinde ders alabilmek için dilekçe gerekir.`);
   if(F && !F.undeclared && F.relief){
     const d = tabanDurumu(F);
+    const arz = tabanArzi();                                    // Faz 129
     if(!d.ok) q.push(`İkinci anadaldan bu dönem <b>${d.kredi}</b> kredi alıyorum; yarıyıl
-      tabanı ${F.min} kredidir (<b>${d.eksik}</b> kredi eksik). Tabanın ${F.relief.min}
+      tabanı ${F.min} kredidir (<b>${d.eksik}</b> kredi eksik).${arz.kredi + 1e-9 < F.min
+        ? ` Bu dönem ikinci anadaldan alınabilecek derslerin tamamı ${arz.kredi} krediden
+          ibarettir (${arz.dersler.map(x => esc(x.course)).join(", ")}).` : ""} Tabanın ${F.relief.min}
       krediye indirilmesi için dilekçe verilebilir.`);
   }
   /* ★★ Faz 90 — dolu şubeler TEK maddede; programla çakışmayan BOŞ şubesi
