@@ -611,7 +611,15 @@ def plan_progress(con: sqlite3.Connection, plan_id: int, grades: Mapping[str, st
         "ects_total": round(ects_total, 1),
         "credits_done": round(cr_done, 1),
         "credits_total": round(cr_total, 1),
-        "percent": round(100 * done / len(slots), 1) if slots else 0.0,
+        # ★ Faz 123 — yüzde AKTS AĞIRLIKLI (kullanıcı isteği 28.09.2026:
+        # "ilerleme durumunu AKTS'ye göre hesaplar mısın"). Yuva sayısı 2 AKTS'lik
+        # dersle 7,5 AKTS'lik bitirme çalışmasını eşit sayıyordu; mezuniyet
+        # şartı AKTS. Planda hiç AKTS yoksa yuva sayısına düşülüyor ve
+        # `percent_basis` bunu söylüyor.
+        "percent": (round(100 * ects_done / ects_total, 1) if ects_total
+                    else round(100 * done / len(slots), 1) if slots else 0.0),
+        "percent_basis": "akts" if ects_total else "slot",
+        "percent_slots": round(100 * done / len(slots), 1) if slots else 0.0,
         "by_category": {k: tuple(v) for k, v in sorted(by_category.items())},
         "open_slots": open_slots,
     }

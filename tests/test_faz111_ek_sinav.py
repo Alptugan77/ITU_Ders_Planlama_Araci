@@ -182,4 +182,4 @@ def test_DENKLIK_arayuz_dilekcesiz():
     assert "şubesi programınıza açık olduğundan <b>dilekçe gerekmez</b>" in src
     assert "olduğundan dilekçesiz alınabilir, diğerleri dilekçeyle saydırılır" in src
     assert 'k.dilekcesiz ? `<span class="chip prereq"' in src
-    assert "[settings.anadal_program, *(x[3] for x in settings.seconds)])," in src
+    assert "[settings.anadal_program, *(x[3] for x in settings.seconds)]," in src

@@ -60,7 +60,8 @@ def _dil_esi(code: str) -> list[str]:
 
 
 def _acik_denklikler(con, equivalences, expanded, gereken, allowed,
-                     names, section_json, kendi_program: str | None = None) -> list[dict]:
+                     names, section_json, kendi_program: str | None = None,
+                     kazanilan_kredi: float | None = None) -> list[dict]:
     """Almam gereken bir dersin DENKLİĞİ bu dönem açıksa, onu bilgileriyle
     listeler (kullanıcı isteği 27.08.2026; resmi OBS denklikleri 28.08.2026).
 
@@ -98,6 +99,47 @@ def _acik_denklikler(con, equivalences, expanded, gereken, allowed,
     def passed(code):
         return any(R.passed(expanded.get(s)) for s in _dil_esi(code))
 
+    # ★★ Faz 124 — BU DÖNEM ALINABİLİR Mİ (kullanıcının verisinde ölçüldü,
+    # 29.09.2026). Kart BBF 302E'yi "açık, dilekçe gerekmez" diye gösteriyordu;
+    # önşartı BLG 252E geçilmemişti. Engel paneli (Faz 120) aynı dersi "önşart
+    # eksik" sayıyordu — iki ekran çelişiyordu. Aynı kartta BLG 492 (bitirme
+    # çalışması, en az 95 kredi; öğrencinin 85'i var) da alınabilir görünüyordu.
+    # ⚠️ Denetim ŞUBESİ AÇIK olan yazımla: OBS listesi taban kod yazıyor
+    # ("BBF 302"), katalogda o kod yok — ona bakmak "önşart yok" sanıyordu.
+    _agaclar = PRQ.parsed_trees(con)
+    _onsart_notlari = R.prereq_view(expanded)
+    _okunamayan = {r[0] for r in con.execute("SELECT course_code FROM prereq_unparsed")}
+    _kurallar, _katalog_kurali = POL.load_rules(), POL.load_catalog_rule()
+    # ⚠️ Kredi HAM transkriptten (çağıran veriyor): genişletilmiş notlarla
+    # denklikten "kazanılan" dersler de sayılıyordu — kullanıcıda 85 → 329.
+    _kredi = kazanilan_kredi
+    _katalog: set = set()
+
+    def alinamaz(kodlar: list[str]) -> str:
+        """Şubesi açık yazımların HİÇBİRİ alınamıyorsa sebebi; biri alınabiliyorsa ''."""
+        sebepler = []
+        for s in kodlar:
+            row = con.execute("SELECT name, class_restriction FROM course WHERE code=?",
+                              (s,)).fetchone()
+            ad, sinif = (row[0] or "", row[1]) if row else ("", None)
+            if s not in _okunamayan:
+                karar = R.can_take_tree(_agaclar.get(s), _onsart_notlari)
+                if karar.status is R.Status.BLOCKED:
+                    if not _katalog:
+                        _katalog.update(r[0] for r in con.execute("SELECT code FROM course"))
+                    metin, _ = REC._onsart_ayikla({m[0] for m in karar.missing}, _katalog)
+                    sebepler.append(f"önşart eksik: {metin}")
+                    continue
+            kk = (POL.check(s, _kredi, _kurallar, ad, sinif, _katalog_kurali)
+                  if _kredi is not None else None)
+            if kk is not None and not kk.ok:
+                sebepler.append(
+                    f"en az {kk.rule.min_credits:g} kredi gerekir, tamamlanan {kk.have:g}"
+                    if kk.rule else "kredi eşiği sağlanmamaktadır")
+                continue
+            return ""
+        return sebepler[0] if sebepler else ""
+
     def name_of(code):
         for s in _dil_esi(code):
             if names.get(s):
@@ -110,11 +152,13 @@ def _acik_denklikler(con, equivalences, expanded, gereken, allowed,
             for sec in REC.load_sections(con, s, allowed):
                 if sec.crn not in crn:
                     crn.add(sec.crn); secs.append(sec)
+        acik_yazim = [s for s in _dil_esi(code) if REC.load_sections(con, s, allowed)]
         dilekcesiz = [sec.crn for sec in secs if any(
             str(r[0]).strip().upper() in kendi for r in con.execute(
                 "SELECT program_code FROM lesson_allowed_program WHERE crn=?", (sec.crn,)))]
         return {"code": code, "name": name_of(code), "minGrade": min_not,
                 "passed": passed(code), "open": bool(secs),
+                "notTakable": alinamaz(acik_yazim) if secs and not passed(code) else "",
                 "dilekcesiz": bool(dilekcesiz), "dilekcesizCrn": dilekcesiz,
                 "sections": [section_json(s) for s in secs]}
 
@@ -137,6 +181,10 @@ def _acik_denklikler(con, equivalences, expanded, gereken, allowed,
         g = resmi.setdefault(base, {"target": hk, "sources": {}, "conf": "official",
                                     "note": e.note or ""})
         for code, min_not in e.sources:
+            # ★ Faz 124 — "Yabancı Öğr. İçin Türk Dili" (TUR 111/112) yalnız
+            # yabancı uyruklu öğrenci içindir (Faz 117'deki öneri kuralıyla aynı).
+            if "yabancı öğr" in name_of(code).lower():
+                continue
             g["sources"].setdefault(code, min_not)
         if e.confidence == "requires_approval":
             g["conf"] = "requires_approval"
@@ -171,7 +219,11 @@ def _acik_denklikler(con, equivalences, expanded, gereken, allowed,
             "mode": "and" if len(kaynaklar) > 1 else "one", "sources": kaynaklar,
             "allReady": all(k["open"] or k["passed"] for k in kaynaklar),
         })
-    out.sort(key=lambda x: (not x["needed"], x["target"]))
+    # Faz 124 — bu dönem gerçekten alınabilenler önce.
+    out.sort(key=lambda x: (not x["needed"],
+                            all(k["notTakable"] for k in x["sources"]
+                                if k["open"] and not k["passed"]),
+                            x["target"]))
     return out
 
 
@@ -648,6 +700,7 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
                     .startswith(config.OBS + "/public/DersPlan/DersPlanDetay/") else None),
             "source": plan["source"],
             "percent": stats["percent"],
+            "percentBasis": stats["percent_basis"],                      # Faz 123
             "slotsDone": stats["slots_done"], "slotsTotal": stats["slots_total"],
             "openRequired": stats["open_required"],
             "ectsDone": stats["ects_done"], "ectsTotal": stats["ects_total"],
@@ -1282,7 +1335,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
             con, equivalences,
             R.expand_with_equivalences(grades, equivalences)[0],
             gereken_dersler, settings.allowed_programs, names, section_json,
-            [settings.anadal_program, *(x[3] for x in settings.seconds)]),
+            [settings.anadal_program, *(x[3] for x in settings.seconds)],
+            kazanilan_kredi=POL.earned_credits(con, grades)),              # Faz 124
         # Her ikinci programın KENDİ kademe zinciri.
         "tierGroups": tier_groups,
         # ★★ Faz 57 — mezuniyet yol haritası (çok dönemli plan, §2.1).
@@ -6892,6 +6946,8 @@ function renderAcikDenklik(){
           ${k.sections.some(x => x.online) ? `<span class="chip online"
             style="margin-left:6px">çevrimiçi</span>` : ""}${
           /* ★ Faz 111 — şube bölümünüze açıksa dilekçe gerekmiyor. */
+          k.notTakable ? `<span class="chip prereq" style="margin-left:6px"
+            title="${esc(k.notTakable)}">bu dönem alınamaz</span>` : ""}${
           k.dilekcesiz ? `<span class="chip prereq" style="margin-left:6px"
             title="Şube, OBS'de programlarınızın (anadal veya ÇAP/yandal) alabileceği şube olarak listelenmiştir${
               k.dilekcesizCrn.length < k.sections.length
@@ -6900,6 +6956,7 @@ function renderAcikDenklik(){
           ${k.sections.length === 1 ? `CRN ${esc(s.crn)} · ` : ""}${esc(saat(k.sections))}
           ${s.instructor ? ` · ${esc(s.instructor)}` : ""}</div>
         <div style="margin-top:4px">${doluluk(k.sections)}</div>
+        ${k.notTakable ? `<div class="denkmeta">Bu dönem alınamaz — ${esc(k.notTakable)}.</div>` : ""}
       </div>`;
     }).join("");
     const kapali = e.sources.filter(k => !k.open && !k.passed);
@@ -6921,9 +6978,13 @@ function renderAcikDenklik(){
     /* Köken çerçevesi: resmi = OBS + dilekçe; beyan = kendi bildirdiğin. */
     if (!e.declared) {
       /* ★ Faz 111 — şubesi bölümünüze açık kaynak dilekçesiz alınıyor. */
-      const serbest = acik.filter(k => k.dilekcesiz);
+      /* ★ Faz 124 — önşartı eksik kaynak "alınabilir" sayılmıyor. */
+      const serbest = acik.filter(k => k.dilekcesiz && !k.notTakable);
       const onay = e.confidence === "requires_approval"
         ? "bölüm/yönetim kurulu onayı gerekebilir"
+        : acik.length && acik.every(k => k.notTakable)
+          ? `${acik.some(k => k.dilekcesiz) ? "şubesi programınıza açık (dilekçe gerekmez), ancak " : ""
+            }<b>şartları sağlanmadığından bu dönem alınamaz</b>`
         : serbest.length === acik.length && acik.length
           ? "şubesi programınıza açık olduğundan <b>dilekçe gerekmez</b>"
           : serbest.length
@@ -6934,7 +6995,9 @@ function renderAcikDenklik(){
         capraz ? " — <b>başka bölümden</b>" : ""}; ${onay}. Danışmanınızla doğrulayınız.</div>`;
     }
     /* Başlık: OR ise "birini al", tek/AND ise "denkliği açık". */
-    const baslik = e.mode === "or"
+    const baslik = acik.length && acik.every(k => k.notTakable)          // Faz 124
+      ? "— denkliği bu dönem açık, ancak şartları sağlanmamaktadır:"
+      : e.mode === "or"
       ? (acik.length > 1 ? "— yerine şu açık derslerden <b>biri</b> alınabilir:"
                          : "— yerine bu açık ders alınabilir:")
       : "— denkliği açık:";
@@ -8244,7 +8307,11 @@ function renderCredits(){
    katman 'bu dönemi bitirirsen ne olur' sorusunun cevabı — barın taralı
    kısmı, yüzdenin sağındaki ok ve kalan zorunlu sayısındaki düşüş. */
 function panelHTML(p, plan){
-  const pctAfter = p.slotsTotal
+  /* ★ Faz 123 — yüzde AKTS ağırlıklı; plan AKTS taşımıyorsa yuva sayısı. */
+  const aktsli = p.percentBasis === "akts" && p.ectsTotal;
+  const pctAfter = aktsli
+    ? Math.min(100, Math.round(1000 * (p.ectsDone + (plan.ects || 0)) / p.ectsTotal) / 10)
+    : p.slotsTotal
     ? Math.round(1000 * (p.slotsDone + plan.slots) / p.slotsTotal) / 10 : p.percent;
   const kind = {ANADAL:"Anadal", CAP:"Çift anadal", YANDAL:"Yandal",
               PLAN_DISI:"Plan dışı"}[p.role] || p.role;
@@ -8265,7 +8332,7 @@ function panelHTML(p, plan){
         <div class="pct mono${bilinmiyor ? " unknown" : ""}"
           title="${bilinmiyor ? "Başarılan dersler girilmedi" : ""}"
           >${bilinmiyor ? "—" : "%" + p.percent}</div>
-        ${bilinmiyor ? "" : `<div class="pctlbl">tamamlandı</div>`}
+        ${bilinmiyor ? "" : `<div class="pctlbl">tamamlandı${aktsli ? " (AKTS)" : ""}</div>`}
       </div>
     </div>
     <div class="name">${esc(p.title)}${p.url
@@ -8282,7 +8349,8 @@ function panelHTML(p, plan){
       <i class="plan" style="width:${Math.max(0, pctAfter - p.percent)}%"></i>
     </div>`}
     ${bilinmiyor ? "" : `<div class="proj">${plan.slots
-      ? `bu dönem <b class="mono">${plan.slots}</b> slot dolarsa
+      ? `bu dönem <b class="mono">${plan.slots}</b> slot${aktsli
+          ? ` (<span class="mono">${plan.ects}</span> AKTS)` : ""} dolarsa
          <span class="mono">%${p.percent}</span> <span class="arrow">→</span>
          <b class="mono">%${pctAfter}</b>`
       : `<span class="flat">bu dönemki seçimde bu plandan ders bulunmamaktadır</span>`}</div>`}

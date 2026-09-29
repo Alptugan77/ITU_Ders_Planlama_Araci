@@ -121,4 +121,4 @@ def test_etkilesim_cilasi():
     assert '.tab:not([aria-selected="true"]):hover' in src  # seçili olmayan sekme hover
     assert "#cands tbody tr[data-course]{cursor:pointer}" in src
     assert "#cands tbody tr[data-course]:hover" in src      # aday satırı tıklanabilir
-    assert 'class="pctlbl"' in src and ">tamamlandı<" in src  # büyük yüzde etiketli
+    assert 'class="pctlbl"' in src and ">tamamlandı${aktsli" in src  # büyük yüzde etiketli (Faz 123: AKTS)
