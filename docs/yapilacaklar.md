@@ -790,6 +790,15 @@ her maddeden önce gelen tek iş.
 > kaynak değil ✅
 > ➜ Ayrıntı: `docs/faz124-denk-kart.md`
 >
+> **Faz 125 (29.09.2026):** ÇAP dersinin açıldığı yarıyıl takma adıyla
+> (denklik/kod göçü) lisans planından; 383 çiftte "her dönem açılır"
+> varsayımı 627 → 414, geçmişten tahmin 740 → 342 ✅
+> ➜ Ayrıntı: `docs/faz125-takma-ad-mevsim.md`
+>
+> **Faz 126 (29.09.2026):** "bu dönem alınırsa" satırı kesin saat
+> çakışmasında takası kuruyor ve her programın net etkisini yazıyor ✅
+> ➜ Ayrıntı: `docs/faz126-saat-takasi.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

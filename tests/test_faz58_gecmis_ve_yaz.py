@@ -247,9 +247,12 @@ with sync_playwright() as p:
                                      for i in t["items"]}, ensure_ascii=False))
     pg.evaluate("() => gorunumAc('roadmapSection')"); pg.wait_for_timeout(300)
     print("YAZKUTU:" + pg.evaluate("() => (document.querySelector('.yhyaz')||{innerText:''}).innerText.replace(/\\s+/g,' ')"))
-    # Çıkar-ve-dene: GEO 315E çıkıyor, GEO 341E'nin şube penceresi açılıyor.
+    print("SIMDI:" + pg.evaluate("() => (document.querySelector('.yhsimdi')||{innerText:''}).innerText.replace(/\\s+/g,' ')"))
+    # ★ Faz 126 — GEO 341E, programdaki BLG 252E ile KESİN çakışıyor: eski
+    # "GEO 315E çıkar" önerisi uygulanamazdı. Düğme artık takas: BLG 252E
+    # çıkıyor, GEO 341E'nin şube penceresi açılıyor.
     pg.click("[data-cikar]"); pg.wait_for_timeout(400)
-    print("CIKAR:" + str(pg.evaluate("() => sel.some(x => x.course === 'GEO 315E')"))
+    print("CIKAR:" + str(pg.evaluate("() => sel.some(x => x.course === 'BLG 252E')"))
           + "|" + pg.evaluate("() => (document.querySelector('dialog[open]')||{}).id || '-'")
           + "|" + pg.evaluate("() => document.documentElement.dataset.gorunum")
           + "|" + pg.evaluate("() => $('#undo').textContent"))
@@ -302,6 +305,12 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     assert t["course"] == "GEO 341E" and t["overLoad"], t
     assert t["drop"]["course"] == "GEO 315E" and t["drop"]["lossTerms"] == 0, t
     assert roller[t["drop"]["course"]] != "CAP"
+    # Faz 126 — takas: BLG 252E yerine; anadal 2 dönem erken, ÇAP aynı, ama
+    # ÇAP yarıyıl tabanının altına düşürüyor ve bu YAZIYOR.
+    assert t["swap"]["replaces"] == ["BLG 252E"] and t["swap"]["floorBreak"] is True, t
+    assert {e["role"]: e["terms"] for e in t["swap"]["effects"]} == {"ANADAL": 2, "CAP": 0}
+    assert "BLG 252E ile aynı saattedir" in c["SIMDI"] and "tabanının altına" in c["SIMDI"]
+    assert "GEO 315E çıkarılarak dene" not in c["SIMDI"], "uygulanamaz öneri kalmış"
 
     # Y.3 — GEO 341E geçen yaz 14 öğrenciyle açıldı; ilk yazda alınırsa 2 dönem.
     y = json.loads(c["YAZ"])
@@ -315,7 +324,7 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
 
     ciktimi, pencere, gorunum, geri = c["CIKAR"].split("|")
     assert ciktimi == "False" and pencere == "detail" and gorunum == "schedSection", c["CIKAR"]
-    assert geri == "Geri al: GEO 315E çıkarıldı", geri
+    assert geri == "Geri al: BLG 252E çıkarıldı", geri
 
     # Y.6 — ÇAP ortalaması: yalnız ÇAP planındaki dersler; Python'da aynı hesap.
     import math

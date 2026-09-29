@@ -491,6 +491,16 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
             b.mevsim, b.mevsim_kaynagi = _mevsim(b.donem_no), "plan"
         elif b.ders:
             m = _lisans_mevsimi(con, plan.get("program", ""), b.kodlar)
+            if not m:
+                # ★★ Faz 125 — TAKMA ADLA (kullanıcının verisi, 29.09.2026).
+                # ÇAP planı eski kodu yazıyor (BLG 317E, BLG 311E), bölümün
+                # güncel lisans planı yeni kodu (BBF 302E …): mevsim plandan
+                # bulunamıyor, geçmişten tahmin ediliyor ya da "her dönem
+                # açılır" varsayılıyordu. Resmî denklik, kod göçü ve dil eşiyle
+                # (`takma_adlar`, önşart denetiminin kabul ettikleri) aranıyor.
+                adlar = set().union(*(R.takma_adlar(con, k, equivalences) for k in b.kodlar))
+                if adlar - b.kodlar:
+                    m = _lisans_mevsimi(con, plan.get("program", ""), adlar)
             if m:
                 b.mevsim, b.mevsim_kaynagi = m, "lisans"
         if b.mevsim and b.kodlar & acik and term[4:] != b.mevsim:

@@ -1691,6 +1691,37 @@ def _yol_haritasi(con, ucon, student_id, settings, anadal_id, seconds, grades,
                       (con.execute("SELECT name FROM course WHERE code=?",
                                    (x["course"],)).fetchone() or [""])[0])
                 e["drop"] = {"course": x["course"], "name": ad, "lossTerms": kayip}
+        # ★★ Faz 126 — SAAT TAKASI (kullanıcı 28.09.2026: "anadala öncelik
+        # verince BLG 223E yerine GEO 307E'yi neden almıyor"). Kazanç, dersin
+        # programa EKLENDİĞİ varsayımıyla ölçülüyordu; oysa GEO 307E'nin tek
+        # şubesi programdaki BLG 223E ile aynı saatte — ikisi birlikte
+        # alınamaz, "anadal 1 dönem erken" yarım bir cevaptı. Programda bütün
+        # şubeleri adayla çakışan ders varsa takas da kuruluyor ve HER
+        # programın net etkisi yazılıyor (kazanç da kayıp da).
+        def zorunlu_cakisma(a, b) -> bool:
+            sa = [x for x in a.sections if x.meetings]
+            sb = [x for x in b.sections if x.meetings]
+            return bool(sa and sb) and all(REC.section_conflict(x, y) for x in sa for y in sb)
+        for e in etki:
+            c = ders[e["course"]]
+            rakip = [x for x in bu if x["course"] in ders
+                     and zorunlu_cakisma(c, ders[x["course"]])]
+            if not rakip:
+                continue
+            sonra = [y for y in bu if y not in rakip] + [e["_bas"]]
+            yeni = kur(sonra)
+            etkiler = []
+            for p in yeni["programs"]:
+                a, b = simdiki.get(p["role"]), (p["finish"] or {}).get("index")
+                etkiler.append({"role": p["role"], "label": p["label"],
+                                "terms": (a - b) if a is not None and b is not None else None,
+                                "finish": p["finish"]})
+            # Çıkarma önerisiyle AYNI iki denetim: yük ve ÇAP yarıyıl tabanı.
+            yeni_yuk = sum(float(y["credits"] or 0) for y in sonra)
+            e["swap"] = {"replaces": [x["course"] for x in rakip], "effects": etkiler,
+                         "overLoad": yeni_yuk > float(sinir) + 1e-9,
+                         "floorBreak": bool(taban and cap_kredi(sonra) + 1e-9 < taban.minimum
+                                            <= cap_kredi(bu) + 1e-9)}
         for e in etki:
             e.pop("_bas", None), e.pop("_yeni", None)
         sonuc["takeNow"] = etki
@@ -11655,6 +11686,27 @@ function yukSarti(sc, sinir){
     : ")") + "</span>";
 }
 
+/* ★★ Faz 126 — SAAT TAKASI. Aday programdaki bir dersle kesin çakışıyorsa
+   (bütün şubeleri) kazanç tek başına yarım cevap: takasın HER programa net
+   etkisi yazılıyor — "BLG 223E yerine alınırsa anadal 1 dönem erken, ÇAP 4
+   dönem geç biter". */
+function yhTakas(x){
+  const t = x.swap;
+  if(!t) return "";
+  const etki = t.effects.map(e => e.terms === null ? `${esc(e.label)} hesaplanamaz`
+    : e.terms > 0 ? `${esc(e.label)} <b>${e.terms} dönem erken</b>`
+    : e.terms < 0 ? `${esc(e.label)} <b class="uyari">${-e.terms} dönem geç</b>`
+    : `${esc(e.label)} aynı`).join(", ");
+  /* Takasta "ekleyince kazanç" gerçekleşemez (iki ders birlikte alınamaz);
+     satır yalnız takasın sonucunu söylüyor. */
+  return ` — <span class="uyari">programdaki <b class="mono">${
+    t.replaces.map(esc).join(", ")}</b> ile aynı saattedir</span> — ${
+    t.replaces.length > 1 ? "onların" : "onun"} yerine alınırsa ${etki} biter${
+    t.floorBreak ? ` <span class="uyari">· bu takas ÇAP yarıyıl kredi tabanının altına
+      düşürmektedir</span>` : ""}${
+    t.overLoad ? ` <span class="uyari">· takas sonrası yük sınırı aşılmaktadır</span>` : ""}`;
+}
+
 /* ★★ FAZ 121 — PLANLAMA YÜKÜ. Senaryoda denenen kredi değeri KAYDEDİLEBİLİYOR:
    sayfadaki harita, "bu dönem alırsanız", kalma riski ve ÇAP seçenekleri o
    yükle kuruluyor (yönetmelik sınırını aşmadan). Kaydedilmemişken sınır
@@ -11782,22 +11834,25 @@ function renderRoadmap(){
     </article>`;
   }).join("");
   const simdi = (R.takeNow || []).length ? `<div class="note yhsimdi">
-      <b>Bu dönem alınması bitişi öne çekecek ${R.takeNow.length > 1 ? "dersler" : "ders"}</b>
+      <b>Bu dönem alınması bitişi değiştirecek ${R.takeNow.length > 1 ? "dersler" : "ders"}</b>
       ${R.takeNow.map(x => `<div class="yhsatir"><b class="mono">${esc(x.course)}</b>
-        <span>${esc(x.name)}</span> — bu dönem alınırsa ${x.gains.map(g =>
+        <span>${esc(x.name)}</span>${x.swap ? "" : ` — bu dönem alınırsa ${x.gains.map(g =>
           `<span>${esc(g.label)} <b>${g.terms} dönem erken</b> biter
-           (${esc(g.finish.label)})</span>`).join(", ")}${x.overLoad ? (x.drop
+           (${esc(g.finish.label)})</span>`).join(", ")}`}${x.overLoad && !x.swap ? (x.drop
           ? ` <span class="uyari">· yük sınırı aşılmaktadır</span> — <b class="mono">${
               esc(x.drop.course)}</b> çıkarılırsa ${x.drop.lossTerms
               ? `kazancın <b>${x.drop.lossTerms} dönemi</b> kaybedilir`
               : "kazanç <b>korunur</b>"} (çıkarılan ders sonraki dönemlere yerleştirilir)`
           : ` <span class="uyari">· yük sınırı aşılmaktadır; tek bir dersin çıkarılması
-              yeterli değildir veya ÇAP tabanını bozmaktadır</span>`) : ""}
-        <span class="yhdugmeler">${x.drop ? `<button class="ghost mini" data-dene="${esc(x.course)}"
+              yeterli değildir veya ÇAP tabanını bozmaktadır</span>`) : ""}${yhTakas(x)}
+        <span class="yhdugmeler">${x.swap && x.swap.replaces.length === 1
+          ? `<button class="ghost mini" data-dene="${esc(x.course)}"
+            data-cikar="${esc(x.swap.replaces[0])}">${esc(x.swap.replaces[0])} yerine dene</button>` : ""}${
+          x.drop && !x.swap ? `<button class="ghost mini" data-dene="${esc(x.course)}"
             data-cikar="${esc(x.drop.course)}">${esc(x.drop.course)} çıkarılarak dene</button>` : ""}
         <button class="ghost mini" data-dene="${esc(x.course)}">Programda dene</button></span></div>`).join("")}
-      <div class="meta" style="margin-top:6px">Saat çakışması bu bölümde hesaplanmamıştır;
-        "Programda dene" seçeneği şubeleri ve çıkarılacak dersi gösterir.</div></div>` : "";
+      <div class="meta" style="margin-top:6px">Yalnızca bütün şubeleri çakışan dersler
+        (kesin çakışma) hesaplanmıştır; "Programda dene" seçeneği şubeleri ve çıkarılacak dersi gösterir.</div></div>` : "";
   /* ★★ FAZ 58 — YAZ OKULU. Geçmişte yazın GERÇEKTEN açılmış ders (not
      dağılımı) ilk yazda alınırsa bitiş değişiyor mu. Düğme yok: yaz okulu
      bu dönemin programına eklenemez; kararın ne kazandırdığını söylüyoruz. */
