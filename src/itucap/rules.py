@@ -142,11 +142,20 @@ def load_equivalences(con: sqlite3.Connection, include_cap: bool = True,
     ⚠️ `ucon` verilmezse beyanlar OKUNMAZ. Yayınlanan site için DOĞRU
     davranış (orada kişisel dosya zaten yok).
     """
-    out = _denklik_oku(con, include_cap, beyan_haric=True)
-    if ucon is not None:
-        out += _denklik_oku(ucon, include_cap, ofset=BEYAN_ID_OFSET,
-                            yalniz_beyan=True)
-    return out
+    # ★ Faz 128 — istek boyunca bir kez (bir sayfa durumunda 12 okuma, ~0,17 sn).
+    # Çağırana KOPYA dönüyor: listeyi değiştiren çağıran öbürlerini bozmasın.
+    # Yazma uçları istek bağlamının DIŞINDA çalışıyor (bkz. `istek`), yeni
+    # beyan bir sonraki durumda okunuyor.
+    from . import istek as IST
+
+    def oku():
+        out = _denklik_oku(con, include_cap, beyan_haric=True)
+        if ucon is not None:
+            out += _denklik_oku(ucon, include_cap, ofset=BEYAN_ID_OFSET,
+                                yalniz_beyan=True)
+        return out
+    return list(IST.bellek(("denklikler", id(con), include_cap,
+                            id(ucon) if ucon is not None else None), oku))
 
 
 _KOD_PARCA = re.compile(r"^([A-ZÇĞİÖŞÜ]{2,4} \d{3,4})(E?)([A-Z]*)$")
@@ -198,6 +207,9 @@ def _dil_yazimlari(eq: Equivalence) -> list[tuple[str, tuple[tuple[str, str], ..
 #     Sonuç, üretildiği yazım listesinin KENDİSİYLE saklanır ve kimliği
 #     denetlenir; eskimiş bir kurulumun sonucu dönemez.
 _YAZIM_ONBELLEK: list = []          # [(liste, (uzunluk, ilk, son), yazımlar, dizin)]
+# ★ Faz 128 — kimlik tutmazsa İÇERİĞE göre (aynı denklikler, başka liste
+# nesnesi: istek içinde kopyalanan liste dizini baştan kurduruyordu).
+_YAZIM_ICERIK: dict = {}            # tuple(denklikler) → (yazımlar, dizin)
 _GENIS_ONBELLEK: dict = {}          # anahtar → (yazımlar, notlar, via)
 
 
@@ -209,6 +221,13 @@ def _yazim_dizini(eqs: list) -> tuple[list, dict]:
                 return yazimlar, dizin
             del _YAZIM_ONBELLEK[i]      # liste yerinde değişmiş: yeniden kur
             break
+    icerik = tuple(eqs)
+    hazir = _YAZIM_ICERIK.get(icerik)
+    if hazir is not None:
+        if len(_YAZIM_ONBELLEK) >= 8:
+            _YAZIM_ONBELLEK.pop(0)
+        _YAZIM_ONBELLEK.append((eqs, imza, *hazir))
+        return hazir
     yazimlar = [(eq.id, hedef, kaynaklar)
                 for eq in eqs for hedef, kaynaklar in _dil_yazimlari(eq)]
     dizin: dict[str, list[int]] = {}
@@ -219,6 +238,9 @@ def _yazim_dizini(eqs: list) -> tuple[list, dict]:
         _YAZIM_ONBELLEK.pop(0)
         _GENIS_ONBELLEK.clear()
     _YAZIM_ONBELLEK.append((eqs, imza, yazimlar, dizin))
+    if len(_YAZIM_ICERIK) >= 8:
+        _YAZIM_ICERIK.clear()
+    _YAZIM_ICERIK[icerik] = (yazimlar, dizin)
     return yazimlar, dizin
 
 

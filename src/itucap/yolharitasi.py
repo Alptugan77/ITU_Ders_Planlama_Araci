@@ -98,17 +98,29 @@ def _mevsim(donem_no: int | None) -> str | None:
 
 
 def _lisans_mevsimi(con: sqlite3.Connection, program: str, kodlar: set[str]):
-    """ÇAP/yandal dersinin mevsimi — ev sahibi programın LİSANS planından."""
+    """ÇAP/yandal dersinin mevsimi — ev sahibi programın LİSANS planından.
+
+    ★ Faz 128 — program başına bir DİZİN (kod → ilk satırın sırası ve dönemi),
+    istek boyunca bir kez. Eskiden her ders için planın bütün satırları
+    taranıyordu; harita bir istekte 48 kez kurulunca ~0,5 sn. Sonuç aynı:
+    kodlardan biriyle eşleşen İLK satırın dönemi."""
     if not program:
         return None
-    for row in con.execute(
-            """SELECT ps.course_code, ps.alt_course_codes, ps.term_no
-               FROM plan_slot ps JOIN plan p ON p.id = ps.plan_id
-               WHERE p.program_code=? AND p.plan_type='lisans'
-                 AND ps.term_no IS NOT NULL""", (program,)):
-        if kodlar & set(R.slot_codes(row)):
-            return _mevsim(row["term_no"])
-    return None
+    from . import istek as IST
+
+    def dizin():
+        out: dict[str, tuple[int, int]] = {}
+        for i, row in enumerate(con.execute(
+                """SELECT ps.course_code, ps.alt_course_codes, ps.term_no
+                   FROM plan_slot ps JOIN plan p ON p.id = ps.plan_id
+                   WHERE p.program_code=? AND p.plan_type='lisans'
+                     AND ps.term_no IS NOT NULL""", (program,))):
+            for k in R.slot_codes(row):
+                out.setdefault(k, (i, row["term_no"]))
+        return out
+    d = IST.bellek(("lisans_mevsim_dizini", id(con), program), dizin)
+    bulunan = [d[k] for k in kodlar if k in d]
+    return _mevsim(min(bulunan)[1]) if bulunan else None
 
 
 def gecmis_donemleri(gecmis: dict | None, en_cok: int = 6) -> list[dict]:
@@ -528,9 +540,26 @@ def _kur(con, grades, planlar, *, term, donem, max_load, bu_donem, bu_donem_kayn
     # ---------------------------------------------- 2. zincir yüksekliği
     kod_birim = {k: b for b in birimler for k in b.kodlar}
 
+    # ★ Faz 128 — önşart ağaçlarının kodları istek boyunca bir kez; bağımlılar
+    # tek geçişte (eskiden her birim için bütün ağaçlar yeniden geziliyordu:
+    # kullanıcının verisinde bir istekte 2544 çağrı, ~0,7 sn). Sıra aynı:
+    # `birimler` sırası.
+    agac_kodlari = IST.bellek(("agac_kodlari", id(con)), lambda: {
+        k: frozenset(a.courses()) for k, a in agaclar.items() if a})
+    kod_sahipleri: dict[str, list[int]] = {}
+    for i, b in enumerate(birimler):
+        for k in b.kodlar:
+            kod_sahipleri.setdefault(k, []).append(i)
+    _bagimli: dict[str, list[int]] = {}
+    for j, x in enumerate(birimler):
+        if not x.ders or not agaclar.get(x.ders):
+            continue
+        for i in {i for c in agac_kodlari.get(x.ders, ()) for i in kod_sahipleri.get(c, ())}:
+            if i != j:
+                _bagimli.setdefault(birimler[i].anahtar, []).append(j)
+
     def bagimlilar(b: Birim) -> list[Birim]:
-        return [x for x in birimler if x is not b and x.ders and agaclar.get(x.ders)
-                and agaclar[x.ders].courses() & b.kodlar]
+        return [birimler[j] for j in sorted(set(_bagimli.get(b.anahtar, ())))]
 
     yukseklik: dict[str, int] = {}
 
