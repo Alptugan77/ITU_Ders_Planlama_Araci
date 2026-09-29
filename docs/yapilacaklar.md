@@ -782,6 +782,14 @@ her maddeden önce gelen tek iş.
 > Kullanıcının verisinde "anadal" ayarı anadalı 9 → 8. yarıyıla çekiyor ✅
 > ➜ Ayrıntı: `docs/faz122-oncelik-bu-donem.md`
 >
+> **Faz 123 (28.09.2026):** ilerleme yüzdesi AKTS ağırlıklı ✅
+>
+> **Faz 124 (29.09.2026):** "açık denklikler" kartı önşart ve kredi eşiğini
+> denetliyor (taban kodlu OBS listesi şubesi açık yazımla; kredi ham
+> transkriptten — 85 → 329 hatası); yabancı öğrenci Türk Dili dersleri
+> kaynak değil ✅
+> ➜ Ayrıntı: `docs/faz124-denk-kart.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
