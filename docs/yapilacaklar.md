@@ -799,6 +799,9 @@ her maddeden önce gelen tek iş.
 > çakışmasında takası kuruyor ve her programın net etkisini yazıyor ✅
 > ➜ Ayrıntı: `docs/faz126-saat-takasi.md`
 >
+> **Faz 127 (29.09.2026):** program resminde (PNG) her bloğun içinde saat
+> aralığı (ders kodunun altında; meşgul blokta da) ✅
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

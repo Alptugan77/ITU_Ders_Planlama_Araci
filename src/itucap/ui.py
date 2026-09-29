@@ -7983,6 +7983,8 @@ async function resimIndir(){
     for(let k = -h; k < w; k += 10){ c.beginPath(); c.moveTo(x + k, y + h); c.lineTo(x + k + h, y); c.stroke(); }
     c.restore();
     yaz(b.label || "meşgul", x + 8, y + 16, `600 12px ${SANS}`, j("ink-2"), w - 12);
+    if(h > 24) yaz(`${hhmm(b.start)}–${hhmm(b.end)}`, x + 8, y + 30,
+                   `400 11px ${MONO}`, j("ink-2"), w - 12);                 // Faz 127
   });
   const rolRenk = {ANADAL: "anadal", CAP: "cap", YANDAL: "yandal"};
   saatli.forEach(p => {
@@ -8003,9 +8005,14 @@ async function resimIndir(){
       kutu(x, y, w, h, zemin, rol ? j(rol) : j("ink-3"));
       c.save(); c.beginPath(); c.rect(x, y, w, h); c.clip();
       yaz(p.cand.course, x + 9, y + 16, `700 12px ${MONO}`, yazi, w - 14);
-      if(h > 34) yaz(p.cand.name || "", x + 9, y + 31, `400 11px ${SANS}`, yazi, w - 14);
-      if(h > 50) yaz(`CRN ${p.sec.crn} · ${p.sec.online ? "çevrimiçi" : yerYazi(m)}`,
-                     x + 9, y + 46, `400 10px ${MONO}`, yazi, w - 14);
+      /* ★ Faz 127 (kullanıcı isteği 29.09.2026: "ders bloklarının içine saat
+         aralığını yazar mısın") — ızgaradaki blokta vardı, resimde yoktu.
+         Ders adından ÖNCE: en kısa (1 saatlik) blokta da görünsün. */
+      if(h > 24) yaz(`${hhmm(m.start)}–${hhmm(m.end)}`, x + 9, y + 30,
+                     `600 11px ${MONO}`, yazi, w - 14);
+      if(h > 42) yaz(p.cand.name || "", x + 9, y + 45, `400 11px ${SANS}`, yazi, w - 14);
+      if(h > 58) yaz(`CRN ${p.sec.crn} · ${p.sec.online ? "çevrimiçi" : yerYazi(m)}`,
+                     x + 9, y + 60, `400 10px ${MONO}`, yazi, w - 14);
       c.restore();
     });
   });
