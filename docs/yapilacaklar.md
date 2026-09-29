@@ -802,6 +802,15 @@ her maddeden önce gelen tek iş.
 > **Faz 127 (29.09.2026):** program resminde (PNG) her bloğun içinde saat
 > aralığı (ders kodunun altında; meşgul blokta da) ✅
 >
+> **Faz 128 (29.09.2026):** sayfa hesabı 2,07 → 1,24 sn (kullanıcının
+> verisi); çıktı birebir aynı ✅
+> ➜ Ayrıntı: `docs/faz128-hiz.md`
+>
+> **Faz 129 (29.09.2026):** telefonda üst çubuk 240 → 125 px; taban
+> karşılanamayınca sebep ölçülüyor (bu dönemin ÇAP arzı tabanın altındaysa
+> "tamamı 7,5 kredi" diye yazıyor, dilekçe metnine de giriyor) ✅
+> ➜ Ayrıntı: `docs/faz129-kullanilabilirlik.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
