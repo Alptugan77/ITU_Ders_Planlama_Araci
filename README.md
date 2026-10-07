@@ -157,6 +157,14 @@ Web sürümü, yerel sürümle **aynı Python motorunu** WebAssembly üzerinde
 tek fark veri güncellemesidir: OBS'den veri çekme yalnızca yerel sürümde
 yapılır, web sürümü siteyle birlikte yayımlanan kataloğu kullanır.
 
+**Ana ekrana ekleme.** Web sürümü telefona uygulama gibi eklenebilir:
+
+* iPhone'da Safari'de **Paylaş → Ana Ekrana Ekle**;
+* Android'de Chrome'da **⋮ → Ana ekrana ekle** (veya **Uygulamayı yükle**).
+
+Eklenen kısayol kendi simgesiyle ve adres çubuğu olmadan açılır. Bir kez
+açıldıktan sonra bağlantı olmadan da çalışır.
+
 ## Kurulum (yerel sürüm)
 
 Python 3.11 veya üzeri bir sürüm gereklidir.
@@ -288,12 +296,14 @@ src/itucap/
   server.py      uygulama durumu ve uç yönlendirmesi
   ui.py          tek dosyalık HTML arayüz üreticisi
   tasarim.py     tasarım sistemi (renk, yazı, aralık ölçekleri)
+  simge/         uygulama simgesi (ana ekran, sekme; tools/simge_uret.py üretir)
 tools/
   site_kur.py            statik site üreticisi
   gizlilik_denetimi.py   kişisel veri sızıntısı denetimi
   tasarim_envanteri.py   CSS envanteri ve ölçek denetimi
   kontrast_olcumu.py     renk kontrastı ölçümü
   vitrin.py              örnek öğrenciyle arayüz ve ekran görüntüsü
+  simge_uret.py          uygulama simgesinin PNG/SVG dosyaları
 web/
   app.js, sw.js          tarayıcı çalıştırıcısı (Pyodide, IndexedDB, çevrimdışı önbellek)
 ```

@@ -1205,7 +1205,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     # birleştirseydik iki ayrı programın zincirleri birbirine bağlıymış gibi
     # görünürdü — oysa aralarında önşart ilişkisi yok.
     def _tiers_of(plan_id):
-        steps = SEQ.plan_sequence(con, plan_id, grades) if plan_id else []
+        steps = (SEQ.plan_sequence(con, plan_id, grades, equivalences)     # Faz 131
+                 if plan_id else [])
         opens: dict[str, list[str]] = {}
         for st in steps:
             for dep in st.blockers:
@@ -1367,6 +1368,59 @@ AD_ACILIM = "Ders Planlama Aracı"
 _ASCII = str.maketrans({"İ": "I", "ı": "i", "Ü": "U", "ü": "u", "Ö": "O",
                         "ö": "o", "Ş": "S", "ş": "s", "Ğ": "G", "ğ": "g",
                         "Ç": "C", "ç": "c"})
+
+
+# ★★ Faz 130 — UYGULAMA SİMGESİ ve ana ekrana ekleme (kullanıcı 07.10.2026:
+# "can you add an app icon for when adding it to homescreen"). Simge
+# `tools/simge_uret.py` ile üretiliyor; dosyalar paketin içinde, çünkü hem
+# yerel sunucu hem site kurulumu (`tools/site_kur.py`) aynı yerden okuyor.
+# Yollar GÖRELİ (sayfanın yanında): site bir alt dizinde yayınlanıyor.
+SIMGE_DIZINI = Path(__file__).resolve().parent / "simge"
+SIMGELER = {
+    "favicon.svg": "image/svg+xml",
+    "favicon-32.png": "image/png",
+    "icon-192.png": "image/png",
+    "icon-512.png": "image/png",
+    "icon-maskable-512.png": "image/png",
+    "apple-touch-icon.png": "image/png",
+}
+WEB_MANIFEST = "app.webmanifest"
+
+
+def tema_renkleri() -> dict[str, str]:
+    """Tarayıcı çubuğunun rengi = sayfa zemini (tasarim.RENKLER `ground`),
+    gündüz ve gece. Çubuk sayfayla birleşiyor; ayrı bir renk uydurulmuyor."""
+    gece, gunduz = next((g, d) for ad, g, d, _ in TASARIM.RENKLER if ad == "ground")
+    return {"gece": gece, "gunduz": gunduz}
+
+
+def web_manifest() -> dict:
+    """Ana ekrana eklenince tarayıcının okuduğu tanım (W3C Web App Manifest).
+
+    `display: standalone` — adres çubuğu olmadan, uygulama gibi açılır.
+    `start_url`/`scope` göreli: hem yerel sunucuda (`/`) hem sitenin alt
+    dizininde doğru. Simge iki kez: `any` (tam kare) ve `maskable` (Android
+    daire/damla kırpması için güvenli bölgede, `tools/simge_uret.py`)."""
+    renk = tema_renkleri()
+    return {
+        "name": f"{AD_TAM} — {AD_ACILIM}",
+        "short_name": AD_KISA,
+        "description": "İTÜ öğrencileri için ders planlama aracı: anadal, ÇAP ve yandal.",
+        "lang": "tr",
+        "dir": "ltr",
+        "start_url": "./",
+        "scope": "./",
+        "display": "standalone",
+        "background_color": renk["gunduz"],
+        "theme_color": renk["gunduz"],
+        "icons": [
+            {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+            {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+            {"src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png",
+             "purpose": "maskable"},
+            {"src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+        ],
+    }
 
 
 def ad_ascii() -> str:
@@ -2267,7 +2321,9 @@ def render(data: dict, *, deferred: bool = False,
                            ("__AD_KISA__", AD_KISA),
                            ("__AD_ACILIM_DUZ__", AD_ACILIM),
                            ("__AD_ASCII__", ad_ascii()),
-                           ("__AD_ACILIM__", acilim_html())):
+                           ("__AD_ACILIM__", acilim_html()),
+                           ("__TEMA_GUNDUZ__", tema_renkleri()["gunduz"]),
+                           ("__TEMA_GECE__", tema_renkleri()["gece"])):
         html = html.replace(anahtar, deger)
     if deferred:
         html = html.replace("\nboot();\n", "\nwindow.__ITUCAP_APPLY__ = applyState;\n")
@@ -2353,7 +2409,20 @@ _TEMPLATE = r"""<!doctype html>
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Faz 130: viewport-fit=cover — ana ekrandan açılınca (iPhone) alt çubuk
+     ev göstergesinin altına girmesin diye güvenli bölge payı CSS'te. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="__TEMA_GUNDUZ__" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="__TEMA_GECE__" media="(prefers-color-scheme: dark)">
+<meta name="application-name" content="__AD_TAM__">
+<meta name="apple-mobile-web-app-title" content="__AD_KISA__">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="app.webmanifest">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>__AD_TAM__ — __AD_ACILIM_DUZ__</title>
 <!-- ★ Kayıtlı tema BOYAMADAN ÖNCE uygulanıyor: yoksa sayfa önce sistem
      temasında çizilip sonra kullanıcının seçtiğine atlıyordu (yükleme
@@ -2678,6 +2747,12 @@ button.kders:hover{border-color:var(--accent);color:var(--accent)}
    yani üç durumun (açık / koyu / sistem) hepsinde kontrast korunuyor —
    sabit #fff yazsaydık koyu temada mavi üstünde beyaz kalırdı. */
 .tab[aria-selected="true"]{background:var(--seal);color:var(--ground);font-weight:800}
+/* ★ Faz 130 — "taban ✗" seçili sekmede OKUNMUYORDU: kırmızı (danger) yazı
+   lacivert (seal) zeminde (ölçüldü: gündüz 1,31:1, gece 1,12:1). Seçili sekmede yazı
+   rengini alıyor (7,58:1 / 8,22:1); anlamı ✗ ve metin taşıyor, renk tek işaret değil. */
+.tabtaban{color:var(--danger)}
+.tab[aria-selected="true"] .tabtaban{color:inherit;text-decoration:underline;
+  text-underline-offset:3px}
 
 /* Kip anahtarı — 'tüm adaylar' (DEPAR) / 'dönemlik + alttan'.
    ★ inline-flex: kutu İÇERİĞE göre daralıyor. Eskiden `flex` (blok, tam
@@ -3088,7 +3163,11 @@ td .zorluk,.yhdonem li>.zorluk{margin-left:6px}
   /* Faz 80 — tek sütunda çizgiler dinlenmede gizli; odakta yalnız zincir. */
   .tierlinks path{display:none}
   .tierstage.focus .tierlinks path.line.on{display:inline}
-  .tier li{width:100%}
+  /* ⚠️ Faz 131 — bu satır da ÖLÜYDÜ (dördüncü "ölü kural", bkz. yukarıdaki
+     `span.` notu): temel `.tier li{width:196px}` kaynakta sonra geliyor ve
+     aynı özgüllükte. Ölçüldü (390px): kart 196px, satırın %60'ı; sağ taraf
+     boş kalıyor, ders adları "…" ile kesiliyordu. `ul>` ile özgüllük artıyor. */
+  .tier ul>li{width:100%}
   /* Aday tablosu 6 sütunla telefona sığmıyordu; kutusunun içinde yana
      kayıyordu ama asıl iş burada yapılıyor — kaydırarak kullanılmamalı.
      Plan ve AKTS sütunları düşüyor: rol zaten ders hücresindeki etikette,
@@ -3555,6 +3634,10 @@ table.cmp .meta.arti{color:var(--ok)}
 /* Alınabilir = önşartların tamamı sağlanmış, BU DÖNEM alınabilir. */
 .tier li[data-s="READY"]{background:var(--cap-soft);color:var(--cap-ink);font-weight:600;
   border-color:var(--cap);border-left-color:var(--cap)}
+/* Faz 131 — önşartı tamam ama bu dönem alınamıyor (arz): kehribar çizgi,
+   dolgu yok — "alınabilir" ile karışmasın; sebep kartın içinde yazılı. */
+.tier li[data-s="READY_KAPALI"]{border-left-color:var(--cap);border-left-style:dashed}
+.tier li .tkapali{font-size:var(--fs-xs);color:var(--ink-2)}
 .tierstage.focus .tier li{opacity:.22}
 .tierstage.focus .tier li.on{opacity:1}
 .tier li.root{outline:2px solid var(--cap);outline-offset:2px}
@@ -3566,6 +3649,7 @@ table.cmp .meta.arti{color:var(--ok)}
   border-left:3px solid var(--border-strong);display:inline-block}
 .tierlegend i.rdy{background:var(--cap-soft);border-color:var(--cap);border-left-color:var(--cap)}
 .tierlegend i.done{border-left-color:var(--ok);opacity:.6}
+.tierlegend i.kapali{border-left:3px dashed var(--cap)}
 .tierlegend i.line{width:22px;height:0;border:0;border-top:2px solid var(--seal);opacity:.7}
 .tierfoot{margin-top:10px;font-size:var(--fs-sm);color:var(--ink-3);line-height:var(--lh-body)}
 .tiergroup + .tiergroup{margin-top:24px;padding-top:24px;
@@ -3758,6 +3842,15 @@ table.cmp .meta.arti{color:var(--ok)}
   #sonraki [data-go="candSection"]{display:none}
   #sonraki{padding:10px 12px}
   .sonrakiliste{gap:8px}
+  /* Faz 130 — "Kapat" telefonda tek başına bir satır kaplıyordu (ölçüldü,
+     390px: +52px). Başlığın sağ üst köşesine; hedef 44px kalıyor. */
+  #sonraki{position:relative}
+  #sonraki>b{display:block;padding-right:80px;min-height:28px}
+  #sonraki .sonrakiliste .kapat{position:absolute;top:4px;right:4px;margin:0}
+  /* Faz 130 — sayfa sonundaki "Yararlı bağlantılar" telefonda bir dokunma
+     listesi: cümle içi bağlantı değil, 44px hedef (27px idi). */
+  .kaynaklar>div:last-child a.dislink{display:inline-block;min-height:44px;
+    padding-block:10px}
   /* ⚠️ Panel "Programın hazır. Şimdi:" diyor — yeri PROGRAM görünümü.
      Telefonda her görünümün üstünde duruyordu: ölçüldü, 11 görünümün
      10'unda içeriğin önünde 144px. Masaüstünde kalıyor (orada içerik
@@ -3809,6 +3902,10 @@ table.cmp .meta.arti{color:var(--ok)}
     border-bottom:1px solid var(--border)}
   /* Alt çubuk içeriğin son satırını yemesin. */
   .wrap{padding-bottom:80px}
+  /* Faz 130 — ana ekrandan (tam ekran) açılınca iPhone'un ev göstergesi
+     alt çubuğun üstüne biniyordu: güvenli bölge payı. Tarayıcıda 0. */
+  .ray{padding-bottom:env(safe-area-inset-bottom,0px)}
+  .wrap{padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))}
 }
 /* ⚠️ Etkin olmayan görünüm KAPALI ama DOM'da: `hidden` (veri yok) ile
    karıştırılmasın diye ayrı öznitelik. İkisini tek bayrağa bindirmek,
@@ -4533,6 +4630,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
     bırakılır.</div>
   <div class="tierlegend" aria-hidden="true">
     <span><i class="rdy"></i> bu dönem alınabilir</span>
+    <span><i class="kapali"></i> önşartı tamam, bu dönem alınamaz</span>
     <span><i class="done"></i> alınmış</span>
     <span><i></i> önşartı bekliyor</span>
     <span><i class="line"></i> önşart bağı</span>
@@ -4960,7 +5058,20 @@ $("#theme").addEventListener("click", () => {
   const yeni = dark ? "light" : "dark";
   document.documentElement.setAttribute("data-theme", yeni);
   localStorage_set("tema", yeni);      // ★ sonraki açılışta bu tema açılsın
+  temaRenginiUygula();
 });
+/* Faz 130 — tarayıcı/durum çubuğu rengi SEÇİLİ temayı izlesin. `<meta
+   theme-color>` sistem temasına göre iki tane; kullanıcı Tema düğmesiyle
+   sistemin tersini seçtiyse çubuk sayfadan ayrı renkte kalıyordu. */
+function temaRenginiUygula(){
+  const t = document.documentElement.getAttribute("data-theme");
+  const renk = t === "dark" ? "__TEMA_GECE__" : t === "light" ? "__TEMA_GUNDUZ__" : "";
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => {
+    if(!m.dataset.ilk) m.dataset.ilk = m.getAttribute("content");
+    m.setAttribute("content", renk || m.dataset.ilk);
+  });
+}
+temaRenginiUygula();
 
 /* ================= KURULUM: program · dönem · geçilen dersler =================
    Faz 8. Bu üç şey aracın en çok kullanılan işlemleri ama en zor işlemiydi —
@@ -9078,7 +9189,7 @@ function renderTabs(){
        title="${esc(tam)}"><span class="tabmetin"
        >Öneri ${i+1}<span class="tabfark"> · ${s.credits} kredi${
          oneriFarki(s, i)}</span>${eksik.length
-         ? ` <span style="color:var(--danger)">· taban ✗</span>` : ""}</span></button>`;
+         ? ` <span class="tabtaban">· taban ✗</span>` : ""}</span></button>`;
   }).join("") || oneriYok();
   /* ★ Faz 27 — yan yana karşılaştırma. Sekmeler arasında geçiş vardı ama
      farkı görmek için ızgarayı iki kez ezberlemek gerekiyordu. */
@@ -12468,6 +12579,19 @@ function donemIleri(kod, n){
   return `${y - 1}-${y} ${s === "10" ? "Güz" : "Bahar"}`;
 }
 const kademeBitti = (t) => t.courses.length && t.courses.every(c => c.status === "DONE");
+/* ★★ Faz 131 — kademede "bu dönem alınabilir" (READY) yalnız ÖNŞART'a
+   bakıyordu (`sequence.plan_sequence`). Kullanıcının verisinde BLG 102E ve
+   BLG 202E kehribar "alınabilir" boyanıyordu; "Alınamayan dersler" aynı
+   dersleri "bu dönem açılmamış" diye sayıyordu — iki ekran çelişiyordu.
+   Önşartı tamam ama arz engeli olan ders artık ayrı durumda: engelin
+   kendi etiketiyle. */
+const KADEME_ARZ_ENGELI = ["ACILMAMIS", "PROGRAMA_KAPALI", "EK_SINAV", "KREDI_ESIGI"];
+function kademeDurumu(c){
+  if(c.status !== "READY") return {s: c.status, not: ""};
+  const b = (DATA.blockers || []).find(x => x.course === c.course
+                                        && KADEME_ARZ_ENGELI.includes(x.reason));
+  return b ? {s: "READY_KAPALI", not: LABELS[b.reason][0]} : {s: "READY", not: ""};
+}
 function renderTierGroup(grup, i){
   const stage = $("#tierStage" + i);
   const ilkAcik = grup.tiers.findIndex(t => !kademeBitti(t));
@@ -12482,8 +12606,8 @@ function renderTierGroup(grup, i){
         ilkAcik >= 0 && DATA.term ? `<span class="tierdonem"
           title="Her kademe en az bir dönem sürer; dersin açıldığı yarıyıl bu tarihi geciktirebilir">
           ${j === ilkAcik ? "bu dönem" : "en erken " + esc(donemIleri(DATA.term, j - ilkAcik))}</span>` : ""}</h3>
-      <ul>${t.courses.map(c => `<li data-s="${c.status}" data-c="${esc(c.course)}"
-            title="${esc(c.name || c.course)}">
+      <ul>${t.courses.map(c => { const kd = kademeDurumu(c); return `<li data-s="${kd.s}" data-c="${esc(c.course)}"
+            title="${esc(c.name || c.course)}${kd.not ? " — önşartı tamam; " + esc(kd.not) : ""}">
         <span class="top"><span class="mono">${esc(c.course)}</span>
         <span class="mono" style="color:var(--ink-3)">${c.credits}</span></span>
         ${c.name ? `<span class="tad">${esc(c.name)}</span>` : ""}
@@ -12493,7 +12617,8 @@ function renderTierGroup(grup, i){
             ? `<span class="dispre" role="button" tabindex="0" aria-expanded="false"
                  title="Plan dışından önşart (anadalda alınmış olabilir)">+${c.outside.length} dış önşart</span>
                <span class="disout" hidden>plan dışı: <span class="mono">${c.outside.map(esc).join(" · ")}</span></span>` : ""}
-      </li>`).join("")}</ul>
+        ${kd.not ? `<span class="tkapali">önşartı tamam · ${esc(kd.not)}</span>` : ""}
+      </li>`; }).join("")}</ul>
     </div>`).join("");
   stage.innerHTML = `<svg class="tierlinks" id="tierLinks${i}" aria-hidden="true"></svg>` + cols;
 

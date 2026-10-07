@@ -25,7 +25,7 @@ where = ["src"]
 # Faz 43 — yazı tipleri pakete giriyor: arayüz onları CSS'e gömüyor,
 # böylece hiçbir çıktı Google Fonts'a istek atmıyor (SIL OFL 1.1,
 # lisans metinleri yanlarında).
-itucap = ["*.sql", "fonts/*.woff2", "fonts/*.txt"]
+itucap = ["*.sql", "fonts/*.woff2", "fonts/*.txt", "simge/*.png", "simge/*.svg"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

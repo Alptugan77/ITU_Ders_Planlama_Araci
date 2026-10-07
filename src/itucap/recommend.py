@@ -351,7 +351,7 @@ def candidates(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: in
     # öneri sıralaması onları geri atardı.
     cap_steps = []
     for _rol, pid in ikinciler:
-        cap_steps += SEQ.plan_sequence(con, pid, grades)
+        cap_steps += SEQ.plan_sequence(con, pid, grades, equivalences)   # Faz 131
     critical = critical_courses([s for s in cap_steps if s.status != "DONE"])
     tier_of: dict[str, int] = {}
     for s in cap_steps:                     # aynı ders iki planda ise EN DERİN kademe
@@ -1538,9 +1538,15 @@ def cap_blockers(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: 
         # Denk ders AÇIK: asıl engel arz değil önşart — "önşart eksik"
         # grubunda, eksik dersiyle (Faz 120; kullanıcının verisinde BBF 302E
         # açık, ama BLG 252E / BBF 203E geçilmemiş).
+        # ⚠️ Faz 131 — eskiden "… açık ve dilekçesiz alınabilir" bitiyordu: eksik
+        # önşartın HEMEN ardından "alınabilir" okuyan öğrenci "şimdi alabilirim"
+        # anlıyordu (kullanıcının verisinde BLG 317E / BBF 302E). Kastedilen
+        # sayılma; alma, önşarta bağlı.
         metin, _ = _onsart_ayikla({m[0] for m in karar.missing}, katalog_kodlari)
         return Blocker(code, "ONSART", f"eksik: {metin} — {code} bu dönem açılmamıştır; "
-                                       f"resmî denkliği {k} açık ve dilekçesiz alınabilir")
+                                       f"resmî denkliği {k} açılmıştır, ancak önşartı "
+                                       f"tamamlanmadan alınamaz (alındığında dilekçesiz "
+                                       f"{code} yerine sayılır)")
 
     out: list[Blocker] = []
     for row in con.execute(

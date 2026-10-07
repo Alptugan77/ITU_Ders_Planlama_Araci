@@ -289,6 +289,12 @@ def build(pyodide_dir: Path | None = None) -> Path:
 
     (SITE / "index.html").write_text(kabuk(UI), encoding="utf-8")
     shutil.copy(ROOT / "web" / "app.js", SITE / "app.js")
+    # Faz 130 — ana ekran simgesi ve tanımı (sayfanın yanında; `<head>`
+    # göreli yolla istiyor). Çevrimdışı katman bunları da önbelleğe alıyor.
+    for ad in UI.SIMGELER:
+        shutil.copy(UI.SIMGE_DIZINI / ad, SITE / ad)
+    (SITE / UI.WEB_MANIFEST).write_text(
+        json.dumps(UI.web_manifest(), ensure_ascii=False, indent=2), encoding="utf-8")
 
     (SITE / "manifest.json").write_text(json.dumps({
         "engine": ENGINE, "config": CONFIG, "schema": SCHEMA,

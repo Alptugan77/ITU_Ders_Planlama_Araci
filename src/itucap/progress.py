@@ -134,7 +134,8 @@ def report(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     cap = next((r for r in rows if r["role"] in ("CAP", "YANDAL")), None)
     plan_id = cap_plan_id or (cap["plan_id"] if cap else None)
     if plan_id is not None:
-        steps = SEQ.plan_sequence(con, plan_id, grades)
+        steps = SEQ.plan_sequence(con, plan_id, grades,                # Faz 131
+                                  R.load_equivalences(con, ucon=ucon))
         ready = [s for s in steps if s.status == "READY"]
         unknown = [s for s in steps if s.status == "UNKNOWN"]
         w("")
