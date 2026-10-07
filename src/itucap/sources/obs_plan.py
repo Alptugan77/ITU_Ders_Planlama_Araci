@@ -24,7 +24,8 @@ import re
 import sqlite3
 from urllib.parse import parse_qs, urlparse
 
-from selectolax.parser import HTMLParser
+# selectolax 1.0 eski (Modest) arka ucu kaldırdı; lexbor 0.3+ sürümlerinde de var.
+from selectolax.lexbor import LexborHTMLParser as HTMLParser
 
 from .. import config, db
 from ..normalize import (
