@@ -817,6 +817,12 @@ her maddeden önce gelen tek iş.
 > bağlantılar 44 px ✅
 > ➜ Ayrıntı: `docs/faz130-simge.md`
 >
+> **Faz 131 (07.10.2026):** üç ekran aynı cevabı veriyor — kademe
+> "alınabilir" arz engelini ve denklikleri hesaba katıyor (kullanıcının
+> verisinde 7 ders düzeldi); engel metninde önşartı eksik derse
+> "alınabilir" denmiyor; telefonda kademe kartı tam genişlik (ölü kural) ✅
+> ➜ Ayrıntı: `docs/faz131-tutarlilik.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp

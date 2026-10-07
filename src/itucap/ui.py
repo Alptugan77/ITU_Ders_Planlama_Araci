@@ -1205,7 +1205,8 @@ def collect(con: sqlite3.Connection, ucon: sqlite3.Connection, student_id: int,
     # birleştirseydik iki ayrı programın zincirleri birbirine bağlıymış gibi
     # görünürdü — oysa aralarında önşart ilişkisi yok.
     def _tiers_of(plan_id):
-        steps = SEQ.plan_sequence(con, plan_id, grades) if plan_id else []
+        steps = (SEQ.plan_sequence(con, plan_id, grades, equivalences)     # Faz 131
+                 if plan_id else [])
         opens: dict[str, list[str]] = {}
         for st in steps:
             for dep in st.blockers:
@@ -3162,7 +3163,11 @@ td .zorluk,.yhdonem li>.zorluk{margin-left:6px}
   /* Faz 80 — tek sütunda çizgiler dinlenmede gizli; odakta yalnız zincir. */
   .tierlinks path{display:none}
   .tierstage.focus .tierlinks path.line.on{display:inline}
-  .tier li{width:100%}
+  /* ⚠️ Faz 131 — bu satır da ÖLÜYDÜ (dördüncü "ölü kural", bkz. yukarıdaki
+     `span.` notu): temel `.tier li{width:196px}` kaynakta sonra geliyor ve
+     aynı özgüllükte. Ölçüldü (390px): kart 196px, satırın %60'ı; sağ taraf
+     boş kalıyor, ders adları "…" ile kesiliyordu. `ul>` ile özgüllük artıyor. */
+  .tier ul>li{width:100%}
   /* Aday tablosu 6 sütunla telefona sığmıyordu; kutusunun içinde yana
      kayıyordu ama asıl iş burada yapılıyor — kaydırarak kullanılmamalı.
      Plan ve AKTS sütunları düşüyor: rol zaten ders hücresindeki etikette,
@@ -3629,6 +3634,10 @@ table.cmp .meta.arti{color:var(--ok)}
 /* Alınabilir = önşartların tamamı sağlanmış, BU DÖNEM alınabilir. */
 .tier li[data-s="READY"]{background:var(--cap-soft);color:var(--cap-ink);font-weight:600;
   border-color:var(--cap);border-left-color:var(--cap)}
+/* Faz 131 — önşartı tamam ama bu dönem alınamıyor (arz): kehribar çizgi,
+   dolgu yok — "alınabilir" ile karışmasın; sebep kartın içinde yazılı. */
+.tier li[data-s="READY_KAPALI"]{border-left-color:var(--cap);border-left-style:dashed}
+.tier li .tkapali{font-size:var(--fs-xs);color:var(--ink-2)}
 .tierstage.focus .tier li{opacity:.22}
 .tierstage.focus .tier li.on{opacity:1}
 .tier li.root{outline:2px solid var(--cap);outline-offset:2px}
@@ -3640,6 +3649,7 @@ table.cmp .meta.arti{color:var(--ok)}
   border-left:3px solid var(--border-strong);display:inline-block}
 .tierlegend i.rdy{background:var(--cap-soft);border-color:var(--cap);border-left-color:var(--cap)}
 .tierlegend i.done{border-left-color:var(--ok);opacity:.6}
+.tierlegend i.kapali{border-left:3px dashed var(--cap)}
 .tierlegend i.line{width:22px;height:0;border:0;border-top:2px solid var(--seal);opacity:.7}
 .tierfoot{margin-top:10px;font-size:var(--fs-sm);color:var(--ink-3);line-height:var(--lh-body)}
 .tiergroup + .tiergroup{margin-top:24px;padding-top:24px;
@@ -4620,6 +4630,7 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
     bırakılır.</div>
   <div class="tierlegend" aria-hidden="true">
     <span><i class="rdy"></i> bu dönem alınabilir</span>
+    <span><i class="kapali"></i> önşartı tamam, bu dönem alınamaz</span>
     <span><i class="done"></i> alınmış</span>
     <span><i></i> önşartı bekliyor</span>
     <span><i class="line"></i> önşart bağı</span>
@@ -12568,6 +12579,19 @@ function donemIleri(kod, n){
   return `${y - 1}-${y} ${s === "10" ? "Güz" : "Bahar"}`;
 }
 const kademeBitti = (t) => t.courses.length && t.courses.every(c => c.status === "DONE");
+/* ★★ Faz 131 — kademede "bu dönem alınabilir" (READY) yalnız ÖNŞART'a
+   bakıyordu (`sequence.plan_sequence`). Kullanıcının verisinde BLG 102E ve
+   BLG 202E kehribar "alınabilir" boyanıyordu; "Alınamayan dersler" aynı
+   dersleri "bu dönem açılmamış" diye sayıyordu — iki ekran çelişiyordu.
+   Önşartı tamam ama arz engeli olan ders artık ayrı durumda: engelin
+   kendi etiketiyle. */
+const KADEME_ARZ_ENGELI = ["ACILMAMIS", "PROGRAMA_KAPALI", "EK_SINAV", "KREDI_ESIGI"];
+function kademeDurumu(c){
+  if(c.status !== "READY") return {s: c.status, not: ""};
+  const b = (DATA.blockers || []).find(x => x.course === c.course
+                                        && KADEME_ARZ_ENGELI.includes(x.reason));
+  return b ? {s: "READY_KAPALI", not: LABELS[b.reason][0]} : {s: "READY", not: ""};
+}
 function renderTierGroup(grup, i){
   const stage = $("#tierStage" + i);
   const ilkAcik = grup.tiers.findIndex(t => !kademeBitti(t));
@@ -12582,8 +12606,8 @@ function renderTierGroup(grup, i){
         ilkAcik >= 0 && DATA.term ? `<span class="tierdonem"
           title="Her kademe en az bir dönem sürer; dersin açıldığı yarıyıl bu tarihi geciktirebilir">
           ${j === ilkAcik ? "bu dönem" : "en erken " + esc(donemIleri(DATA.term, j - ilkAcik))}</span>` : ""}</h3>
-      <ul>${t.courses.map(c => `<li data-s="${c.status}" data-c="${esc(c.course)}"
-            title="${esc(c.name || c.course)}">
+      <ul>${t.courses.map(c => { const kd = kademeDurumu(c); return `<li data-s="${kd.s}" data-c="${esc(c.course)}"
+            title="${esc(c.name || c.course)}${kd.not ? " — önşartı tamam; " + esc(kd.not) : ""}">
         <span class="top"><span class="mono">${esc(c.course)}</span>
         <span class="mono" style="color:var(--ink-3)">${c.credits}</span></span>
         ${c.name ? `<span class="tad">${esc(c.name)}</span>` : ""}
@@ -12593,7 +12617,8 @@ function renderTierGroup(grup, i){
             ? `<span class="dispre" role="button" tabindex="0" aria-expanded="false"
                  title="Plan dışından önşart (anadalda alınmış olabilir)">+${c.outside.length} dış önşart</span>
                <span class="disout" hidden>plan dışı: <span class="mono">${c.outside.map(esc).join(" · ")}</span></span>` : ""}
-      </li>`).join("")}</ul>
+        ${kd.not ? `<span class="tkapali">önşartı tamam · ${esc(kd.not)}</span>` : ""}
+      </li>`; }).join("")}</ul>
     </div>`).join("");
   stage.innerHTML = `<svg class="tierlinks" id="tierLinks${i}" aria-hidden="true"></svg>` + cols;
 

@@ -16,7 +16,8 @@ from dataclasses import dataclass, field
 from typing import Mapping
 
 from . import prereq as P
-from .rules import Status, can_take_tree, dil_serbest, passed, prereq_view, slot_codes
+from .rules import (Status, can_take_tree, dil_serbest, expand_with_equivalences, passed,
+                    prereq_view, slot_codes)
 
 
 @dataclass
@@ -32,9 +33,20 @@ class Step:
 
 
 def plan_sequence(con: sqlite3.Connection, plan_id: int,
-                  grades: Mapping[str, str] | None = None) -> list[Step]:
-    """Planın zorunlu derslerini önşart kademelerine ayırır."""
+                  grades: Mapping[str, str] | None = None,
+                  equivalences=None) -> list[Step]:
+    """Planın zorunlu derslerini önşart kademelerine ayırır.
+
+    ★★ Faz 131 — `equivalences` verilirse notlar önce denkliklerle
+    genişletiliyor (öneri motoru `candidates` ve ilerleme paneli
+    `slot_satisfied` ile aynı hüküm). Eskiden ham notla çalışıyordu:
+    kullanıcının verisinde BLG 223E önşartını bir denklikle sağlıyordu, öneri
+    motoru dersi programa koyuyordu, kademe görünümü aynı dersi "önce
+    BLG 102E" diye BEKLİYOR gösteriyordu; kritik yol da aynı hatayla
+    hesaplanıyordu."""
     grades = dict(grades or {})
+    if equivalences:
+        grades, _ = expand_with_equivalences(grades, equivalences)
     prereq_grades = prereq_view(grades)     # muafiyetler yalnız önşartta geçerli
     trees = P.parsed_trees(con)
     unlocks = P.unlock_counts(trees)

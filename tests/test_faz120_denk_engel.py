@@ -43,7 +43,11 @@ def test_DENK_ACIK_ama_ONSART_eksik(dbs):  # noqa: F811
     dbs[0].commit()
     b = _engel(dbs)
     assert b.reason == "ONSART", b
-    assert b.detail.startswith("eksik: ONS 101") and "resmî denkliği DNK 212E açık" in b.detail
+    assert b.detail.startswith("eksik: ONS 101") and "resmî denkliği DNK 212E açılmıştır" in b.detail
+    # Faz 131 — önşart eksikken "alınabilir" denmiyor; sayılma ayrı yazılıyor.
+    assert "alınabilir" not in b.detail
+    assert "önşartı tamamlanmadan alınamaz" in b.detail
+    assert "dilekçesiz BLG 212E yerine sayılır" in b.detail
 
 
 def test_DENK_BASKA_PROGRAMA_acik_ACILMAMIS_kalir(dbs):  # noqa: F811
