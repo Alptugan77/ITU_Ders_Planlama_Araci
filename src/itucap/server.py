@@ -1441,6 +1441,15 @@ class Handler(BaseHTTPRequestHandler):
                         (query.get("q") or [""])[0])})
             if url.path == "/api/health":
                 return self._json({"ok": True})
+            # Faz 130 — ana ekran simgesi ve tanımı. Kişisel veri yok; ad
+            # listesi sabit (`UI.SIMGELER`) — yol kullanıcıdan dosya adına
+            # dönüşmüyor, dizin dışına çıkılamaz.
+            if url.path == "/" + UI.WEB_MANIFEST:
+                return self._send(200, json.dumps(UI.web_manifest(), ensure_ascii=False)
+                                  .encode("utf-8"), "application/manifest+json")
+            ad = url.path.lstrip("/")
+            if ad in UI.SIMGELER:
+                return self._send(200, (UI.SIMGE_DIZINI / ad).read_bytes(), UI.SIMGELER[ad])
         except Exception as exc:                       # noqa: BLE001
             return self._error(500, str(exc))
         self._error(404, "yok")

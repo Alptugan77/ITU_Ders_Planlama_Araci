@@ -1369,6 +1369,59 @@ _ASCII = str.maketrans({"İ": "I", "ı": "i", "Ü": "U", "ü": "u", "Ö": "O",
                         "Ç": "C", "ç": "c"})
 
 
+# ★★ Faz 130 — UYGULAMA SİMGESİ ve ana ekrana ekleme (kullanıcı 07.10.2026:
+# "can you add an app icon for when adding it to homescreen"). Simge
+# `tools/simge_uret.py` ile üretiliyor; dosyalar paketin içinde, çünkü hem
+# yerel sunucu hem site kurulumu (`tools/site_kur.py`) aynı yerden okuyor.
+# Yollar GÖRELİ (sayfanın yanında): site bir alt dizinde yayınlanıyor.
+SIMGE_DIZINI = Path(__file__).resolve().parent / "simge"
+SIMGELER = {
+    "favicon.svg": "image/svg+xml",
+    "favicon-32.png": "image/png",
+    "icon-192.png": "image/png",
+    "icon-512.png": "image/png",
+    "icon-maskable-512.png": "image/png",
+    "apple-touch-icon.png": "image/png",
+}
+WEB_MANIFEST = "app.webmanifest"
+
+
+def tema_renkleri() -> dict[str, str]:
+    """Tarayıcı çubuğunun rengi = sayfa zemini (tasarim.RENKLER `ground`),
+    gündüz ve gece. Çubuk sayfayla birleşiyor; ayrı bir renk uydurulmuyor."""
+    gece, gunduz = next((g, d) for ad, g, d, _ in TASARIM.RENKLER if ad == "ground")
+    return {"gece": gece, "gunduz": gunduz}
+
+
+def web_manifest() -> dict:
+    """Ana ekrana eklenince tarayıcının okuduğu tanım (W3C Web App Manifest).
+
+    `display: standalone` — adres çubuğu olmadan, uygulama gibi açılır.
+    `start_url`/`scope` göreli: hem yerel sunucuda (`/`) hem sitenin alt
+    dizininde doğru. Simge iki kez: `any` (tam kare) ve `maskable` (Android
+    daire/damla kırpması için güvenli bölgede, `tools/simge_uret.py`)."""
+    renk = tema_renkleri()
+    return {
+        "name": f"{AD_TAM} — {AD_ACILIM}",
+        "short_name": AD_KISA,
+        "description": "İTÜ öğrencileri için ders planlama aracı: anadal, ÇAP ve yandal.",
+        "lang": "tr",
+        "dir": "ltr",
+        "start_url": "./",
+        "scope": "./",
+        "display": "standalone",
+        "background_color": renk["gunduz"],
+        "theme_color": renk["gunduz"],
+        "icons": [
+            {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+            {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+            {"src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png",
+             "purpose": "maskable"},
+            {"src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+        ],
+    }
+
+
 def ad_ascii() -> str:
     """`İTÜ DEPAR — Ders Planlama Aracı` → ASCII karşılığı."""
     return f"{AD_TAM} {AD_ACILIM}".translate(_ASCII)
@@ -2267,7 +2320,9 @@ def render(data: dict, *, deferred: bool = False,
                            ("__AD_KISA__", AD_KISA),
                            ("__AD_ACILIM_DUZ__", AD_ACILIM),
                            ("__AD_ASCII__", ad_ascii()),
-                           ("__AD_ACILIM__", acilim_html())):
+                           ("__AD_ACILIM__", acilim_html()),
+                           ("__TEMA_GUNDUZ__", tema_renkleri()["gunduz"]),
+                           ("__TEMA_GECE__", tema_renkleri()["gece"])):
         html = html.replace(anahtar, deger)
     if deferred:
         html = html.replace("\nboot();\n", "\nwindow.__ITUCAP_APPLY__ = applyState;\n")
@@ -2353,7 +2408,20 @@ _TEMPLATE = r"""<!doctype html>
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Faz 130: viewport-fit=cover — ana ekrandan açılınca (iPhone) alt çubuk
+     ev göstergesinin altına girmesin diye güvenli bölge payı CSS'te. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="__TEMA_GUNDUZ__" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="__TEMA_GECE__" media="(prefers-color-scheme: dark)">
+<meta name="application-name" content="__AD_TAM__">
+<meta name="apple-mobile-web-app-title" content="__AD_KISA__">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="app.webmanifest">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>__AD_TAM__ — __AD_ACILIM_DUZ__</title>
 <!-- ★ Kayıtlı tema BOYAMADAN ÖNCE uygulanıyor: yoksa sayfa önce sistem
      temasında çizilip sonra kullanıcının seçtiğine atlıyordu (yükleme
@@ -2678,6 +2746,12 @@ button.kders:hover{border-color:var(--accent);color:var(--accent)}
    yani üç durumun (açık / koyu / sistem) hepsinde kontrast korunuyor —
    sabit #fff yazsaydık koyu temada mavi üstünde beyaz kalırdı. */
 .tab[aria-selected="true"]{background:var(--seal);color:var(--ground);font-weight:800}
+/* ★ Faz 130 — "taban ✗" seçili sekmede OKUNMUYORDU: kırmızı (danger) yazı
+   lacivert (seal) zeminde (ölçüldü: gündüz 1,31:1, gece 1,12:1). Seçili sekmede yazı
+   rengini alıyor (7,58:1 / 8,22:1); anlamı ✗ ve metin taşıyor, renk tek işaret değil. */
+.tabtaban{color:var(--danger)}
+.tab[aria-selected="true"] .tabtaban{color:inherit;text-decoration:underline;
+  text-underline-offset:3px}
 
 /* Kip anahtarı — 'tüm adaylar' (DEPAR) / 'dönemlik + alttan'.
    ★ inline-flex: kutu İÇERİĞE göre daralıyor. Eskiden `flex` (blok, tam
@@ -3758,6 +3832,15 @@ table.cmp .meta.arti{color:var(--ok)}
   #sonraki [data-go="candSection"]{display:none}
   #sonraki{padding:10px 12px}
   .sonrakiliste{gap:8px}
+  /* Faz 130 — "Kapat" telefonda tek başına bir satır kaplıyordu (ölçüldü,
+     390px: +52px). Başlığın sağ üst köşesine; hedef 44px kalıyor. */
+  #sonraki{position:relative}
+  #sonraki>b{display:block;padding-right:80px;min-height:28px}
+  #sonraki .sonrakiliste .kapat{position:absolute;top:4px;right:4px;margin:0}
+  /* Faz 130 — sayfa sonundaki "Yararlı bağlantılar" telefonda bir dokunma
+     listesi: cümle içi bağlantı değil, 44px hedef (27px idi). */
+  .kaynaklar>div:last-child a.dislink{display:inline-block;min-height:44px;
+    padding-block:10px}
   /* ⚠️ Panel "Programın hazır. Şimdi:" diyor — yeri PROGRAM görünümü.
      Telefonda her görünümün üstünde duruyordu: ölçüldü, 11 görünümün
      10'unda içeriğin önünde 144px. Masaüstünde kalıyor (orada içerik
@@ -3809,6 +3892,10 @@ table.cmp .meta.arti{color:var(--ok)}
     border-bottom:1px solid var(--border)}
   /* Alt çubuk içeriğin son satırını yemesin. */
   .wrap{padding-bottom:80px}
+  /* Faz 130 — ana ekrandan (tam ekran) açılınca iPhone'un ev göstergesi
+     alt çubuğun üstüne biniyordu: güvenli bölge payı. Tarayıcıda 0. */
+  .ray{padding-bottom:env(safe-area-inset-bottom,0px)}
+  .wrap{padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))}
 }
 /* ⚠️ Etkin olmayan görünüm KAPALI ama DOM'da: `hidden` (veri yok) ile
    karıştırılmasın diye ayrı öznitelik. İkisini tek bayrağa bindirmek,
@@ -4960,7 +5047,20 @@ $("#theme").addEventListener("click", () => {
   const yeni = dark ? "light" : "dark";
   document.documentElement.setAttribute("data-theme", yeni);
   localStorage_set("tema", yeni);      // ★ sonraki açılışta bu tema açılsın
+  temaRenginiUygula();
 });
+/* Faz 130 — tarayıcı/durum çubuğu rengi SEÇİLİ temayı izlesin. `<meta
+   theme-color>` sistem temasına göre iki tane; kullanıcı Tema düğmesiyle
+   sistemin tersini seçtiyse çubuk sayfadan ayrı renkte kalıyordu. */
+function temaRenginiUygula(){
+  const t = document.documentElement.getAttribute("data-theme");
+  const renk = t === "dark" ? "__TEMA_GECE__" : t === "light" ? "__TEMA_GUNDUZ__" : "";
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => {
+    if(!m.dataset.ilk) m.dataset.ilk = m.getAttribute("content");
+    m.setAttribute("content", renk || m.dataset.ilk);
+  });
+}
+temaRenginiUygula();
 
 /* ================= KURULUM: program · dönem · geçilen dersler =================
    Faz 8. Bu üç şey aracın en çok kullanılan işlemleri ama en zor işlemiydi —
@@ -9078,7 +9178,7 @@ function renderTabs(){
        title="${esc(tam)}"><span class="tabmetin"
        >Öneri ${i+1}<span class="tabfark"> · ${s.credits} kredi${
          oneriFarki(s, i)}</span>${eksik.length
-         ? ` <span style="color:var(--danger)">· taban ✗</span>` : ""}</span></button>`;
+         ? ` <span class="tabtaban">· taban ✗</span>` : ""}</span></button>`;
   }).join("") || oneriYok();
   /* ★ Faz 27 — yan yana karşılaştırma. Sekmeler arasında geçiş vardı ama
      farkı görmek için ızgarayı iki kez ezberlemek gerekiyordu. */

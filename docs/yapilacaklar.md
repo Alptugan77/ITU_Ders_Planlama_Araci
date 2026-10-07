@@ -811,6 +811,12 @@ her maddeden önce gelen tek iş.
 > "tamamı 7,5 kredi" diye yazıyor, dilekçe metnine de giriyor) ✅
 > ➜ Ayrıntı: `docs/faz129-kullanilabilirlik.md`
 >
+> **Faz 130 (07.10.2026):** uygulama simgesi ve Web App Manifest — ana
+> ekrana eklenince kendi simgesiyle, adres çubuksuz açılıyor; seçili sekmede
+> okunmayan "taban ✗" (1,3:1 → 7,6:1), telefonda "Kapat" köşede, alt
+> bağlantılar 44 px ✅
+> ➜ Ayrıntı: `docs/faz130-simge.md`
+>
 > ➜ Kalan eksikler: **`docs/fikirler.md`**
 > ⚠️ `git remote` tanımlı (`origin`) ve yayının önünde **engel yok**:
 > F.5'in "önce `make all-plans` gerekiyor" uyarısı 17.09.2026'da ölçülüp
