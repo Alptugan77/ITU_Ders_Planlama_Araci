@@ -237,8 +237,7 @@ def test_JETONLAR_JSON_tasarim_sistemi_bicimine_uyuyor():
         else:
             for tema in (v.values() if isinstance(v, dict) else [v]):
                 assert re.fullmatch(r"#[0-9A-Fa-f]{6}|rgba\([^()]*\)", tema), t
-    assert {f["family"] for f in j["type"]["fonts"]} == {"Chivo", "IBM Plex Sans",
-                                                         "IBM Plex Mono"}
+    assert {f["family"] for f in j["type"]["fonts"]} == {"Geist", "Geist Mono"}  # Faz 133
 
 
 # ============================================================ 4. kullanılabilirlik (kaynak)

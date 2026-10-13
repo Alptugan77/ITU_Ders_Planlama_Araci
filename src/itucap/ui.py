@@ -2358,16 +2358,9 @@ def render(data: dict, *, deferred: bool = False,
 # olarak bu oldu). Dosya yoksa sistem yazı tipine düşüyor; Google'a
 # DÜŞMÜYOR. Gerçekten gömüldüğünü test kontrol ediyor.
 _FONT_YUZLERI = (
-    # (dosya, aile, ağırlık)
-    ("Chivo-SemiBold.woff2", "Chivo", 600),
-    ("Chivo-Bold.woff2", "Chivo", 700),
-    ("Chivo-ExtraBold.woff2", "Chivo", 800),
-    ("Chivo-Black.woff2", "Chivo", 900),
-    ("IBMPlexSans-Regular.woff2", "IBM Plex Sans", 400),
-    ("IBMPlexSans-SemiBold.woff2", "IBM Plex Sans", 600),
-    ("IBMPlexSans-Bold.woff2", "IBM Plex Sans", 700),
-    ("IBMPlexMono-Regular.woff2", "IBM Plex Mono", 400),
-    ("IBMPlexMono-SemiBold.woff2", "IBM Plex Mono", 600),
+    # (dosya, aile, ağırlık) — Faz 133: iki DEĞİŞKEN yüz; ağırlık bir ARALIK.
+    ("Geist-Variable.woff2", "Geist", "100 900"),
+    ("GeistMono-Variable.woff2", "Geist Mono", "100 900"),
 )
 
 
@@ -4186,8 +4179,8 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 /* ---------------------------------------------------------------------------
    ★★ FAZ 132 — YENİDEN DÜZEN (kullanıcı 12.10.2026: "redesign the ui and ux
    of the site").
-   Kimlik AYNI: sıfır köşe, cetvel, Chivo, tek aksan, ölçülü palet (Faz 56,
-   70). Değişen şey düzen ve hiyerarşi — her görünümde tekrar eden kabuk:
+   Bu faz yalnız DÜZENİ değiştirdi (görsel dil Faz 133'te — aşağıdaki
+   katman). Her görünümde tekrar eden kabuk:
 
    1. ÜST ÇUBUK TEK BANT. Masaüstünde ad, durum satırı ve veri yaşı üç ayrı
       satıra yayılıyordu (1440px'te 125px; "tazele" kendi satırında). Şimdi
@@ -4275,6 +4268,78 @@ body:not(.kurulum) header .veriyasi .ghost.mini:hover{background:var(--seal-soft
 /* Hafifletme önerisinin açıklaması öbür özet notlarıyla aynı boyda. */
 .hafiflet .ozetnot{font-size:var(--fs-sm);line-height:var(--lh-normal)}
 @keyframes gorunumGir{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* ---------------------------------------------------------------------------
+   ★★ FAZ 133 — YENİ GÖRSEL DİL (kullanıcı 12.10.2026, karar kartı: "New
+   visual style"). Faz 132'nin düzeni aynen duruyor; değişen GÖRÜNÜŞ:
+
+   * RENK VERİDE. Yapı rengi (`--seal`) periwinkle'dan mürekkebe döndü:
+     seçili sekme, birincil düğme, bağlantı siyah/beyaz. Ekranda renk
+     taşıyan tek şey artık program rolü (anadal/ÇAP/yandal) ve durum
+     (dolu, uyarı) — renk görünce "bu bir veri" diye okunuyor.
+     Nötrler çinko ailesi; gece "loş" kaldı (Faz 70'in ölçüsü, L 0.24).
+   * YAZI: Geist + Geist Mono, iki değişken yüz. Başlıklar cümle düzeninde,
+     600 ağırlık, hafif sıkı; zorla BÜYÜK HARF yalnız iki yerde kaldı:
+     doluluk rozeti (DOLU/SON n — aciliyet) ve bloğun rol işareti.
+   * BİÇİM: tek köşe kuralı (denetim 8, yüzey 12, işaret 6); kalın yapısal
+     cetveller (3px üst çubuk, 6px panel başı, bölüm cetveli) yerine ince
+     hat + kartın kendi gölgesi.
+   Bütün değerler `tasarim.py`'de; kontrast ve ton merdiveni yeniden ölçüldü.
+--------------------------------------------------------------------------- */
+h1,h2,h3{text-transform:none;font-weight:600;letter-spacing:var(--ls-tight)}
+h1{font-weight:700}
+h2{font-size:var(--fs-2xl)}
+h1 .kurum{font-weight:500}
+.acilim,.acilim b{text-transform:none;letter-spacing:var(--ls-0)}
+/* Etiketler: büyük harf ve geniş aralık yok; küçük, orta ağırlık, soluk. */
+.eyebrow,.ray .raybaslik,.tier>h3,.dozet h3,.yhdonem>h3,table.grid th,
+table.list th,.stepsplit,.aracbaslik,.field>span,.cktermhead,.trtable th,
+.adv>summary,.panel .pctlbl,table.cmp thead th,.daylist h3,.daylist .warn,
+.tab,.tag,.chip,.watchmini{text-transform:none;letter-spacing:var(--ls-0)}
+.eyebrow{font-family:var(--font-sans);font-weight:500;font-size:var(--fs-sm);color:var(--ink-3)}
+.ray .raybaslik{font-family:var(--font-sans);font-weight:500;font-size:var(--fs-sm)}
+table.grid th,table.list th,table.cmp thead th,.trtable th{font-weight:500;color:var(--ink-3)}
+.tag,.chip,.yerdurum,.kod{border-radius:var(--r-sm)}
+.yerdurum{letter-spacing:var(--ls-wide)}
+/* Bölüm başı: eyebrow başlığın üstünde küçük bir bağlam; cetvel yok. */
+.sechead .rule{display:none}
+/* Yüzeyler: kart ve pencere 12px, ince hat ve kendi gölgesi. */
+.card,dialog{border-radius:var(--r-lg)}
+.card{box-shadow:var(--shadow-card)}
+.panel,.yhprogram,.hero,dialog{border-top-width:var(--line-accent)}
+.blk,.blockitem,.tier li,.opt,.note,.daylist .siradaki{border-radius:var(--r)}
+/* Bölünmüş denetimler (sekme, kip, radyo) köşeyi kapsasın. */
+.tabs,.modes,.radios{overflow:hidden}
+.tab[aria-selected="true"]{font-weight:600}
+.ghost{font-weight:500;letter-spacing:var(--ls-0)}
+.ghost.primary{font-weight:600}
+/* Üst çubuk ve alt bilgi: kalın aksan cetveli yerine ince hat. */
+body:not(.kurulum) header,header .masthead{border-bottom:var(--line-hair) solid var(--border)}
+footer{border-top:var(--line-hair) solid var(--border)}
+/* Ray: seçili görünüm dolu bir hap; sol aksan çizgisi yok. */
+.ray{border-right:0;padding-right:0}
+.ray a{font-family:var(--font-sans);font-weight:500;font-size:var(--fs-md);
+  letter-spacing:var(--ls-0);border-left:0;border-radius:var(--r);padding:0 var(--sp-6)}
+.ray a[aria-current="page"]{background:var(--seal-soft);color:var(--ink);font-weight:600}
+.ray .raybaslik{padding-inline:var(--sp-6)}
+/* Grup adları veride BÜYÜK HARF ("PLANLA"); burada cümle düzenine
+   çevriliyor — `lang="tr"` sayesinde I → ı doğru küçülüyor. */
+.ray .raybaslik{text-transform:lowercase}
+.ray .raybaslik::first-letter{text-transform:uppercase}
+@media (min-width:701px){
+  .ray a{min-height:var(--ctl-h)}
+}
+/* Yol haritası ayar panosunun köşeleri (iki parça, tek kutu). */
+.yhoncelik{border-start-start-radius:var(--r);border-start-end-radius:var(--r)}
+.yhsenaryo{border-end-start-radius:var(--r);border-end-end-radius:var(--r)}
+.raydaha{font-family:var(--font-sans);font-weight:500}
+/* Izgara: saat başı çizgisi artık cetvel değil, belirgin bir ince hat. */
+table.grid tr.hr>td{border-top-color:color-mix(in oklab,var(--border-strong) 40%,var(--border))}
+@media (max-width:700px){
+  .ray a{border-radius:var(--r-sm)}
+  .ray a[aria-current="page"]{background:transparent;color:var(--ink);
+    box-shadow:inset 0 var(--line-accent) 0 var(--ink)}
+}
 @media (prefers-reduced-motion:no-preference){
   .blk,.tab,.ghost,.opt{transition:background var(--dur-fast) ease,color var(--dur-fast) ease}
 }
