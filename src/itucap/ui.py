@@ -4415,6 +4415,12 @@ table.grid tr.hr>td{border-top-color:color-mix(in oklab,var(--border-strong) 40%
 .yhgecmisnot{margin:var(--sp-3) 0 0;font-size:var(--fs-sm);color:var(--ink-3);
   line-height:var(--lh-normal);max-width:80ch}
 #roadmapBody{container-type:inline-size}
+/* Faz 138 — alınamayan dersler: ad, gereksiz tekrar yok, düğme sağda. */
+.blockitem.engel{display:flex;flex-direction:column;gap:var(--sp-1)}
+.engel .enust{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
+.engel .enust .watchmini{margin-left:auto}
+.engel .enad{color:var(--ink-2);font-size:var(--fs-sm)}
+.engel .endetay{color:var(--ink-3);font-size:var(--fs-sm)}
 @container (min-width:744px){
   .yhdonemler{grid-template-columns:repeat(var(--yhkol3,3),minmax(0,1fr))}
 }
@@ -12916,11 +12922,18 @@ let bhtml = "";
       const etiket = SECONDS().length > 1 && b.label
         ? `<span class="tag ${b.role === "YANDAL" ? "YANDAL" : "CAP"}"
              style="margin-left:6px">${esc(b.label)}</span>` : "";
-      return `<div class="blockitem"><b class="mono">${esc(b.course)}</b>${etiket}
-        ${esc(b.detail)}
+      /* ★ Faz 138 — kartta dersin ADI (veride vardı, gösterilmiyordu:
+         öğrenci "BLG 336E"yi değil "Analysis of Algorithms II"yi tanır).
+         Açıklama grubun etiketini tekrarlıyorsa yazılmıyor: "bu dönem
+         açılmamış" grubunda her kart "bu dönem şube açılmamıştır" diyordu.
+         İzleme düğmesi kodun hizasında, sağda. */
+      const tekrar = k === "ACILMAMIS" && b.detail === "bu dönem şube açılmamıştır";
+      return `<div class="blockitem engel"><div class="enust"><b class="mono">${esc(b.course)}</b>${etiket}
         ${watchable ? `<button class="watchmini" data-course="${esc(b.course)}"
           aria-pressed="${on ? "true" : "false"}"
-          >${on ? "izleniyor" : "izle"}</button>` : ""}</div>`;
+          >${on ? "izleniyor" : "izle"}</button>` : ""}</div>
+        ${b.name ? `<div class="enad">${esc(b.name)}</div>` : ""}
+        ${tekrar || !b.detail ? "" : `<div class="endetay">${esc(b.detail)}</div>`}</div>`;
     }).join("")}</div>`;
 });
 const supply = (groups.ACILMAMIS||[]).length + (groups.PROGRAMA_KAPALI||[]).length;
