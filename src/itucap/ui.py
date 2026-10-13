@@ -4380,6 +4380,21 @@ table.grid tr.hr>td{border-top-color:color-mix(in oklab,var(--border-strong) 40%
 .watchmini{border-radius:var(--r-sm)}
 /* Kredi eşikleri: bitirme koşulları bir önceki göstergeye yapışıyordu. */
 .gecissiz .blk{transition:none!important}
+/* Faz 136 — ders penceresi: önce şube ve eylemler, sonra analiz. */
+.mevcutsube{margin-top:var(--sp-6);padding:var(--sp-6) var(--sp-7);background:var(--surface-2);
+  border-radius:var(--r);display:flex;flex-direction:column;gap:var(--sp-3)}
+.mevcutsube .msust{display:flex;align-items:baseline;gap:var(--sp-4);flex-wrap:wrap}
+.mevcutsube .msust .eyebrow{margin:0}
+.mevcutsube .msust .chip{margin-bottom:0}
+.mevcutsube .mssaat{display:flex;flex-wrap:wrap;gap:var(--sp-2) var(--sp-8);
+  font-size:var(--fs-md);color:var(--ink)}
+.mevcutsube .msalt{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-4) var(--sp-8)}
+#detailBody h2[tabindex="-1"]:focus{outline:none}
+.dlgeylem{display:flex;gap:var(--sp-4);flex-wrap:wrap;margin-top:var(--sp-6)}
+.dlgbolum{margin-top:var(--sp-10);padding-top:var(--sp-6);border-top:var(--line-hair) solid var(--border);
+  font-size:var(--fs-sm);font-weight:600;color:var(--ink-2)}
+.zyontem summary{cursor:pointer;color:var(--ink-2);font-weight:500}
+.zyontem[open] summary{margin-bottom:var(--sp-2)}
 /* Faz 135 — resim penceresi: iki seçim yan yana, önizleme sığdırılmış. */
 .resimayar{display:flex;flex-wrap:wrap;gap:var(--sp-6) var(--sp-10);margin:var(--sp-4) 0 var(--sp-6)}
 .resimsecim{display:flex;flex-direction:column;gap:var(--sp-2)}
@@ -10774,7 +10789,9 @@ function zorlukKutusu(cand){
       : `İş yükü: AKTS bilinmediğinden hesaba katılmadı.`}</div>
     <div class="why">Olağan dönemler${d ? `: ${esc(d)}` : ""}; <span class="mono">${z.n}</span> öğrenci.${
       z.lowData ? " <b>Az veriye dayanmaktadır.</b>" : ""}</div>
-    <div class="zorluknot">Genel puan = geçme zorluğu × 0.7 + yüksek not alma zorluğu × 0.3,
+    <div class="zorluknot">Tahmindir; bu bilgi öneri puanına <b>dahil edilmez</b>.</div>
+    <details class="zorluknot zyontem"><summary>Nasıl hesaplanır?</summary>
+      Genel puan = geçme zorluğu × 0.7 + yüksek not alma zorluğu × 0.3,
       artı iş yükü düzeltmesi 0.1 × (AKTS − 5), en çok ±1: AKTS dersin gerektirdiği
       emeğin ölçüsüdür. Ölçek: geçme oranı %100 → 0, %85 → 5, %70 ve altı → 10; ortalama 4.00 → 0,
       2.50 → 5, 1.00 ve altı → 10. <b>VF geçemeyenlere sayılır</b> (vizeden kalan
@@ -10782,7 +10799,7 @@ function zorlukKutusu(cand){
       4–6 orta · 6–8.5 zor · 8.5–10 çok zor.
       Tahmindir: notlar dersin zorluğunun yanında öğretim üyesinin not verme eğilimini
       ve dersi alan öğrencilerin yapısını da yansıtır. Tekrar/bütünleme niteliğindeki
-      küçük sınıflar hesaba katılmaz. Bu bilgi öneri puanına <b>dahil edilmez</b>.</div>
+      küçük sınıflar hesaba katılmaz. Bu bilgi öneri puanına <b>dahil edilmez</b>.</details>
   </div>`;
 }
 /* Programın zorluk karışımı — özet ve karşılaştırma için. */
@@ -11034,7 +11051,7 @@ function courseDialog(course){
     <div class="eyebrow">${cand.role === "ANADAL" ? "Anadal dersi" : LBL + " dersi"}${
       cand.pool ? " · havuz: " + esc(cand.pool) : ""}${
       cand.denkOf ? " · " + esc(cand.denkOf) + " yerine (resmî denklik)" : ""}</div>
-    <h2 class="mono">${esc(cand.course)}</h2>
+    <h2 class="mono" tabindex="-1" autofocus>${esc(cand.course)}</h2>
     <div style="color:var(--ink-2);font-size:var(--fs-md);margin:2px 0 6px">${esc(cand.name)}</div>
     <div class="meta" style="color:var(--ink-3);font-size:var(--fs-sm)">
       ${cand.credits} kredi · ${cand.ects} AKTS
@@ -11045,11 +11062,13 @@ function courseDialog(course){
       dersi <b>kendiliğinden önermez</b> ve ders çıkarıldığında geri eklenmez.
       ${onerenKip >= 0 ? `Öneren kip: <b>${esc(MODES[onerenKip].label)}</b>.`
         : ""}</div>` : ""}
-    ${puanKirilimi(cand)}
-    ${zorlukKutusu(cand)}
-    ${notDagilimi(cand)}
-    <div class="dislinkler">Resmî kaynaklarda: ${disLink("obsProgram", "şube ve kontenjan (OBS Ders Programı)")}
-      · ${disLink("obsPlan", "önşart ve ders planı (OBS Ders Planları)")}</div>
+    ${mevcutSube(cand, cur.crn)}
+    <div class="dlgeylem">
+      <button class="ghost danger" id="removeCourse">Programdan çıkar</button>
+      ${kilitButonu(cand.course, cur.crn)}
+      ${watchButton(cand.course)}
+    </div>
+    ${kilitAralikSatiri(cand)}
     ${fits.length ? `<div class="chipline"><span class="chip">başka şube</span>
       <span style="color:var(--ink-3);font-size:var(--fs-sm)">${fits.length} seçenek</span></div>
       <div class="optlist">${fits.map(s => optionRow(cand, s, "")).join("")}</div>` : ""}
@@ -11058,12 +11077,12 @@ function courseDialog(course){
     <div class="chipline"><span class="chip unknown">yerine başka ders</span></div>
     <div class="optlist">${swaps.join("") ||
       `<div class="empty">bu saatlere uyan başka aday ders bulunmamaktadır</div>`}</div>
-    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="ghost danger" id="removeCourse">Programdan çıkar</button>
-      ${kilitButonu(cand.course, cur.crn)}
-      ${watchButton(cand.course)}
-    </div>
-    ${kilitAralikSatiri(cand)}
+    <div class="dlgbolum">Ders hakkında</div>
+    ${puanKirilimi(cand)}
+    ${zorlukKutusu(cand)}
+    ${notDagilimi(cand)}
+    <div class="dislinkler">Resmî kaynaklarda: ${disLink("obsProgram", "şube ve kontenjan (OBS Ders Programı)")}
+      · ${disLink("obsPlan", "önşart ve ders planı (OBS Ders Planları)")}</div>
     ${kilitNotu(cand.course, cur.crn, disKip, onerenKip)}
     ${watchNote(cand.course)}`);
   const rm = $("#removeCourse");
@@ -11071,6 +11090,30 @@ function courseDialog(course){
   wireKilit();
   wireWatch();
   ndBagla(course);            // dönem sekmeleri + artı kırılımı (Faz 38b)
+}
+
+/* ★★ Faz 136 — PENCERENİN ÜSTÜNDE DERSİN KENDİ ŞUBESİ. Eskiden pencere
+   seçili şubenin CRN'ini, saatini, dersliğini hiç göstermiyordu; "Programdan
+   çıkar" ve "Bu saate kilitle" ise zorluk kutusunun, not dağılımının ve
+   alternatiflerin ALTINDAYDI (masaüstünde ~900px aşağıda). Sıra artık:
+   bu şube → eylemler → başka şube / başka ders → ders hakkında.
+   ⚠️ Eylemler üste çıkınca pencerenin ilk odaklanabilir öğesi "Programdan
+   çıkar" oluyordu: açılır açılmaz Enter dersi silerdi. Odak başlıkta. */
+function mevcutSube(cand, crn){
+  const s = cand.sections.find(x => x.crn === crn);
+  if(!s) return "";
+  const saat = s.meetings.length
+    ? s.meetings.map(m => `<span>${DAYS[m.day-1]} <span class="mono">${hhmm(m.start)}–${hhmm(m.end)}</span>
+        <span class="yer" title="${esc(yerBaslik(m))}">${esc(yerYazi(m))}</span></span>`).join("")
+    : `<span>${saatsizYazi(s, "kisa")}</span>`;
+  return `<div class="mevcutsube" aria-label="Programdaki şube">
+    <div class="msust"><span class="eyebrow">Programdaki şube</span>
+      <span class="mono">CRN ${esc(s.crn)}</span>${s.online
+        ? `<span class="chip online">çevrimiçi</span>` : ""}</div>
+    <div class="mssaat">${saat}</div>
+    <div class="msalt">${s.instructor ? `<span class="hoca">${esc(s.instructor)}</span>` : ""}
+      ${doluluk([s])}</div>
+  </div>`;
 }
 
 /* ---------- Kontenjan nöbeti listesi (yapılacaklar 4.3) ----------
@@ -11711,7 +11754,7 @@ function addDialog(course){
   const pool = poolBlocker(cand, null);
   openDialog(`
     <div class="eyebrow">Programa ekle</div>
-    <h2 class="mono">${esc(cand.course)}</h2>
+    <h2 class="mono" tabindex="-1" autofocus>${esc(cand.course)}</h2>
     <div style="color:var(--ink-2);font-size:var(--fs-md);margin:2px 0 6px">${esc(cand.name)}</div>
     ${pool ? `<div class="note" style="margin-top:8px">Aynı havuzdan
       <b class="mono">${esc(pool.cand.course)}</b> seçilidir; bu ders eklendiğinde o ders çıkarılır.</div>` : ""}
