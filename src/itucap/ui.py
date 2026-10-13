@@ -1394,6 +1394,23 @@ def tema_renkleri() -> dict[str, str]:
     return {"gece": gece, "gunduz": gunduz}
 
 
+# ★ Faz 135 — program resminin köşesindeki küçük simge, uygulama simgesinin
+# AYNI geometrisi: (sütun, üst, alt, renk) 512 tabanında. Kaynağı
+# tools/simge_uret.py `BLOKLAR`; test_faz135 ikisinin ayrışmadığını denetliyor.
+SIMGE_BLOKLAR = [
+    (0, 108, 268, "anadal"), (0, 292, 404, "bos"),
+    (1, 108, 172, "bos"), (1, 196, 404, "beyaz"),
+    (2, 108, 236, "cap"), (2, 260, 404, "anadal"),
+]
+
+
+def simge_renkleri() -> dict[str, str]:
+    """Simgenin renkleri — temadan bağımsız (simge her yerde aynı)."""
+    r = {ad: (g, d) for ad, g, d, _ in TASARIM.RENKLER}
+    return {"zemin": r["seal"][1], "anadal": r["anadal"][0], "cap": r["cap"][0],
+            "beyaz": "#FFFFFF", "bos": "#474749"}
+
+
 def web_manifest() -> dict:
     """Ana ekrana eklenince tarayıcının okuduğu tanım (W3C Web App Manifest).
 
@@ -2323,7 +2340,10 @@ def render(data: dict, *, deferred: bool = False,
                            ("__AD_ASCII__", ad_ascii()),
                            ("__AD_ACILIM__", acilim_html()),
                            ("__TEMA_GUNDUZ__", tema_renkleri()["gunduz"]),
-                           ("__TEMA_GECE__", tema_renkleri()["gece"])):
+                           ("__TEMA_GECE__", tema_renkleri()["gece"]),
+                           ("__SIMGE_BLOK__", json.dumps(SIMGE_BLOKLAR)),
+                           ("__SIMGE_RENK__", json.dumps(simge_renkleri())),
+                           ("__SIMGE_ZEMIN__", simge_renkleri()["zemin"])):
         html = html.replace(anahtar, deger)
     if deferred:
         html = html.replace("\nboot();\n", "\nwindow.__ITUCAP_APPLY__ = applyState;\n")
@@ -3673,6 +3693,17 @@ table.cmp .meta.arti{color:var(--ok)}
 .yhzincir{margin-top:14px;font-size:var(--fs-md);color:var(--ink-2)}
 .yhdonemler{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
   gap:12px;margin-top:14px}
+/* Faz 137 — dengeli sütun: üç ya da dört sütun sığan genişlikte satır sayısı
+   hesaplanıp dönemler eşit dağıtılıyor (6 → 3 + 3; JS `--yhkol3/4`'ü yazar).
+   240px kartın en dar hâli: 3 × 240 + 2 × 12 = 744, 4 × 240 + 3 × 12 = 996. */
+#roadmapBody{container-type:inline-size}
+.yhdonemler{--yhkol3:3;--yhkol4:4}
+@container (min-width:744px){
+  .yhdonemler{grid-template-columns:repeat(var(--yhkol3),minmax(0,1fr))}
+}
+@container (min-width:996px){
+  .yhdonemler{grid-template-columns:repeat(var(--yhkol4),minmax(0,1fr))}
+}
 .yhdonem{border:1px solid var(--border);padding:10px 12px;background:var(--surface-2)}
 .yhdonem.simdi{border-color:var(--seal);background:var(--seal-soft)}
 .yhdonem.bos{background:transparent;border-style:dashed}
@@ -4359,8 +4390,47 @@ table.grid tr.hr>td{border-top-color:color-mix(in oklab,var(--border-strong) 40%
 .yhdonem,.yhprogram,.basvuruitem,#yhYuk{border-radius:var(--r)}
 .watchmini{border-radius:var(--r-sm)}
 /* Kredi eşikleri: bitirme koşulları bir önceki göstergeye yapışıyordu. */
+.gecissiz .blk{transition:none!important}
+/* Faz 136 — ders penceresi: önce şube ve eylemler, sonra analiz. */
+.mevcutsube{margin-top:var(--sp-6);padding:var(--sp-6) var(--sp-7);background:var(--surface-2);
+  border-radius:var(--r);display:flex;flex-direction:column;gap:var(--sp-3)}
+.mevcutsube .msust{display:flex;align-items:baseline;gap:var(--sp-4);flex-wrap:wrap}
+.mevcutsube .msust .eyebrow{margin:0}
+.mevcutsube .msust .chip{margin-bottom:0}
+.mevcutsube .mssaat{display:flex;flex-wrap:wrap;gap:var(--sp-2) var(--sp-8);
+  font-size:var(--fs-md);color:var(--ink)}
+.mevcutsube .msalt{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-4) var(--sp-8)}
+#detailBody h2[tabindex="-1"]:focus{outline:none}
+.dlgeylem{display:flex;gap:var(--sp-4);flex-wrap:wrap;margin-top:var(--sp-6)}
+.dlgbolum{margin-top:var(--sp-10);padding-top:var(--sp-6);border-top:var(--line-hair) solid var(--border);
+  font-size:var(--fs-sm);font-weight:600;color:var(--ink-2)}
+.zyontem summary{cursor:pointer;color:var(--ink-2);font-weight:500}
+.zyontem[open] summary{margin-bottom:var(--sp-2)}
+/* Faz 135 — resim penceresi: iki seçim yan yana, önizleme sığdırılmış. */
+.resimayar{display:flex;flex-wrap:wrap;gap:var(--sp-6) var(--sp-10);margin:var(--sp-4) 0 var(--sp-6)}
+.resimsecim{display:flex;flex-direction:column;gap:var(--sp-2)}
+.resimonizleme{background:var(--surface-2);border-radius:var(--r);padding:var(--sp-6);
+  display:flex;justify-content:center;min-height:calc(var(--sp-14) * 2)}
+.resimonizleme img{display:block;max-width:100%;max-height:52vh;height:auto;
+  border-radius:var(--r-sm);box-shadow:var(--shadow-card)}
+.resimeylem{display:flex;flex-wrap:wrap;gap:var(--sp-4);margin-top:var(--sp-6)}
 #creditBody:not(:empty){margin-top:var(--sp-7);padding-top:var(--sp-7);
   border-top:var(--line-hair) solid var(--border)}
+/* Faz 137 — yol haritası: plan öne, varsayımların özü açık, tamamı katlı. */
+.yhbolum{margin:var(--sp-11) 0 0;padding-top:var(--sp-7);border-top:var(--line-hair) solid var(--border);
+  font-size:var(--fs-md);font-weight:600;color:var(--ink)}
+.yhvarsayim .yhvuyari{margin:var(--sp-4) 0 0;padding:0;list-style:none;color:var(--warn)}
+.yhvtum{margin-top:var(--sp-4)}
+.yhvtum summary{cursor:pointer;color:var(--ink-2);font-weight:500;font-size:var(--fs-sm)}
+.yhvtum ul{color:var(--ink-2)}
+.yhgecmisnot{margin:var(--sp-3) 0 0;font-size:var(--fs-sm);color:var(--ink-3);
+  line-height:var(--lh-normal);max-width:80ch}
+/* Faz 138 — alınamayan dersler: ad, gereksiz tekrar yok, düğme sağda. */
+.blockitem.engel{display:flex;flex-direction:column;gap:var(--sp-1)}
+.engel .enust{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
+.engel .enust .watchmini{margin-left:auto}
+.engel .enad{color:var(--ink-2);font-size:var(--fs-sm)}
+.engel .endetay{color:var(--ink-3);font-size:var(--fs-sm)}
 @media (prefers-reduced-motion:no-preference){
   .blk,.tab,.ghost,.opt{transition:background var(--dur-fast) ease,color var(--dur-fast) ease}
 }
@@ -7806,7 +7876,7 @@ function wirePicks(){
   const ics = $("#icsBtn");
   if(ics) ics.onclick = icsIndir;
   const png = $("#pngBtn");
-  if(png) png.onclick = () => resimIndir().catch(err => hataBildir(png, err));
+  if(png) png.onclick = resimDialog;                  // Faz 135: önizlemeli pencere
   const dan = $("#danismanBtn");
   if(dan) dan.onclick = danismanDialog;
   const pay = $("#shareBtn");
@@ -8267,12 +8337,43 @@ function danismanDialog(){
    bloğun HESAPLANMIŞ renginden (ton merdiveni dahil) — resim ekrandaki
    temayla aynı. ⚠️ İçinde yalnız ders, şube, saat ve bina var; not,
    transkript, GNO YOK. */
-async function resimIndir(){
+async function resimIndir(opt = {}){
   const ps = picks();
   if(!ps.length){ alertLine("Programda ders bulunmadığından resim oluşturulmadı."); return; }
   if(document.fonts && document.fonts.ready) await document.fonts.ready;
-  const kok = getComputedStyle(document.documentElement);
-  const j = (ad) => kok.getPropertyValue("--" + ad).trim();
+  /* ★★ Faz 135 — TEMA SEÇİLEBİLİR. Renkler hâlâ SAYFANIN jetonları; istenen
+     tema bir anlığına `data-theme` ile kuruluyor, bütün renkler EŞZAMANLI
+     okunuyor, tema geri alınıyor. Arada boyama yok, ekran kırpışmıyor. */
+  const kokEl = document.documentElement;
+  const eskiTema = kokEl.getAttribute("data-theme");
+  /* ⚠️ Blokların renk geçişi (Faz 133) varken hesaplanmış renk geçişin
+     BAŞINDAKİ değer: koyu resimde bloklar açık temanın renginde çıkıyordu
+     (ölçüldü). Ölçüm boyunca geçiş kapalı. */
+  kokEl.classList.add("gecissiz");
+  if(opt.tema) kokEl.setAttribute("data-theme", opt.tema);
+  const kok = getComputedStyle(kokEl);
+  const JET = {};
+  ["ground", "surface", "surface-2", "border", "border-strong", "ink", "ink-2", "ink-3",
+   "font-sans", "font-mono", "anadal", "cap", "yandal", "anadal-soft", "cap-soft",
+   "yandal-soft", "anadal-ink", "cap-ink", "yandal-ink"]
+    .forEach(ad => { JET[ad] = kok.getPropertyValue("--" + ad).trim(); });
+  const j = (ad) => JET[ad];
+  const BLOK = {};
+  ps.forEach(p => {
+    const blk = document.querySelector(`#grid .blk[data-course="${CSS.escape(p.cand.course)}"]`);
+    if(!blk) return;
+    const hs = getComputedStyle(blk);
+    BLOK[p.cand.course] = {zemin: hs.backgroundColor, yazi: hs.color,
+                           serit: hs.borderLeftColor, cevrimici: blk.classList.contains("online")};
+  });
+  if(opt.tema){
+    if(eskiTema) kokEl.setAttribute("data-theme", eskiTema);
+    else kokEl.removeAttribute("data-theme");
+  }
+  /* Geri dönüşü de geçişsiz hesaplat; yoksa ekrandaki bloklar ölçülen
+     temadan ekranınkine doğru bir kez renk değiştirirdi. */
+  document.querySelectorAll("#grid .blk").forEach(b => getComputedStyle(b).backgroundColor);
+  kokEl.classList.remove("gecissiz");
   const SANS = j("font-sans") || "sans-serif", MONO = j("font-mono") || "monospace";
   const mesgul = (DATA.busy || []).filter(b => b.ok);
   const saatli = ps.filter(p => p.sec.meetings.length);
@@ -8280,8 +8381,12 @@ async function resimIndir(){
   const dk = [...saatli.flatMap(p => p.sec.meetings), ...mesgul];
   const bas = Math.floor(Math.min(...dk.map(m => m.start), 8 * 60 + 30) / 60) * 60;
   const son = Math.ceil(Math.max(...dk.map(m => m.end), 12 * 60) / 60) * 60;
-  const O = 2, G = 1100, SOL = 56, UST = 92, GUN_UST = 28, DK = 1.1, PAY = 16;
-  const altSatir = (saatsiz.length ? 22 : 0) + 40;
+  /* ★ Faz 135 — iki biçim. "dikey" telefonda paylaşmak için: dar ve uzun
+     (yaklaşık 9:16), saat ölçeği büyük, blokta kod ve saat önde. */
+  const dikey = opt.bicim === "dikey";
+  const O = 2, G = dikey ? 540 : 1100, SOL = dikey ? 44 : 56, PAY = dikey ? 14 : 16;
+  const UST = 104, GUN_UST = 30, DK = dikey ? 1.45 : 1.1, KOSE = 6;
+  const altSatir = (saatsiz.length ? 22 : 0) + 64;
   const Y = UST + GUN_UST + (son - bas) * DK + altSatir;
   const tuval = document.createElement("canvas");
   tuval.width = G * O; tuval.height = Math.ceil(Y) * O;
@@ -8294,68 +8399,97 @@ async function resimIndir(){
     if(genislik) while(m.length > 1 && c.measureText(m).width > genislik) m = m.slice(0, -2) + "…";
     c.fillText(m, x, y);
   };
+  const yuvarlak = (x, y, w, h, r) => {
+    c.beginPath();
+    if(c.roundRect) c.roundRect(x, y, w, h, Math.min(r, h / 2, w / 2)); else c.rect(x, y, w, h);
+  };
   const t = totals();
-  yaz("Haftalık ders programı", PAY, 34, `700 20px ${SANS}`, j("ink"));
+  /* Üst bant: başlık solda, uygulamanın işareti ve adı sağda. */
+  yaz("Haftalık ders programı", PAY, 36, `700 ${dikey ? 18 : 22}px ${SANS}`, j("ink"));
   yaz(`${DATA.termLabel || ""} · ${t.n} ders · ${t.load}${DATA.maxLoad ? " / " + DATA.maxLoad : ""} ${
-      DATA.unitLabel || ""}`, PAY, 58, `400 13px ${SANS}`, j("ink-2"));
+      DATA.unitLabel || ""}`, PAY, 60, `500 13px ${SANS}`, j("ink-2"));
   /* Ad yer tutucudan (bkz. test_ad.py — ad değişince sayfada eski ad kalmasın). */
-  yaz("__AD_TAM__ — CRN'leri kayıttan önce OBS'de doğrulayınız", PAY, 78,
-      `400 11px ${SANS}`, j("ink-3"));
+  yaz(`${dikey ? "__AD_TAM__ — " : ""}CRN'leri kayıttan önce OBS'de doğrulayınız`, PAY, 80,
+      `400 11px ${SANS}`, j("ink-3"), G - 2 * PAY);
+  if(!dikey){
+    /* Uygulama simgesi, küçük: geometri tools/simge_uret.py'deki BLOKLAR
+       (test_faz135 ikisinin aynı olduğunu denetliyor). Zemin her temada
+       simgenin kendi mürekkebi. */
+    const ix = G - PAY - 32, iy = 16, k = 32 / 512;
+    c.fillStyle = "__SIMGE_ZEMIN__"; yuvarlak(ix, iy, 32, 32, 8); c.fill();
+    SIMGE_BLOK.forEach(([s, ust, alt, renk]) => {
+      c.fillStyle = SIMGE_RENK[renk];
+      yuvarlak(ix + (108 + s * (296 - 48) / 3 + s * 24) * k, iy + ust * k,
+               (296 - 48) / 3 * k, (alt - ust) * k, 22 * k); c.fill();
+    });
+    c.textAlign = "right";
+    yaz("__AD_TAM__", ix - 10, iy + 21, `600 13px ${SANS}`, j("ink-2"));
+    c.textAlign = "left";
+  }
   const sw = (G - SOL - PAY) / 5;
   const x0 = (gun) => SOL + (gun - 1) * sw;
   const y0 = (dak) => UST + GUN_UST + (dak - bas) * DK;
-  c.strokeStyle = j("border"); c.lineWidth = 1;
-  DAYS.forEach((d, i) => yaz(d, x0(i + 1) + 6, UST + 18, `600 12px ${SANS}`, j("ink-2")));
-  for(let m = bas; m <= son; m += 60){
+  c.lineWidth = 1;
+  DAYS.forEach((d, i) => yaz(d, x0(i + 1) + 4, UST + 18, `600 12px ${SANS}`, j("ink-2")));
+  /* Izgara sönük: saat başı ince hat, gün ayracı yok — bloklar okunuyor. */
+  c.strokeStyle = j("border");
+  c.beginPath(); c.moveTo(SOL, UST + GUN_UST - .5); c.lineTo(G - PAY, UST + GUN_UST - .5);
+  c.strokeStyle = j("border-strong"); c.stroke(); c.strokeStyle = j("border");
+  for(let m = bas + 60; m <= son; m += 60){
     c.beginPath(); c.moveTo(SOL, y0(m) + .5); c.lineTo(G - PAY, y0(m) + .5); c.stroke();
-    if(m < son) yaz(hhmm(m), PAY, y0(m) + 12, `400 11px ${MONO}`, j("ink-3"));
   }
-  for(let d = 1; d <= 6; d++){
-    const x = Math.round(x0(d)) + .5;
-    c.beginPath(); c.moveTo(x, UST + GUN_UST); c.lineTo(x, y0(son)); c.stroke();
-  }
-  const kutu = (x, y, w, h, zemin, serit) => {
-    c.fillStyle = zemin; c.fillRect(x, y, w, h);
-    if(serit){ c.fillStyle = serit; c.fillRect(x, y, 3, h); }
-  };
+  for(let m = bas; m < son; m += 60)
+    yaz(hhmm(m), PAY, y0(m) + 12, `400 ${dikey ? 10 : 11}px ${MONO}`, j("ink-3"));
+  const BOS = 2;                                 // blok arası: arka arkaya iki ders ayrışsın
   mesgul.forEach(b => {
-    const x = x0(b.day) + 2, y = y0(b.start) + 1, w = sw - 4, h = (b.end - b.start) * DK - 2;
-    kutu(x, y, w, h, j("surface-2"));
-    c.save(); c.beginPath(); c.rect(x, y, w, h); c.clip();
+    const x = x0(b.day) + BOS, y = y0(b.start) + BOS, w = sw - 2 * BOS, h = (b.end - b.start) * DK - 2 * BOS;
+    c.fillStyle = j("surface-2"); yuvarlak(x, y, w, h, KOSE); c.fill();
+    c.save(); yuvarlak(x, y, w, h, KOSE); c.clip();
     c.strokeStyle = j("border");
     for(let k = -h; k < w; k += 10){ c.beginPath(); c.moveTo(x + k, y + h); c.lineTo(x + k + h, y); c.stroke(); }
-    c.restore();
     yaz(b.label || "meşgul", x + 8, y + 16, `600 12px ${SANS}`, j("ink-2"), w - 12);
     if(h > 24) yaz(`${hhmm(b.start)}–${hhmm(b.end)}`, x + 8, y + 30,
                    `400 11px ${MONO}`, j("ink-2"), w - 12);                 // Faz 127
+    c.restore();
   });
   const rolRenk = {ANADAL: "anadal", CAP: "cap", YANDAL: "yandal"};
   saatli.forEach(p => {
-    const blk = document.querySelector(`#grid .blk[data-course="${CSS.escape(p.cand.course)}"]`);
-    const hs = blk ? getComputedStyle(blk) : null;
+    const B = BLOK[p.cand.course];
     const rol = rolRenk[p.cand.role];
     p.sec.meetings.forEach(m => {
-      const x = x0(m.day) + 2, y = y0(m.start) + 1, w = sw - 4, h = (m.end - m.start) * DK - 2;
+      const x = x0(m.day) + BOS, y = y0(m.start) + BOS, w = sw - 2 * BOS, h = (m.end - m.start) * DK - 2 * BOS;
       /* Önce jeton (her tarayıcı okur), sonra bloğun hesaplanmış rengi:
          `color-mix()` sonucunu okuyamayan tarayıcıda atama sessizce
-         düşer ve jeton kalır. */
+         düşer ve jeton kalır. ★ Faz 135: çevrimiçi bloğun ızgaradaki
+         zemini BİLEREK saydam; resimde ızgara çizgileri bloğun içinden
+         geçiyordu. Resimde kart zemini + kesikli çerçeve. */
       c.fillStyle = rol ? j(rol + "-soft") : j("surface-2");
-      if(hs) c.fillStyle = hs.backgroundColor;
+      if(B && !(B.cevrimici || /rgba\(.*,\s*0\)$|transparent/.test(B.zemin))) c.fillStyle = B.zemin;
+      else if(B) c.fillStyle = j("surface");
       const zemin = c.fillStyle;
       c.fillStyle = rol ? j(rol + "-ink") : j("ink");
-      if(hs) c.fillStyle = hs.color;
+      if(B) c.fillStyle = B.yazi;
       const yazi = c.fillStyle;
-      kutu(x, y, w, h, zemin, rol ? j(rol) : j("ink-3"));
-      c.save(); c.beginPath(); c.rect(x, y, w, h); c.clip();
-      yaz(p.cand.course, x + 9, y + 16, `700 12px ${MONO}`, yazi, w - 14);
+      c.fillStyle = rol ? j(rol) : j("ink-3");
+      if(B && B.serit) c.fillStyle = B.serit;
+      const serit = c.fillStyle;
+      c.fillStyle = zemin; yuvarlak(x, y, w, h, KOSE); c.fill();
+      c.save(); yuvarlak(x, y, w, h, KOSE); c.clip();
+      if(B && B.cevrimici){
+        c.setLineDash([4, 3]); c.strokeStyle = serit; c.lineWidth = 1.5;
+        yuvarlak(x + .75, y + .75, w - 1.5, h - 1.5, KOSE); c.stroke(); c.setLineDash([]); c.lineWidth = 1;
+      }
+      c.fillStyle = serit; c.fillRect(x, y, 4, h);
+      const ic = w - 16;
+      yaz(p.cand.course, x + 10, y + 17, `700 ${dikey ? 11 : 12}px ${MONO}`, yazi, ic);
       /* ★ Faz 127 (kullanıcı isteği 29.09.2026: "ders bloklarının içine saat
          aralığını yazar mısın") — ızgaradaki blokta vardı, resimde yoktu.
          Ders adından ÖNCE: en kısa (1 saatlik) blokta da görünsün. */
-      if(h > 24) yaz(`${hhmm(m.start)}–${hhmm(m.end)}`, x + 9, y + 30,
-                     `600 11px ${MONO}`, yazi, w - 14);
-      if(h > 42) yaz(p.cand.name || "", x + 9, y + 45, `400 11px ${SANS}`, yazi, w - 14);
+      if(h > 24) yaz(`${hhmm(m.start)}–${hhmm(m.end)}`, x + 10, y + 31,
+                     `600 ${dikey ? 10 : 11}px ${MONO}`, yazi, ic);
+      if(h > 42) yaz(p.cand.name || "", x + 10, y + 46, `400 11px ${SANS}`, yazi, ic);
       if(h > 58) yaz(`CRN ${p.sec.crn} · ${p.sec.online ? "çevrimiçi" : yerYazi(m)}`,
-                     x + 9, y + 60, `400 10px ${MONO}`, yazi, w - 14);
+                     x + 10, y + 61, `400 10px ${MONO}`, yazi, ic);
       c.restore();
     });
   });
@@ -8366,16 +8500,104 @@ async function resimIndir(){
         PAY, ay, `400 12px ${SANS}`, j("ink-2"), G - 2 * PAY);
     ay += 22;
   }
+  /* Renk açıklaması: resmi gören kişi (danışman, arkadaş) yeşilin ne
+     olduğunu bilmiyor. Yalnız programda bulunan roller. */
+  let lx = PAY;
+  const roller = ["ANADAL", "CAP", "YANDAL"].filter(r => saatli.some(p => p.cand.role === r));
+  roller.forEach(r => {
+    c.fillStyle = j(rolRenk[r]); yuvarlak(lx, ay - 9, 10, 10, 3); c.fill();
+    const ad = r === "ANADAL" ? "anadal" : r === "CAP" ? "ÇAP" : "yandal";
+    yaz(ad, lx + 15, ay, `500 12px ${SANS}`, j("ink-2"));
+    c.font = `500 12px ${SANS}`; lx += 15 + c.measureText(ad).width + 18;
+  });
+  if(mesgul.length){
+    c.fillStyle = j("surface-2"); yuvarlak(lx, ay - 9, 10, 10, 3); c.fill();
+    c.strokeStyle = j("border-strong"); c.stroke();
+    yaz("meşgul saat", lx + 15, ay, `500 12px ${SANS}`, j("ink-2"));
+  }
+  ay += 22;
   yaz(`Oluşturuldu: ${tarihYaz(new Date().toISOString())} · kontenjan ve saatler değişebilir`,
-      PAY, ay, `400 11px ${SANS}`, j("ink-3"));
+      PAY, ay, `400 11px ${SANS}`, j("ink-3"), G - 2 * PAY);
+  if(opt.onizleme) return tuval;
   const blob = await new Promise(r => tuval.toBlob(r, "image/png"));
   if(!blob) throw new Error("tarayıcı resmi oluşturamadı");
+  const dosyaAdi = dikey ? "ders-programi-telefon.png" : "ders-programi.png";
+  /* ★ Faz 135 — telefonda "Paylaş": dosya doğrudan paylaşım sayfasına
+     (WhatsApp, galeriye kaydet). Yalnız kullanıcı Paylaş'a bastığında. */
+  if(opt.paylas && navigator.canShare){
+    const dosya = new File([blob], dosyaAdi, {type: "image/png"});
+    if(navigator.canShare({files: [dosya]})){
+      await navigator.share({files: [dosya], title: "Haftalık ders programı"});
+      return {genislik: tuval.width, yukseklik: tuval.height, paylasildi: true};
+    }
+  }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "ders-programi.png";
+  a.download = dosyaAdi;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   return {genislik: tuval.width, yukseklik: tuval.height};
+}
+
+/* ★★ Faz 135 — RESİM PENCERESİ. Eskiden düğme resmi doğrudan indiriyordu:
+   ne göründüğü indirmeden önce bilinmiyordu, tema her zaman ekranınki,
+   biçim her zaman yatay (telefonda paylaşınca okunmayacak kadar küçük).
+   Pencere önizlemeyi gösteriyor; tema ve biçim seçilip indiriliyor. */
+let RESIM_SECIM = null;
+const SIMGE_BLOK = __SIMGE_BLOK__;
+const SIMGE_RENK = __SIMGE_RENK__;
+function resimDialog(){
+  if(!picks().length){ alertLine("Programda ders bulunmadığından resim oluşturulmadı."); return; }
+  const kok = document.documentElement.getAttribute("data-theme");
+  const koyu = kok ? kok === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  RESIM_SECIM = RESIM_SECIM || {tema: koyu ? "dark" : "light",
+                                bicim: matchMedia("(max-width:700px)").matches ? "dikey" : "yatay"};
+  const grup = (ad, etiket, secenek) => `<div class="resimsecim" role="group" aria-label="${etiket}">
+    <span class="eyebrow">${etiket}</span>
+    <div class="radios">${secenek.map(([k, y]) => `<button type="button" data-resim-${ad}="${k}"
+      aria-pressed="${RESIM_SECIM[ad] === k}">${y}</button>`).join("")}</div></div>`;
+  const paylasVar = !!(navigator.canShare && window.File);
+  openDialog(`<div class="eyebrow">Program resmi</div>
+    <h2 style="margin-bottom:4px">Resim olarak kaydet</h2>
+    <p class="modenote" style="margin:2px 0 10px">Resimde yalnızca dersler, şubeler, saatler
+      ve derslikler bulunur; notlarınız ve transkriptiniz <b>eklenmez</b>.</p>
+    <div class="resimayar">${grup("tema", "Tema", [["light", "Açık"], ["dark", "Koyu"]])}
+      ${grup("bicim", "Biçim", [["yatay", "Geniş"], ["dikey", "Telefon"]])}</div>
+    <div class="resimonizleme" id="resimOnizleme" aria-live="polite"></div>
+    <div class="resimeylem">
+      <button class="ghost primary" id="resimKaydet">PNG indir</button>
+      ${paylasVar ? `<button class="ghost" id="resimPaylas">Paylaş</button>` : ""}
+    </div>`);
+  const ciz = async () => {
+    const kutu = $("#resimOnizleme");
+    if(!kutu) return;
+    const tuval = await resimIndir({...RESIM_SECIM, onizleme: true});
+    if(!tuval) return;
+    const img = new Image();
+    img.src = tuval.toDataURL("image/png");
+    img.alt = `Program resminin önizlemesi (${RESIM_SECIM.tema === "dark" ? "koyu" : "açık"} tema, ${
+      RESIM_SECIM.bicim === "dikey" ? "telefon için dikey" : "geniş"})`;
+    kutu.dataset.bicim = RESIM_SECIM.bicim;
+    kutu.replaceChildren(img);
+  };
+  $("#detailBody").querySelectorAll("[data-resim-tema],[data-resim-bicim]").forEach(b =>
+    b.addEventListener("click", () => {
+      const ad = b.dataset.resimTema ? "tema" : "bicim";
+      RESIM_SECIM[ad] = b.dataset.resimTema || b.dataset.resimBicim;
+      b.parentElement.querySelectorAll("button").forEach(x =>
+        x.setAttribute("aria-pressed", String(x === b)));
+      ciz();
+    }));
+  const kaydet = $("#resimKaydet");
+  kaydet.addEventListener("click", () =>
+    resimIndir({...RESIM_SECIM}).catch(err => hataBildir(kaydet, err)));
+  const pay = $("#resimPaylas");
+  if(pay) pay.addEventListener("click", () =>
+    resimIndir({...RESIM_SECIM, paylas: true}).catch(err => {
+      if(err && err.name === "AbortError") return;             // kullanıcı vazgeçti
+      hataBildir(pay, err);
+    }));
+  ciz();
 }
 
 /* ---------- paylaşılabilir bağlantı (Faz 25/B4) ----------
@@ -10593,7 +10815,9 @@ function zorlukKutusu(cand){
       : `İş yükü: AKTS bilinmediğinden hesaba katılmadı.`}</div>
     <div class="why">Olağan dönemler${d ? `: ${esc(d)}` : ""}; <span class="mono">${z.n}</span> öğrenci.${
       z.lowData ? " <b>Az veriye dayanmaktadır.</b>" : ""}</div>
-    <div class="zorluknot">Genel puan = geçme zorluğu × 0.7 + yüksek not alma zorluğu × 0.3,
+    <div class="zorluknot">Tahmindir; bu bilgi öneri puanına <b>dahil edilmez</b>.</div>
+    <details class="zorluknot zyontem"><summary>Nasıl hesaplanır?</summary>
+      Genel puan = geçme zorluğu × 0.7 + yüksek not alma zorluğu × 0.3,
       artı iş yükü düzeltmesi 0.1 × (AKTS − 5), en çok ±1: AKTS dersin gerektirdiği
       emeğin ölçüsüdür. Ölçek: geçme oranı %100 → 0, %85 → 5, %70 ve altı → 10; ortalama 4.00 → 0,
       2.50 → 5, 1.00 ve altı → 10. <b>VF geçemeyenlere sayılır</b> (vizeden kalan
@@ -10601,7 +10825,7 @@ function zorlukKutusu(cand){
       4–6 orta · 6–8.5 zor · 8.5–10 çok zor.
       Tahmindir: notlar dersin zorluğunun yanında öğretim üyesinin not verme eğilimini
       ve dersi alan öğrencilerin yapısını da yansıtır. Tekrar/bütünleme niteliğindeki
-      küçük sınıflar hesaba katılmaz. Bu bilgi öneri puanına <b>dahil edilmez</b>.</div>
+      küçük sınıflar hesaba katılmaz. Bu bilgi öneri puanına <b>dahil edilmez</b>.</details>
   </div>`;
 }
 /* Programın zorluk karışımı — özet ve karşılaştırma için. */
@@ -10853,7 +11077,7 @@ function courseDialog(course){
     <div class="eyebrow">${cand.role === "ANADAL" ? "Anadal dersi" : LBL + " dersi"}${
       cand.pool ? " · havuz: " + esc(cand.pool) : ""}${
       cand.denkOf ? " · " + esc(cand.denkOf) + " yerine (resmî denklik)" : ""}</div>
-    <h2 class="mono">${esc(cand.course)}</h2>
+    <h2 class="mono" tabindex="-1" autofocus>${esc(cand.course)}</h2>
     <div style="color:var(--ink-2);font-size:var(--fs-md);margin:2px 0 6px">${esc(cand.name)}</div>
     <div class="meta" style="color:var(--ink-3);font-size:var(--fs-sm)">
       ${cand.credits} kredi · ${cand.ects} AKTS
@@ -10864,11 +11088,13 @@ function courseDialog(course){
       dersi <b>kendiliğinden önermez</b> ve ders çıkarıldığında geri eklenmez.
       ${onerenKip >= 0 ? `Öneren kip: <b>${esc(MODES[onerenKip].label)}</b>.`
         : ""}</div>` : ""}
-    ${puanKirilimi(cand)}
-    ${zorlukKutusu(cand)}
-    ${notDagilimi(cand)}
-    <div class="dislinkler">Resmî kaynaklarda: ${disLink("obsProgram", "şube ve kontenjan (OBS Ders Programı)")}
-      · ${disLink("obsPlan", "önşart ve ders planı (OBS Ders Planları)")}</div>
+    ${mevcutSube(cand, cur.crn)}
+    <div class="dlgeylem">
+      <button class="ghost danger" id="removeCourse">Programdan çıkar</button>
+      ${kilitButonu(cand.course, cur.crn)}
+      ${watchButton(cand.course)}
+    </div>
+    ${kilitAralikSatiri(cand)}
     ${fits.length ? `<div class="chipline"><span class="chip">başka şube</span>
       <span style="color:var(--ink-3);font-size:var(--fs-sm)">${fits.length} seçenek</span></div>
       <div class="optlist">${fits.map(s => optionRow(cand, s, "")).join("")}</div>` : ""}
@@ -10877,12 +11103,12 @@ function courseDialog(course){
     <div class="chipline"><span class="chip unknown">yerine başka ders</span></div>
     <div class="optlist">${swaps.join("") ||
       `<div class="empty">bu saatlere uyan başka aday ders bulunmamaktadır</div>`}</div>
-    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="ghost danger" id="removeCourse">Programdan çıkar</button>
-      ${kilitButonu(cand.course, cur.crn)}
-      ${watchButton(cand.course)}
-    </div>
-    ${kilitAralikSatiri(cand)}
+    <div class="dlgbolum">Ders hakkında</div>
+    ${puanKirilimi(cand)}
+    ${zorlukKutusu(cand)}
+    ${notDagilimi(cand)}
+    <div class="dislinkler">Resmî kaynaklarda: ${disLink("obsProgram", "şube ve kontenjan (OBS Ders Programı)")}
+      · ${disLink("obsPlan", "önşart ve ders planı (OBS Ders Planları)")}</div>
     ${kilitNotu(cand.course, cur.crn, disKip, onerenKip)}
     ${watchNote(cand.course)}`);
   const rm = $("#removeCourse");
@@ -10890,6 +11116,30 @@ function courseDialog(course){
   wireKilit();
   wireWatch();
   ndBagla(course);            // dönem sekmeleri + artı kırılımı (Faz 38b)
+}
+
+/* ★★ Faz 136 — PENCERENİN ÜSTÜNDE DERSİN KENDİ ŞUBESİ. Eskiden pencere
+   seçili şubenin CRN'ini, saatini, dersliğini hiç göstermiyordu; "Programdan
+   çıkar" ve "Bu saate kilitle" ise zorluk kutusunun, not dağılımının ve
+   alternatiflerin ALTINDAYDI (masaüstünde ~900px aşağıda). Sıra artık:
+   bu şube → eylemler → başka şube / başka ders → ders hakkında.
+   ⚠️ Eylemler üste çıkınca pencerenin ilk odaklanabilir öğesi "Programdan
+   çıkar" oluyordu: açılır açılmaz Enter dersi silerdi. Odak başlıkta. */
+function mevcutSube(cand, crn){
+  const s = cand.sections.find(x => x.crn === crn);
+  if(!s) return "";
+  const saat = s.meetings.length
+    ? s.meetings.map(m => `<span>${DAYS[m.day-1]} <span class="mono">${hhmm(m.start)}–${hhmm(m.end)}</span>
+        <span class="yer" title="${esc(yerBaslik(m))}">${esc(yerYazi(m))}</span></span>`).join("")
+    : `<span>${saatsizYazi(s, "kisa")}</span>`;
+  return `<div class="mevcutsube" aria-label="Programdaki şube">
+    <div class="msust"><span class="eyebrow">Programdaki şube</span>
+      <span class="mono">CRN ${esc(s.crn)}</span>${s.online
+        ? `<span class="chip online">çevrimiçi</span>` : ""}</div>
+    <div class="mssaat">${saat}</div>
+    <div class="msalt">${s.instructor ? `<span class="hoca">${esc(s.instructor)}</span>` : ""}
+      ${doluluk([s])}</div>
+  </div>`;
 }
 
 /* ---------- Kontenjan nöbeti listesi (yapılacaklar 4.3) ----------
@@ -11530,7 +11780,7 @@ function addDialog(course){
   const pool = poolBlocker(cand, null);
   openDialog(`
     <div class="eyebrow">Programa ekle</div>
-    <h2 class="mono">${esc(cand.course)}</h2>
+    <h2 class="mono" tabindex="-1" autofocus>${esc(cand.course)}</h2>
     <div style="color:var(--ink-2);font-size:var(--fs-md);margin:2px 0 6px">${esc(cand.name)}</div>
     ${pool ? `<div class="note" style="margin-top:8px">Aynı havuzdan
       <b class="mono">${esc(pool.cand.course)}</b> seçilidir; bu ders eklendiğinde o ders çıkarılır.</div>` : ""}
@@ -12217,8 +12467,18 @@ function renderRoadmap(){
         açılacağı anlamına gelmez; yaz okulunun ücreti, kontenjanı ve kredi sınırı bu
         hesaba dahil değildir.</div>
     </div>` : "";
-  const varsayim = `<div class="note yhvarsayim"><b>Hesaplama varsayımları</b>
-      <ul>${(R.assumptions || []).map(a => `<li>${esc(a)}</li>`).join("")}</ul></div>`;
+  /* ★ Faz 137 — varsayımlar hâlâ planın ÜSTÜNDE (Faz 57: okunmadan
+     geçilmesin), ama 10 maddelik bir duvar olarak değil. Açıkta: planın
+     tahmin olduğu, üç temel varsayım ve ⚠ uyarılar (bu öğrenciye özel veri
+     eksikleri). Maddelerin tamamı katlı. Üç temel varsayım motorun HER
+     zaman döndürdüğü maddeler (test tutuyor). */
+  const tumV = R.assumptions || [], uyariV = tumV.filter(a => a.startsWith("⚠"));
+  const varsayim = `<div class="note yhvarsayim"><b>Bu plan bir tahmindir.</b> Her dersin
+      ilk denemede geçileceği ve her dönem en çok <b class="mono">${R.maxLoad}</b> kredi
+      alınacağı varsayılmıştır; kontenjan ve yaz okulu hesaba katılmamıştır.
+      ${uyariV.length ? `<ul class="yhvuyari">${uyariV.map(a => `<li>${esc(a)}</li>`).join("")}</ul>` : ""}
+      <details class="yhvtum"><summary>Hesaplama varsayımları (${tumV.length})</summary>
+      <ul>${tumV.map(a => `<li>${esc(a)}</li>`).join("")}</ul></details></div>`;
   const zincir = (R.longest || []).length > 1 ? `<div class="yhzincir">En uzun önşart
       zinciri: ${R.longest.map(c => `<b class="mono">${esc(c)}</b>`).join(" → ")} —
       bu zincir en az <b>${R.longest.length} dönem</b> sürer.</div>` : "";
@@ -12227,7 +12487,11 @@ function renderRoadmap(){
     ? `<div class="meta yhgecmisnot">“geçmişte”: dersin OBS not dağılımında göründüğü dönemler
         (parantezde not alan öğrenci sayısı). Doğruluğu belirsizdir; dersin ileride aynı
         dönemlerde açılacağı kesin değildir.</div>` : "";
-  const donemler = gecmisAciklama + `<div class="yhdonemler">${(R.terms || []).map(t => `
+  /* Faz 137 — sütun sayısı dengeli: 6 dönem 4+2 değil 3+3 (`--yhkol4` en
+     çok dört sütun sığan genişlik, `--yhkol3` üç). */
+  const nD = (R.terms || []).length, kol = m => nD ? Math.ceil(nD / Math.ceil(nD / m)) : m;
+  const donemler = `<h3 class="yhbolum">Dönem planı</h3>` + gecmisAciklama
+    + `<div class="yhdonemler" style="--yhkol4:${kol(4)};--yhkol3:${kol(3)}">${(R.terms || []).map(t => `
     <section class="yhdonem${t.current ? " simdi" : ""}${t.summer ? " yaz" : ""}${
       t.items.length ? "" : " bos"}${t.skipped ? " atlandi" : ""}">
       <h3><span>${esc(t.label)}</span>${t.current
@@ -12299,8 +12563,14 @@ function renderRoadmap(){
         R.scenario.hardMax ? `dönem başına en çok <b class="mono">${
           R.scenario.hardMax}</b> zor ders` : ""].filter(Boolean).join(" · ")}
       <button class="ghost mini" id="yhSenaryoKapat">Mevcut plana dön</button></div>`;
+  /* ★ Faz 137 — PLAN ÖNE. Eskiden dönem kartları yaz okulu, kalma riski ve
+     varsayım kutularının altındaydı: masaüstünde ~1500px, telefonda ~3400px
+     aşağıda. Şimdi: bitiş kartları → bu dönem alınacak ders (kayıt
+     kararı) → varsayımlar (Faz 57: planın üstünde) → PLAN → "ya şöyle
+     olursa" kutuları (yaz okulu, kalma riski). */
   body.innerHTML = `${yhOncelikPaneli(T, R)}${yhSenaryoPaneli(T)}${serit}<div class="yhprogramlar">${programlar}</div>${
-    simdi}${yaz}<div data-kalma="yh">${kalmaPanelIcerik()}</div>${varsayim}${zincir}${donemler}${kalan}`;
+    simdi}${varsayim}${zincir}${donemler}${kalan}${yaz || kalmaHesaplanabilir()
+      ? `<h3 class="yhbolum">Bitişi değiştirebilecek durumlar</h3>` : ""}${yaz}<div data-kalma="yh">${kalmaPanelIcerik()}</div>`;
   kalmaBagla(); kalmaOto();        // Faz 75
   const yuk = $("#yhYuk");
   if(yuk) yuk.addEventListener("change", () => {
@@ -12656,11 +12926,18 @@ let bhtml = "";
       const etiket = SECONDS().length > 1 && b.label
         ? `<span class="tag ${b.role === "YANDAL" ? "YANDAL" : "CAP"}"
              style="margin-left:6px">${esc(b.label)}</span>` : "";
-      return `<div class="blockitem"><b class="mono">${esc(b.course)}</b>${etiket}
-        ${esc(b.detail)}
+      /* ★ Faz 138 — kartta dersin ADI (veride vardı, gösterilmiyordu:
+         öğrenci "BLG 336E"yi değil "Analysis of Algorithms II"yi tanır).
+         Açıklama grubun etiketini tekrarlıyorsa yazılmıyor: "bu dönem
+         açılmamış" grubunda her kart "bu dönem şube açılmamıştır" diyordu.
+         İzleme düğmesi kodun hizasında, sağda. */
+      const tekrar = k === "ACILMAMIS" && b.detail === "bu dönem şube açılmamıştır";
+      return `<div class="blockitem engel"><div class="enust"><b class="mono">${esc(b.course)}</b>${etiket}
         ${watchable ? `<button class="watchmini" data-course="${esc(b.course)}"
           aria-pressed="${on ? "true" : "false"}"
-          >${on ? "izleniyor" : "izle"}</button>` : ""}</div>`;
+          >${on ? "izleniyor" : "izle"}</button>` : ""}</div>
+        ${b.name ? `<div class="enad">${esc(b.name)}</div>` : ""}
+        ${tekrar || !b.detail ? "" : `<div class="endetay">${esc(b.detail)}</div>`}</div>`;
     }).join("")}</div>`;
 });
 const supply = (groups.ACILMAMIS||[]).length + (groups.PROGRAMA_KAPALI||[]).length;
