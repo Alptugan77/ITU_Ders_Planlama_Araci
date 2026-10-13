@@ -4405,6 +4405,22 @@ table.grid tr.hr>td{border-top-color:color-mix(in oklab,var(--border-strong) 40%
 .resimeylem{display:flex;flex-wrap:wrap;gap:var(--sp-4);margin-top:var(--sp-6)}
 #creditBody:not(:empty){margin-top:var(--sp-7);padding-top:var(--sp-7);
   border-top:var(--line-hair) solid var(--border)}
+/* Faz 137 — yol haritası: plan öne, varsayımların özü açık, tamamı katlı. */
+.yhbolum{margin:var(--sp-11) 0 0;padding-top:var(--sp-7);border-top:var(--line-hair) solid var(--border);
+  font-size:var(--fs-md);font-weight:600;color:var(--ink)}
+.yhvarsayim .yhvuyari{margin:var(--sp-4) 0 0;padding:0;list-style:none;color:var(--warn)}
+.yhvtum{margin-top:var(--sp-4)}
+.yhvtum summary{cursor:pointer;color:var(--ink-2);font-weight:500;font-size:var(--fs-sm)}
+.yhvtum ul{color:var(--ink-2)}
+.yhgecmisnot{margin:var(--sp-3) 0 0;font-size:var(--fs-sm);color:var(--ink-3);
+  line-height:var(--lh-normal);max-width:80ch}
+#roadmapBody{container-type:inline-size}
+@container (min-width:744px){
+  .yhdonemler{grid-template-columns:repeat(var(--yhkol3,3),minmax(0,1fr))}
+}
+@container (min-width:996px){
+  .yhdonemler{grid-template-columns:repeat(var(--yhkol4,4),minmax(0,1fr))}
+}
 @media (prefers-reduced-motion:no-preference){
   .blk,.tab,.ghost,.opt{transition:background var(--dur-fast) ease,color var(--dur-fast) ease}
 }
@@ -12441,8 +12457,18 @@ function renderRoadmap(){
         açılacağı anlamına gelmez; yaz okulunun ücreti, kontenjanı ve kredi sınırı bu
         hesaba dahil değildir.</div>
     </div>` : "";
-  const varsayim = `<div class="note yhvarsayim"><b>Hesaplama varsayımları</b>
-      <ul>${(R.assumptions || []).map(a => `<li>${esc(a)}</li>`).join("")}</ul></div>`;
+  /* ★ Faz 137 — varsayımlar hâlâ planın ÜSTÜNDE (Faz 57: okunmadan
+     geçilmesin), ama 10 maddelik bir duvar olarak değil. Açıkta: planın
+     tahmin olduğu, üç temel varsayım ve ⚠ uyarılar (bu öğrenciye özel veri
+     eksikleri). Maddelerin tamamı katlı. Üç temel varsayım motorun HER
+     zaman döndürdüğü maddeler (test tutuyor). */
+  const tumV = R.assumptions || [], uyariV = tumV.filter(a => a.startsWith("⚠"));
+  const varsayim = `<div class="note yhvarsayim"><b>Bu plan bir tahmindir.</b> Her dersin
+      ilk denemede geçileceği ve her dönem en çok <b class="mono">${R.maxLoad}</b> kredi
+      alınacağı varsayılmıştır; kontenjan ve yaz okulu hesaba katılmamıştır.
+      ${uyariV.length ? `<ul class="yhvuyari">${uyariV.map(a => `<li>${esc(a)}</li>`).join("")}</ul>` : ""}
+      <details class="yhvtum"><summary>Hesaplama varsayımları (${tumV.length})</summary>
+      <ul>${tumV.map(a => `<li>${esc(a)}</li>`).join("")}</ul></details></div>`;
   const zincir = (R.longest || []).length > 1 ? `<div class="yhzincir">En uzun önşart
       zinciri: ${R.longest.map(c => `<b class="mono">${esc(c)}</b>`).join(" → ")} —
       bu zincir en az <b>${R.longest.length} dönem</b> sürer.</div>` : "";
@@ -12451,7 +12477,11 @@ function renderRoadmap(){
     ? `<div class="meta yhgecmisnot">“geçmişte”: dersin OBS not dağılımında göründüğü dönemler
         (parantezde not alan öğrenci sayısı). Doğruluğu belirsizdir; dersin ileride aynı
         dönemlerde açılacağı kesin değildir.</div>` : "";
-  const donemler = gecmisAciklama + `<div class="yhdonemler">${(R.terms || []).map(t => `
+  /* Faz 137 — sütun sayısı dengeli: 6 dönem 4+2 değil 3+3 (`--yhkol4` en
+     çok dört sütun sığan genişlik, `--yhkol3` üç). */
+  const nD = (R.terms || []).length, kol = m => nD ? Math.ceil(nD / Math.ceil(nD / m)) : m;
+  const donemler = `<h3 class="yhbolum">Dönem planı</h3>` + gecmisAciklama
+    + `<div class="yhdonemler" style="--yhkol4:${kol(4)};--yhkol3:${kol(3)}">${(R.terms || []).map(t => `
     <section class="yhdonem${t.current ? " simdi" : ""}${t.summer ? " yaz" : ""}${
       t.items.length ? "" : " bos"}${t.skipped ? " atlandi" : ""}">
       <h3><span>${esc(t.label)}</span>${t.current
@@ -12523,8 +12553,14 @@ function renderRoadmap(){
         R.scenario.hardMax ? `dönem başına en çok <b class="mono">${
           R.scenario.hardMax}</b> zor ders` : ""].filter(Boolean).join(" · ")}
       <button class="ghost mini" id="yhSenaryoKapat">Mevcut plana dön</button></div>`;
+  /* ★ Faz 137 — PLAN ÖNE. Eskiden dönem kartları yaz okulu, kalma riski ve
+     varsayım kutularının altındaydı: masaüstünde ~1500px, telefonda ~3400px
+     aşağıda. Şimdi: bitiş kartları → bu dönem alınacak ders (kayıt
+     kararı) → varsayımlar (Faz 57: planın üstünde) → PLAN → "ya şöyle
+     olursa" kutuları (yaz okulu, kalma riski). */
   body.innerHTML = `${yhOncelikPaneli(T, R)}${yhSenaryoPaneli(T)}${serit}<div class="yhprogramlar">${programlar}</div>${
-    simdi}${yaz}<div data-kalma="yh">${kalmaPanelIcerik()}</div>${varsayim}${zincir}${donemler}${kalan}`;
+    simdi}${varsayim}${zincir}${donemler}${kalan}${yaz || kalmaHesaplanabilir()
+      ? `<h3 class="yhbolum">Bitişi değiştirebilecek durumlar</h3>` : ""}${yaz}<div data-kalma="yh">${kalmaPanelIcerik()}</div>`;
   kalmaBagla(); kalmaOto();        // Faz 75
   const yuk = $("#yhYuk");
   if(yuk) yuk.addEventListener("change", () => {

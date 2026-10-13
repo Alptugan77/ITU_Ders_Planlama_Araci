@@ -90,6 +90,9 @@ kredi sınırı; mevsim kuralı; kontenjan/şube/çakışma yok; yaz okulu yok;
 havuzun önşartı yok sayıldı; mevsimi hiçbir planda bulunamayan ders sayısı.
 Bilinmeyeni bilinen gibi göstermemenin tek yolu onu söylemek.
 
+(Faz 137: kutu hâlâ planın üstünde; özü ve ⚠ uyarılar açık, maddelerin
+tamamı "Hesaplama varsayımları (N)" altında katlı.)
+
 ### Bedeli
 
 Vitrinde bir sayfa kurulumu haritayı 2 kez kuruyor (asıl + bir aday):
