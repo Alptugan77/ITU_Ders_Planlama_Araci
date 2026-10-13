@@ -3693,6 +3693,17 @@ table.cmp .meta.arti{color:var(--ok)}
 .yhzincir{margin-top:14px;font-size:var(--fs-md);color:var(--ink-2)}
 .yhdonemler{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
   gap:12px;margin-top:14px}
+/* Faz 137 — dengeli sütun: üç ya da dört sütun sığan genişlikte satır sayısı
+   hesaplanıp dönemler eşit dağıtılıyor (6 → 3 + 3; JS `--yhkol3/4`'ü yazar).
+   240px kartın en dar hâli: 3 × 240 + 2 × 12 = 744, 4 × 240 + 3 × 12 = 996. */
+#roadmapBody{container-type:inline-size}
+.yhdonemler{--yhkol3:3;--yhkol4:4}
+@container (min-width:744px){
+  .yhdonemler{grid-template-columns:repeat(var(--yhkol3),minmax(0,1fr))}
+}
+@container (min-width:996px){
+  .yhdonemler{grid-template-columns:repeat(var(--yhkol4),minmax(0,1fr))}
+}
 .yhdonem{border:1px solid var(--border);padding:10px 12px;background:var(--surface-2)}
 .yhdonem.simdi{border-color:var(--seal);background:var(--seal-soft)}
 .yhdonem.bos{background:transparent;border-style:dashed}
@@ -4414,19 +4425,12 @@ table.grid tr.hr>td{border-top-color:color-mix(in oklab,var(--border-strong) 40%
 .yhvtum ul{color:var(--ink-2)}
 .yhgecmisnot{margin:var(--sp-3) 0 0;font-size:var(--fs-sm);color:var(--ink-3);
   line-height:var(--lh-normal);max-width:80ch}
-#roadmapBody{container-type:inline-size}
 /* Faz 138 — alınamayan dersler: ad, gereksiz tekrar yok, düğme sağda. */
 .blockitem.engel{display:flex;flex-direction:column;gap:var(--sp-1)}
 .engel .enust{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
 .engel .enust .watchmini{margin-left:auto}
 .engel .enad{color:var(--ink-2);font-size:var(--fs-sm)}
 .engel .endetay{color:var(--ink-3);font-size:var(--fs-sm)}
-@container (min-width:744px){
-  .yhdonemler{grid-template-columns:repeat(var(--yhkol3,3),minmax(0,1fr))}
-}
-@container (min-width:996px){
-  .yhdonemler{grid-template-columns:repeat(var(--yhkol4,4),minmax(0,1fr))}
-}
 @media (prefers-reduced-motion:no-preference){
   .blk,.tab,.ghost,.opt{transition:background var(--dur-fast) ease,color var(--dur-fast) ease}
 }
