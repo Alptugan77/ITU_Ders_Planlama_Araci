@@ -4340,6 +4340,27 @@ table.grid tr.hr>td{border-top-color:color-mix(in oklab,var(--border-strong) 40%
   .ray a[aria-current="page"]{background:transparent;color:var(--ink);
     box-shadow:inset 0 var(--line-accent) 0 var(--ink)}
 }
+/* ★★ FAZ 134 — İKİNCİ TUR (kullanıcı 13.10.2026: "continue improving ui/ux").
+   Vitrinde her görünüm yeniden gezildi; dört pürüz:
+   1. Durum rozetleri ("programda", "kritik yol", "önşart bilgisi yok") tam
+      renkli çerçeve + 32px yükseklikle DÜĞME gibi görünüyordu; aday
+      satırında gerçek düğme yokken tıklanacak bir şey varmış gibi. Rozet
+      artık sönük çerçeveli ve basık; rengi (bilgi) aynı.
+   2. Açıklamalı metnin noktalı alt çizgisi özet sütununda neredeyse her
+      satırdaydı; çizgi kalıyor (Faz 51: dokunmatikte tek yol) ama sönük.
+   3. Not senaryosundaki seçimler iki harflik not için satır genişliğindeydi.
+   4. Köşe kuralının (Faz 133) dışında kalan kutular. */
+.chip,.chip.online{padding:var(--sp-1) var(--sp-4);
+  border-color:color-mix(in oklab,currentColor 32%,transparent)}
+.chip[title],.cat[title],.veriyasi .stale[title],.aciklamali[title]{
+  text-decoration-color:color-mix(in oklab,currentColor 45%,transparent)}
+.nstablo select,.notsenaryo .nsust select{width:auto;
+  min-width:calc(var(--sp-14) + var(--sp-11))}
+.yhdonem,.yhprogram,.basvuruitem,#yhYuk{border-radius:var(--r)}
+.watchmini{border-radius:var(--r-sm)}
+/* Kredi eşikleri: bitirme koşulları bir önceki göstergeye yapışıyordu. */
+#creditBody:not(:empty){margin-top:var(--sp-7);padding-top:var(--sp-7);
+  border-top:var(--line-hair) solid var(--border)}
 @media (prefers-reduced-motion:no-preference){
   .blk,.tab,.ghost,.opt{transition:background var(--dur-fast) ease,color var(--dur-fast) ease}
 }
@@ -6634,7 +6655,7 @@ function renderLoad(){
     <div class="gauge" style="margin-bottom:12px">
       <div class="gaugebar" style="max-width:230px">
         <div class="gaugelabel" style="margin-top:0">
-          <b class="mono" style="font-size:var(--fs-base)">${L.min ? L.min + "–" : "en çok "}${L.max}</b>
+          ${L.min ? "" : "en çok "}<b class="mono" style="font-size:var(--fs-base)">${L.min ? L.min + "–" : ""}${L.max}</b>
           kredi ${L.verified ? "" : "<b>⚠</b>"}</div>
         <div class="gaugelabel" style="color:var(--ink-3)">
           ${L.noTranscript
@@ -8634,7 +8655,7 @@ function renderCredits(){
   $("#creditBody").innerHTML = info.rules.map(r => {
     const pct = Math.min(100, Math.round(1000 * info.earned / r.min) / 10);
     return `<div class="gauge" style="margin-bottom:12px">
-      <div class="gaugebar">
+      <div class="gaugebar" style="max-width:230px">
         <div class="track"><i class="${r.ok ? "ok" : ""}" style="width:${Math.max(2,pct)}%"></i></div>
         <div class="gaugelabel"><b class="mono">${info.earned}</b> / ${r.min} kredi
           ${r.ok ? "· <b>şart sağlandı</b>"
