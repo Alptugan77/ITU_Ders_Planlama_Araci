@@ -1394,6 +1394,23 @@ def tema_renkleri() -> dict[str, str]:
     return {"gece": gece, "gunduz": gunduz}
 
 
+# ★ Faz 135 — program resminin köşesindeki küçük simge, uygulama simgesinin
+# AYNI geometrisi: (sütun, üst, alt, renk) 512 tabanında. Kaynağı
+# tools/simge_uret.py `BLOKLAR`; test_faz135 ikisinin ayrışmadığını denetliyor.
+SIMGE_BLOKLAR = [
+    (0, 108, 268, "anadal"), (0, 292, 404, "bos"),
+    (1, 108, 172, "bos"), (1, 196, 404, "beyaz"),
+    (2, 108, 236, "cap"), (2, 260, 404, "anadal"),
+]
+
+
+def simge_renkleri() -> dict[str, str]:
+    """Simgenin renkleri — temadan bağımsız (simge her yerde aynı)."""
+    r = {ad: (g, d) for ad, g, d, _ in TASARIM.RENKLER}
+    return {"zemin": r["seal"][1], "anadal": r["anadal"][0], "cap": r["cap"][0],
+            "beyaz": "#FFFFFF", "bos": "#474749"}
+
+
 def web_manifest() -> dict:
     """Ana ekrana eklenince tarayıcının okuduğu tanım (W3C Web App Manifest).
 
@@ -2323,7 +2340,10 @@ def render(data: dict, *, deferred: bool = False,
                            ("__AD_ASCII__", ad_ascii()),
                            ("__AD_ACILIM__", acilim_html()),
                            ("__TEMA_GUNDUZ__", tema_renkleri()["gunduz"]),
-                           ("__TEMA_GECE__", tema_renkleri()["gece"])):
+                           ("__TEMA_GECE__", tema_renkleri()["gece"]),
+                           ("__SIMGE_BLOK__", json.dumps(SIMGE_BLOKLAR)),
+                           ("__SIMGE_RENK__", json.dumps(simge_renkleri())),
+                           ("__SIMGE_ZEMIN__", simge_renkleri()["zemin"])):
         html = html.replace(anahtar, deger)
     if deferred:
         html = html.replace("\nboot();\n", "\nwindow.__ITUCAP_APPLY__ = applyState;\n")
@@ -4359,6 +4379,15 @@ table.grid tr.hr>td{border-top-color:color-mix(in oklab,var(--border-strong) 40%
 .yhdonem,.yhprogram,.basvuruitem,#yhYuk{border-radius:var(--r)}
 .watchmini{border-radius:var(--r-sm)}
 /* Kredi eşikleri: bitirme koşulları bir önceki göstergeye yapışıyordu. */
+.gecissiz .blk{transition:none!important}
+/* Faz 135 — resim penceresi: iki seçim yan yana, önizleme sığdırılmış. */
+.resimayar{display:flex;flex-wrap:wrap;gap:var(--sp-6) var(--sp-10);margin:var(--sp-4) 0 var(--sp-6)}
+.resimsecim{display:flex;flex-direction:column;gap:var(--sp-2)}
+.resimonizleme{background:var(--surface-2);border-radius:var(--r);padding:var(--sp-6);
+  display:flex;justify-content:center;min-height:calc(var(--sp-14) * 2)}
+.resimonizleme img{display:block;max-width:100%;max-height:52vh;height:auto;
+  border-radius:var(--r-sm);box-shadow:var(--shadow-card)}
+.resimeylem{display:flex;flex-wrap:wrap;gap:var(--sp-4);margin-top:var(--sp-6)}
 #creditBody:not(:empty){margin-top:var(--sp-7);padding-top:var(--sp-7);
   border-top:var(--line-hair) solid var(--border)}
 @media (prefers-reduced-motion:no-preference){
@@ -7806,7 +7835,7 @@ function wirePicks(){
   const ics = $("#icsBtn");
   if(ics) ics.onclick = icsIndir;
   const png = $("#pngBtn");
-  if(png) png.onclick = () => resimIndir().catch(err => hataBildir(png, err));
+  if(png) png.onclick = resimDialog;                  // Faz 135: önizlemeli pencere
   const dan = $("#danismanBtn");
   if(dan) dan.onclick = danismanDialog;
   const pay = $("#shareBtn");
@@ -8267,12 +8296,43 @@ function danismanDialog(){
    bloğun HESAPLANMIŞ renginden (ton merdiveni dahil) — resim ekrandaki
    temayla aynı. ⚠️ İçinde yalnız ders, şube, saat ve bina var; not,
    transkript, GNO YOK. */
-async function resimIndir(){
+async function resimIndir(opt = {}){
   const ps = picks();
   if(!ps.length){ alertLine("Programda ders bulunmadığından resim oluşturulmadı."); return; }
   if(document.fonts && document.fonts.ready) await document.fonts.ready;
-  const kok = getComputedStyle(document.documentElement);
-  const j = (ad) => kok.getPropertyValue("--" + ad).trim();
+  /* ★★ Faz 135 — TEMA SEÇİLEBİLİR. Renkler hâlâ SAYFANIN jetonları; istenen
+     tema bir anlığına `data-theme` ile kuruluyor, bütün renkler EŞZAMANLI
+     okunuyor, tema geri alınıyor. Arada boyama yok, ekran kırpışmıyor. */
+  const kokEl = document.documentElement;
+  const eskiTema = kokEl.getAttribute("data-theme");
+  /* ⚠️ Blokların renk geçişi (Faz 133) varken hesaplanmış renk geçişin
+     BAŞINDAKİ değer: koyu resimde bloklar açık temanın renginde çıkıyordu
+     (ölçüldü). Ölçüm boyunca geçiş kapalı. */
+  kokEl.classList.add("gecissiz");
+  if(opt.tema) kokEl.setAttribute("data-theme", opt.tema);
+  const kok = getComputedStyle(kokEl);
+  const JET = {};
+  ["ground", "surface", "surface-2", "border", "border-strong", "ink", "ink-2", "ink-3",
+   "font-sans", "font-mono", "anadal", "cap", "yandal", "anadal-soft", "cap-soft",
+   "yandal-soft", "anadal-ink", "cap-ink", "yandal-ink"]
+    .forEach(ad => { JET[ad] = kok.getPropertyValue("--" + ad).trim(); });
+  const j = (ad) => JET[ad];
+  const BLOK = {};
+  ps.forEach(p => {
+    const blk = document.querySelector(`#grid .blk[data-course="${CSS.escape(p.cand.course)}"]`);
+    if(!blk) return;
+    const hs = getComputedStyle(blk);
+    BLOK[p.cand.course] = {zemin: hs.backgroundColor, yazi: hs.color,
+                           serit: hs.borderLeftColor, cevrimici: blk.classList.contains("online")};
+  });
+  if(opt.tema){
+    if(eskiTema) kokEl.setAttribute("data-theme", eskiTema);
+    else kokEl.removeAttribute("data-theme");
+  }
+  /* Geri dönüşü de geçişsiz hesaplat; yoksa ekrandaki bloklar ölçülen
+     temadan ekranınkine doğru bir kez renk değiştirirdi. */
+  document.querySelectorAll("#grid .blk").forEach(b => getComputedStyle(b).backgroundColor);
+  kokEl.classList.remove("gecissiz");
   const SANS = j("font-sans") || "sans-serif", MONO = j("font-mono") || "monospace";
   const mesgul = (DATA.busy || []).filter(b => b.ok);
   const saatli = ps.filter(p => p.sec.meetings.length);
@@ -8280,8 +8340,12 @@ async function resimIndir(){
   const dk = [...saatli.flatMap(p => p.sec.meetings), ...mesgul];
   const bas = Math.floor(Math.min(...dk.map(m => m.start), 8 * 60 + 30) / 60) * 60;
   const son = Math.ceil(Math.max(...dk.map(m => m.end), 12 * 60) / 60) * 60;
-  const O = 2, G = 1100, SOL = 56, UST = 92, GUN_UST = 28, DK = 1.1, PAY = 16;
-  const altSatir = (saatsiz.length ? 22 : 0) + 40;
+  /* ★ Faz 135 — iki biçim. "dikey" telefonda paylaşmak için: dar ve uzun
+     (yaklaşık 9:16), saat ölçeği büyük, blokta kod ve saat önde. */
+  const dikey = opt.bicim === "dikey";
+  const O = 2, G = dikey ? 540 : 1100, SOL = dikey ? 44 : 56, PAY = dikey ? 14 : 16;
+  const UST = 104, GUN_UST = 30, DK = dikey ? 1.45 : 1.1, KOSE = 6;
+  const altSatir = (saatsiz.length ? 22 : 0) + 64;
   const Y = UST + GUN_UST + (son - bas) * DK + altSatir;
   const tuval = document.createElement("canvas");
   tuval.width = G * O; tuval.height = Math.ceil(Y) * O;
@@ -8294,68 +8358,97 @@ async function resimIndir(){
     if(genislik) while(m.length > 1 && c.measureText(m).width > genislik) m = m.slice(0, -2) + "…";
     c.fillText(m, x, y);
   };
+  const yuvarlak = (x, y, w, h, r) => {
+    c.beginPath();
+    if(c.roundRect) c.roundRect(x, y, w, h, Math.min(r, h / 2, w / 2)); else c.rect(x, y, w, h);
+  };
   const t = totals();
-  yaz("Haftalık ders programı", PAY, 34, `700 20px ${SANS}`, j("ink"));
+  /* Üst bant: başlık solda, uygulamanın işareti ve adı sağda. */
+  yaz("Haftalık ders programı", PAY, 36, `700 ${dikey ? 18 : 22}px ${SANS}`, j("ink"));
   yaz(`${DATA.termLabel || ""} · ${t.n} ders · ${t.load}${DATA.maxLoad ? " / " + DATA.maxLoad : ""} ${
-      DATA.unitLabel || ""}`, PAY, 58, `400 13px ${SANS}`, j("ink-2"));
+      DATA.unitLabel || ""}`, PAY, 60, `500 13px ${SANS}`, j("ink-2"));
   /* Ad yer tutucudan (bkz. test_ad.py — ad değişince sayfada eski ad kalmasın). */
-  yaz("__AD_TAM__ — CRN'leri kayıttan önce OBS'de doğrulayınız", PAY, 78,
-      `400 11px ${SANS}`, j("ink-3"));
+  yaz(`${dikey ? "__AD_TAM__ — " : ""}CRN'leri kayıttan önce OBS'de doğrulayınız`, PAY, 80,
+      `400 11px ${SANS}`, j("ink-3"), G - 2 * PAY);
+  if(!dikey){
+    /* Uygulama simgesi, küçük: geometri tools/simge_uret.py'deki BLOKLAR
+       (test_faz135 ikisinin aynı olduğunu denetliyor). Zemin her temada
+       simgenin kendi mürekkebi. */
+    const ix = G - PAY - 32, iy = 16, k = 32 / 512;
+    c.fillStyle = "__SIMGE_ZEMIN__"; yuvarlak(ix, iy, 32, 32, 8); c.fill();
+    SIMGE_BLOK.forEach(([s, ust, alt, renk]) => {
+      c.fillStyle = SIMGE_RENK[renk];
+      yuvarlak(ix + (108 + s * (296 - 48) / 3 + s * 24) * k, iy + ust * k,
+               (296 - 48) / 3 * k, (alt - ust) * k, 22 * k); c.fill();
+    });
+    c.textAlign = "right";
+    yaz("__AD_TAM__", ix - 10, iy + 21, `600 13px ${SANS}`, j("ink-2"));
+    c.textAlign = "left";
+  }
   const sw = (G - SOL - PAY) / 5;
   const x0 = (gun) => SOL + (gun - 1) * sw;
   const y0 = (dak) => UST + GUN_UST + (dak - bas) * DK;
-  c.strokeStyle = j("border"); c.lineWidth = 1;
-  DAYS.forEach((d, i) => yaz(d, x0(i + 1) + 6, UST + 18, `600 12px ${SANS}`, j("ink-2")));
-  for(let m = bas; m <= son; m += 60){
+  c.lineWidth = 1;
+  DAYS.forEach((d, i) => yaz(d, x0(i + 1) + 4, UST + 18, `600 12px ${SANS}`, j("ink-2")));
+  /* Izgara sönük: saat başı ince hat, gün ayracı yok — bloklar okunuyor. */
+  c.strokeStyle = j("border");
+  c.beginPath(); c.moveTo(SOL, UST + GUN_UST - .5); c.lineTo(G - PAY, UST + GUN_UST - .5);
+  c.strokeStyle = j("border-strong"); c.stroke(); c.strokeStyle = j("border");
+  for(let m = bas + 60; m <= son; m += 60){
     c.beginPath(); c.moveTo(SOL, y0(m) + .5); c.lineTo(G - PAY, y0(m) + .5); c.stroke();
-    if(m < son) yaz(hhmm(m), PAY, y0(m) + 12, `400 11px ${MONO}`, j("ink-3"));
   }
-  for(let d = 1; d <= 6; d++){
-    const x = Math.round(x0(d)) + .5;
-    c.beginPath(); c.moveTo(x, UST + GUN_UST); c.lineTo(x, y0(son)); c.stroke();
-  }
-  const kutu = (x, y, w, h, zemin, serit) => {
-    c.fillStyle = zemin; c.fillRect(x, y, w, h);
-    if(serit){ c.fillStyle = serit; c.fillRect(x, y, 3, h); }
-  };
+  for(let m = bas; m < son; m += 60)
+    yaz(hhmm(m), PAY, y0(m) + 12, `400 ${dikey ? 10 : 11}px ${MONO}`, j("ink-3"));
+  const BOS = 2;                                 // blok arası: arka arkaya iki ders ayrışsın
   mesgul.forEach(b => {
-    const x = x0(b.day) + 2, y = y0(b.start) + 1, w = sw - 4, h = (b.end - b.start) * DK - 2;
-    kutu(x, y, w, h, j("surface-2"));
-    c.save(); c.beginPath(); c.rect(x, y, w, h); c.clip();
+    const x = x0(b.day) + BOS, y = y0(b.start) + BOS, w = sw - 2 * BOS, h = (b.end - b.start) * DK - 2 * BOS;
+    c.fillStyle = j("surface-2"); yuvarlak(x, y, w, h, KOSE); c.fill();
+    c.save(); yuvarlak(x, y, w, h, KOSE); c.clip();
     c.strokeStyle = j("border");
     for(let k = -h; k < w; k += 10){ c.beginPath(); c.moveTo(x + k, y + h); c.lineTo(x + k + h, y); c.stroke(); }
-    c.restore();
     yaz(b.label || "meşgul", x + 8, y + 16, `600 12px ${SANS}`, j("ink-2"), w - 12);
     if(h > 24) yaz(`${hhmm(b.start)}–${hhmm(b.end)}`, x + 8, y + 30,
                    `400 11px ${MONO}`, j("ink-2"), w - 12);                 // Faz 127
+    c.restore();
   });
   const rolRenk = {ANADAL: "anadal", CAP: "cap", YANDAL: "yandal"};
   saatli.forEach(p => {
-    const blk = document.querySelector(`#grid .blk[data-course="${CSS.escape(p.cand.course)}"]`);
-    const hs = blk ? getComputedStyle(blk) : null;
+    const B = BLOK[p.cand.course];
     const rol = rolRenk[p.cand.role];
     p.sec.meetings.forEach(m => {
-      const x = x0(m.day) + 2, y = y0(m.start) + 1, w = sw - 4, h = (m.end - m.start) * DK - 2;
+      const x = x0(m.day) + BOS, y = y0(m.start) + BOS, w = sw - 2 * BOS, h = (m.end - m.start) * DK - 2 * BOS;
       /* Önce jeton (her tarayıcı okur), sonra bloğun hesaplanmış rengi:
          `color-mix()` sonucunu okuyamayan tarayıcıda atama sessizce
-         düşer ve jeton kalır. */
+         düşer ve jeton kalır. ★ Faz 135: çevrimiçi bloğun ızgaradaki
+         zemini BİLEREK saydam; resimde ızgara çizgileri bloğun içinden
+         geçiyordu. Resimde kart zemini + kesikli çerçeve. */
       c.fillStyle = rol ? j(rol + "-soft") : j("surface-2");
-      if(hs) c.fillStyle = hs.backgroundColor;
+      if(B && !(B.cevrimici || /rgba\(.*,\s*0\)$|transparent/.test(B.zemin))) c.fillStyle = B.zemin;
+      else if(B) c.fillStyle = j("surface");
       const zemin = c.fillStyle;
       c.fillStyle = rol ? j(rol + "-ink") : j("ink");
-      if(hs) c.fillStyle = hs.color;
+      if(B) c.fillStyle = B.yazi;
       const yazi = c.fillStyle;
-      kutu(x, y, w, h, zemin, rol ? j(rol) : j("ink-3"));
-      c.save(); c.beginPath(); c.rect(x, y, w, h); c.clip();
-      yaz(p.cand.course, x + 9, y + 16, `700 12px ${MONO}`, yazi, w - 14);
+      c.fillStyle = rol ? j(rol) : j("ink-3");
+      if(B && B.serit) c.fillStyle = B.serit;
+      const serit = c.fillStyle;
+      c.fillStyle = zemin; yuvarlak(x, y, w, h, KOSE); c.fill();
+      c.save(); yuvarlak(x, y, w, h, KOSE); c.clip();
+      if(B && B.cevrimici){
+        c.setLineDash([4, 3]); c.strokeStyle = serit; c.lineWidth = 1.5;
+        yuvarlak(x + .75, y + .75, w - 1.5, h - 1.5, KOSE); c.stroke(); c.setLineDash([]); c.lineWidth = 1;
+      }
+      c.fillStyle = serit; c.fillRect(x, y, 4, h);
+      const ic = w - 16;
+      yaz(p.cand.course, x + 10, y + 17, `700 ${dikey ? 11 : 12}px ${MONO}`, yazi, ic);
       /* ★ Faz 127 (kullanıcı isteği 29.09.2026: "ders bloklarının içine saat
          aralığını yazar mısın") — ızgaradaki blokta vardı, resimde yoktu.
          Ders adından ÖNCE: en kısa (1 saatlik) blokta da görünsün. */
-      if(h > 24) yaz(`${hhmm(m.start)}–${hhmm(m.end)}`, x + 9, y + 30,
-                     `600 11px ${MONO}`, yazi, w - 14);
-      if(h > 42) yaz(p.cand.name || "", x + 9, y + 45, `400 11px ${SANS}`, yazi, w - 14);
+      if(h > 24) yaz(`${hhmm(m.start)}–${hhmm(m.end)}`, x + 10, y + 31,
+                     `600 ${dikey ? 10 : 11}px ${MONO}`, yazi, ic);
+      if(h > 42) yaz(p.cand.name || "", x + 10, y + 46, `400 11px ${SANS}`, yazi, ic);
       if(h > 58) yaz(`CRN ${p.sec.crn} · ${p.sec.online ? "çevrimiçi" : yerYazi(m)}`,
-                     x + 9, y + 60, `400 10px ${MONO}`, yazi, w - 14);
+                     x + 10, y + 61, `400 10px ${MONO}`, yazi, ic);
       c.restore();
     });
   });
@@ -8366,16 +8459,104 @@ async function resimIndir(){
         PAY, ay, `400 12px ${SANS}`, j("ink-2"), G - 2 * PAY);
     ay += 22;
   }
+  /* Renk açıklaması: resmi gören kişi (danışman, arkadaş) yeşilin ne
+     olduğunu bilmiyor. Yalnız programda bulunan roller. */
+  let lx = PAY;
+  const roller = ["ANADAL", "CAP", "YANDAL"].filter(r => saatli.some(p => p.cand.role === r));
+  roller.forEach(r => {
+    c.fillStyle = j(rolRenk[r]); yuvarlak(lx, ay - 9, 10, 10, 3); c.fill();
+    const ad = r === "ANADAL" ? "anadal" : r === "CAP" ? "ÇAP" : "yandal";
+    yaz(ad, lx + 15, ay, `500 12px ${SANS}`, j("ink-2"));
+    c.font = `500 12px ${SANS}`; lx += 15 + c.measureText(ad).width + 18;
+  });
+  if(mesgul.length){
+    c.fillStyle = j("surface-2"); yuvarlak(lx, ay - 9, 10, 10, 3); c.fill();
+    c.strokeStyle = j("border-strong"); c.stroke();
+    yaz("meşgul saat", lx + 15, ay, `500 12px ${SANS}`, j("ink-2"));
+  }
+  ay += 22;
   yaz(`Oluşturuldu: ${tarihYaz(new Date().toISOString())} · kontenjan ve saatler değişebilir`,
-      PAY, ay, `400 11px ${SANS}`, j("ink-3"));
+      PAY, ay, `400 11px ${SANS}`, j("ink-3"), G - 2 * PAY);
+  if(opt.onizleme) return tuval;
   const blob = await new Promise(r => tuval.toBlob(r, "image/png"));
   if(!blob) throw new Error("tarayıcı resmi oluşturamadı");
+  const dosyaAdi = dikey ? "ders-programi-telefon.png" : "ders-programi.png";
+  /* ★ Faz 135 — telefonda "Paylaş": dosya doğrudan paylaşım sayfasına
+     (WhatsApp, galeriye kaydet). Yalnız kullanıcı Paylaş'a bastığında. */
+  if(opt.paylas && navigator.canShare){
+    const dosya = new File([blob], dosyaAdi, {type: "image/png"});
+    if(navigator.canShare({files: [dosya]})){
+      await navigator.share({files: [dosya], title: "Haftalık ders programı"});
+      return {genislik: tuval.width, yukseklik: tuval.height, paylasildi: true};
+    }
+  }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "ders-programi.png";
+  a.download = dosyaAdi;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   return {genislik: tuval.width, yukseklik: tuval.height};
+}
+
+/* ★★ Faz 135 — RESİM PENCERESİ. Eskiden düğme resmi doğrudan indiriyordu:
+   ne göründüğü indirmeden önce bilinmiyordu, tema her zaman ekranınki,
+   biçim her zaman yatay (telefonda paylaşınca okunmayacak kadar küçük).
+   Pencere önizlemeyi gösteriyor; tema ve biçim seçilip indiriliyor. */
+let RESIM_SECIM = null;
+const SIMGE_BLOK = __SIMGE_BLOK__;
+const SIMGE_RENK = __SIMGE_RENK__;
+function resimDialog(){
+  if(!picks().length){ alertLine("Programda ders bulunmadığından resim oluşturulmadı."); return; }
+  const kok = document.documentElement.getAttribute("data-theme");
+  const koyu = kok ? kok === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  RESIM_SECIM = RESIM_SECIM || {tema: koyu ? "dark" : "light",
+                                bicim: matchMedia("(max-width:700px)").matches ? "dikey" : "yatay"};
+  const grup = (ad, etiket, secenek) => `<div class="resimsecim" role="group" aria-label="${etiket}">
+    <span class="eyebrow">${etiket}</span>
+    <div class="radios">${secenek.map(([k, y]) => `<button type="button" data-resim-${ad}="${k}"
+      aria-pressed="${RESIM_SECIM[ad] === k}">${y}</button>`).join("")}</div></div>`;
+  const paylasVar = !!(navigator.canShare && window.File);
+  openDialog(`<div class="eyebrow">Program resmi</div>
+    <h2 style="margin-bottom:4px">Resim olarak kaydet</h2>
+    <p class="modenote" style="margin:2px 0 10px">Resimde yalnızca dersler, şubeler, saatler
+      ve derslikler bulunur; notlarınız ve transkriptiniz <b>eklenmez</b>.</p>
+    <div class="resimayar">${grup("tema", "Tema", [["light", "Açık"], ["dark", "Koyu"]])}
+      ${grup("bicim", "Biçim", [["yatay", "Geniş"], ["dikey", "Telefon"]])}</div>
+    <div class="resimonizleme" id="resimOnizleme" aria-live="polite"></div>
+    <div class="resimeylem">
+      <button class="ghost primary" id="resimKaydet">PNG indir</button>
+      ${paylasVar ? `<button class="ghost" id="resimPaylas">Paylaş</button>` : ""}
+    </div>`);
+  const ciz = async () => {
+    const kutu = $("#resimOnizleme");
+    if(!kutu) return;
+    const tuval = await resimIndir({...RESIM_SECIM, onizleme: true});
+    if(!tuval) return;
+    const img = new Image();
+    img.src = tuval.toDataURL("image/png");
+    img.alt = `Program resminin önizlemesi (${RESIM_SECIM.tema === "dark" ? "koyu" : "açık"} tema, ${
+      RESIM_SECIM.bicim === "dikey" ? "telefon için dikey" : "geniş"})`;
+    kutu.dataset.bicim = RESIM_SECIM.bicim;
+    kutu.replaceChildren(img);
+  };
+  $("#detailBody").querySelectorAll("[data-resim-tema],[data-resim-bicim]").forEach(b =>
+    b.addEventListener("click", () => {
+      const ad = b.dataset.resimTema ? "tema" : "bicim";
+      RESIM_SECIM[ad] = b.dataset.resimTema || b.dataset.resimBicim;
+      b.parentElement.querySelectorAll("button").forEach(x =>
+        x.setAttribute("aria-pressed", String(x === b)));
+      ciz();
+    }));
+  const kaydet = $("#resimKaydet");
+  kaydet.addEventListener("click", () =>
+    resimIndir({...RESIM_SECIM}).catch(err => hataBildir(kaydet, err)));
+  const pay = $("#resimPaylas");
+  if(pay) pay.addEventListener("click", () =>
+    resimIndir({...RESIM_SECIM, paylas: true}).catch(err => {
+      if(err && err.name === "AbortError") return;             // kullanıcı vazgeçti
+      hataBildir(pay, err);
+    }));
+  ciz();
 }
 
 /* ---------- paylaşılabilir bağlantı (Faz 25/B4) ----------

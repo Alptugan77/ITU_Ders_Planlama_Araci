@@ -208,7 +208,7 @@ def test_YAZ_ADAYLARI_yalniz_GECMISTE_YAZI_olanlar(tmp_path):
 
 # ------------------------------------------------------------------ arayüz (statik)
 def test_RESIM_yalniz_DERS_PROGRAMI_ve_TARAYICIDA():
-    f = KAYNAK[KAYNAK.index("async function resimIndir(){"):]
+    f = KAYNAK[KAYNAK.index("async function resimIndir("):]
     f = f[:f.index("\n}\n")]
     kod = re.sub(r"/\*.*?\*/", " ", f, flags=re.S)
     # Dış kaynak, ağ isteği yok; not/transkript/GNO RESME GİRMİYOR.
@@ -266,8 +266,9 @@ with sync_playwright() as p:
           .map(e => e.querySelector('.gereken').textContent.trim())})"""), ensure_ascii=False))
     # Resim.
     pg.evaluate("() => gorunumAc('schedSection')")
+    pg.click("#pngBtn"); pg.wait_for_timeout(400)       # Faz 135: önizlemeli pencere
     with pg.expect_download() as d:
-        pg.click("#pngBtn")
+        pg.click("#resimKaydet")
     yol = os.path.join(os.environ["CIKTI"], "p.png"); d.value.save_as(yol)
     print("PNG:" + d.value.suggested_filename + "|" + open(yol, "rb").read(8).hex())
     print("HATA:" + str(len(hatalar)) + " " + " | ".join(hatalar)[:300])

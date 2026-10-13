@@ -4,9 +4,9 @@
     python tools/simge_uret.py          # web/simge/ altını yeniden yazar
 
 Simge, aracın kendi diliyle çizilmiş bir HAFTALIK PROGRAM: mürekkep (seal)
-zeminde kalın bir cetvel (Şematik'in bölüm cetveli) ve altında ders
-blokları — biri anadal, biri ÇAP renginde. Yazı yok: 48 px'te harf okunmuyor,
-blok okunuyor. Köşe yok, gölge yok, degrade yok (tasarım sisteminin kuralı).
+zeminde üç gün sütunu ve sütunlarda farklı boyda ders blokları — anadal ve
+ÇAP renginde, biri beyaz, ikisi boş saat. Yazı yok: 48 px'te harf okunmuyor,
+blok okunuyor. Gölge yok, degrade yok; köşe Faz 133'ün kuralı.
 
 ★ Tek kaynak: geometri bir dikdörtgen listesi; PNG de SVG de ondan çıkıyor.
 Elle çizilmiş iki dosya bir gün ayrışırdı.
@@ -31,38 +31,36 @@ SOLUK = "#474749"        # beyazın seal üstünde %15'i — boş saat
 ANADAL = "#6FCDB3"
 CAP = "#E3AE6C"
 
-# Haftalık ızgara: 3 sütun × 3 satır; dolu hücreler ders, soluklar boş saat.
-DUZEN = [
-    [ANADAL, SOLUK, BEYAZ],
-    [SOLUK, CAP, SOLUK],
-    [BEYAZ, SOLUK, ANADAL],
+# ★ Faz 135 — kademeli bloklar. Eski simge 3×3 eşit kare ızgaraydı (cetvel +
+# dokuz kare): bir tablo ya da takvim simgesi gibi okunuyordu, ders programı
+# gibi değil. Programın asıl görüntüsü SÜTUNLARDA farklı boyda bloklar —
+# dersler saatlere göre kayıyor. Üç gün sütunu, her birinde iki blok; köşe
+# Faz 133'ün kuralı (blok 8px → 512'de 22).
+# (sütun, üst, alt, renk) — 512 tabanında; içerik kutusu 108..404.
+BLOKLAR = [
+    (0, 108, 268, ANADAL), (0, 292, 404, SOLUK),
+    (1, 108, 172, SOLUK), (1, 196, 404, BEYAZ),
+    (2, 108, 236, CAP), (2, 260, 404, ANADAL),
 ]
+KOSE = 22
 
 
 def sekiller(boy: float = 512, olcek: float = 1.0) -> list[tuple[float, float, float, float, str]]:
     """(x, y, g, y, renk) — `olcek` < 1 içeriği merkeze doğru küçültür
     (maskable simgenin güvenli dairesi için)."""
     k = boy / 512
-    # İçerik kutusu (512 tabanında): 104..408 yatay, 100..412 dikey.
-    sol, ust, gen = 104, 100, 304
-    cetvel = 40                 # cetvel kalınlığı
-    bosluk = 26                 # cetvel ile ızgara arası
-    ara = 20                    # hücre arası
-    hucre = (gen - 2 * ara) / 3
-    izgara_ust = ust + cetvel + bosluk
-    satir = (412 - izgara_ust - 2 * ara) / 3
-    sek = [(sol, ust, gen, cetvel, BEYAZ)]
-    for i, sira in enumerate(DUZEN):
-        for j, renk in enumerate(sira):
-            sek.append((sol + j * (hucre + ara), izgara_ust + i * (satir + ara),
-                        hucre, satir, renk))
+    sol, gen, ara = 108, 296, 24
+    sutun = (gen - 2 * ara) / 3
+    sek = [(sol + s * (sutun + ara), ust, sutun, alt - ust, renk)
+           for s, ust, alt, renk in BLOKLAR]
     m = 256
     return [(((x - m) * olcek + m) * k, ((y - m) * olcek + m) * k,
              g * olcek * k, h * olcek * k, r) for x, y, g, h, r in sek]
 
 
 def svg(olcek: float = 1.0) -> str:
-    govde = "".join(f'<rect x="{x:g}" y="{y:g}" width="{g:g}" height="{h:g}" fill="{r}"/>'
+    rx = KOSE * olcek
+    govde = "".join(f'<rect x="{x:g}" y="{y:g}" width="{g:g}" height="{h:g}" rx="{rx:g}" fill="{r}"/>'
                     for x, y, g, h, r in sekiller(512, olcek))
     return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
             f'<rect width="512" height="512" fill="{SEAL}"/>{govde}</svg>\n')
@@ -74,7 +72,8 @@ def png(boy: int, olcek: float = 1.0) -> bytes:
     im = Image.new("RGB", (boy * ss, boy * ss), SEAL)
     d = ImageDraw.Draw(im)
     for x, y, g, h, r in sekiller(boy * ss, olcek):
-        d.rectangle([round(x), round(y), round(x + g) - 1, round(y + h) - 1], fill=r)
+        d.rounded_rectangle([round(x), round(y), round(x + g) - 1, round(y + h) - 1],
+                            radius=round(KOSE * olcek * boy * ss / 512), fill=r)
     im = im.resize((boy, boy), Image.LANCZOS)
     tampon = io.BytesIO()
     im.save(tampon, "PNG", optimize=True)
