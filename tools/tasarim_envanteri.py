@@ -100,8 +100,8 @@ def denetle() -> list[str]:
             neden = "yazı ailesi jetonu değil (`--font-*`)"
         elif oz == "z-index" and not re.fullmatch(r"var\(--z-[a-z]+\)", deger):
             neden = "katman jetonu değil (`--z-*`)"
-        elif oz == "border-radius" and not re.fullmatch(r"var\(--r(?:-round)?\)", deger):
-            neden = "köşe jetonu değil (`--r`)"
+        elif oz == "border-radius" and not re.fullmatch(r"var\(--r(?:-round|-lg|-sm)?\)", deger):
+            neden = "köşe jetonu değil (`--r`, `--r-lg`, `--r-sm`)"
         elif oz != "mask-image" and re.search(r"#[0-9A-Fa-f]{3,8}\b|rgba?\(", deger):
             neden = "renk değeri satır içinde (jeton kullan)"
         elif ARALIK_OZ.fullmatch(f"{oz}:{deger}"):

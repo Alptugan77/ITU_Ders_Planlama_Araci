@@ -103,8 +103,8 @@ def test_font_dosyalari_PAKETTE_ve_lisansli():
     assert kok.is_dir(), "fonts/ dizini yok"
     for dosya, _a, _w in UI._FONT_YUZLERI:
         assert (kok / dosya).is_file(), f"eksik yazı tipi: {dosya}"
-    assert (kok / "OFL-Chivo.txt").is_file()
-    assert (kok / "OFL-IBM-Plex.txt").is_file()
+    # Faz 133: Geist + Geist Mono (aynı lisans dosyası, ikisi de Vercel).
+    assert (kok / "OFL-Geist.txt").is_file()
 
 
 def test_font_okuma_IMPORT_ANINDA_degil():
@@ -144,10 +144,11 @@ def test_olculen_jetonlar_YERINDE():
     hangi bloğun hangi değeri taşıdığı."""
     # Faz 70: gece paleti okunurluk için yeniden (kullanıcı: "dark theme is
     # less readable"); değerler tasarim.py'de ve ölçümü kontrast aracında.
-    assert PALETLER["gece"]["--ink-3"] == "#A9B2C2", "gece ink-3 eski değerde"
-    assert PALETLER["gece"]["--border-strong"] == "#7D899E"
+    # Faz 133: yeni görsel dil (çinko nötrler); ölçümü kontrast aracında.
+    assert PALETLER["gece"]["--ink-3"] == "#B5B5BF", "gece ink-3 eski değerde"
+    assert PALETLER["gece"]["--border-strong"] == "#878792"
     for ad in ("medya-gündüz", "açık-gündüz", "kâğıt"):
-        assert PALETLER[ad]["--ink-3"] == "#5F6878", f"{ad} ink-3 sapmış"
+        assert PALETLER[ad]["--ink-3"] == "#5E5E68", f"{ad} ink-3 sapmış"
 
 
 # --------------------------------------------------------- 3. taklit kalın
@@ -158,8 +159,9 @@ def test_TAKLIT_KALIN_yok():
 
     ⚠️ Çare ağırlık eklemek değil (her biri ~60 KB), istenen ağırlığı
     gömülü olana indirmek."""
+    # Faz 133: iki DEĞİŞKEN yüz — her ağırlık gerçek, taklit kalın olamaz.
     gomulu = {(a, w) for _d, a, w in UI._FONT_YUZLERI}
-    assert ("Chivo", 500) not in gomulu and ("IBM Plex Mono", 700) not in gomulu
+    assert gomulu == {("Geist", "100 900"), ("Geist Mono", "100 900")}, gomulu
     assert "b,strong{font-weight:700}" in KAYNAK, "`<b>` 900'e tırmanabilir"
     assert "b.mono,.mono b,.mono strong{font-weight:600}" in KAYNAK
     # Alt başlık artık Chivo'nun en ince GERÇEK yüzünü istiyor.

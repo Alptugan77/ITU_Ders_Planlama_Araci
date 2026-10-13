@@ -3,7 +3,7 @@
 
     python tools/simge_uret.py          # web/simge/ altını yeniden yazar
 
-Simge, aracın kendi diliyle çizilmiş bir HAFTALIK PROGRAM: lacivert (seal)
+Simge, aracın kendi diliyle çizilmiş bir HAFTALIK PROGRAM: mürekkep (seal)
 zeminde kalın bir cetvel (Şematik'in bölüm cetveli) ve altında ders
 blokları — biri anadal, biri ÇAP renginde. Yazı yok: 48 px'te harf okunmuyor,
 blok okunuyor. Köşe yok, gölge yok, degrade yok (tasarım sisteminin kuralı).
@@ -23,11 +23,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 HEDEF = ROOT / "src" / "itucap" / "simge"
 
-# tasarim.RENKLER'den (gündüz seal; veri renkleri gece tonları — lacivert
+# tasarim.RENKLER'den (gündüz seal; veri renkleri gece tonları — koyu
 # zeminde gündüz tonları kararıyor, gece tonları seçiliyor).
-SEAL = "#3B4E9E"
+SEAL = "#26262B"
 BEYAZ = "#FFFFFF"
-SOLUK = "#5A6BB0"        # beyazın seal üstünde %15'i — boş saat
+SOLUK = "#474749"        # beyazın seal üstünde %15'i — boş saat
 ANADAL = "#6FCDB3"
 CAP = "#E3AE6C"
 

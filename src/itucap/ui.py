@@ -2358,16 +2358,9 @@ def render(data: dict, *, deferred: bool = False,
 # olarak bu oldu). Dosya yoksa sistem yazı tipine düşüyor; Google'a
 # DÜŞMÜYOR. Gerçekten gömüldüğünü test kontrol ediyor.
 _FONT_YUZLERI = (
-    # (dosya, aile, ağırlık)
-    ("Chivo-SemiBold.woff2", "Chivo", 600),
-    ("Chivo-Bold.woff2", "Chivo", 700),
-    ("Chivo-ExtraBold.woff2", "Chivo", 800),
-    ("Chivo-Black.woff2", "Chivo", 900),
-    ("IBMPlexSans-Regular.woff2", "IBM Plex Sans", 400),
-    ("IBMPlexSans-SemiBold.woff2", "IBM Plex Sans", 600),
-    ("IBMPlexSans-Bold.woff2", "IBM Plex Sans", 700),
-    ("IBMPlexMono-Regular.woff2", "IBM Plex Mono", 400),
-    ("IBMPlexMono-SemiBold.woff2", "IBM Plex Mono", 600),
+    # (dosya, aile, ağırlık) — Faz 133: iki DEĞİŞKEN yüz; ağırlık bir ARALIK.
+    ("Geist-Variable.woff2", "Geist", "100 900"),
+    ("GeistMono-Variable.woff2", "Geist Mono", "100 900"),
 )
 
 
@@ -4182,6 +4175,192 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
 #printCrn table{width:100%;border-collapse:collapse;font-size:11pt}
 #printCrn th,#printCrn td{border:1px solid var(--kagit-cizgi);padding:4px 6px;text-align:left}
 
+
+/* ---------------------------------------------------------------------------
+   ★★ FAZ 132 — YENİDEN DÜZEN (kullanıcı 12.10.2026: "redesign the ui and ux
+   of the site").
+   Bu faz yalnız DÜZENİ değiştirdi (görsel dil Faz 133'te — aşağıdaki
+   katman). Her görünümde tekrar eden kabuk:
+
+   1. ÜST ÇUBUK TEK BANT. Masaüstünde ad, durum satırı ve veri yaşı üç ayrı
+      satıra yayılıyordu (1440px'te 125px; "tazele" kendi satırında). Şimdi
+      üç sütun: ad | durum | Kılavuz·Tema. Durum ve veri yaşı aynı sütunda
+      iki ince satır; ince bir hatla addan ayrılıyor.
+   2. "SONRAKİ ADIMLAR" YALNIZ PROGRAMDA ve İNCE. Masaüstünde her görünümün
+      tepesinde 90px duruyordu ve ilk iki düğmesi soldaki rayın kopyasıydı
+      (telefonda Faz 50'de zaten böyle). Kalan eylemler tek satırda.
+   3. PROGRAMIN SAĞ SÜTUNU İKİ GRUP. Dokuz düğme aynı ağırlıkta alt alta
+      (≈350px) duruyordu. Birincil eylem tam genişlikte kalıyor; kayıt ve
+      paylaşım eylemleri iki sütunlu, daha küçük bir ızgarada ve başlıklı.
+   4. GÖRÜNÜM DEĞİŞİMİ HİSSEDİLİYOR. Raydan görünüm değişince içerik kısa bir
+      girişle beliriyor (durum değişimi geri bildirimi); hareket
+      duyarlılığında yok.
+   Bütün değerler ölçek jetonu — `make tasarim ARGS=--denetle` temiz kalıyor.
+--------------------------------------------------------------------------- */
+.wrap{gap:var(--sp-10)}
+@media (min-width:701px){
+  body:not(.kurulum) header{display:grid;
+    grid-template-columns:auto minmax(0,1fr) auto;
+    grid-template-areas:"ad durum dugme" "ad veri dugme";
+    align-items:center;column-gap:var(--sp-10);row-gap:var(--sp-1);
+    padding-bottom:var(--sp-6)}
+  body:not(.kurulum) header .masthead>div:first-child{grid-area:ad;
+    flex-direction:column;align-items:flex-start;gap:var(--sp-2)}
+  body:not(.kurulum) header .eyebrow{font-size:var(--fs-xs)}
+  body:not(.kurulum) header .basdugme{grid-area:dugme;display:flex;gap:var(--sp-4)}
+  body:not(.kurulum) header #subtitle,
+  body:not(.kurulum) header #veriYasi{border-left:var(--line-hair) solid var(--border);
+    padding-left:var(--sp-10);min-width:0}
+  body:not(.kurulum) header #subtitle{grid-area:durum;align-self:end;
+    font-size:var(--fs-md);color:var(--ink-2)}
+  body:not(.kurulum) header #veriYasi{grid-area:veri;align-self:start;margin:0}
+  body:not(.kurulum) header #subtitle:empty{display:none}
+  body:not(.kurulum) header:has(#subtitle:empty) #veriYasi{grid-row:1 / span 2;align-self:center}
+  body:not(.kurulum) header .veriyasi .ghost.mini{min-height:var(--hit-min);padding:0 var(--sp-2)}
+  /* Sonraki adımlar: yalnız programda, tek satır; rayın kopyası düğmeler yok. */
+  :root:not([data-gorunum="schedSection"]) #sonraki{display:none}
+  #sonraki [data-go="schedSection"],#sonraki [data-go="candSection"]{display:none}
+  .note.sonraki{display:flex;flex-wrap:wrap;align-items:center;
+    gap:var(--sp-4) var(--sp-8);margin:0;padding:var(--sp-4) var(--sp-4) var(--sp-4) var(--sp-8)}
+  .note.sonraki .sonrakiliste{margin:0;flex:1 1 auto;gap:var(--sp-4)}
+  .note.sonraki .sonrakiliste .ghost{min-height:var(--ctl-h);font-size:var(--fs-sm)}
+}
+/* "tazele" cümlenin devamı: çerçeveli düğme değil, bağlantı görünümlü
+   (telefonda hedef 44px kalıyor — Faz 129 kuralı). */
+body:not(.kurulum) header .veriyasi .ghost.mini{border-color:transparent;
+  color:var(--seal);text-decoration:underline;text-underline-offset:3px}
+body:not(.kurulum) header .veriyasi .ghost.mini:hover{background:var(--seal-soft)}
+/* Sağ sütun: birincil tam genişlik, kayıt/paylaşım iki sütunlu. Faz 47'nin
+   "dar sütun, alt alta" kuralı sütun genişliğinde duruyor; ızgara yalnız
+   ikincil düğmeleri yan yana diziyor. */
+.prgyan .toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:var(--sp-3)}
+.prgyan .toolbar>#editState,.prgyan .toolbar>#savePicks,
+.prgyan .toolbar>#altKaydet,.prgyan .toolbar>#savedMark,
+.prgyan .toolbar>.aracbaslik{grid-column:1 / -1}
+.prgyan .toolbar>#savePicks{min-height:var(--hit-touch);font-size:var(--fs-lg)}
+.prgyan .toolbar .ghost:not(.primary){padding:var(--sp-3) var(--sp-4);
+  font-size:var(--fs-sm);text-align:center;line-height:var(--lh-snug)}
+.aracbaslik{margin-top:var(--sp-6);padding-top:var(--sp-6);
+  border-top:var(--line-hair) solid var(--border);
+  font-family:var(--font-display);font-size:var(--fs-xs);font-weight:700;
+  letter-spacing:var(--ls-label);text-transform:uppercase;color:var(--ink-3)}
+/* Kayıt düğmesi hiç görünmüyorken (kaydedilecek değişiklik yok) grubun
+   üstündeki ayraç boşlukta asılı kalmasın. */
+.prgyan .toolbar:not(:has(.ghost:not([hidden]):not(#crnBtn,#crnLoad,#icsBtn,#pngBtn,#danismanBtn,#shareBtn)))>.aracbaslik{
+  margin-top:0;padding-top:0;border-top:0}
+@media (max-width:700px){
+  .prgyan .toolbar .ghost:not(.primary){min-height:var(--hit-touch)}
+}
+@media (prefers-reduced-motion:no-preference){
+  .icerik>section.card:not([hidden]){animation:gorunumGir var(--dur-base) var(--ease)}
+}
+/* Yol haritası ayarları: öncelik ve senaryo tek bir AYAR PANOSU. İki
+   satır cümle arasına serpilmiş denetimler gibi duruyordu; dönem
+   düğmeleri "kredi" ile "zor ders" alanlarının arasına kırılıyordu.
+   Etiket sütunu sabit, boş dönem seçimi kendi alt satırında. */
+.yhoncelik,.yhsenaryo{background:var(--surface-2);margin:0;
+  padding:var(--sp-6) var(--sp-8)}
+.yhoncelik{border-bottom:var(--line-hair) solid var(--border);margin-top:var(--sp-6)}
+.yhsenaryo{margin-bottom:var(--sp-8)}
+.yhoncelik>.eyebrow,.yhsenaryo>.eyebrow{flex:0 0 72px}
+.yhbosetiket{flex:1 1 100%;margin-top:var(--sp-2)}
+/* Hafifletme önerisinin açıklaması öbür özet notlarıyla aynı boyda. */
+.hafiflet .ozetnot{font-size:var(--fs-sm);line-height:var(--lh-normal)}
+@keyframes gorunumGir{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* ---------------------------------------------------------------------------
+   ★★ FAZ 133 — YENİ GÖRSEL DİL (kullanıcı 12.10.2026, karar kartı: "New
+   visual style"). Faz 132'nin düzeni aynen duruyor; değişen GÖRÜNÜŞ:
+
+   * RENK VERİDE. Yapı rengi (`--seal`) periwinkle'dan mürekkebe döndü:
+     seçili sekme, birincil düğme, bağlantı siyah/beyaz. Ekranda renk
+     taşıyan tek şey artık program rolü (anadal/ÇAP/yandal) ve durum
+     (dolu, uyarı) — renk görünce "bu bir veri" diye okunuyor.
+     Nötrler çinko ailesi; gece "loş" kaldı (Faz 70'in ölçüsü, L 0.24).
+   * YAZI: Geist + Geist Mono, iki değişken yüz. Başlıklar cümle düzeninde,
+     600 ağırlık, hafif sıkı; zorla BÜYÜK HARF yalnız iki yerde kaldı:
+     doluluk rozeti (DOLU/SON n — aciliyet) ve bloğun rol işareti.
+   * BİÇİM: tek köşe kuralı (denetim 8, yüzey 12, işaret 6); kalın yapısal
+     cetveller (3px üst çubuk, 6px panel başı, bölüm cetveli) yerine ince
+     hat + kartın kendi gölgesi.
+   Bütün değerler `tasarim.py`'de; kontrast ve ton merdiveni yeniden ölçüldü.
+--------------------------------------------------------------------------- */
+h1,h2,h3{text-transform:none;font-weight:600;letter-spacing:var(--ls-tight)}
+h1{font-weight:700}
+h2{font-size:var(--fs-2xl)}
+h1 .kurum{font-weight:500}
+.acilim,.acilim b{text-transform:none;letter-spacing:var(--ls-0)}
+/* Etiketler: büyük harf ve geniş aralık yok; küçük, orta ağırlık, soluk. */
+.eyebrow,.ray .raybaslik,.tier>h3,.dozet h3,.yhdonem>h3,table.grid th,
+table.list th,.stepsplit,.aracbaslik,.field>span,.cktermhead,.trtable th,
+.adv>summary,.panel .pctlbl,table.cmp thead th,.daylist h3,.daylist .warn,
+.tab,.tag,.chip,.watchmini{text-transform:none;letter-spacing:var(--ls-0)}
+.eyebrow{font-family:var(--font-sans);font-weight:500;font-size:var(--fs-sm);color:var(--ink-3)}
+.ray .raybaslik{font-family:var(--font-sans);font-weight:500;font-size:var(--fs-sm)}
+table.grid th,table.list th,table.cmp thead th,.trtable th{font-weight:500;color:var(--ink-3)}
+.tag,.chip,.yerdurum,.kod{border-radius:var(--r-sm)}
+.yerdurum{letter-spacing:var(--ls-wide)}
+/* Bölüm başı: eyebrow başlığın üstünde küçük bir bağlam; cetvel yok. */
+.sechead .rule{display:none}
+/* Yüzeyler: kart ve pencere 12px, ince hat ve kendi gölgesi. */
+.card,dialog{border-radius:var(--r-lg)}
+.card{box-shadow:var(--shadow-card)}
+.panel,.yhprogram,.hero,dialog{border-top-width:var(--line-accent)}
+.blk,.blockitem,.tier li,.opt,.note,.daylist .siradaki{border-radius:var(--r)}
+/* Bölünmüş denetimler (sekme, kip, radyo) köşeyi kapsasın. */
+.tabs,.modes,.radios{overflow:hidden}
+.tab[aria-selected="true"]{font-weight:600}
+.ghost{font-weight:500;letter-spacing:var(--ls-0)}
+.ghost.primary{font-weight:600}
+/* Üst çubuk ve alt bilgi: kalın aksan cetveli yerine ince hat. */
+body:not(.kurulum) header,header .masthead{border-bottom:var(--line-hair) solid var(--border)}
+footer{border-top:var(--line-hair) solid var(--border)}
+/* Ray: seçili görünüm dolu bir hap; sol aksan çizgisi yok. */
+.ray{border-right:0;padding-right:0}
+.ray a{font-family:var(--font-sans);font-weight:500;font-size:var(--fs-md);
+  letter-spacing:var(--ls-0);border-left:0;border-radius:var(--r);padding:0 var(--sp-6)}
+.ray a[aria-current="page"]{background:var(--seal-soft);color:var(--ink);font-weight:600}
+.ray .raybaslik{padding-inline:var(--sp-6)}
+/* Grup adları veride BÜYÜK HARF ("PLANLA"); burada cümle düzenine
+   çevriliyor — `lang="tr"` sayesinde I → ı doğru küçülüyor. */
+.ray .raybaslik{text-transform:lowercase}
+.ray .raybaslik::first-letter{text-transform:uppercase}
+@media (min-width:701px){
+  .ray a{min-height:var(--ctl-h)}
+}
+/* Yol haritası ayar panosunun köşeleri (iki parça, tek kutu). */
+.yhoncelik{border-start-start-radius:var(--r);border-start-end-radius:var(--r)}
+.yhsenaryo{border-end-start-radius:var(--r);border-end-end-radius:var(--r)}
+.raydaha{font-family:var(--font-sans);font-weight:500}
+/* Izgara: saat başı çizgisi artık cetvel değil, belirgin bir ince hat. */
+table.grid tr.hr>td{border-top-color:color-mix(in oklab,var(--border-strong) 40%,var(--border))}
+@media (max-width:700px){
+  .ray a{border-radius:var(--r-sm)}
+  .ray a[aria-current="page"]{background:transparent;color:var(--ink);
+    box-shadow:inset 0 var(--line-accent) 0 var(--ink)}
+}
+/* ★★ FAZ 134 — İKİNCİ TUR (kullanıcı 13.10.2026: "continue improving ui/ux").
+   Vitrinde her görünüm yeniden gezildi; dört pürüz:
+   1. Durum rozetleri ("programda", "kritik yol", "önşart bilgisi yok") tam
+      renkli çerçeve + 32px yükseklikle DÜĞME gibi görünüyordu; aday
+      satırında gerçek düğme yokken tıklanacak bir şey varmış gibi. Rozet
+      artık sönük çerçeveli ve basık; rengi (bilgi) aynı.
+   2. Açıklamalı metnin noktalı alt çizgisi özet sütununda neredeyse her
+      satırdaydı; çizgi kalıyor (Faz 51: dokunmatikte tek yol) ama sönük.
+   3. Not senaryosundaki seçimler iki harflik not için satır genişliğindeydi.
+   4. Köşe kuralının (Faz 133) dışında kalan kutular. */
+.chip,.chip.online{padding:var(--sp-1) var(--sp-4);
+  border-color:color-mix(in oklab,currentColor 32%,transparent)}
+.chip[title],.cat[title],.veriyasi .stale[title],.aciklamali[title]{
+  text-decoration-color:color-mix(in oklab,currentColor 45%,transparent)}
+.nstablo select,.notsenaryo .nsust select{width:auto;
+  min-width:calc(var(--sp-14) + var(--sp-11))}
+.yhdonem,.yhprogram,.basvuruitem,#yhYuk{border-radius:var(--r)}
+.watchmini{border-radius:var(--r-sm)}
+/* Kredi eşikleri: bitirme koşulları bir önceki göstergeye yapışıyordu. */
+#creditBody:not(:empty){margin-top:var(--sp-7);padding-top:var(--sp-7);
+  border-top:var(--line-hair) solid var(--border)}
 @media (prefers-reduced-motion:no-preference){
   .blk,.tab,.ghost,.opt{transition:background var(--dur-fast) ease,color var(--dur-fast) ease}
 }
@@ -4478,12 +4657,17 @@ footer{color:var(--ink-3);font-size:var(--fs-sm);border-top:3px solid var(--seal
       <!-- D2: tek adım geri. "Öneriye dön" her şeyi siliyordu. -->
       <button class="ghost" id="undo" hidden>Geri al</button>
       <button class="ghost" id="reset" hidden>Öneriye dön</button>
+      <!-- ★★ FAZ 132 — kaydetme ile kayıt/paylaşım AYRI grup. Dokuz düğme
+           aynı ağırlıkta alt alta duruyordu; birincil eylem kalabalıkta
+           kayboluyordu. Kayıt günü ile CRN'den yükle yan yana: ikisi de
+           OBS kaydına dair. -->
+      <span class="aracbaslik" aria-hidden="true">Kayıt ve paylaşım</span>
       <button class="ghost" id="crnBtn">Kayıt günü</button>
+      <button class="ghost" id="crnLoad">CRN'den yükle</button>
       <button class="ghost" id="icsBtn">Takvime aktar</button>
       <button class="ghost" id="pngBtn">Resim (PNG)</button>
       <button class="ghost" id="danismanBtn">Danışman özeti</button>
       <button class="ghost" id="shareBtn">Bağlantı</button>
-      <button class="ghost" id="crnLoad">CRN'den yükle</button>
       <span id="savedMark" class="chip" style="color:var(--ok)" hidden></span>
     </div>
   </aside>
@@ -6471,7 +6655,7 @@ function renderLoad(){
     <div class="gauge" style="margin-bottom:12px">
       <div class="gaugebar" style="max-width:230px">
         <div class="gaugelabel" style="margin-top:0">
-          <b class="mono" style="font-size:var(--fs-base)">${L.min ? L.min + "–" : "en çok "}${L.max}</b>
+          ${L.min ? "" : "en çok "}<b class="mono" style="font-size:var(--fs-base)">${L.min ? L.min + "–" : ""}${L.max}</b>
           kredi ${L.verified ? "" : "<b>⚠</b>"}</div>
         <div class="gaugelabel" style="color:var(--ink-3)">
           ${L.noTranscript
@@ -8471,7 +8655,7 @@ function renderCredits(){
   $("#creditBody").innerHTML = info.rules.map(r => {
     const pct = Math.min(100, Math.round(1000 * info.earned / r.min) / 10);
     return `<div class="gauge" style="margin-bottom:12px">
-      <div class="gaugebar">
+      <div class="gaugebar" style="max-width:230px">
         <div class="track"><i class="${r.ok ? "ok" : ""}" style="width:${Math.max(2,pct)}%"></i></div>
         <div class="gaugelabel"><b class="mono">${info.earned}</b> / ${r.min} kredi
           ${r.ok ? "· <b>şart sağlandı</b>"
@@ -9058,7 +9242,7 @@ function tekrarOzeti(){
       ders${L.length > 1 ? "ler" : ""} programda değil</div>${L.map(x => `
     <div class="ozetdolusatir"><span class="yerdurum dolu">${esc(x.grade || "kaldı")}</span>
       <b class="mono">${esc(x.course)}</b>${dugme(x)}
-      <span class="ozetnot">— ${ne(x)}${x.asar ? `; eklenirse dönem yükü
+      <span class="ozetnot">${ne(x)}${x.asar ? `; eklenirse dönem yükü
         <b class="mono">${x.yuk}</b> / ${DATA.maxLoad} ile sınırı aşar` : ""}${x.tabanBozar
         ? `; ${esc(LBL)} yarıyıl tabanı (${DATA.secondFloor.min} kredi) sağlanamaz` : ""}</span></div>`).join("")}</div>`;
 }
@@ -9701,7 +9885,7 @@ function render(){
               data-crn="${esc(b.crn)}">boş şubeye geç</button>
             <span class="ozetnot">CRN <span class="mono">${esc(b.crn)}</span> ·
               <span class="mono">${yerSayisi(b)}</span> boş yer · çakışmıyor</span>`
-          : ` <span class="ozetnot">— uygun boş şube bulunmamaktadır; kontenjanın izlenmesi önerilir</span>`}</div>`;
+          : ` <span class="ozetnot">uygun boş şube bulunmamaktadır; kontenjanın izlenmesi önerilir</span>`}</div>`;
     }).join("")}</div>` : ""}
     ${tekrarOzeti()}
     <div class="ozetlejant">
@@ -10487,7 +10671,7 @@ function hafifletmeOnerisi(ps, pz){
   return `<div class="hafiflet"><div class="ozetbaslik">Dönemi hafifletmek için</div>${
     adaylar.map(x => `<div class="ozetdolusatir"><b class="mono">${esc(x.p.cand.course)}</b>
       <button class="ghost mini" data-hafiflet="${esc(x.p.cand.course)}">çıkar</button>
-      <span class="ozetnot">— çıkarılırsa dönem zorluğu <span class="mono">${zp(pz.donem)}</span>
+      <span class="ozetnot">çıkarılırsa dönem zorluğu <span class="mono">${zp(pz.donem)}</span>
         → <b class="mono">${zp(x.yeni)}</b> (${ZORLUK_AD[x.kademe]}) · öneri puanı
         <span class="mono">−${Math.round(x.p.cand.score || 0)}</span>; ders sonraki dönemlere kalır</span></div>`
     ).join("")}</div>`;

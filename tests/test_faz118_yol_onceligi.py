@@ -293,7 +293,8 @@ def test_UCTAN_UCA_vitrin(tmp_path, monkeypatch):
     for ad in "MT":
         assert c[ad + "HATA"].startswith("0"), c[ad + "HATA"]
         assert c[ad + "BASILI1"] == "birlikte=true,anadal=false", c[ad + "BASILI1"]
-        assert "ÖNCELİK" in c[ad + "PANEL1"] and "Anadala öncelik ver" in c[ad + "PANEL1"]
+        # Faz 133: etiket cümle düzeninde (CSS büyük harfe zorlamıyor).
+        assert "Öncelik" in c[ad + "PANEL1"] and "Anadala öncelik ver" in c[ad + "PANEL1"]
         assert c[ad + "TASMA"] == "True", "telefonda yatay taşma"
     assert ("seçilirse:" in c["MPANEL1"]
             or "aynı bitişi vermektedir" in c["MPANEL1"]), c["MPANEL1"]

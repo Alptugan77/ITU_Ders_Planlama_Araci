@@ -57,36 +57,36 @@ from __future__ import annotations
 # üstü), tools/ton_merdiveni.py (yazı ≥4.60, zemin ΔE ≥0.043).
 RENKLER: list[tuple[str, str, str, str]] = [
     # --- zemin ve yüzey
-    ("ground", "#1A1F29", "#FFFFFF",
+    ("ground", "#1E1E22", "#FAFAFB",
      "Sayfa zemini. Seçili sekmede ve birincil düğmede yazı rengi (on-seal)."),
-    ("surface", "#222835", "#FFFFFF", "Kart, pencere, form alanı zemini."),
-    ("surface-2", "#2B3240", "#F0F2F6",
+    ("surface", "#29292F", "#FFFFFF", "Kart, pencere, form alanı zemini."),
+    ("surface-2", "#33333A", "#EFEFF1",
      "İkincil yüzey: not kutusu, satır üzerine gelme, kademe kutusu."),
     # --- çizgi
-    ("border", "#3A4252", "#D4D9E2",
+    ("border", "#44444C", "#E2E2E6",
      "İnce hat: kart kenarı, tablo satır çizgisi, yarım saat çizgisi. "
      "Anlam TAŞIMAZ — yalnız ayırır."),
-    ("border-strong", "#7D899E", "#141821",
+    ("border-strong", "#878792", "#7E7E88",
      "Cetvel: tablo başlığı altı, ızgarada saat başı, bölüm cetveli. "
-     "Gündüzde Şematik'in sert siyah cetveli."),
-    ("border-control", "#7D899E", "#6B7384",
+     "Izgarada saat başı, tablo başlığı altı."),
+    ("border-control", "#878792", "#7E7E88",
      "★ v2. Düğme ve alan kenarı. v1'de cetvelle aynıydı; gündüzde her "
      "düğme siyah çerçeveli çıkıyordu ve beş düğmelik sütunda birincil "
      "eylem kalabalıkta kayboluyordu. Denetim kenarı tabanı 3:1 (ölçülü)."),
     # --- mürekkep
-    ("ink", "#EEF2F8", "#0D1017", "Gövde yazısı; ground, surface, surface-2 üstünde."),
-    ("ink-2", "#C3CBD8", "#4B5462",
+    ("ink", "#F2F2F4", "#18181B", "Gövde yazısı; ground, surface, surface-2 üstünde."),
+    ("ink-2", "#CFCFD6", "#46464E",
      "Açıklama ve uzun ikincil metin; ground, surface, surface-2 üstünde."),
-    ("ink-3", "#A9B2C2", "#5F6878",
+    ("ink-3", "#B5B5BF", "#5E5E68",
      "Meta, ipucu, CRN, saat sütunu — en fazla fs-md boyunda; ground, "
      "surface, surface-2 üstünde."),
     # --- yapı (tek aksan)
-    ("seal", "#A3B5F2", "#3B4E9E",
+    ("seal", "#F2F2F4", "#26262B",
      "YAPI: cetvel, eyebrow, bağlantı, seçili sekme zemini, odak halkası, "
      "önşart bağı. Veri taşımaz."),
-    ("seal-soft", "#2A3352", "#E7EAF7",
+    ("seal-soft", "#38383F", "#E7E7EA",
      "Seçili kip/seçim zemini, üzerine gelme zemini; üstünde yazı seal."),
-    ("seal-hover", "#B8C7FB", "#2F3F8E",
+    ("seal-hover", "#FFFFFF", "#3A3A42",
      "Birincil düğmenin üzerine gelme rengi (opaklık değil — zemini de soldururdu)."),
     # --- veri: program rolü
     ("anadal", "#6FCDB3", "#0A6B58", "VERİ: anadal dersi — şerit, panel üst çizgisi, ölçek."),
@@ -134,6 +134,9 @@ TEMA_DIGER: list[tuple[str, str, str, str]] = [
      "Kısa bildirim."),
     ("shadow-sticky", "0 -6px 14px -8px rgba(0,0,0,.55)",
      "0 -6px 14px -8px rgba(10,15,30,.28)", "Telefonda alt sekme çubuğu."),
+    ("shadow-card", "0 1px 2px rgba(0,0,0,.28)",
+     "0 1px 2px rgba(24,24,27,.05),0 1px 3px rgba(24,24,27,.04)",
+     "Faz 133 — kartın zeminden ayrılması (gündüzde zemin neredeyse beyaz)."),
     ("shadow-lift", "0 2px 10px -4px rgba(0,0,0,.5)",
      "0 2px 10px -4px rgba(10,15,30,.3)", "Kademe kutusunun üzerine gelme."),
 ]
@@ -193,12 +196,15 @@ HARF_ARALIGI: list[tuple[str, str, str]] = [
 ]
 
 AILELER: list[tuple[str, str, str]] = [
-    ("font-display", '"Chivo",Helvetica,Arial,sans-serif',
-     "Başlık, etiket, düğme, sekme — 600–900; Chivo'da 500 YOK. Uzun metinde kullanma."),
-    ("font-sans", '"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
-     "Gövde — 400/600/700."),
-    ("font-mono", '"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace',
-     "Ders kodu, CRN, saat, kredi, yüzde — 400/600, tabular-nums."),
+    # ★★ Faz 133 — Chivo + IBM Plex → Geist + Geist Mono (kullanıcı
+    # 12.10.2026, "yeni görsel dil"). İki DEĞİŞKEN yüz (100–900): her ağırlık
+    # gerçek, taklit kalın imkânsız; gömülü yazı tipi ~400 KB → ~140 KB.
+    ("font-display", '"Geist",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+     "Başlık, etiket, düğme, sekme — 500–700. Büyük harfe ZORLANMIYOR."),
+    ("font-sans", '"Geist",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+     "Gövde — 400/500/600."),
+    ("font-mono", '"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace',
+     "Ders kodu, CRN, saat, kredi, yüzde — 400/500, tabular-nums."),
 ]
 
 # Aralık — 2px ızgarası 16'ya kadar, sonra 4'ün katları. `tools/
@@ -231,7 +237,11 @@ CIZGI: list[tuple[str, str, str]] = [
 ]
 
 KOSE: list[tuple[str, str, str]] = [
-    ("r", "0px", "Her yer — köşe YOK (Şematik)."),
+    # ★★ Faz 133 — Şematik'in sıfır köşesi yerine TEK kural: denetim 8,
+    # yüzey 12, küçük işaret 6. Karışık değil; her ölçek bir sınıfa ait.
+    ("r", "8px", "Düğme, alan, sekme, ızgara bloğu, not kutusu."),
+    ("r-lg", "12px", "Kart, pencere, panel."),
+    ("r-sm", "6px", "Rozet, çip, ders kodu kutucuğu."),
     ("r-round", "50%", "Yalnız dönen halka."),
 ]
 
@@ -422,23 +432,15 @@ def jetonlar_json() -> dict:
                          "düzeninde yazılır" if s[6] else "")),
         } for s in stiller]})
     return {
-        "name": "İTÜ DEPAR v2", "version": 2,
+        "name": "İTÜ DEPAR v3", "version": 3,
         "color": {"themes": [{"id": "dark", "name": "Gece"},
                              {"id": "light", "name": "Gündüz"}],
                   "tokens": renk},
         "type": {
             "fonts": [
-                {"family": "Chivo", "file": f"fonts/Chivo-{w}.woff2", "weight": str(n)}
-                for w, n in (("SemiBold", 600), ("Bold", 700), ("ExtraBold", 800),
-                             ("Black", 900))
-            ] + [
-                {"family": "IBM Plex Sans", "file": f"fonts/IBMPlexSans-{w}.woff2",
-                 "weight": str(n)}
-                for w, n in (("Regular", 400), ("SemiBold", 600), ("Bold", 700))
-            ] + [
-                {"family": "IBM Plex Mono", "file": f"fonts/IBMPlexMono-{w}.woff2",
-                 "weight": str(n)}
-                for w, n in (("Regular", 400), ("SemiBold", 600))
+                {"family": "Geist", "file": "fonts/Geist-Variable.woff2", "weight": "100 900"},
+                {"family": "Geist Mono", "file": "fonts/GeistMono-Variable.woff2",
+                 "weight": "100 900"},
             ],
             "families": {"display": AILELER[0][1], "sans": AILELER[1][1],
                          "mono": AILELER[2][1]},

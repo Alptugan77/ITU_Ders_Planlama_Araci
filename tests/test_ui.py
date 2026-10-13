@@ -312,7 +312,7 @@ def test_choosing_from_slot_dialog_changes_the_grid(page):
     kaynak = p.evaluate("() => izgaraKaynagi()")
     if kaynak and kaynak.get("tur") == "oneri":
         secili = p.locator('#tabs .tab[aria-selected="true"]').all_inner_texts()
-        assert len(secili) == 1 and secili[0].upper().startswith(f"ÖNERİ {kaynak['i'] + 1}"), secili
+        assert len(secili) == 1 and secili[0].startswith(f"Öneri {kaynak['i'] + 1}"), secili
         assert p.locator("#reset:visible").count() == 0
     else:
         assert p.locator("#reset:visible").count() == 1     # 'öneriye dön' belirir

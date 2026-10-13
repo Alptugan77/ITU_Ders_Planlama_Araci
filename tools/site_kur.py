@@ -436,7 +436,7 @@ _LOADER_CSS = """
   overflow:auto;padding:32px 20px}
 #yukleniyor .kutu{width:100%;max-width:560px}
 #yukleniyor .yukAd{font-size:clamp(40px,9vw,56px);margin:0;line-height:1;
-  font-family:"Chivo",Helvetica,Arial,sans-serif;font-weight:900;
+  font-family:"Geist",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-weight:700;
   letter-spacing:-.01em}
 #yukleniyor .yukAd .kurum{color:var(--ink-3)}
 #yukleniyor .acilim{font-size:14px;margin:12px 0 30px}
@@ -454,7 +454,7 @@ _LOADER_CSS = """
   background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);
   animation:yukKay 1.4s linear infinite}
 @keyframes yukKay{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
-#yukleniyor .yukSayi{font-family:"IBM Plex Mono",monospace;font-size:14px;
+#yukleniyor .yukSayi{font-family:"Geist Mono",monospace;font-size:14px;
   color:var(--ink-2);margin-top:9px;min-height:20px;
   font-variant-numeric:tabular-nums}
 #yukleniyor .yukUyari{font-size:15px;line-height:1.5;color:var(--warn-ink);
@@ -463,7 +463,7 @@ _LOADER_CSS = """
   border-top:1px solid var(--border);display:grid;gap:8px}
 #yukleniyor .yukListe li{font-size:15px;color:var(--ink-3);display:flex;
   gap:10px;align-items:baseline}
-/* ⚠️ İşaretler eş aralıklı yazı tipinde DEĞİL: IBM Plex Mono'da "✓" yok,
+/* ⚠️ İşaretler eş aralıklı yazı tipinde DEĞİL: Geist Mono'da "✓" yok,
    yedek yazı tipi onu "√" gibi çiziyordu (ekran görüntüsünde görüldü). */
 #yukleniyor .yukListe li::before{content:"○";width:1.1em;flex:none;
   font-family:system-ui,"Segoe UI Symbol","Apple Symbols","Noto Sans Symbols 2",
@@ -475,7 +475,7 @@ _LOADER_CSS = """
 #yukleniyor .yukListe li[data-durum="hata"]{color:var(--danger);font-weight:600}
 #yukleniyor .yukListe li[data-durum="hata"]::before{content:"✕"}
 #yukleniyor .yukListe .sure{margin-left:auto;font-weight:400;font-size:13px;
-  color:var(--ink-3);font-family:"IBM Plex Mono",monospace}
+  color:var(--ink-3);font-family:"Geist Mono",monospace}
 #yukleniyor .gizlilik{font-size:16px;line-height:1.6;color:var(--ink-2);
   margin:26px 0 0}
 #yukleniyor .gizlilik b{color:var(--anadal)}
@@ -484,7 +484,7 @@ _LOADER_CSS = """
 #yukleniyor .yukHata h2{font-size:21px;color:var(--danger);margin:0 0 6px}
 #yukleniyor .yukHata p{font-size:15px;line-height:1.55;color:var(--ink-2);
   margin:0 0 12px}
-#yukleniyor .yukHata code{font-family:"IBM Plex Mono",monospace;
+#yukleniyor .yukHata code{font-family:"Geist Mono",monospace;
   font-size:13.5px;display:block;white-space:pre-wrap;word-break:break-word;
   color:var(--ink);background:var(--surface-2);padding:8px 10px;margin:0 0 14px}
 #yukleniyor .yukHata button{font:inherit;font-size:16px;font-weight:600;
