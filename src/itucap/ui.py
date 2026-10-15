@@ -4431,9 +4431,47 @@ table.grid tr.hr>td{border-top-color:color-mix(in oklab,var(--border-strong) 40%
 .engel .enust .watchmini{margin-left:auto}
 .engel .enad{color:var(--ink-2);font-size:var(--fs-sm)}
 .engel .endetay{color:var(--ink-3);font-size:var(--fs-sm)}
+/* Faz 139 — aday listesi: ad kodun yanında, gerekçe altında, süzgeç düğmeleri. */
+#cands .adaybas{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-3)}
+#cands .adaybas>b{margin-right:var(--sp-1)}
+#cands .adayad{color:var(--ink);font-weight:500;margin-right:var(--sp-2)}
+#cands .adaybas .chip{margin:0}
+#cands .adayrol{display:none}
+#cands .chip.programda{background:var(--ok-soft);border-color:transparent}
+#cands .why{margin-top:var(--sp-2);line-height:var(--lh-normal)}
+.candbar .tickbox.secim{border:var(--line-hair) solid var(--border-control);border-radius:var(--r);
+  padding:0 var(--sp-5) 0 var(--sp-2);min-height:var(--ctl-h);gap:var(--sp-1);
+  transition:background var(--dur-fast) ease,border-color var(--dur-fast) ease}
+.candbar .tickbox.secim:hover{background:var(--surface-2)}
+.candbar .tickbox.secim:has(input:checked){background:var(--seal-soft);color:var(--seal);
+  border-color:color-mix(in oklab,var(--seal) 45%,transparent);font-weight:600}
+.candbar .tickbox.secim:active{transform:scale(.98)}
+#cands tbody tr[data-course]:active{background:var(--seal-soft)}
+.candbar input[type=search]{flex-basis:calc(var(--sp-14) * 4)}
+.candbar>.tickbox:not(.secim) select{width:auto}
 @media (prefers-reduced-motion:no-preference){
   .blk,.tab,.ghost,.opt{transition:background var(--dur-fast) ease,color var(--dur-fast) ease}
 }
+/* Faz 139 — telefon kırılımı (eşik piksel; yukarıdaki jeton kuralının dışında). */
+@media (max-width:700px){
+  /* Gerekçe satırı yalnız sol sütundaydı (sağ sütun kontenjan kadar geniş):
+     açıklama ~190px'e sıkışıp beş satıra çıkıyordu. Ders hücresi artık tam
+     genişlik; puan sağ üst köşede, kod satırının hizasında. */
+  #cands tr[data-course]{position:relative}
+  #cands tr[data-course]>td:nth-child(2){grid-column:1 / -1}
+  #cands td.score{position:absolute;top:0;right:0;padding-top:var(--sp-6)}
+  #cands .adayrol{display:inline-block}
+  .candbar>.tickbox:not(.secim) select{width:100%}
+  #cands .adaybas{row-gap:var(--sp-1)}
+  #cands .adayad{flex-basis:100%;order:1;margin:0}
+  #cands .adaybas>.chip,#cands .adaybas>.zorluk,#cands .adaybas>span:not(.adayad){order:2}
+  .candbar .tickbox.secim{min-height:var(--hit-touch);flex:1 1 auto;justify-content:center}
+  .candbar .radios{flex:1 1 100%}
+  .candbar .radios button{flex:1 1 0}
+  .candbar>.tickbox:not(.secim){flex:1 1 auto}
+  .candbar>.tickbox:not(.secim) select{flex:1 1 auto}
+}
+@media (prefers-reduced-motion:reduce){.candbar .tickbox.secim:active{transform:none}}
 </style>
 </head>
 <body>
@@ -4808,9 +4846,13 @@ table.grid tr.hr>td{border-top-color:color-mix(in oklab,var(--border-strong) 40%
     <input type="search" id="candQ" aria-label="Aday derslerde ara"
       placeholder="Ders arama — kod, ad veya öğretim üyesi (örn. MAT 103E, olasılık)">
     <div class="radios" id="candRole"></div>
-    <label class="tickbox"><input type="checkbox" id="candFree"> yalnızca kontenjanı olanlar</label>
+    <!-- ★ Faz 139 — iki onay kutusu düz metin satırıydı; telefonda her biri
+         ayrı bir satır kaplıyor, süzgeç alanı ekranın üçte birini yiyordu.
+         Artık rol düğmeleriyle aynı aileden iki süzgeç düğmesi: kutu yerinde
+         (ekran okuyucu için hâlâ onay kutusu), seçilince düğme doluyor. -->
+    <label class="tickbox secim"><input type="checkbox" id="candFree"> kontenjanı olan</label>
     <!-- ★ Faz 74 — "programıma daha ne sığar?" -->
-    <label class="tickbox"><input type="checkbox" id="candFit"> yalnızca programa sığanlar</label>
+    <label class="tickbox secim"><input type="checkbox" id="candFit"> programa sığan</label>
     <!-- ★ Faz 76 — sıralama yalnız GÖRÜNTÜ; öneri puanı değişmiyor. -->
     <label class="tickbox">Sıralama <select id="candSort" aria-label="Aday dersleri sırala">
       <option value="">öneri puanı</option>
@@ -11630,25 +11672,31 @@ function renderCandidates(){
     const inPlan = chosen.has(c.course);
     const uyan = FILT.fit ? sigdigiSube(c, kalan) : null;
     const gecmis = (c.pool || FILT.sort === "ort") ? gecmisOzet(c) : null;
-    return `<tr data-course="${esc(c.course)}" style="cursor:pointer"
+    /* ★★ Faz 139 — dersin ADI kodun yanında. Önceden ad, gerekçe satırının
+       başında gri metindi ("Data Structures — kritik yolda — …"): öğrencinin
+       tanıdığı şey en sönük yerdeydi. Artık ilk satır: kod, ad, rozetler;
+       ikinci satır yalnız gerekçe. Rol etiketi telefonda da hücrede (Plan
+       sütunu orada gizli; önceki yorum "rol zaten ders hücresinde" diyordu
+       ama değildi). Masaüstünde Plan sütunu duruyor, bu kopya gizli. */
+    const why = [c.reasons.map(esc).join("; "), acilanNot(c).trim()].filter(Boolean).join(" ");
+    return `<tr data-course="${esc(c.course)}" style="cursor:pointer"${inPlan ? ' class="inplan"' : ""}
         title="${inPlan ? "programda" : "programa ekle"}">
       <td class="mono score">${c.score}</td>
-      <td><b class="mono">${esc(c.course)}</b>
-        ${inPlan ? `<span class="chip" style="margin-left:6px;color:var(--ok)">programda</span>` : ""}
-        ${c.critical ? `<span class="chip supply" style="margin-left:6px">kritik yol</span>` : ""}
-        ${c.denkOf ? `<span class="chip prereq" style="margin-left:6px"
-          title="Plandaki ${esc(c.denkOf)} dersinin resmî denkliği; şubesi programınıza açık olduğundan dilekçe gerekmez. Bu ders geçilince ${esc(c.denkOf)} yuvası dolar.">${esc(c.denkOf)} yerine</span>` : ""}
-        ${c.prereqUnknown ? `<span class="chip unknown"
-          style="margin-left:6px" title="Önşart metni bulunmakla birlikte okunamamıştır; danışmanınıza danışınız">önşart okunamadı</span>`
-          : (c.prereqMissing ? `<span class="chip unknown" style="margin-left:6px"
-              title="Katalogda önşart metni bulunmamaktadır; bu, dersin önşartı olmadığı anlamına gelmez. OBS'den doğrulayınız.">önşart bilgisi yok</span>` : "")}
-        ${zorlukRozet(zorlukOf(c))}
-        ${c.sections.every(s => s.online)
-          ? `<span class="chip online" style="margin-left:6px">çevrimiçi</span>`
+      <td><div class="adaybas"><b class="mono">${esc(c.course)}</b><span class="adayad">${esc(c.name)}</span><span class="tag ${c.role} adayrol">${c.role}</span>${
+        inPlan ? `<span class="chip programda" style="color:var(--ok)">programda</span>` : ""}${
+        c.critical ? `<span class="chip supply">kritik yol</span>` : ""}${
+        c.denkOf ? `<span class="chip prereq"
+          title="Plandaki ${esc(c.denkOf)} dersinin resmî denkliği; şubesi programınıza açık olduğundan dilekçe gerekmez. Bu ders geçilince ${esc(c.denkOf)} yuvası dolar.">${esc(c.denkOf)} yerine</span>` : ""}${
+        c.prereqUnknown ? `<span class="chip unknown"
+          title="Önşart metni bulunmakla birlikte okunamamıştır; danışmanınıza danışınız">önşart okunamadı</span>`
+          : (c.prereqMissing ? `<span class="chip unknown"
+              title="Katalogda önşart metni bulunmamaktadır; bu, dersin önşartı olmadığı anlamına gelmez. OBS'den doğrulayınız.">önşart bilgisi yok</span>` : "")}${
+        zorlukRozet(zorlukOf(c))}${
+        c.sections.every(s => s.online)
+          ? `<span class="chip online">çevrimiçi</span>`
           : (c.sections.some(s => s.online)
-             ? `<span class="chip online" style="margin-left:6px">çevrimiçi şube var</span>` : "")}
-        <div class="why">${esc(c.name)}${c.reasons.length
-          ? " — " + c.reasons.map(esc).join("; ") : ""}${acilanNot(c)}</div>${uyan
+             ? `<span class="chip online">çevrimiçi şube var</span>` : "")}</div>${
+        why ? `<div class="why">${why}</div>` : ""}${uyan
           ? `<div class="why uyansube">uyan şube: CRN <span class="mono">${esc(uyan.crn)}</span>
              · ${uyan.meetings.map(m => `${DAYS[m.day - 1]} ${hhmm(m.start)}`).join(", ")}${
              uyan.capacity ? ` · ${yerSayisi(uyan)} boş yer` : " · kontenjan ilan edilmemiş"}</div>` : ""}${gecmis
