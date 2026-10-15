@@ -1,381 +1,466 @@
-# İTÜ DEPAR — Ders Planlama Aracı
+# İTÜ DEPAR — Course Planning Tool
 
-İTÜ DEPAR (**DE**rs **P**lanlama **AR**acı), İstanbul Teknik Üniversitesi
-lisans öğrencilerinin dönemlik ders programını ve mezuniyete kadarki
-planını hazırlamalarına yardımcı olan bir araçtır. Anadal programıyla
-birlikte **çift anadal (ÇAP)** ve **yandal** programlarını da destekler.
+[Türkçe](README.tr.md) · **English**
 
-Araç web tarayıcısında ya da kullanıcının kendi bilgisayarında çalışır.
-Kişisel veriler (transkript, notlar, tercihler) bu ortamların dışına
-gönderilmez.
+İTÜ DEPAR (**DE**rs **P**lanlama **AR**acı, "course planning tool") helps
+undergraduate students at Istanbul Technical University (İTÜ) build **this
+term's timetable** and a **plan all the way to graduation**. Alongside the
+major, it supports **double major (ÇAP)** and **minor (yandal)** programs.
 
-**Web sürümü:** <https://alptugan77.github.io/ITU_Ders_Planlama_Araci/>
+**Web version:** <https://alptugan77.github.io/ITU_Ders_Planlama_Araci/>
+(nothing to install, works on phones too). The interface is in Turkish.
+
+![Weekly timetable view: a suggested clash-free timetable, the term summary and the registration buttons](docs/ekran/haftalik-program.png)
+
+<sub>Screenshots are taken from a <b>fictional</b> sample student built with
+`make vitrin`; they belong to no real person.</sub>
 
 > [!IMPORTANT]
-> Bu araç yalnızca **bilgilendirme amaçlıdır** ve İTÜ'nün resmî bir aracı
-> değildir. Ders kaydına ilişkin kararlar için akademik danışmanınıza ve
-> OBS'ye başvurunuz. Araç, kullanıcı adına ders kaydı yapmaz ve OBS
-> şifresi istemez.
+> This tool is **for information only** and is not an official İTÜ tool.
+> Check registration decisions with your academic advisor and with OBS (the
+> university's student information system). The tool never registers
+> courses for you and never asks for your OBS password. Registration itself
+> is done by the student in Kepler.
 
 ---
 
-## İçindekiler
+## Contents
 
-1. [Genel bakış](#genel-bakış)
-2. [Özellikler](#özellikler)
-3. [Temel ilke: belirsizliğin açıkça gösterilmesi](#temel-ilke-belirsizliğin-açıkça-gösterilmesi)
-4. [Kullanım seçenekleri](#kullanım-seçenekleri)
-5. [Kurulum (yerel sürüm)](#kurulum-yerel-sürüm)
-6. [Komutlar](#komutlar)
-7. [Yapılandırma](#yapılandırma)
-8. [Veri kaynakları ve güncelleme](#veri-kaynakları-ve-güncelleme)
-9. [Gizlilik ve güvenlik](#gizlilik-ve-güvenlik)
-10. [Mimari](#mimari)
-11. [Test ve kalite güvencesi](#test-ve-kalite-güvencesi)
-12. [Web sürümünün yayımlanması](#web-sürümünün-yayımlanması)
-13. [Katkı](#katkı)
-14. [Sorumluluk reddi ve lisans](#sorumluluk-reddi-ve-lisans)
+1. [Why DEPAR?](#why-depar)
+2. [Quick start](#quick-start)
+3. [Features](#features)
+4. [Core principle: uncertainty is shown, never hidden](#core-principle-uncertainty-is-shown-never-hidden)
+5. [Ways to use it](#ways-to-use-it)
+6. [Installation (local version)](#installation-local-version)
+7. [Commands](#commands)
+8. [Configuration](#configuration)
+9. [Data sources and updates](#data-sources-and-updates)
+10. [Privacy and security](#privacy-and-security)
+11. [Architecture](#architecture)
+12. [Tests and quality checks](#tests-and-quality-checks)
+13. [Publishing the web version](#publishing-the-web-version)
+14. [Contributing](#contributing)
+15. [Disclaimer and license](#disclaimer-and-license)
 
 ---
 
-## Genel bakış
+## Why DEPAR?
 
-Birden fazla programın öğretim planını aynı anda izlemek, elle yürütülmesi
-güç bir iştir. Öğrencinin şu sorulara aynı anda cevap vermesi gerekir:
-hangi dersin hangi programa sayıldığı, hangi önşartın sağlandığı, bu dönem
-açılan şubelerle çakışmasız bir programın kurulup kurulamayacağı, dönem
-kredi sınırının aşılıp aşılmadığı ve mezuniyetin hangi yarıyılda
-gerçekleşeceği.
+Following the curricula of more than one program at once is hard to do by
+hand. A student has to answer all of these together:
 
-İTÜ DEPAR bu soruları OBS'de yayımlanan öğretim planları, ders kataloğu,
-şube bilgileri ve ilgili mevzuat üzerinden hesaplar. Hesabın dayandığı her
-varsayım, sonucun yanında açıkça belirtilir.
+* Which course counts toward which program, and which prerequisites are met?
+* Can a clash-free timetable be built from the sections open this term?
+* Does the plan exceed the term credit limit or fall below the double-major
+  per-term credit floor?
+* In which term will I graduate, and what happens if I fail a course?
 
-## Özellikler
+İTÜ DEPAR computes these from the curricula, course catalog, section data
+and regulations published on OBS. Every assumption behind a result is stated
+next to it. Personal data (transcript, grades, preferences) stays in the
+user's browser or on their own computer.
 
-### Dönemlik ders programı
+## Quick start
 
-* **Çakışmasız program önerisi.** Açık şubeler, önşartlar, kontenjan,
-  dönem kredi sınırı ve kritik yol birlikte değerlendirilerek haftalık
-  program önerileri oluşturulur.
-* **Yumuşak tercihler.** En erken ders saati, boş gün, yerleşke değişimi,
-  çevrimiçi şube ve öğretim üyesi tercihleri önerilerin sıralamasını
-  etkiler; programları elemez. Tercihlerin etkisi kaydedilmeden önizlenebilir.
-* **Saate kilitleme ve meşgul saatler.** Bir ders belirli bir şubeye ya da
-  saat aralığına kilitlenebilir; iş, staj gibi nedenlerle kapalı tutulan
-  saatlere ders yerleştirilmez.
-* **Dilekçesiz denk dersler.** Plandaki bir dersin resmî denkliği olan ve
-  şubesi öğrencinin kendi programına (anadal, ÇAP veya yandal kodu) açık
-  olan dersler aday olarak sunulur ve plandaki dersin yerine sayılır.
-* **Ek sınav şubeleri.** Öğretim yöntemi "Ek Sınav" olan şubeler, ilgili
-  mevzuata uygun biçimde ders saati olmayan sınav hakları olarak ayrıca
-  gösterilir.
-* **Alternatif programlar ve karşılaştırma.** Birden fazla program (Plan A,
-  B, C) kaydedilebilir ve yan yana karşılaştırılabilir.
-* **Dışa aktarma.** Program takvim dosyası (`.ics`), paylaşılabilir
-  bağlantı ya da görüntü (PNG) olarak dışa aktarılabilir. Derslik ve bina
-  bilgisi programda yer alır.
+On the web version, three steps are enough:
 
-### İlerleme ve mezuniyet planı
+1. **Program and term.** In *Bölüm, yarıyıl, notlar* (program, term, grades),
+   pick your major and current term; add your double major or minor if you
+   have one.
+2. **Courses you have taken.** The **Plandan işaretle** (mark from plan)
+   window lists your curriculum term by term; tick the courses you have
+   passed. To use your real grades, paste your OBS transcript into
+   **Transkript yapıştır** in the same window. A course without a grade is
+   counted as DD.
+3. **Suggested timetable.** The tool suggests a few weekly timetables
+   (Öneri 1, 2, 3). Save the one you like, then enter the CRNs from the
+   **Kayıt günü** (registration day) list into Kepler.
 
-* **İlerleme paneli.** Anadal ve ikinci program ayrı ayrı izlenir; bu
-  dönemin dersleri tamamlandığında ulaşılacak durum ayrıca gösterilir.
-* **Mezuniyet yol haritası.** Kalan dersler; önşart sırası, dönem kredi
-  sınırı, dersin açıldığı yarıyıl, haftalık saat uygunluğu ve ÇAP yarıyıl
-  kredi tabanı dikkate alınarak dönemlere yerleştirilir. Her programın
-  tahmini bitiş yarıyılı, plandaki bitişle ve azami öğrenim süresiyle
-  karşılaştırılır.
-* **Yol haritası önceliği.** İkinci program bulunan öğrenciler için iki
-  ayar sunulur: *"Programları birlikte en kısa sürede bitir"* ve *"Anadala
-  öncelik ver"*. Harita birkaç yerleştirme sırasıyla kurulur ve seçilen
-  ölçüte göre en iyi yerleşim gösterilir; öbür ayarın sonucu da karşılaştırma
-  için belirtilir.
-* **Senaryolar.** Dönem başına en çok kredi (serbest değer), boş bırakılacak
-  dönemler (Erasmus, staj) ve dönem başına zor ders sınırı değiştirilerek
-  bitişin nasıl etkileneceği kaydedilmeden hesaplanabilir. Mevcut sınırın
-  üzerindeki bir kredi değeri için yönetmeliğin aradığı GNO belirtilir.
-* **Karar desteği.** "Bu dönem alınırsa bitişi öne çekecek dersler",
-  "yaz okulunda alınırsa" hesabı ve "bu dersten kalınırsa mezuniyet ne kadar
-  gecikir" (kalma riski) analizleri sunulur.
-* **GNO hedefi ve not senaryosu.** Eşiklerin (ÇAP'a devam, mezuniyet, bir
-  üst kredi basamağı) korunması için bu dönem gereken en düşük ortalama ve
-  dönem sonu notlarına göre tahmini GNO hesaplanır.
+The in-app **Kılavuz** (guide) button explains every feature, with buttons
+that take you to the relevant view.
 
-### Mevzuat ve başvuru
+## Features
 
-* **Mevzuat denetimleri.** Dönem kredi yükü (Lisans Yönetmeliği MADDE 17),
-  GNO eşikleri, bitirme çalışması kredi şartı ve ÇAP yarıyıl kredi tabanı
-  denetlenir. Eşikler koda gömülü değildir; kaynaklarıyla birlikte
-  `config/kurallar.toml` dosyasında tanımlıdır.
-* **Başvuru uygunluğu.** Başvurulabilecek ÇAP ve yandal programları, her
-  programda halihazırda sayılan dersler ve her ÇAP seçeneği için tahmini
-  bitiş yarıyılı listelenir.
-* **Darboğaz raporu.** Bir dersin neden alınamadığı (önşart, kontenjan,
-  programa kapalı şube, kredi eşiği) açıkça gösterilir.
-* **Danışman özeti.** Danışman görüşmesi için tek sayfalık, yazdırılabilir
-  bir özet hazırlanır: bu dönemin programı ve CRN'leri, kredi ve GNO
-  denetimleri, tahmini bitiş ve dilekçe gerektiren işlemler.
+### This term's timetable
 
-### Veri ve izleme
+* **Clash-free timetable suggestions.** Open sections, prerequisites,
+  quotas, the term credit limit and the critical path are weighed together
+  to build weekly timetables. Suggestions can be compared side by side.
+* **Timetable preferences.** Earliest class time, free days, campus changes,
+  online sections and instructor preferences affect the ranking of
+  suggestions without ruling any out. Their effect can be previewed before
+  saving.
+* **Locking and busy hours.** A course can be locked to a specific section
+  or time range; no class is placed in hours kept free for work, an
+  internship and so on.
+* **Section details on the timetable.** Building and room, full sections or
+  sections with only a few seats left, online classes, and back-to-back
+  classes on different campuses are marked. A full section can be swapped
+  for an open one in one tap.
+* **Term difficulty and "Dönemi hafiflet" (lighten the term).** An estimated
+  term difficulty out of 10 is computed from past grade distributions, the
+  number of courses, credits and ECTS. When a term is heavy, the tool
+  suggests which course to drop to lighten it most without delaying
+  graduation.
+* **Equivalent courses without a petition.** Courses that are officially
+  equivalent to a course in your plan, and whose section is open to your own
+  program (major, double major or minor code), are offered as candidates and
+  count in place of the planned course. Renamed courses (for example old BLG
+  codes and their new BBF counterparts) are recognised through their aliases.
+* **Make-up exam sections.** Sections whose teaching method is "Ek Sınav"
+  (extra exam) are shown separately, as regulations describe them: exam
+  rights without class hours.
+* **Saving and sharing.** Timetables can be saved as Plan A, B, C. The
+  **Kayıt günü** list gathers the CRNs to enter into Kepler and opens
+  offline too. A timetable can be exported as a calendar file (`.ics`), an
+  image (PNG, with theme and phone layout options), an advisor summary or a
+  shareable link. A registration done in Kepler can be brought back with
+  **CRN'den yükle** (load from CRNs).
+* **Next class on the phone.** On phones, the day's next class and its room
+  appear above the timetable.
 
-* **Geçmiş not dağılımları ve tahmini zorluk.** OBS'nin yayımladığı harf
-  notu dağılımlarından dersin geçme oranı ve tahmini zorluğu hesaplanır.
-  Bu bilgi yalnızca yol gösterici niteliktedir.
-* **Kontenjan izleme.** Seçilen derslerde yer açıldığında bildirim
-  gönderilir (`make watch`). macOS'ta izleme arka planda çalıştırılabilir.
-* **Değişiklik raporu.** İki veri güncellemesi arasında eklenen dersler ve
-  dolan kontenjanlar listelenir.
+### Progress and graduation plan
 
-## Temel ilke: belirsizliğin açıkça gösterilmesi
+![Roadmap view (dark theme): estimated graduation, the course that would change it, and the term-by-term plan](docs/ekran/yol-haritasi-gece.png)
 
-Araç, öğrencinin mezuniyet planı hakkında bilgi vermektedir; hatalı bir
-olumlu sonuç gerçek bir zarara yol açabilir. Bu nedenle tüm bileşenlerde
-aşağıdaki kural uygulanır: **bilinmeyen bir bilgi, biliniyormuş gibi
-gösterilmez.**
+* **Progress panel.** The major and the second program are tracked
+  separately, with a term strip and the remaining slots. The state reached
+  once this term's courses are completed is shown too.
+* **Graduation roadmap.** Remaining courses are placed into terms taking
+  into account prerequisite order, the term credit limit, the term in which
+  each course is offered, weekly hour availability and the double-major
+  per-term credit floor. Each program's estimated graduation term is
+  compared with the planned one and with the maximum study period. The
+  longest prerequisite chain is shown as well.
+* **Roadmap priority.** Students with a second program get two settings:
+  *"Programları birlikte en kısa sürede bitir"* (finish both programs as
+  soon as possible) and *"Anadala öncelik ver"* (prioritise the major). The
+  roadmap is built with several placement orders and the best one for the
+  chosen goal is shown; the other setting's result is given for comparison.
+  The setting also affects this term's suggestions.
+* **Scenarios and planning load.** The maximum credits per term (any value),
+  terms to leave empty (Erasmus, internship) and the number of hard courses
+  per term can be changed to see how graduation moves, without saving.
+  A realistic credit value can be saved as the **planning load**; the
+  roadmap, the failure risk and double-major options all use the same load.
+  For a credit value above the current limit, the GPA the regulation
+  requires is stated.
+* **Decision support.** "Courses that would bring graduation forward if
+  taken this term" (including which course in the timetable they would
+  replace), a "taken in summer school" estimate and "how much graduation is
+  delayed if this course is failed" (failure risk).
+* **GPA target and grade scenario.** The minimum term average needed to stay
+  above thresholds (continuing the double major, graduation, the next credit
+  tier), and the estimated GPA for a given set of end-of-term grades.
 
-| Durum | Uygulama |
+### Regulations and applications
+
+* **Regulation checks.** Term credit load (Undergraduate Regulation,
+  Article 17), GPA thresholds, the credit requirement for the graduation
+  project and the double-major per-term credit floor are checked. Thresholds
+  are not hard-coded; they are defined with their sources in
+  `config/kurallar.toml`.
+* **Application eligibility.** The double-major and minor programs you can
+  apply to, the courses that already count in each, and the estimated
+  graduation term for each double-major option are listed.
+* **Courses you cannot take.** Why a course cannot be taken (prerequisite,
+  quota, section closed to your program, not offered this term, credit
+  threshold) is shown clearly, with the course name.
+* **Advisor summary.** A one-page printable summary for an advisor meeting:
+  this term's timetable and CRNs, credit and GPA checks, estimated
+  graduation and the actions that need a petition.
+
+### Data and monitoring
+
+* **Past grade distributions and estimated difficulty.** Pass rates and an
+  estimated difficulty are computed from the letter-grade distributions OBS
+  publishes. This is guidance only.
+* **Quota watch.** You get a notification when a seat opens in a course you
+  picked (`make watch`). On macOS the watch can run in the background.
+* **Change report.** New courses and filled quotas between two data updates
+  are listed.
+
+### Interface
+
+* Views are grouped in a side rail on desktop and a bottom tab bar on
+  phones: *Planla* (plan: weekly timetable, courses you can and cannot
+  take), *Durum* (status: progress, roadmap, credit and grade thresholds,
+  recent changes, applications, prerequisite tiers), *Ayar* (settings) and
+  *Yardım* (help).
+* Light and dark themes; the system setting is followed and can be changed
+  with the **Tema** button. Colour contrast was chosen by measurement.
+* Keyboard use, screen reader labels and the reduced-motion preference are
+  supported.
+
+## Core principle: uncertainty is shown, never hidden
+
+The tool tells students about their graduation plan, and a wrong positive
+result can do real harm. So every component follows one rule: **something
+unknown is never shown as if it were known.**
+
+| Situation | What the tool does |
 |---|---|
-| Mevzuattan doğrulanmamış eşik | ⚠ işaretiyle gösterilir, kesin bilgi olarak sunulmaz |
-| Hesaplanamayan şart (örneğin başarı sıralaması) | "Buradan denetlenemez" olarak belirtilir; sağlanmış sayılmaz |
-| Notu girilmemiş ders | En elverişsiz durum (DD) varsayılır |
-| Ad benzerliğinden çıkarılan denklik | Yalnızca önerilir; kullanıcı onaylamadan uygulanmaz |
-| Bir dersi eleyen kural | Gerekçesiyle birlikte gösterilir |
-| Katalogda bulunmayan bir dersi isteyen önşart | Ayrı bir kategori olarak raporlanır |
-| Gelecek dönemlere ilişkin varsayımlar | Yol haritasının üstünde açıkça listelenir |
+| A threshold not verified against the regulations | Marked with ⚠, not presented as fact |
+| A requirement that cannot be computed (e.g. class rank) | Stated as "cannot be checked here"; not counted as met |
+| A course without a grade | The worst case (DD) is assumed |
+| An equivalence inferred from similar names | Only suggested; never applied without the user's approval |
+| A rule that rules out a course | Shown with its reason |
+| A prerequisite naming a course missing from the catalog | Reported as a separate category |
+| Assumptions about future terms | Listed openly above the roadmap |
 
-Hesaplanan GNO bir **tahmindir**; resmî ortalama OBS'de yer alan değerdir.
+The computed GPA is an **estimate**; the official average is the one on OBS.
 
-## Kullanım seçenekleri
+## Ways to use it
 
-| | Çalıştığı ortam | Verinin saklandığı yer | Gereksinim |
+| | Runs in | Data stored in | Requirements |
 |---|---|---|---|
-| **Web sürümü** | Tarayıcı (Pyodide) | Kullanıcının tarayıcısı (IndexedDB) | Yok |
-| **Yerel sürüm** | Kullanıcının bilgisayarı | `data/user.sqlite3` | Python 3.11 veya üzeri |
+| **Web version** | Browser (Pyodide) | The user's browser (IndexedDB) | None |
+| **Local version** | The user's computer | `data/user.sqlite3` | Python 3.11 or later |
 
-Web sürümü, yerel sürümle **aynı Python motorunu** WebAssembly üzerinde
-çalıştırır; iki sürümün hesapları bu nedenle birbirinden ayrışmaz. Aradaki
-tek fark veri güncellemesidir: OBS'den veri çekme yalnızca yerel sürümde
-yapılır, web sürümü siteyle birlikte yayımlanan kataloğu kullanır.
+The web version runs **the same Python engine** as the local version, on
+WebAssembly, so the two never disagree in their results. The only difference
+is data updates: fetching from OBS is done only in the local version; the web
+version uses the catalog published with the site.
 
-**Ana ekrana ekleme.** Web sürümü telefona uygulama gibi eklenebilir:
+<img src="docs/ekran/telefon.png" alt="Weekly timetable on a phone: the next class and the bottom tab bar" width="260" align="right">
 
-* iPhone'da Safari'de **Paylaş → Ana Ekrana Ekle**;
-* Android'de Chrome'da **⋮ → Ana ekrana ekle** (veya **Uygulamayı yükle**).
+**Add to home screen.** The web version can be added to a phone like an app:
 
-Eklenen kısayol kendi simgesiyle ve adres çubuğu olmadan açılır. Bir kez
-açıldıktan sonra bağlantı olmadan da çalışır.
+* on iPhone, in Safari: **Share → Add to Home Screen**;
+* on Android, in Chrome: **⋮ → Add to Home screen** (or **Install app**).
 
-## Kurulum (yerel sürüm)
+The shortcut opens with its own icon and without the address bar. Once
+opened, it also works without a connection.
 
-Python 3.11 veya üzeri bir sürüm gereklidir.
+<br clear="right">
+
+## Installation (local version)
+
+Python 3.11 or later is required.
 
 ```bash
 git clone https://github.com/Alptugan77/ITU_Ders_Planlama_Araci.git
 cd ITU_Ders_Planlama_Araci
-make setup            # sanal ortam, bağımlılıklar ve örnek yapılandırma dosyaları
+make setup            # virtual env, dependencies and sample config files
 ```
 
-Ardından program bilgileri tanımlanır ve veriler çekilir:
+Then set up your programs and fetch the data:
 
 ```bash
-make programs                  # ÇAP/yandal planlarını ve kimlik numaralarını listeler
-$EDITOR config/settings.toml   # anadal ve ikinci program bilgileri
-make refresh                   # katalog, öğretim planları ve şubeler (OBS)
-make app                       # arayüzü tarayıcıda açar
+make programs                  # lists double-major/minor plans and their IDs
+$EDITOR config/settings.toml   # major and second program
+make refresh                   # catalog, curricula and sections (OBS)
+make app                       # opens the interface in the browser
 ```
 
-Transkript, arayüzdeki **Plandan işaretle** penceresinden dönem dönem
-girilebilir ya da OBS'den kopyalanan metin yapıştırılarak yüklenebilir.
+The transcript can be entered term by term from the **Plandan işaretle**
+window, or loaded by pasting the text copied from OBS.
 
-## Komutlar
+## Commands
 
-| Komut | Açıklama |
+| Command | What it does |
 |---|---|
-| `make app` | Düzenlenebilir arayüzü yerel sunucuyla açar |
-| `make ui` | Sunucu gerektirmeyen tek dosyalık statik rapor üretir |
-| `make refresh` | Katalog, planlar ve şubeleri OBS'den günceller |
-| `make all-plans` | Bütün programların ÇAP/yandal planlarını ve resmî denklikleri çeker (uzun sürer; dönemde bir kez yeterlidir) |
-| `make notdagilimi` | Geçmiş dönemlerin harf notu dağılımlarını çeker |
-| `make basvuru` | Başvurulabilecek ÇAP/yandal programlarını listeler |
-| `make recommend` | Komut satırında program önerisi üretir |
-| `make progress` | İlerleme panelini komut satırında gösterir |
-| `make changes` | Son iki güncelleme arasındaki değişiklikleri raporlar |
-| `make watch` | Kontenjan izlemeyi başlatır |
-| `make watch-kur` / `watch-durum` / `watch-kaldir` | İzlemeyi arka planda kurar, durumunu gösterir, kaldırır (macOS) |
-| `make status` | Veritabanı özetini gösterir |
-| `make site` | Statik web sürümünü üretir |
-| `make vitrin` | Uydurma bir örnek öğrenciyle arayüzü açar |
-| `make test` | Test takımını ve gizlilik denetimini çalıştırır |
+| `make app` | Opens the editable interface with a local server |
+| `make ui` | Builds a single-file static report that needs no server |
+| `make refresh` | Updates the catalog, curricula and sections from OBS |
+| `make offline` | Rebuilds the database from the İTÜ Helper data on disk, without network |
+| `make all-plans` | Fetches every program's double-major/minor plans and official equivalences (slow; once a term is enough) |
+| `make notdagilimi` | Fetches letter-grade distributions of past terms |
+| `make programs` | Lists double-major/minor plans and their IDs (`T=yandal` for minors) |
+| `make basvuru` | Lists double-major/minor programs you can apply to |
+| `make suggest` | Lists candidate equivalences (course taken = course in plan) |
+| `make student` / `make transcript FILE=x` | Sets up the student record and a transcript template / loads passed courses |
+| `make recommend` | Prints timetable suggestions on the command line |
+| `make progress` | Prints the progress panel on the command line |
+| `make changes` | Reports the changes between the last two updates |
+| `make watch` | Starts the quota watch |
+| `make watch-kur` / `watch-durum` / `watch-kaldir` | Installs the watch in the background, shows its status, removes it (macOS) |
+| `make status` | Shows a database summary |
+| `make site` | Builds the static web version |
+| `make vitrin` | Opens the interface with a fictional sample student (`ARGS="--ekran DIR"`: screenshots) |
+| `make gizlilik` | Checks whether personal data has leaked into the repo or the site |
+| `make tasarim` | Prints the CSS inventory (`ARGS=--denetle`: any value outside the scale?) |
+| `make test` | Runs the test suite and the privacy check |
 
-Tüm komutların listesi için `make help` kullanılabilir.
+`make help` lists every command.
 
-## Yapılandırma
+## Configuration
 
-`config/` dizinindeki dosyalar elle düzenlenebilir; arayüzden yapılan
-değişiklikler dosyadaki açıklama satırlarını korur.
+The files in `config/` can be edited by hand; changes made from the
+interface keep the comment lines in the file.
 
-| Dosya | İçerik | Depoda |
+| File | Contents | In the repo |
 |---|---|---|
-| `settings.toml` | Program seçimi, bulunulan yarıyıl, kredi sınırı, tercihler | Hayır (kişisel; `settings.example.toml` örnektir) |
-| `denklikler.toml` | Kullanıcının denklik ve muafiyet beyanları | Hayır (kişisel; örnek dosyası vardır) |
-| `kurallar.toml` | Mevzuat eşikleri (GNO, kredi yükü, bitirme çalışması, ÇAP tabanı) | Evet |
-| `katalog-duzeltmeleri.toml` | OBS kataloğundaki bilinen hataların düzeltmeleri | Evet |
+| `settings.toml` | Program choice, current term, credit limit, preferences | No (personal; `settings.example.toml` is the sample) |
+| `denklikler.toml` | The user's equivalence and exemption declarations | No (personal; a sample file exists) |
+| `kurallar.toml` | Regulation thresholds (GPA, credit load, graduation project, double-major floor) | Yes |
+| `katalog-duzeltmeleri.toml` | Fixes for known errors in the OBS catalog | Yes |
 
-`settings.toml` dosyasındaki başlıca ayarlar:
+Main settings in `settings.toml`:
 
-| Ayar | Açıklama |
+| Setting | Meaning |
 |---|---|
-| `anadal_program` | Anadal program kodu (örneğin `BLGE`) |
-| `second_kind` | İkinci program türü: `cap`, `yandal`, `ikisi` veya `yok` |
-| `cap_program`, `yandal_program` | İkinci program kodları |
-| `donem` | Bulunulan yarıyıl (0: otomatik) |
-| `cap_baslangic_yariyili` | ÇAP'a başlanan yarıyıl; yarıyıl kredi tabanı buna göre belirlenir |
-| `max_load` | Dönem kredi sınırı |
-| `mesgul` | Ders konulmayacak saatler (örneğin `"PZT 12:30-14:30 iş"`) |
-| `kilitli` | Belirli şubeye ya da saate kilitlenen dersler |
-| `yol_onceligi` | Yol haritası önceliği: `birlikte` veya `anadal` |
+| `anadal_program` | Major program code (e.g. `BLGE`) |
+| `second_kind` | Second program type: `cap` (double major), `yandal` (minor), `ikisi` (both) or `yok` (none) |
+| `cap_program`, `yandal_program` | Second program codes |
+| `donem` | Current term (0: automatic) |
+| `cap_baslangic_yariyili` | Term the double major started; sets the per-term credit floor |
+| `max_load` | Term credit limit |
+| `yol_yuk` | Planning load for the roadmap (0: the regulation limit) |
+| `mesgul` | Hours to keep free (e.g. `"PZT 12:30-14:30 iş"`) |
+| `kilitli` | Courses locked to a section or time |
+| `yol_onceligi` | Roadmap priority: `birlikte` (together) or `anadal` (major first) |
 
-Mevzuatta bir değişiklik olduğunda yalnızca `kurallar.toml` güncellenir;
-kodun değiştirilmesi gerekmez. Her eşik, dayandığı madde ve doğrulanma
-durumuyla birlikte tanımlanır.
+When the regulations change, only `kurallar.toml` needs updating; no code
+changes. Every threshold is defined with the article it relies on and
+whether it has been verified.
 
-## Veri kaynakları ve güncelleme
+## Data sources and updates
 
-| Kaynak | Kullanım |
+| Source | Used for |
 |---|---|
-| [İTÜ Helper veri seti](https://github.com/itu-helper/data) | Ders kataloğu ve önşart metinleri; şubeler (saat, derslik, kontenjan); program ve bina kodları |
-| OBS öğretim planları | Lisans, ÇAP ve yandal öğretim planları |
-| OBS resmî ders denklikleri | Dersler arası resmî denklikler |
-| OBS not dağılımları | Geçme oranı ve tahmini zorluk |
+| [İTÜ Helper dataset](https://github.com/itu-helper/data) | Course catalog and prerequisite text; sections (time, room, quota); program and building codes |
+| OBS curricula | Major, double-major and minor curricula |
+| OBS official course equivalences | Official equivalences between courses |
+| OBS grade distributions | Pass rates and estimated difficulty |
 
-Veriler herkese açık kaynaklardan, istekler arasında bekleme süresi
-bırakılarak çekilir. Kayıt döneminde `make refresh` komutunun gün içinde
-birkaç kez çalıştırılması, değişiklik raporunu (`make changes`) anlamlı
-kılar.
+Data is fetched from public sources, with a pause between requests. During
+registration week, running `make refresh` a few times a day makes the change
+report (`make changes`) useful.
 
-## Gizlilik ve güvenlik
+## Privacy and security
 
-* **Web sürümünde sunucu bulunmaz.** Tüm hesaplar tarayıcıda yapılır;
-  veriler tarayıcıda saklanır ve hiçbir yere gönderilmez. Pyodide ve yazı
-  tipleri de siteyle birlikte sunulur; açılışta üçüncü taraf bir hizmete
-  istek yapılmaz. Bu durum otomatik testle denetlenir.
-* **Verinin yedeklenmesi.** Web sürümünde veriler yalnızca kullanılan
-  tarayıcıda bulunur. Tarayıcı verileri silindiğinde ya da cihaz
-  değiştirildiğinde kaybolur. Ayar bölümündeki **Yedek indir** düğmesiyle
-  alınan dosya, yeni cihazda **Yedekten yükle** ile geri yüklenebilir.
-* **Çevrimdışı kullanım.** Web sürümü bir kez açıldıktan sonra bağlantı
-  olmadan da açılabilir; bu durumda verinin tarihi ekranda belirtilir.
-* **Yerel sürüm.** Kişisel veriler yalnızca `data/user.sqlite3` dosyasında
-  tutulur; `data/` dizini sürüm denetimine dahil edilmez. Yerel sunucu
-  yalnızca `127.0.0.1` adresinden erişilebilir.
-* `make ui` ile üretilen `data/itucap.html` dosyası kişisel notları içerir;
-  paylaşılmamalıdır.
-* Araç OBS şifresi istemez, OBS'de oturum açmaz ve ders kaydı yapmaz.
+* **The web version has no server.** All computation happens in the
+  browser; data is stored there and sent nowhere. Pyodide and the fonts are
+  served with the site, so opening it makes no request to a third party.
+  An automated test checks this.
+* **Backing up your data.** On the web version, data lives only in the
+  browser you use. It is lost if browser data is cleared or you change
+  devices. A file saved with **Yedek indir** (download backup) in settings can
+  be restored on a new device with **Yedekten yükle** (restore from backup).
+* **Offline use.** Once opened, the web version also opens without a
+  connection; the date of the data is shown on screen.
+* **Local version.** Personal data is kept only in `data/user.sqlite3`; the
+  `data/` folder is excluded from version control. The local server is only
+  reachable at `127.0.0.1`.
+* `data/itucap.html`, built by `make ui`, contains your grades; do not
+  share it.
+* The tool never asks for your OBS password, never signs in to OBS and never
+  registers courses.
 
-## Mimari
+## Architecture
 
 ```
 src/itucap/
-  sources/       OBS ve İTÜ Helper veri toplayıcıları
-  pipeline.py    komut satırı ve veri güncelleme adımları
-  normalize.py   ders kodu, havuz etiketi ve saat normalleştirme
-  prereq.py      önşart ayrıştırıcı ve not ölçeği
-  rules.py       plan yuvası doldurma, denklik kapanışı, plan ilerlemesi
-  sequence.py    önşart kademeleri (kritik yol)
-  recommend.py   aday puanlama ve çakışmasız program arama
-  policy.py      mevzuat: kredi yükü, GNO eşikleri, kredi şartları
-  yolharitasi.py çok dönemli mezuniyet planı
-  notlar.py      not dağılımları ve tahmini zorluk
-  progress.py    ilerleme paneli
-  basvuru.py     başvuru uygunluğu taraması
-  discover.py    aday denklik keşfi
-  changes.py     anlık görüntü ve değişiklik raporu
-  watch.py       kontenjan izleme
-  plans.py       plan çözümleme (web sürümü için veri toplama bağımlılığı yoktur)
-  istek.py       istek süresince önbellek
-  server.py      uygulama durumu ve uç yönlendirmesi
-  ui.py          tek dosyalık HTML arayüz üreticisi
-  tasarim.py     tasarım sistemi (renk, yazı, aralık ölçekleri)
-  simge/         uygulama simgesi (ana ekran, sekme; tools/simge_uret.py üretir)
+  sources/       OBS and İTÜ Helper data collectors
+  http.py        rate-limited HTTP client and raw response archive
+  pipeline.py    command line and data update steps
+  config.py      config files and paths
+  db.py          database connection (schema.sql, schema_user.sql)
+  student.py     student record and transcript
+  declared.py    the user's equivalence and exemption declarations
+  normalize.py   course code, pool label and time normalisation
+  prereq.py      prerequisite parser and grade scale
+  rules.py       filling plan slots, equivalence closure, plan progress
+  sequence.py    prerequisite tiers (critical path)
+  recommend.py   candidate scoring and clash-free timetable search
+  policy.py      regulations: credit load, GPA thresholds, credit requirements
+  yolharitasi.py multi-term graduation plan
+  notlar.py      grade distributions and estimated difficulty
+  progress.py    progress panel
+  basvuru.py     application eligibility scan
+  discover.py    candidate equivalence discovery
+  changes.py     snapshots and change report
+  watch.py       quota watch (nobet_servisi.py: macOS background service)
+  quality.py     data quality checks (at the end of every update)
+  verify.py      report comparing the OBS view with the database
+  plans.py       plan resolution (no data-collection dependency, for the web version)
+  istek.py       per-request cache
+  server.py      application state and endpoint routing
+  ui.py          single-file HTML interface generator
+  tasarim.py     design system (colour, type and spacing scales)
+  fonts/         fonts embedded in the site
+  simge/         app icon (home screen, tab; generated by tools/simge_uret.py)
 tools/
-  site_kur.py            statik site üreticisi
-  gizlilik_denetimi.py   kişisel veri sızıntısı denetimi
-  tasarim_envanteri.py   CSS envanteri ve ölçek denetimi
-  kontrast_olcumu.py     renk kontrastı ölçümü
-  vitrin.py              örnek öğrenciyle arayüz ve ekran görüntüsü
-  simge_uret.py          uygulama simgesinin PNG/SVG dosyaları
+  site_kur.py            static site builder
+  gizlilik_denetimi.py   personal data leak check
+  tasarim_envanteri.py   CSS inventory and scale check
+  kontrast_olcumu.py     colour contrast measurement
+  vitrin.py              sample student for the interface and screenshots
+  simge_uret.py          PNG/SVG files for the app icon
+  ton_merdiveni.py       measurement of the course colour ladder
+  hayalet_onsart.py      prerequisites naming courses missing from the catalog
+  kod_gocu_taramasi.py   scan for courses whose code changed
 web/
-  app.js, sw.js          tarayıcı çalıştırıcısı (Pyodide, IndexedDB, çevrimdışı önbellek)
+  app.js, sw.js          browser runner (Pyodide, IndexedDB, offline cache)
 ```
 
-Uygulama durumu (`server.State`) iki taşıyıcı tarafından ortak
-kullanılır: yerel HTTP sunucusu ve tarayıcıdaki Pyodide. Uç yönlendirmesi
-tek bir yerde (`State.dispatch`) tanımlıdır; böylece iki sürüm aynı
-davranışı gösterir.
+The application state (`server.State`) is shared by two carriers: the local
+HTTP server and Pyodide in the browser. Endpoint routing is defined in one
+place (`State.dispatch`), so both versions behave the same.
 
-Veriler iki ayrı veritabanında tutulur: herkese açık katalog
-(`reference.sqlite3`) ve kişisel veriler (`user.sqlite3`). Kullanıcının
-denklik beyanları da kişisel veri kabul edilir ve yalnızca
-`user.sqlite3` dosyasında saklanır.
+Data is kept in two separate databases: the public catalog
+(`reference.sqlite3`) and personal data (`user.sqlite3`). The user's
+equivalence declarations count as personal data and are stored only in
+`user.sqlite3`.
 
-Ölçüme dayalı tasarım kararlarının gerekçeleri `docs/` dizinindeki faz
-belgelerinde yer almaktadır.
+The reasons behind measured design and rule decisions are in the phase
+documents in `docs/` (`docs/fazNNN-*.md`, in Turkish). Each one describes the
+request, the measured problem and the change; the matching tests are in
+`tests/test_fazNNN_*.py`.
 
-## Test ve kalite güvencesi
+## Tests and quality checks
 
 ```bash
 make test
 ```
 
-* Test takımı 1.750'yi aşkın test içerir: motor kuralları küçük, elle
-  kurulmuş kataloglarla; uçtan uca davranış ise örnek öğrenciyle gerçek
-  tarayıcıda (Playwright) sınanır. Playwright kurulu değilse tarayıcı
-  testleri atlanır.
-* Yeni kurallar, kod bilinçli olarak bozulduğunda testlerin başarısız
-  olduğu doğrulanarak (mutasyon denetimi) eklenir.
-* Gizlilik denetimi (`tools/gizlilik_denetimi.py`) üretilen sitenin
-  içeriğini tarar; kişisel denklik beyanı, yerel dosya yolu ya da öğrenci
-  verisi bulunursa yayımlama durdurulur.
-* Tasarım denetimi, arayüzde tasarım ölçeği dışında bir değer
-  kullanılmadığını doğrular.
+* The suite has more than 1,850 tests: engine rules are tested against
+  small hand-built catalogs, and end-to-end behaviour is tested with the
+  sample student in a real browser (Playwright). Browser tests are skipped
+  if Playwright is not installed.
+* New rules are added only after confirming that the tests fail when the
+  code is deliberately broken (mutation check).
+* The privacy check (`tools/gizlilik_denetimi.py`) scans the built site;
+  publishing stops if it finds a personal equivalence declaration, a local
+  file path or student data.
+* The design check confirms that the interface uses no value outside the
+  design scale.
 
-## Web sürümünün yayımlanması
+## Publishing the web version
 
-Web sürümü GitHub Pages üzerinden yayımlanır. GitHub Pages'in ücretsiz
-planı yalnızca herkese açık depolarda çalışır.
+The web version is published on GitHub Pages. GitHub Pages' free plan only
+works for public repositories.
 
 ```bash
 make refresh
 gh release create katalog-$(date +%Y%m%d) data/reference.sqlite3
 ```
 
-Katalog (yaklaşık 15 MB) depoya eklenmez; yayımlama akışı
-(`.github/workflows/pages.yml`) en son `katalog-*` sürümünden kataloğu
-indirir, siteyi kurar ve yayımlamadan önce gizlilik denetimini çalıştırır.
-Akış, `main` dalına kod gönderildiğinde, yeni bir sürüm yayımlandığında ya
-da elle tetiklendiğinde çalışır. Yerel deneme için `make site` komutu
-kullanılabilir.
+The catalog (about 15 MB) is not committed; the publishing workflow
+(`.github/workflows/pages.yml`) downloads it from the latest `katalog-*`
+release, builds the site and runs the privacy check before publishing. The
+workflow runs on pushes to `main`, on new releases, or when triggered by
+hand. Use `make site` to try it locally.
 
-## Katkı
+## Contributing
 
-Hata bildirimleri ve değişiklik önerileri memnuniyetle karşılanır. Bu
-süreçte aşağıdaki hususlara dikkat edilmesi rica olunur:
+Bug reports and suggestions are welcome. Please keep in mind:
 
-1. **Kişisel veri paylaşılmamalıdır.** Hata bildirimlerinde transkript,
-   not ya da `data/` dizinindeki dosyalar yerine hata mesajı ve hatayı
-   yeniden oluşturma adımları yeterlidir.
-2. **Mevzuat değişiklikleri kaynağıyla bildirilmelidir.** Hatalı bir eşik,
-   ilgili madde numarasıyla birlikte bildirilmelidir; `kurallar.toml`
-   dosyasında her eşik için `kaynak` ve `dogrulandi` alanları bulunur.
-3. **Kural değişikliklerinden önce ilgili faz belgesi incelenmelidir.**
-   Kuralların çoğu, gerçek veriyle yapılan ölçümler sonucunda
-   düzeltilmiş varsayımlardır.
+1. **Don't share personal data.** In a bug report, the error message and the
+   steps to reproduce it are enough; no transcripts, grades or files from
+   `data/`.
+2. **Report regulation changes with their source.** A wrong threshold should
+   be reported with the article number; every threshold in `kurallar.toml`
+   has `kaynak` (source) and `dogrulandi` (verified) fields.
+3. **Read the relevant phase document before changing a rule.** Most rules
+   are assumptions that were corrected after measuring against real data.
 
-## Sorumluluk reddi ve lisans
+## Disclaimer and license
 
-Bu yazılım İstanbul Teknik Üniversitesi'nin resmî bir aracı değildir ve
-üniversiteyle kurumsal bir bağı bulunmamaktadır. Veriler OBS ve İTÜ
-Helper'dan alınmaktadır; hatalı ya da güncel olmayan bilgiler içerebilir.
-Kayıt kararları danışman ve OBS ile doğrulanmalıdır.
+This software is not an official tool of Istanbul Technical University and
+has no institutional connection to it. Data comes from OBS and İTÜ Helper
+and may be wrong or out of date. Confirm registration decisions with your
+advisor and OBS.
 
-Yazılım [MIT Lisansı](LICENSE) ile lisanslanmıştır.
+The software is licensed under the [MIT License](LICENSE).
